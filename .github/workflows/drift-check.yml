@@ -1,0 +1,18 @@
+# drift-check.yml — weekly circuit-breaker.
+# Populated in T17h. v0.1.0 is a disabled skeleton — full behavior lands only AFTER
+# T18a LangGraph DriftDetector has ≥1 successful run (48h stagger documented in the
+# project plan). This prevents a false-positive "drift silent" during bootstrap.
+
+name: drift-check
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "0 7 * * MON"  # enable after T18a is live + 48h
+
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: echo "Drift-check circuit-breaker lands in T17h."

@@ -1,0 +1,65 @@
+---
+schema: agents-md/v1
+version: 0.1.0
+inherits_from:
+  - github.com/Wizarck/ai-playbook@v0.1.0
+updated: {{TODAY}}
+project: {{PROJECT_NAME}}
+owner: {{OWNER_EMAIL}}
+capabilities_map: true
+---
+
+# {{PROJECT_NAME}} — AGENTS.md
+
+> Project dispatcher. Lean file. For universal norms, see `.ai-playbook/specs/*`.
+
+## 0 Bootstrap directive
+
+Before responding to ANY task:
+1. Read `.ai-playbook/specs/dispatcher-chain.md` — universal norms.
+2. Call MCP `hindsight.recall(query="{{PROJECT_NAME}} <topic>")`.
+3. Check `openspec/changes/*/` for active work on the topic.
+4. Only then respond.
+
+## 1 Project identity
+
+{{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}
+
+## 2 Dispatcher index
+
+| Topic | Pointer |
+|---|---|
+| PRD | `docs/prd.md` |
+| Architecture | `docs/architecture/` |
+| Runbook | `docs/runbook.md` |
+
+## 3 Active work
+
+{{ACTIVE_OPENSPEC_CHANGE_OR_NONE}}
+
+## 4 Project hard rules
+
+{{PROJECT_SPECIFIC_RULES_NOT_DUPLICATING_PLAYBOOK}}
+
+## 5 Capability map
+
+| Need | Tool / skill | Where |
+|---|---|---|
+| Prior decisions | `hindsight.recall` | MCP |
+| Persist lesson | `hindsight.retain` | MCP |
+| OpenSpec ops | `/opsx:propose|apply|archive|explore` | `.claude/commands/` |
+| Validate OpenSpec | `python .ai-playbook/scripts/openspec_validate.py` | playbook |
+| Render MCP configs | `python .ai-playbook/scripts/mcp/render.py --project {{PROJECT_NAME}}` | playbook |
+| Secrets scan | `python .ai-playbook/scripts/secrets_scan.py` | playbook |
+
+## 6 MCP sources (SSOT pointer)
+
+Snapshot ≤10 lines. Full source of truth: `mcp-servers.yaml` (project layer) merged with playbook base + personal override. See `.ai-playbook/specs/mcp-servers-schema.md`.
+
+## 7 Overrides inherited from playbook
+
+{{NONE_OR_EXPLICIT_OVERRIDES_WITH_RATIONALE}}
+
+## 8 Gotchas
+
+{{EMPTY_FILL_AS_YOU_LEARN}}

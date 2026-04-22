@@ -1,0 +1,23 @@
+# mcp-servers-base.yaml — well-known MCP server templates (playbook SSOT base layer).
+# Populated in T08. Consumers merge this with their own `mcp-servers.yaml` (project layer)
+# and `~/.config/mcp-servers.yaml` (personal layer). Render pipeline = 3-layer merge.
+
+schema: mcp-servers/v1
+version: 0.1.0
+layer: base
+
+# Placeholder entries — real templates land in T08.
+servers: {}
+
+# Fields each server will carry at T08:
+#   id: short-form canonical name (e.g. "hindsight")
+#   description: one-sentence intent
+#   transport: stdio | http
+#   command: stdio launcher (if applicable)
+#   endpoint: http URL (if applicable)
+#   env:
+#     required: [LIST_OF_ENV_VAR_NAMES]
+#     optional: [LIST]
+#   auth: none | bearer | oauth
+#   scope: personal | project | universal
+#   capabilities_hint: [recall, retain, search, ...]
