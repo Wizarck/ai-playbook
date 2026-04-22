@@ -2,53 +2,89 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Wizarck/ai-playbook/specs/agents-md-v1.schema.json",
   "title": "AGENTS.md frontmatter (v1)",
-  "description": "TODO: populated in T03a. Full JSON Schema for AGENTS.md YAML frontmatter across all consuming projects. v0.1.0 carries only the shape skeleton; T03 fills constraints, enums, and migration semantics.",
+  "description": "Strict JSON Schema for the YAML frontmatter block of every consumer project's AGENTS.md. Validated by scripts/schema_validate.py. The schema is evolvable (additionalProperties: true); tightening happens at playbook major bumps only. See specs/migration-guide.md for v0 -> v1 procedure and specs/dispatcher-chain.md for how the file is resolved.",
   "type": "object",
   "required": ["schema", "version", "updated", "project", "owner"],
   "properties": {
     "schema": {
       "type": "string",
       "const": "agents-md/v1",
-      "description": "Schema identifier. Must be exactly 'agents-md/v1' until v2 lands."
+      "description": "Schema identifier. Exactly 'agents-md/v1' for the entire v1 lifecycle. A v2 schema will introduce a new identifier and its own file; do not reuse this one.",
+      "$comment": "Constant on purpose: an agent bootstrapping into an unknown repo greps this literal to decide whether the file is machine-parseable."
     },
     "version": {
       "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+$",
-      "description": "Semver of THIS project's AGENTS.md."
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z-.]+)?$",
+      "description": "Semver of THIS project's AGENTS.md (independent of the playbook pin). Pre-release suffixes are permitted (e.g. '1.0.0-rc.1') so bootstrap branches can ship non-final frontmatter without breaking validation.",
+      "$comment": "The suffix regex mirrors SemVer 2.0.0 pre-release identifiers (alphanumerics, hyphens, dot-separated). Build metadata (+foo) is intentionally omitted — AGENTS.md is human-edited and build metadata has no meaning here."
     },
     "inherits_from": {
       "type": "array",
-      "items": { "type": "string" },
-      "description": "Ordered list of playbook/spec pins this project inherits. Typically one entry pointing at ai-playbook semver tag. T03 tightens pattern."
+      "items": {
+        "type": "string",
+        "pattern": "^github\\.com/[^/]+/[^@]+@v?\\d+\\.\\d+\\.\\d+$",
+        "description": "Pin of shape 'github.com/<org>/<repo>@<semver>'. The leading 'v' is optional so both '@v0.1.0' and '@0.1.0' validate."
+      },
+      "description": "Ordered list of upstream playbook/spec pins this project inherits, evaluated left-to-right (later entries can override earlier ones — see specs/dispatcher-chain.md override semantics). Typically ONE entry pinning ai-playbook at a semver tag.",
+      "$comment": "A pin is a tag, not a branch or commit SHA. Pinning to a branch defeats reproducibility: the playbook mutates out from under downstream agents."
     },
     "updated": {
       "type": "string",
       "format": "date",
-      "description": "ISO-8601 date of last structural update (YYYY-MM-DD)."
+      "description": "ISO-8601 calendar date (YYYY-MM-DD) of the most recent STRUCTURAL change to this AGENTS.md. Prose-only edits do not require a bump."
     },
     "project": {
       "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
       "minLength": 1,
-      "description": "Project slug. Must match repo name."
+      "maxLength": 64,
+      "description": "Project slug. MUST match the repository directory name and the key used in the projects registry (~/.ai-playbook/projects.yaml). No spaces, no path separators, no leading punctuation.",
+      "$comment": "Enforced as a slug so the registry can round-trip cwd -> project -> registry entry without ambiguity. Mixed case is allowed because existing repos (e.g. consumer-c-legacy) use camelCase."
     },
     "owner": {
       "type": "string",
       "format": "email",
-      "description": "Human contact."
+      "description": "Human contact for this project's dispatcher. Surfaces in deprecation warnings and orphan-detection reports."
     },
     "capabilities_map": {
       "type": "boolean",
-      "description": "If true, the file MUST include a 'Capability map' section. T03 documents rationale."
+      "default": false,
+      "description": "If true, the AGENTS.md MUST include a '## 5 Capability map' section with at least one row. scripts/schema_validate.py enforces the section exists when this flag is set.",
+      "$comment": "Default false so minimal stubs don't fail validation. Every non-trivial project should set true."
     },
     "personal": {
       "type": "boolean",
-      "description": "True if this is a personal (not team/public) project. Used by discover_projects.py to flag the entry; the global dispatcher then loads the add-on specified by personal_addon. Default false. Added by T02-pre.",
-      "default": false
+      "default": false,
+      "description": "True if this is Arturo's personal (non-team) repo. Consumed by scripts/discover_projects.py so the global dispatcher loads the matching personal add-on (see personal_addon). Team repos MUST keep this false."
     },
     "personal_addon": {
       "type": "string",
-      "description": "Path (relative to project root) of the personal add-on file loaded alongside this AGENTS.md when personal=true. Example: 'consumer-d.md'. Added by T02-pre."
+      "description": "Path (relative to project root) of the personal add-on file loaded alongside AGENTS.md when personal=true. Example: 'consumer-d.md'. Ignored when personal=false.",
+      "$comment": "Relative, not absolute: the add-on travels with the repo. Absolute paths would break cross-machine portability."
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "$comment": "additionalProperties is intentionally true. The schema MUST stay forward-compatible within the v1 lifecycle — new projects can annotate extra frontmatter keys (e.g. 'language', 'ci_system') that older validators silently ignore. Breaking tightening happens only at v2 with a new $id.",
+  "examples": [
+    {
+      "schema": "agents-md/v1",
+      "version": "1.0.0",
+      "inherits_from": ["github.com/Wizarck/ai-playbook@v0.1.0"],
+      "updated": "2026-04-23",
+      "project": "consumer-c-legacy",
+      "owner": "23051550+Wizarck@users.noreply.github.com",
+      "capabilities_map": true
+    },
+    {
+      "schema": "agents-md/v1",
+      "version": "1.0.0",
+      "inherits_from": ["github.com/Wizarck/ai-playbook@v0.1.0"],
+      "updated": "2026-04-23",
+      "project": "consumer-d",
+      "owner": "23051550+Wizarck@users.noreply.github.com",
+      "capabilities_map": true,
+      "personal": true,
+      "personal_addon": "consumer-d.md"
+    }
+  ]
 }
