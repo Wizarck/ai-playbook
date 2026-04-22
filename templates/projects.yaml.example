@@ -1,0 +1,22 @@
+# ~/.ai-playbook/projects.yaml — example layout.
+# Generated and maintained by scripts/discover_projects.py.
+# Per-dev, never committed. See specs/projects-registry.md.
+
+schema: ai-playbook/projects-registry/v1
+
+projects:
+  consumer-c-legacy:
+    path: C:/Projects/consumer-c-legacy
+    owner: 23051550+Wizarck@users.noreply.github.com
+    version: 1.0.0
+    inherits_from:
+      - github.com/Wizarck/ai-playbook@v0.1.0
+
+  consumer-d:
+    path: C:/Projects/consumer-d
+    owner: 23051550+Wizarck@users.noreply.github.com
+    version: 1.0.0
+    inherits_from:
+      - github.com/Wizarck/ai-playbook@v0.1.0
+    personal: true
+    personal_addon: C:/Projects/consumer-d/consumer-d.md
