@@ -1,6 +1,11 @@
-# Pre-commit configuration. Populated in T09/T10.
-# v0.1.0: minimal hygiene only — full hook set (schema_validate, secrets_scan,
-# prompt_injection_filter, verdict_lint, block_manual_spec_edit) lands in T09.
+# Pre-commit configuration for ai-playbook itself (dogfooding).
+#
+# Consumers copy `templates/new-project/.pre-commit-config.yaml.tmpl` — that
+# template lives under T14 and references `.ai-playbook/scripts/*`. This file
+# runs the same chain against the playbook repo's own files, with script paths
+# relative to the repo root (no submodule prefix).
+#
+# Full hook chain lands in T09. Diagram: docs/architecture-diagrams.md §3.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -17,3 +22,33 @@ repos:
     rev: v8.18.4
     hooks:
       - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: schema-validate
+        name: schema-validate (AGENTS.md frontmatter)
+        entry: python -m scripts.schema_validate
+        language: system
+        files: ^AGENTS\.md$
+        pass_filenames: true
+
+      - id: mcp-validate
+        name: mcp-validate (mcp-servers.yaml shape)
+        entry: python -m scripts.mcp.validate
+        language: system
+        files: ^mcp-servers.*\.yaml$
+        pass_filenames: true
+
+      - id: block-manual-spec-edit
+        name: block-manual-spec-edit (openspec/specs hand-edit guard)
+        entry: python -m scripts.block_manual_spec_edit
+        language: system
+        files: ^openspec/specs/.*\.md$
+        pass_filenames: true
+
+      - id: verdict-lint
+        name: verdict-lint (QA artefact ✅/⚠️/❓ + S1-S4 shape)
+        entry: python -m scripts.verdict_lint --shape artifact
+        language: system
+        files: ^openspec/changes/.*/(review|reviews/.*|qa/.*|readiness).*\.md$
+        pass_filenames: true
