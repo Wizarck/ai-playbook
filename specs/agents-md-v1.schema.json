@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/specs/agents-md-v1.schema.json",
+  "title": "AGENTS.md frontmatter (v1)",
+  "description": "TODO: populated in T03a. Full JSON Schema for AGENTS.md YAML frontmatter across all consuming projects. v0.1.0 carries only the shape skeleton; T03 fills constraints, enums, and migration semantics.",
+  "type": "object",
+  "required": ["schema", "version", "updated", "project", "owner"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "agents-md/v1",
+      "description": "Schema identifier. Must be exactly 'agents-md/v1' until v2 lands."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of THIS project's AGENTS.md."
+    },
+    "inherits_from": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered list of playbook/spec pins this project inherits. Typically one entry pointing at ai-playbook semver tag. T03 tightens pattern."
+    },
+    "updated": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO-8601 date of last structural update (YYYY-MM-DD)."
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project slug. Must match repo name."
+    },
+    "owner": {
+      "type": "string",
+      "format": "email",
+      "description": "Human contact."
+    },
+    "capabilities_map": {
+      "type": "boolean",
+      "description": "If true, the file MUST include a 'Capability map' section. T03 documents rationale."
+    }
+  },
+  "additionalProperties": true
+}
