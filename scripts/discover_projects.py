@@ -25,6 +25,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
+# Force UTF-8 I/O — Windows default cp1252 cannot encode the ✅/⚠️/❌ sigils we emit.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except (AttributeError, OSError):
+        pass
+
 try:
     import yaml
 except ImportError:
