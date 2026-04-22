@@ -39,6 +39,15 @@
     "capabilities_map": {
       "type": "boolean",
       "description": "If true, the file MUST include a 'Capability map' section. T03 documents rationale."
+    },
+    "personal": {
+      "type": "boolean",
+      "description": "True if this is a personal (not team/public) project. Used by discover_projects.py to flag the entry; the global dispatcher then loads the add-on specified by personal_addon. Default false. Added by T02-pre.",
+      "default": false
+    },
+    "personal_addon": {
+      "type": "string",
+      "description": "Path (relative to project root) of the personal add-on file loaded alongside this AGENTS.md when personal=true. Example: 'ELIGIA.md'. Added by T02-pre."
     }
   },
   "additionalProperties": true
