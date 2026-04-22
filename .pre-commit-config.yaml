@@ -1,0 +1,19 @@
+# Pre-commit configuration. Populated in T09/T10.
+# v0.1.0: minimal hygiene only — full hook set (schema_validate, secrets_scan,
+# prompt_injection_filter, verdict_lint, block_manual_spec_edit) lands in T09.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks

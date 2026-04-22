@@ -1,0 +1,40 @@
+# Pre-commit config for {{PROJECT_NAME}}. Inherits hooks from the ai-playbook submodule.
+# Bootstrap: `pre-commit install` after cloning.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: schema-validate-agents
+        name: Validate AGENTS.md against playbook schema
+        entry: python .ai-playbook/scripts/schema_validate.py AGENTS.md
+        language: system
+        pass_filenames: false
+        files: ^AGENTS\.md$
+
+      - id: mcp-validate
+        name: Validate mcp-servers.yaml layering
+        entry: python .ai-playbook/scripts/mcp/validate.py
+        language: system
+        pass_filenames: false
+        files: ^mcp-servers\.yaml$
+
+      - id: block-manual-spec-edit
+        name: Block manual edits to openspec/specs/
+        entry: python .ai-playbook/scripts/block_manual_spec_edit.py
+        language: system
+        files: ^openspec/specs/.*\.md$

@@ -1,0 +1,14 @@
+# release.yml — auto-tag semver on push to main.
+# Populated in T22. v0.1.0 is a disabled skeleton so the file exists for future edits.
+
+name: release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: echo "Release automation lands in T22."
