@@ -28,3 +28,8 @@ desktop.ini
 .env.local
 dist/
 build/
+
+# Projects registry (per-dev, never committed)
+projects.yaml
+.ai-playbook/
+overrides.log

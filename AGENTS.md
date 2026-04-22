@@ -29,6 +29,7 @@ Any agent editing this repo MUST:
 | Topic | Pointer |
 |---|---|
 | Inheritance model | [specs/dispatcher-chain.md](specs/dispatcher-chain.md) |
+| Projects registry (path resolution) | [specs/projects-registry.md](specs/projects-registry.md) |
 | AGENTS.md schema | [specs/agents-md-v1.schema.json](specs/agents-md-v1.schema.json) |
 | Taxonomy (agent/tool/skill/hook/…) | [specs/taxonomy.md](specs/taxonomy.md) |
 | Verdict + severity contract | [specs/verdict-contract.md](specs/verdict-contract.md) |
@@ -69,6 +70,8 @@ Tracked in the project plan outside this repo. Current version: `0.1.0` (scaffol
 | Run pre-commit locally | `pre-commit run --all-files` |
 | Emit a trace event | `python scripts/log_event.py` (see `scripts/tracing/`) |
 | Rollback to pre-refactor state | `git checkout baseline` |
+| Discover local projects / populate registry | `python -m scripts.discover_projects` |
+| List current registry | `python -m scripts.discover_projects --list` |
 
 ## 6 MCP sources
 
