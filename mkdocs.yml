@@ -1,0 +1,76 @@
+site_name: "ai-playbook"
+site_description: "Universal AI-dev norms, specs, scripts, and templates for Wizarck org projects."
+site_url: "https://wizarck.github.io/ai-playbook/"  # TBD — confirm final Pages URL on first deploy
+repo_url: "https://github.com/Wizarck/ai-playbook"
+repo_name: "Wizarck/ai-playbook"
+edit_uri: "edit/master/docs/"
+
+# Dogfood the existing docs/ tree instead of duplicating content under a separate docs_dir.
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Start here: start-here.md
+  - Onboarding:
+      - Quickstart: quickstart.md
+      - Quickstart lessons: quickstart-lessons.md
+      - SessionStart hook: session-start-hook.md
+      - Contributing: contributing.md
+  - Architecture:
+      - Diagrams: architecture-diagrams.md
+      - Bootstrap new project: bootstrap-new-project.md
+      - Why these choices: why-these-choices.md
+      - Model migration: model-migration.md
+  - Specs:
+      - Index: ../specs/INDEX.md
+      - Agent contract: ../specs/agent-contract.md
+      - Agentic failures: ../specs/agentic-failures.md
+      - Bootstrap directive: ../specs/bootstrap-directive.md
+      - Break-glass: ../specs/break-glass.md
+      - Degradation modes: ../specs/degradation-modes.md
+      - Dispatcher chain: ../specs/dispatcher-chain.md
+      - Env vars: ../specs/env-vars.md
+      - Error message standard: ../specs/error-message-standard.md
+      - MCP servers schema: ../specs/mcp-servers-schema.md
+      - Memory hierarchy: ../specs/memory-hierarchy.md
+      - Migration guide: ../specs/migration-guide.md
+      - Model routing: ../specs/model-routing.md
+      - Notification policy: ../specs/notification-policy.md
+      - Parallel review: ../specs/parallel-review.md
+      - Projects registry: ../specs/projects-registry.md
+      - Prompt caching: ../specs/prompt-caching.md
+      - Retrospective cadence: ../specs/retrospective-cadence.md
+      - Runbook (BMAD + OpenSpec): ../specs/runbook-bmad-openspec.md
+      - Taxonomy: ../specs/taxonomy.md
+      - Verdict contract: ../specs/verdict-contract.md
