@@ -67,6 +67,17 @@ Playbook scripts MUST NOT read these directly — they flow through the eligia d
 
 ---
 
+## `SKILLS_REGISTRY_*`
+
+| Var | Prefix | Purpose | Required? | Default | Where read |
+|---|---|---|---|---|---|
+| `SKILLS_REGISTRY_URL` | `SKILLS_REGISTRY_` | Base URL of the eligia-skills HTTP registry. | yes (if `skills-registry` MCP enabled) | unset | `scripts/skills_registry.py::_load_credentials` |
+| `SKILLS_REGISTRY_API_KEY` | `SKILLS_REGISTRY_` | Bearer token for `scope=personal` / `scope=<project>` queries. | conditional (required for non-`public` scope) | unset | `scripts/skills_registry.py::_load_credentials` |
+
+See `specs/skills-registry.md` for scope semantics and the degraded-mode path.
+
+---
+
 ## `LANGFUSE_*`
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
