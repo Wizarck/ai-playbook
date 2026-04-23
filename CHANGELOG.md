@@ -2,7 +2,26 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4 + Batch 5
+## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4 + Batch 5 + Batch 6
+
+### Added (Batch 6 — T15 cross-OS validation)
+
+**Windows baseline — real dry-run 2026-04-23:**
+- `docs/quickstart-lessons.md` fully populated with Windows timings + 4 real friction points. Total wall-clock ~18 min (inside 25–40 min quickstart band).
+
+**macOS / Linux / WSL2 — predicted friction from static analysis:**
+- macOS: `python3` vs `python` alias, Xcode CLT git prompt, `brew install sops age gitleaks`, BSD vs GNU util gotchas, APFS case-insensitivity caveat.
+- Linux: `python3-full/venv/pip` on Debian, `apt install sops age`, container `$AIPLAYBOOK_PROJECTS_FILE` override, locale UTF-8 pinning.
+- WSL2: `/mnt/c` filesystem boundary slowdown (10-100× vs native), line-ending cross-writes, dual-registry split between Windows Git Bash and WSL bash (fix: point both at shared path), exec-bit ghosting.
+
+### Fixed (Batch 6)
+- Added `.gitattributes` at playbook root (source files pinned to LF; `.bat/.cmd/.ps1` stay CRLF). Prevents spurious diffs on Windows clones with `core.autocrlf=true`.
+
+### Deferred (captured for future work)
+- `TODO T22`: package the playbook (`pyproject.toml [project.scripts]`) so consumers can `pip install -e .ai-playbook/` and call `ai-playbook-doctor` directly — eliminates the `ModuleNotFoundError` friction on consumer cwds.
+- Full real dry-runs on macOS / Linux / WSL2 — needs real hardware; the predicted sections above are enough to ship v0.2 but will be replaced with real timings when those machines are available.
+
+
 
 ### Added (Batch 5 — EX package, 2 parallel subagents)
 
