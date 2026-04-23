@@ -21,10 +21,12 @@ truth; this Markdown file is the human-readable catalog.
 
 | Fork | Upstream | Our repo | Branch | Owner | Purpose |
 |---|---|---|---|---|---|
-| hindsight | `upstream/hindsight-repo` (**TODO: clarify with maintainer** — URL) | `Wizarck/hindsight` | `eligia/main` | Arturo | Episodic memory MCP; upstream is fast-moving. |
-| hermes | `upstream/hermes` (**TODO: clarify with maintainer** — URL) | `Wizarck/hermes` | `eligia/main` | Arturo | Personal assistant + Telegram gateway. |
-| paperclip | `upstream/paperclip` (**TODO: clarify with maintainer** — URL) | `Wizarck/paperclip` | `palafito/main` | Arturo | BizOps orchestrator; Palafito tenant. |
-| lightrag | `upstream/lightrag` (**TODO: clarify with maintainer** — URL) | `Wizarck/lightrag` | `eligia/main` | Arturo | RAG substrate. |
+| hindsight | — (consumed as upstream image `ghcr.io/vectorize-io/hindsight`; not forked) | — | — | — | Not a fork. Upstream container image consumed directly by k3s Deployment. If divergence needed later, fork `vectorize-io/hindsight` and update this row. |
+| hermes-agent | `NousResearch/hermes-agent` | [`Wizarck/hermes-agent`](https://github.com/Wizarck/hermes-agent) | `eligia/main` | Arturo | Personal assistant agent framework (the "agent that grows with you"). **Note**: verify with Arturo whether this — or the `nanoclaw` fork — is the active production Hermes deployment mentioned in `ELIGIA.md`. They might both coexist (agent framework vs runtime). |
+| nanoclaw | `qwibitai/nanoclaw` | [`Wizarck/nanoclaw`](https://github.com/Wizarck/nanoclaw) | `eligia/main` | Arturo | Lightweight agents-SDK-based multi-messenger runtime (WhatsApp / Telegram / Slack / Discord / Gmail). Strong candidate for the Hermes role per its description. |
+| paperclip-mcp | — (own repo; Paperclip itself lives elsewhere) | [`Wizarck/paperclip-mcp`](https://github.com/Wizarck/paperclip-mcp) | `main` | Arturo | MCP server wrapping the Paperclip orchestration platform. NOT a fork — original work. Tracked here because Paperclip upstream changes may require MCP interface updates. |
+| awesome-paperclip | `gsxdsm/awesome-paperclip` | [`Wizarck/awesome-paperclip`](https://github.com/Wizarck/awesome-paperclip) | `main` | Arturo | Curated plugin list; low-churn fork. |
+| lightrag | — (not yet forked on Wizarck org) | — | — | — | Not found in Wizarck GitHub org at inventory time. If / when a fork is needed, create `Wizarck/lightrag` and update this row. |
 
 Each row's `Our repo` links to a local clone whose `PATCHES.md` is the authoritative patch list
 for that fork. When adding a new fork, populate this table AND append to
@@ -75,6 +77,6 @@ If we stop tracking a fork (upstream dead, we no longer use it, we vendored perm
 
 ---
 
-**TODO: clarify with maintainer** — confirm the exact upstream URLs for the four forks listed
+**Inventory research 2026-04-23** — all URLs verified via `gh repo list Wizarck --limit 40`. Remaining clarifications
 above; the placeholders are best-effort and need Arturo's verification before the workflow's
 first run.
