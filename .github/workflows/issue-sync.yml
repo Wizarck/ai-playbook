@@ -1,0 +1,77 @@
+# issue-sync.yml — zero-touch OpenSpec change → Jira/GH Issue sync.
+#
+# Runs on every PR merge into main/master that touches
+# openspec/changes/*/proposal.md. The script scans for changes without
+# a tracker_id/tracker_issue, creates one (Jira for private repos via
+# Atlassian REST, GH Issue + GH Project for public), and amends the
+# proposal.md with the id via a follow-up commit.
+#
+# Required repo secrets (set via `gh secret set` or repo Settings):
+#   SMTP_USER / SMTP_PASSWORD                 — email notifications.
+#   ATLASSIAN_URL / ATLASSIAN_USERNAME / ATLASSIAN_API_TOKEN  — Jira.
+#   AIPLAYBOOK_GH_PROJECT_NUMBER (optional)   — GH Project to add to.
+#   GITHUB_TOKEN (auto-provided by Actions)   — GH Issue creation.
+#
+# Zero-touch: the script is idempotent; re-runs on the same PR with
+# an already-synced proposal.md are no-ops.
+
+name: issue-sync
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - "openspec/changes/**/proposal.md"
+
+jobs:
+  sync:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # amend proposal.md with tracker_id
+      issues: write    # create GH Issues
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install playbook
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Configure git actor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run issue_sync
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          AIPLAYBOOK_NOTIFICATIONS_TO: ${{ secrets.AIPLAYBOOK_NOTIFICATIONS_TO }}
+          ATLASSIAN_URL: ${{ secrets.ATLASSIAN_URL }}
+          ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+          AIPLAYBOOK_JIRA_DEFAULT_PROJECT: ${{ secrets.AIPLAYBOOK_JIRA_DEFAULT_PROJECT }}
+          AIPLAYBOOK_GH_PROJECT_NUMBER: ${{ secrets.AIPLAYBOOK_GH_PROJECT_NUMBER }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.issue_sync
+
+      - name: Commit updated proposal.md (if any)
+        run: |
+          if ! git diff --quiet -- openspec/changes; then
+            git add openspec/changes
+            git commit -m "chore(issue-sync): embed tracker ids in proposal.md [skip ci]"
+            git push origin HEAD:${{ github.event.pull_request.base.ref }}
+          fi

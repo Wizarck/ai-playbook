@@ -276,7 +276,9 @@ def gh_release_create(
 def _jira_authorised_request(
     *, creds: issue_sync.JiraCreds, method: str, path: str,
     body: dict[str, Any] | None = None, timeout: float = 10.0,
-) -> tuple[int, dict | None, str]:
+) -> tuple[int, Any, str]:
+    """Return (status, parsed_json_or_None, reason). `parsed` may be a dict OR list
+    depending on the endpoint (e.g. `/project/KEY/versions` returns a list)."""
     endpoint = f"{creds.url}{path}"
     auth = base64.b64encode(
         f"{creds.username}:{creds.api_token}".encode("utf-8")
@@ -298,7 +300,8 @@ def _jira_authorised_request(
                 parsed = json.loads(raw) if raw else None
             except json.JSONDecodeError:
                 parsed = None
-            return resp.status, parsed if isinstance(parsed, dict) else None, "ok"
+            status = getattr(resp, "status", None) or getattr(resp, "code", 200)
+            return status, parsed, "ok"
     except urlerror.HTTPError as exc:
         raw = ""
         try:
@@ -332,7 +335,7 @@ def jira_find_or_create_fixversion(
         creds=creds, method="POST", path="/rest/api/3/version",
         body={"name": name, "project": project_key},
     )
-    if status in (200, 201) and payload and payload.get("id"):
+    if status in (200, 201) and isinstance(payload, dict) and payload.get("id"):
         return str(payload["id"]), "created"
     return None, f"create-failed:{msg}"
 
@@ -355,7 +358,7 @@ def jira_mark_released(
         path=f"/rest/api/3/issue/{tracker_id}/transitions",
     )
     released_id: str | None = None
-    if status == 200 and payload:
+    if status == 200 and isinstance(payload, dict):
         for t in payload.get("transitions", []) or []:
             if isinstance(t, dict) and (t.get("name") or "").lower() in ("released", "done"):
                 released_id = t.get("id")

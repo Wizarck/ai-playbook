@@ -1,0 +1,67 @@
+# release-cut.yml — zero-touch release automation on semver tag push.
+#
+# Runs when a tag matching `v*.*.*` is pushed. The script:
+#   1. Parses CHANGELOG.md for the section matching the tag.
+#   2. Collects OpenSpec changes archived since the previous tag.
+#   3. Creates a GitHub Release with the changelog section as notes.
+#   4. Creates / updates a Jira fixVersion per affected tracker_id
+#      (see specs/issue-tracking.md §3).
+#   5. Emits notifications at every step to the JSONL queue
+#      (.ai-playbook/notifications.jsonl) and SMTP for warn+error.
+#
+# Required repo secrets — same set as issue-sync.yml.
+#
+# Zero-touch: idempotent on re-run. Refuses to overwrite an existing
+# GH Release (fails loudly). Finds existing Jira fixVersion before
+# creating a new one.
+
+name: release-cut
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # create GH Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for git log since previous tag
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install playbook
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run release_cut
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          AIPLAYBOOK_NOTIFICATIONS_TO: ${{ secrets.AIPLAYBOOK_NOTIFICATIONS_TO }}
+          ATLASSIAN_URL: ${{ secrets.ATLASSIAN_URL }}
+          ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+          AIPLAYBOOK_JIRA_DEFAULT_PROJECT: ${{ secrets.AIPLAYBOOK_JIRA_DEFAULT_PROJECT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.release_cut --tag ${{ github.ref_name }}
+
+      - name: Upload notifications log as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notifications-${{ github.ref_name }}
+          path: .ai-playbook/notifications.jsonl
+          if-no-files-found: ignore
