@@ -2,7 +2,55 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — T02 + Batches 2-9
+## [0.2.0] — 2026-04-23 — MVP complete (T01–T23)
+
+### Added (Batch 10 — governance + upstream sync, 3 parallel subagents)
+
+**Subagent A — T22a/c/d/e/h/i governance docs + bootstrap (ai-playbook):**
+- `specs/incident-response.md` — deferred IR placeholder; activation triggers named.
+- `specs/role-matrix.md` — 4-role matrix + deferred k8s RBAC mapping.
+- `specs/data-retention.md` — retention table (10+ rows), deletion paths, GDPR-adjacent anonymisation.
+- `specs/post-mortem.md` + `templates/post-mortem.md.tmpl` — S1/SYSTEMIC trigger, 7-day due, required outcomes, 7 anti-patterns.
+- `scripts/bootstrap.py` (~534 lines, **full impl replacing stub**) — submodule add + pin, template copy with placeholder substitution, `--personal`, `--dry-run`, `--playbook-path` offline fallback via break-glass.
+- `scripts/deprecation_watcher.py` (~446 lines) — scans registry consumers + playbook for v0 schema, env-alias leaks, deprecated MCP IDs, stale lifecycle reports. `--strict`/`--json` modes; reads optional `specs/deprecations.yaml`.
+- `tests/test_bootstrap.py` (28 tests; **skip removed**) + `tests/test_deprecation_watcher.py` (18 tests).
+
+**Subagent B — T22f/g/j/k governance ops (ai-playbook):**
+- `specs/slos.md` — 8 SLOs with monthly review cadence + RFC escalation.
+- `specs/rollout-strategy.md` — 5-phase announcement path, 1-minor-cycle OR 90-day deprecation window, emergency security bypass.
+- `docs/curriculum.md` — 4-week dev learning path (Operator / Reviewer / Contributor / Maintainer candidate) with exit criteria.
+- `specs/channels.md` — solo-state + 8-row channels-by-purpose table + team-growth path + anti-patterns.
+
+**Subagent C — T23 upstream sync (ai-playbook + consumer-d):**
+- `specs/upstream-sync.md` + `templates/PATCHES.md.tmpl` + `docs/fork-inventory.md` (with `TODO: clarify` on 4 upstream URLs).
+- `scripts/upstream_sync.py` (~528 lines) — local inspection tool, `list`/`status`/`refresh`/`mark-merged` subcommands. Refresh is propose-only — no auto-merge.
+- `tests/test_upstream_sync.py` — 20 tests.
+- `consumer-d/langgraph-aiops/workflows/upstream_refresher.py` (~538 lines) — weekly LangGraph workflow; propose-only, gated by `hitl.request_approval`; decision log written to `reports/upstream-refresh/`.
+- `consumer-d/tests/test_upstream_refresher.py` — 20 tests.
+
+### Test suite totals (MVP close)
+
+- **ai-playbook: 425 passed, 0 skipped, 0 failures** (359 previous + 66 new from Batch 10A+C; `test_bootstrap.py` finally unskipped).
+- **consumer-d: 92 passed** (72 previous + 20 new from upstream_refresher); 2 pre-existing failures in `lib/test_advisor.py` that require live `ANTHROPIC_API_KEY` (unrelated to Batch work).
+- **consumer-d-skills: no test suite yet.**
+
+### Open TODOs remaining at v0.2.0
+
+- Upstream URLs for 4 forks (hindsight/hermes/paperclip/lightrag) — Arturo to confirm in `docs/fork-inventory.md`.
+- `Last rebase` timestamp convention in `PATCHES.md` — default ISO-8601; flagged in `specs/upstream-sync.md`.
+- T18 LangGraph workflows (Batch 8B) — NOT deployed; Arturo runs `consumer-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure) to activate on VPS.
+- T19 Dashboard (Batch 9A) — deploy helm/consumer-d-stack/ manifest; 5-step runbook.
+- `consumer-d-skills` HTTP service — only the API contract is spec'd (Batch 9B `docs/api-contract.md`); the service itself is future work.
+- IR runbook (Batch 10A `specs/incident-response.md`) — deferred until first paying client.
+- APPLY_FIX mode (T29 Phase 5) — every propose-mode helper carries the stub; real write capability after stability proof.
+
+### MVP summary
+
+23 tracks (T01–T23) landed across 10 batches. 3 repos touched (ai-playbook, consumer-d, consumer-d-skills + consumer-c-legacy for T02). Full test suite 425/0/0 green. 0 skips. All scripts dogfood pre-commit + schema + verdict + break-glass contracts.
+
+---
+
+## [Unreleased (pre-v0.2.0)] — T02 + Batches 2-9
 
 ### Added (Batch 9 — Dashboard + Skills registry, 2 parallel subagents)
 
