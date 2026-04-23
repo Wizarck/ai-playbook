@@ -1,0 +1,72 @@
+---
+title: {{TITLE}}
+incident_date: {{YYYY_MM_DD}}
+severity: {{S1_OR_SYSTEMIC}}
+duration: {{E_G_42_MIN_OR_NA}}
+responder: {{EMAIL}}
+reviewed_by: {{MAINTAINER_EMAIL_OR_PENDING}}
+status: draft
+---
+
+# {{TITLE}}
+
+> Post-mortem for the incident on {{YYYY_MM_DD}}. Blameless; target systems, not people. Contract: [../../.ai-playbook/specs/post-mortem.md](../../.ai-playbook/specs/post-mortem.md).
+
+## Summary
+
+One paragraph: what broke, who noticed, how long it took to restore, what the durable fix is. Written for a reader two years from now who has never heard of this incident. No blame, no victory lap.
+
+## Timeline
+
+All timestamps UTC. One row per event. Minimum: first signal, responder acknowledges, containment, resolution.
+
+| Time (UTC) | Event | Notes |
+|---|---|---|
+| {{HH_MM}} | First alert fired (`<source>`). | link to trace |
+| {{HH_MM}} | Responder acknowledged. | via Telegram / PagerDuty |
+| {{HH_MM}} | Containment (traffic rerouted / service paused / secret rotated). | link to PR / action |
+| {{HH_MM}} | Resolution confirmed. | how we confirmed |
+
+## Contributing factors
+
+List of 3–7 bullets naming **systems** that allowed this to happen. No individuals. Each bullet ends with a marker `[T]` (technical), `[P]` (process), or `[C]` (context) so the retro can cluster.
+
+- Factor one, e.g. "Pre-commit ran schema_validate but not mcp/validate, so the rename landed unvalidated." `[T]`
+- Factor two. `[P]`
+- Factor three. `[C]`
+
+## What went well
+
+Blameless works both ways — name what held. 2–4 bullets.
+
+- Alert fired within 90 seconds of symptom (monitoring tight).
+- Langfuse trace had the exact span we needed for diagnosis.
+
+## What went badly
+
+2–4 bullets. Framed as systems.
+
+- No runbook for `<service>` under this failure mode; responder improvised.
+- The fix PR bypassed pre-commit (break-glass reason was accurate but the gate should not have blocked).
+
+## Action items
+
+Every item MUST have an **assignee**, a **due date**, and a **tracking link**. "Talk about this in the retro" is not an action item.
+
+| # | Action | Assignee | Due | Tracking |
+|---|---|---|---|---|
+| 1 | Add `scripts/doctor.py` check for `<prereq>`. | 23051550+Wizarck@users.noreply.github.com | {{YYYY_MM_DD_DUE}} | GH: #NNN |
+| 2 | Update `<spec>.md` with the gap found in §contributing-factors. | 23051550+Wizarck@users.noreply.github.com | {{YYYY_MM_DD_DUE}} | RFC: rfcs/NNN |
+| 3 | Add runbook section for `<service>` failure mode X. | 23051550+Wizarck@users.noreply.github.com | {{YYYY_MM_DD_DUE}} | PR: #NNN |
+
+## Links
+
+- Incident trace(s): Langfuse / OTel links.
+- Related PRs: the fix, the revert (if any).
+- Prior incidents with similar signature: post-mortem filenames if any.
+- Specs touched: list.
+
+---
+
+✅ APPROVED | ⚠️ ISSUES FOUND (iter 1) | ❓ CLARIFICATION NEEDED
+(Delete the two that do not apply; a post-mortem without a canonical verdict line is malformed per `verdict-contract.md` §1.)
