@@ -6,13 +6,14 @@
 | --- | --- | --- |
 | [agent-contract.md](agent-contract.md) | v1.0.0. Supersedes T02-pre stub. Populated in T06. | Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an advisor — carries an |
 | [agentic-failures.md](agentic-failures.md) | v1.0.0. Supersedes T02-pre stub. Populated in T05. Draws from Google Agentic Design | This catalog enumerates the failure modes an agent can enter, with a detectable signal, a |
+| [auto-managed-sections.md](auto-managed-sections.md) | v1.0.0. Populated in T17. | Contract for the `<!-- BEGIN auto-managed: <source_spec> -->` / `<!-- END auto-managed -->` markers… |
 | [bootstrap-directive.md](bootstrap-directive.md) | stub, v0.1.0. Populated in **T02a** (consumer-c-legacy AGENTS.md section 0). This spec carries the canonical copy-paste block. | Any consumer project's `AGENTS.md` section 0 MUST render equivalent semantics: |
 | [break-glass.md](break-glass.md) | v1.0.0. Supersedes T02-pre stub. Populated in T07b. | Contract for the `--force-with-reason="<text>"` flag that every blocking check in a playbook script… |
 | [degradation-modes.md](degradation-modes.md) | v1.0.0. Supersedes T02-pre stub. Populated in T04b. | Degradation is **observed and announced, never guessed**. Every playbook-driven agent exposes a deg… |
 | [dispatcher-chain.md](dispatcher-chain.md) | stub, v0.1.0. Populated in **T02h** (data-flow diagrams) and cross-referenced from **T03** (schema). Consumers should treat the v0.1.0 version as directional intent, not contract. | Define the 3-level dispatcher inheritance model so any agent (Claude Code, Gemini CLI, Antigravity,… |
 | [env-vars.md](env-vars.md) | v1.0.0. Supersedes the T02-pre stub. Populated in T09. | Single source of truth for every env var the playbook (or a playbook script) reads. Adding a new va… |
 | [error-message-standard.md](error-message-standard.md) | v1.0.0. Supersedes T02-pre stub. Populated in T07a. | Canonical error format for any message a playbook script emits to a human (CLI stderr, log, dashboa… |
-| [mcp-servers-schema.md](mcp-servers-schema.md) | stub, v0.1.0. Populated in **T08**. Formal schema ships as `mcp-servers.schema.json` alongside the merge pipeline. | 1. **Base** — `ai-playbook/mcp-servers-base.yaml`. Well-known server templates (hindsight, guardrai… |
+| [mcp-servers-schema.md](mcp-servers-schema.md) | v1.0.0. Supersedes the T02-pre stub. Full schema populated in | Single-source-of-truth contract for the 3-layer MCP server configuration |
 | [memory-hierarchy.md](memory-hierarchy.md) | v1.0.0. Supersedes T02-pre stub. Populated in T06. | Agents operate across four memory tiers with different read/write patterns, retention windows, |
 | [migration-guide.md](migration-guide.md) | v1.0.0. Supersedes T02-pre stub. Populated in T03b. | Procedure for migrating an existing `AGENTS.md` (or equivalent ad-hoc dispatcher file) from **v0**… |
 | [model-routing.md](model-routing.md) | v1.0.0. Supersedes T02-pre stub. Populated in T04a. | The routing matrix below is the canonical taxonomy every playbook consumer uses to pick a model for… |
@@ -22,5 +23,6 @@
 | [prompt-caching.md](prompt-caching.md) | v1.0.0. Supersedes T02-pre stub. Populated in T04c. | Prompt caching is **the single largest cost and latency lever** in this stack. A well-ordered promp… |
 | [retrospective-cadence.md](retrospective-cadence.md) | v1.0.0. Supersedes T02-pre stub. Populated in **T14i** (spec). The automation (`scripts/lifecycle_check.py`) is owned by the Subagent A track of T14i; this file specifies what that script must produce and how humans consume it. | Retros are not a ritual. They are the feedback loop that keeps the playbook honest — if a spec is a… |
 | [runbook-bmad-openspec.md](runbook-bmad-openspec.md) | v1.0.0. Populated in T11. | The canonical flow for any consumer project that adopts the playbook: BMAD for Discovery, OpenSpec… |
+| [skills-registry.md](skills-registry.md) | v1.0.0. Populated in T20. Defines the integration contract between | The skills registry is the **authoritative discovery surface** for project skills. |
 | [taxonomy.md](taxonomy.md) | v1.0.0. Supersedes T02-pre stub. Populated in T03c. | Canonical glossary for terms used across `ai-playbook/specs/*`, consumer AGENTS.md files, |
 | [verdict-contract.md](verdict-contract.md) | v1.0.0. Supersedes T02-pre stub. Populated in T05. | Every QA-style artefact produced by an agent (code review, readiness check, spec audit, retro) ends |
