@@ -2,7 +2,38 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — T02 + Batches 2-8
+## [Unreleased] — T02 + Batches 2-9
+
+### Added (Batch 9 — Dashboard + Skills registry, 2 parallel subagents)
+
+**Subagent A — T19 Dashboard (eligia-core, commit `02b640a`):**
+- `dashboard/backend/` FastAPI app on port 9020 (new; coexists with legacy MVP on :8090).
+  - Routes: `/health`, `/api/status` (wraps `eligia_ops.tools.stack_health`), `/api/events` + `/api/events/kinds`, `/api/cost/month/{yyyymm}` (subprocess wrapper, 5 min in-memory cache), `/api/lifecycle/current` (file-first, `--dry-run` fallback), `/api/stream/events` (SSE tailer, 1 s poll + 15 s keep-alive).
+- `dashboard/frontend/` vanilla JS single-page dashboard — header + degradation pill + 4 cards (stack health / events / cost / lifecycle). No framework / no build step.
+- `dashboard/Dockerfile` — multi-stage, port 9020, curl healthcheck.
+- `dashboard/tests/test_app.py` — 19 tests (all pass): SSE init+live frame, CORS, cost caching + 400-on-bad-month, lifecycle file→dry-run fallback, stack_health degradation branches.
+- Manual deploy via the T18 5-step runbook; helm values bump pending Arturo.
+
+**Subagent B — T20 Skills Registry Integration (ai-playbook `b44833c` + eligia-skills `6d58f20`):**
+- `scripts/skills_registry.py` (~391 lines) — `list` / `show` CLI + importable `list_skills()` / `skill_by_name()`. Stdlib `urllib` only. Canonical errors; `--force-with-reason` degrades to empty list.
+- `tests/test_skills_registry.py` — 26 tests (all pass; mocks `urlrequest.urlopen`).
+- `specs/skills-registry.md` — purpose, API contract, scope model, caching, fallback, security, cross-refs.
+- `specs/mcp-servers-schema.md` — expanded from 28-line stub to 249-line full spec (3-layer merge, field contract, skills-registry deep dive, validator/render rules, anti-patterns).
+- `specs/env-vars.md` — added `SKILLS_REGISTRY_*` table.
+- `eligia-skills/docs/api-contract.md` + `README.md` — documents the HTTP contract the playbook integration expects; the service implementation itself remains future work.
+
+### Test suite totals (Batch 9 close)
+
+- **ai-playbook: 359 passed, 1 skipped** (333 previous + 26 new).
+- **eligia-core: 72 passed** (53 previous + 19 new).
+- **eligia-skills: no test suite** (currently skills data + docs only).
+
+### Open TODOs
+
+- `eligia-skills` service implementation (FastAPI/Node serving `/api/v1/skills`) — spec'd, not built. Arturo or a future track owns.
+- Dashboard helm deploy manifest — Arturo adds to `helm/eligia-stack/` following the T18 5-step runbook.
+
+
 
 ### Added (Batch 8 — live docs + LangGraph workflows, 2 parallel subagents)
 
