@@ -20,7 +20,7 @@ Decision rule (apply to every repo under `Wizarck`):
 
 | Repo visibility | Planning surface | Release surface | Ticket prefix |
 |---|---|---|---|
-| Public AGPL-3.0 (`openTrattOS`, `awesome-paperclip`, `paperclip-mcp`, `nanoclaw`, …) | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
+| Public AGPL-3.0 (`openTrattOS`, `awesome-paperclip`, `paperclip-mcp`, …) | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
 | Private enterprise (`eligia-core`, `palafito-b2b`, `Palafito-hub`, `ESILDA`, future SaaS) | **Jira** (`atlassian-geeplo` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
 | Private personal (`ai-playbook`, `eligia-skills`, `skills-manager-personal`, `diakopa`, `GTM-Helper`) | GitHub Issues (lightweight; no project board) | git tag only | `#<issue-number>` |
 
