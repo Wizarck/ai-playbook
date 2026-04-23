@@ -1,0 +1,27 @@
+# Normalise line endings in this repo regardless of the dev's
+# `core.autocrlf` setting. Python/YAML/MD/JSON are always LF in-repo;
+# Windows batch/cmd/ps1 stay CRLF because those tools require it.
+
+* text=auto eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
