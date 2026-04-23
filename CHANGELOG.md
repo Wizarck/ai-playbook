@@ -2,7 +2,32 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4 + Batch 5 + Batch 6 + Batch 7
+## [Unreleased] — T02 + Batches 2-8
+
+### Added (Batch 8 — live docs + LangGraph workflows, 2 parallel subagents)
+
+**Subagent A — T17 live docs + drift (ai-playbook):**
+- `scripts/drift_check.py` (~644 lines) — full implementation (was stub). 4 checks (`inherits_from` pin lag, auto-managed section staleness, spec xref drift, taxonomy term drift with 3-file noise filter). CLI `--check`, `--fix` (auto-managed only), `--force-with-reason`. Canonical errors.
+- `scripts/auto_managed.py` (~562 lines) — new. Public API `compute_expected` / `find_sections` / `regenerate` / `apply_fix`. Supports 4 source shapes (universal-principles, taxonomy:runtime/config, verdict-contract:levels) + generic `<spec>:<anchor>` fallback. Idempotent; skips fenced code blocks.
+- `specs/auto-managed-sections.md` — marker format, source shapes, merge strategy, anti-patterns.
+- `tests/test_auto_managed.py` (24 tests) + `tests/test_drift_check.py` (18 tests, skip marker removed).
+- `.github/workflows/drift-check.yml` — active weekly cron (MON 07:00 UTC) with 48-hour T18a sentinel stagger via `heartbeat-t18a.txt` mtime check.
+
+**Subagent B — T18 LangGraph workflows backbone (consumer-d, commit `0011bb9`):**
+- `langgraph-aiops/workflows/{drift_detector,retro_generator,cost_reporter,metrics_buffer,hitl}.py` — 4 propose-only workflows + shared HITL gate. Each wraps a LangGraph StateGraph; lazy-imports langgraph so tests don't hard-depend. `drift_detector` touches `.ai-playbook/heartbeat-t18a.txt` on success → closes the loop with 8A's GitHub Action stagger.
+- `docs/subsystems/langgraph-workflows.md` + `docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops embedded + T18 CronJob additions + 48h stagger note) + `LEGACY_MIGRATION.md`.
+- `tests/test_workflows.py` — 34 new tests (consumer-d suite 53/53).
+
+### Test suite totals (Batch 8 close)
+
+- **ai-playbook: 333 passed, 1 skipped** (291 previous + 42 new). Remaining skip: `test_bootstrap.py` (out of scope).
+- **consumer-d: 53 passed** (19 previous + 34 new).
+
+### Deploy gate (manual)
+
+T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure + CronJob additions). The 48h T17h stagger starts from first successful DriftDetector run (heartbeat file touched on VPS).
+
+
 
 ### Added (Batch 7 — docs hub + consumer-d-ops meta-agent, 2 parallel subagents)
 
