@@ -2,7 +2,26 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — T02 + Batch 2 + Batch 3
+## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4
+
+### Added (Batch 4 — project workflows)
+
+**T11 — Runbook BMAD + OpenSpec:**
+- `specs/runbook-bmad-openspec.md` (canonical universal runbook — 6 HITL gates A..F, phase map, BMAD Discovery artefacts + gates, OpenSpec per-artefact sequence, max-2-rework, self-validation 5-gate checklist, lifecycle state diagram, retro cadence summary).
+
+**T12 — Context auto-inject:**
+- `scripts/inject_context.py` (full implementation, ~340 lines). POST `<HINDSIGHT_URL>/recall` with `{bank_id, query, top_k}`; normalises entries/results envelopes; auto-resolves `project` + `bank_id` from consumer `AGENTS.md` frontmatter; sanitises output through `secrets_scan.sanitise` before write; writes `<consumer>/.claude/injected-context.md` with per-entry markdown blocks + metadata; `DEGRADED_CONTEXT` banner path on URL errors / timeouts / credentials missing; break-glass honoured with audit-logged override.
+- `tests/test_inject_context.py` (21 tests — all pass). Covers AGENTS.md introspection, HTTP normalisation (list + envelope shapes), degraded paths (HTTPError / URLError / malformed JSON), rendering (empty / populated / degraded / error banners), sanitiser integration, CLI paths (missing creds, force-with-reason, dry-run, happy path, bank-id override).
+- `docs/session-start-hook.md` — how to wire it into Claude Code `SessionStart`, Gemini CLI, Cursor, plus dry-run + break-glass docs.
+
+**T13 — Gotcha templates:**
+- `templates/gotcha.md.tmpl` — canonical public and personal gotcha entry shapes with worked examples, 6 writer rules (one-concept-per-bullet, date-stamp, why+how-to-avoid, link-to-evidence, archive-90-day, never-retain-secrets), cross-refs to `memory-hierarchy.md` / `verdict-contract.md` / `retrospective-cadence.md`.
+
+### Test suite totals (Batch 4 close)
+
+- **205 passed, 3 skipped, 0 failures** (184 previous + 21 new for inject_context).
+
+
 
 ### Added (Batch 3 — scripts + infra, 4 parallel subagents)
 
