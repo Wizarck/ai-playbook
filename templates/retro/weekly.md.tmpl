@@ -1,0 +1,62 @@
+---
+template: ai-playbook/retro/weekly/v1
+week: {{YYYY_WW}}
+monday_date: {{YYYY_MM_DD}}
+participant: {{HANDLE}}
+---
+
+# Weekly retro — {{YYYY_WW}}
+
+> Created in **T14h** (template). Lives at `reports/retros/<YYYY-MM>/weekly-{{YYYY_WW}}.md`. Runs Monday per `specs/retrospective-cadence.md` §1.
+
+## 1. Archives this week
+
+Link each `openspec archive` that completed this week with its post-archive retro file.
+
+- {{CHANGE_ID}} — archived {{YYYY-MM-DD}} — [post-archive retro](post-archive-{{CHANGE_ID}}.md) — verdict `{{✅|⚠️|❓}}`.
+- …
+
+If zero archives this week, state so explicitly (`None. Active changes still in drafting.`) — silent retro = anti-pattern per `specs/retrospective-cadence.md` §5.
+
+## 2. Break-glass usages
+
+Source: `<each-project>/.ai-playbook/overrides.log` aggregated.
+
+| Timestamp | Project | Actor | Script | Gate | Reason (truncated) |
+|---|---|---|---|---|---|
+| {{ISO_TS}} | {{project}} | {{email}} | {{script}} | {{gate}} | {{first 60 chars of reason}} |
+| … | … | … | … | … | … |
+
+Flag: any gate overridden ≥3× in the last 30 days is a systemic signal — escalate to monthly retro action items.
+
+## 3. FEEDBACK.md triage
+
+Source: `FEEDBACK.md` bullets dated since last Monday.
+
+| Date | Handle | Gripe | Disposition |
+|---|---|---|---|
+| {{YYYY-MM-DD}} | @{{handle}} | {{gripe}} | {{promoted to #N / RFC-N / dismissed as dup / keep as evidence}} |
+| … | … | … | … |
+
+Promoted bullets are annotated in-line in `FEEDBACK.md` (`— triaged: promoted to #N`). Dismissed bullets are also annotated; they are NOT deleted.
+
+## 4. Top 3 frictions
+
+The three most costly frictions this week — measured by dev-time lost, not by count.
+
+1. **{{FRICTION_TITLE}}** — evidence: {{trace_id / file line / retro link}}. Proposed fix: {{ONE_SENTENCE}}.
+2. **{{FRICTION_TITLE}}** — evidence: {{…}}. Proposed fix: {{…}}.
+3. **{{FRICTION_TITLE}}** — evidence: {{…}}. Proposed fix: {{…}}.
+
+## 5. Action items
+
+| # | Item | Owner | Due | Tracking |
+|---|---|---|---|---|
+| 1 | {{ACTION}} | {{handle}} | {{YYYY-MM-DD}} | {{GH#N or RFC link}} |
+| … | … | … | … | … |
+
+## 6. Verdict
+
+Per `specs/verdict-contract.md` §1. A weekly retro with no narrative and no action items is the `copy-paste retro` anti-pattern.
+
+{{VERDICT_LITERAL_EXACTLY_AS_PER_CONTRACT}}

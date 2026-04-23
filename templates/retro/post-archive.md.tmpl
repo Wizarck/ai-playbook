@@ -1,0 +1,59 @@
+---
+template: ai-playbook/retro/post-archive/v1
+change_id: {{CHANGE_ID}}
+archived_on: {{YYYY_MM_DD}}
+participants: [{{AGENT_IDS_OR_HUMAN_HANDLES}}]
+human_approver: {{HUMAN_APPROVER_EMAIL}}
+---
+
+# Post-archive retro — {{CHANGE_ID}}
+
+> Created in **T14h** (template). Lives at `reports/retros/<YYYY-MM>/post-archive-{{CHANGE_ID}}.md` once filled. See `specs/retrospective-cadence.md` §1 for when this template fires.
+
+## Summary
+
+{{ONE_PARAGRAPH_WHAT_THIS_CHANGE_DID_AND_WHY_IT_MATTERED}}
+
+## Wins
+
+- {{WHAT_WORKED_CONCRETE_EVIDENCE}}
+- {{WHAT_WORKED_CONCRETE_EVIDENCE}}
+
+## Frictions
+
+List with evidence. No blame; the target is systems, not individuals (see `specs/retrospective-cadence.md` anti-patterns). Focus on:
+
+- Max-2-rework violations (if any iter-3 was attempted — that's a governance breach).
+- Ambiguous specs that produced `❓ CLARIFICATION NEEDED` verdicts.
+- Slow QA cycles (spawn → verdict beyond the track's budget).
+- Break-glass usages (cite the `overrides.log` line).
+- Any `ai_playbook.failure.kind=*` span recorded during apply.
+
+- [S?] {{FRICTION_TITLE}} — evidence: {{trace_id_or_file_line}}. Root cause: {{ONE_SENTENCE}}.
+- [S?] {{FRICTION_TITLE}} — evidence: {{…}}. Root cause: {{…}}.
+
+## Lessons retained
+
+Each bullet corresponds to a `hindsight.retain` call made during or after the change. Include the trace_id so downstream retros can dereference.
+
+- {{LESSON}} — `hindsight.retain` trace_id: {{UUID}}.
+- {{LESSON}} — trace_id: {{UUID}}.
+
+## Action items
+
+| # | Item | Owner | Due | Tracking |
+|---|---|---|---|---|
+| 1 | {{ACTION}} | {{handle}} | {{YYYY-MM-DD}} | {{GH#N or RFC link}} |
+| 2 | {{ACTION}} | {{handle}} | {{YYYY-MM-DD}} | {{…}} |
+
+Action items without a due date or owner are NOT action items — they are wishes. Drop or fix.
+
+## Verdict
+
+Exactly one of the following per `specs/verdict-contract.md` §1. The verdict line is the last line of the retro.
+
+- `✅ APPROVED` — change landed clean; lessons captured; no follow-up blocking.
+- `⚠️ ISSUES FOUND (iter 1)` — frictions logged, action items pending — follow-up in the weekly retro.
+- `❓ CLARIFICATION NEEDED` — retro cannot close because a spec or rule is ambiguous; escalate to human per verdict-contract §4.
+
+{{VERDICT_LITERAL_EXACTLY_AS_PER_CONTRACT}}
