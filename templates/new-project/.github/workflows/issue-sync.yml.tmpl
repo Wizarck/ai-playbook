@@ -54,7 +54,7 @@ jobs:
           AIPLAYBOOK_GH_PROJECT_NUMBER: ${{ secrets.AIPLAYBOOK_GH_PROJECT_NUMBER }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python .ai-playbook/scripts/issue_sync.py
+        run: PYTHONPATH=.ai-playbook python -m scripts.issue_sync
 
       - name: Commit updated proposal.md (if any)
         run: |
