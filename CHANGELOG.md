@@ -2,7 +2,30 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4 + Batch 5 + Batch 6
+## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4 + Batch 5 + Batch 6 + Batch 7
+
+### Added (Batch 7 — docs hub + eligia-ops meta-agent, 2 parallel subagents)
+
+**Subagent A — T16a/b/c docs hub + MkDocs (ai-playbook):**
+- `mkdocs.yml` (76 lines) — Material config, slate palette, `pymdownx.*` extensions, explicit nav (Home / Start here / Onboarding / Architecture / Specs).
+- `docs/index.md` — homepage with 3-column tabbed cards, 4 universal principles snapshot, links to AGENTS.md + start-here.md.
+- `scripts/gen_indexes.py` (~402 lines) — walks a root, writes `INDEX.md` per folder with File / Status / Summary table + optional `## Sub-directories` section. CLI `--root`, `--check` (staleness detection for CI). Skips directories that carry a curated lowercase `index.md` (so `docs/` keeps its homepage and `specs/` gets an auto-index).
+- `specs/INDEX.md` — auto-generated (21 spec entries); second `--check` run is clean.
+- `tests/test_gen_indexes.py` — 22 tests (all pass).
+- `pyproject.toml` — new `[project.optional-dependencies].docs` group (mkdocs, mkdocs-material, pymdown-extensions).
+
+**Subagent B — T16c/d/e/f eligia-ops meta-agent (eligia-core, commit `18ad17e`):**
+- `langgraph-aiops/eligia_ops/{__init__,server,tools,README}.py/md` — MCP stdio server + 5 read-only tools (`watchdog_status`, `recent_incidents`, `recent_retains`, `stack_health`, `suggest_remediation`).
+- `docs/subsystems/eligia-ops.md` + `.claude/skills/eligia-ops/SKILL.md` — subsystem doc + skill file.
+- `tests/test_eligia_ops.py` — 19 tests (all pass).
+- `suggest_remediation` returns propose-only candidates with `command_preview` + `risk` tier; `APPLY_FIX_MODE=apply` raises `NotImplementedError("APPLY_FIX mode deferred to T29")`.
+- `watchdogs.py` untouched — eligia-ops reads its output files only.
+
+### Test suite totals (Batch 7 close, ai-playbook)
+
+- **291 passed, 2 skipped, 0 failures** (269 previous + 22 new for gen_indexes).
+
+
 
 ### Added (Batch 6 — T15 cross-OS validation)
 
