@@ -1,0 +1,75 @@
+# Gotcha entry — template
+
+> Copy the block below into a consumer project's `AGENTS.md` §8 Gotchas OR into
+> its personal add-on (e.g. `consumer-d.md`). One bullet per gotcha, ordered newest
+> first. Do NOT batch multiple gotchas into one line.
+
+## Public gotcha (goes in AGENTS.md §8 — team devs see it)
+
+```markdown
+- {{YYYY-MM-DD}} — **{{one-sentence headline}}**. {{1-3 sentence detail covering
+  what to avoid, what to do instead, and how you discovered it}}. See
+  [{{trace or link}}]({{url or path}}).
+```
+
+### Example
+
+```markdown
+- 2026-04-23 — **NestJS `@ApiOperation` missing on DELETE endpoints breaks MCP
+  tool discovery.** Missing decorators cause the `consumer-c-legacy-api` MCP server
+  to skip the route; agents see fewer tools than expected. Always decorate
+  with `summary` + `description` (ADR-002). Caught by Acceptance Auditor on
+  change `module-1-ingredients-implementation`. See
+  [openspec/changes/module-1-ingredients-implementation/retros/2026-04-23.md](...).
+```
+
+---
+
+## Personal gotcha (goes in consumer-d.md / add-on — Arturo-only)
+
+Same shape, but add a `[personal]` tag so the deprecation watcher can tell the
+two apart in monthly retros:
+
+```markdown
+- {{YYYY-MM-DD}} [personal] — **{{one-sentence headline}}**. {{detail}}.
+```
+
+### Example
+
+```markdown
+- 2026-04-23 [personal] — **LiteLLM restart loops Hindsight even when
+  Hindsight itself is healthy.** Always `curl localhost:4000/health/liveliness`
+  first; if LiteLLM is down, Hindsight embeddings cannot resolve and it crash
+  loops. Mentioned in `docs/operations/consumer-d-stack-troubleshooting.md`
+  (March 2026 incident).
+```
+
+---
+
+## Rules for writers
+
+1. **One concept per bullet.** If you wrote `AND`, split it.
+2. **Date stamp always.** `YYYY-MM-DD`. Missing date fails the monthly
+   lifecycle check (T14i — populated later).
+3. **Why + how-to-avoid, not just what.** A gotcha that only says "port is 3101"
+   is missing the *why* (because internal container port is 3100 but Docker
+   maps to 3101, so any caller using the wrong port hangs silently). Future-you
+   will thank you.
+4. **Link to evidence.** The change retro, the troubleshooting doc, the OTel
+   trace_id — give the reader a way to dig deeper. Avoid "see commit history"
+   — cite the specific commit SHA.
+5. **Archive after 90 days if still correct.** Move confirmed-stable gotchas
+   to `docs/gotchas-archive.md` so the list stays scannable. Still-active
+   gotchas stay at the top.
+6. **Never retain secrets.** The `hindsight.retain` write path
+   auto-sanitises via `scripts.secrets_scan.sanitise`, but the markdown form
+   has no auto-filter — your eyes are the filter.
+
+## Related specs
+
+- [memory-hierarchy.md](../specs/memory-hierarchy.md) — `bank_id` conventions,
+  write rules, decay policy.
+- [verdict-contract.md](../specs/verdict-contract.md) — S3/S4 gotcha findings
+  from QA often become new bullets here.
+- [retrospective-cadence.md](../specs/retrospective-cadence.md) — weekly /
+  monthly cadences that promote retro lessons to gotchas.
