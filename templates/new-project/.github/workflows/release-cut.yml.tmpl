@@ -43,7 +43,7 @@ jobs:
           AIPLAYBOOK_JIRA_DEFAULT_PROJECT: ${{ secrets.AIPLAYBOOK_JIRA_DEFAULT_PROJECT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python .ai-playbook/scripts/release_cut.py --tag ${{ github.ref_name }}
+        run: PYTHONPATH=.ai-playbook python -m scripts.release_cut --tag ${{ github.ref_name }}
 
       - name: Upload notifications log as artifact
         if: always()
