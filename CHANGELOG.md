@@ -2,7 +2,36 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4
+## [Unreleased] — T02 + Batch 2 + Batch 3 + Batch 4 + Batch 5
+
+### Added (Batch 5 — EX package, 2 parallel subagents)
+
+**Subagent A — T14a/f/i scripts (64 new tests, all pass):**
+- `scripts/doctor.py` (~413 lines) — 14 prerequisite + env-var + registry health checks (`python`, `git`, `gh`, `npx`, `pre-commit`, `pyyaml`, `jsonschema`, `sops`, `gitleaks`, `playbook-submodule`, `projects-registry`, `env-vars-required`, `env-vars-alias-warning`, `context-budget`). CLI `--json`, `--strict` (warn → fail). Advisory by default — exit 0 on warnings.
+- `scripts/cost_report.py` (~412 lines) — aggregates `gen_ai.usage.*` events from `.ai-playbook/events.jsonl`. CLI `--period`, `--by project|model|task_class`, `--since`, `--json`. Reads optional `pricing.yaml` for cost estimates; gracefully skips when absent.
+- `scripts/lifecycle_check.py` (~471 lines) — monthly markdown report. Surfaces break-glass usages, unresolved `❓ CLARIFICATION NEEDED` (>7 days), stale OpenSpec changes (>30 days), memory-decay candidates, pending v0→v1 migrations. Flags gates overridden ≥3× in 30 days as systemic.
+- Tests: `test_doctor.py` (26), `test_cost_report.py` (14), `test_lifecycle_check.py` (24).
+
+**Subagent B — T14b/c/d/e/g/h/i-spec docs+specs (10 files, 982 lines):**
+- `docs/start-here.md` — 1-pager (3-level dispatcher ASCII, first 5 commands, needs→file routing).
+- `docs/quickstart.md` — 8-step honest 25–40 min walkthrough for `acme-shop` with per-step time budget + "what can go wrong" sub-sections.
+- `docs/quickstart-lessons.md` — empty per-OS skeleton ready for T15 dry-run findings.
+- `FEEDBACK.md` — formalised: format, triage cadence, 3 good-gripe examples, 3 anti-patterns.
+- `specs/notification-policy.md` — 4 levels, rate limits, channel contract, per-event policy table (14 events).
+- `docs/contributing.md` — 4-role matrix, RFC 7/30/90-day SLAs, code style + test discipline + backwards-compat (full governance lands T22).
+- `templates/retro/{post-archive,weekly,monthly}.md.tmpl` — retro templates per cadence.
+- `specs/retrospective-cadence.md` — 3 cadences, template mapping, output layout, automation contract for `lifecycle_check.py`, 4 anti-patterns.
+
+### Test suite totals (Batch 5 close)
+
+- **269 passed, 2 skipped, 0 failures** (205 previous + 64 new for doctor/cost/lifecycle).
+- Remaining skip: `test_bootstrap.py` (T14a — bootstrap.py stub, NOT populated this batch; deferred to a future track).
+
+### Open TODOs surfaced
+
+- `cost_report.py` `--period` is a default-window shortcut, not full calendar bucketing — flagged for T19 dashboard consumer to confirm before integrating.
+
+
 
 ### Added (Batch 4 — project workflows)
 
