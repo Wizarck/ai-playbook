@@ -107,6 +107,50 @@ See `specs/skills-registry.md` for scope semantics and the degraded-mode path.
 
 ---
 
+## `SMTP_*` (email notifications from `scripts/notify.py`)
+
+| Var | Prefix | Purpose | Required? | Default | Where read |
+|---|---|---|---|---|---|
+| `SMTP_HOST` | `SMTP_` | SMTP server host. | no | `smtp.gmail.com` | `scripts/notify.py` |
+| `SMTP_PORT` | `SMTP_` | SMTP server port (STARTTLS). | no | `587` | `scripts/notify.py` |
+| `SMTP_USER` | `SMTP_` | SMTP username. | yes (to enable email) | `$GIT_AUTHOR_EMAIL` | `scripts/notify.py` |
+| `SMTP_PASSWORD` | `SMTP_` | SMTP password (SOPS-decrypted; Gmail requires app-password). | yes (to enable email) | unset | `scripts/notify.py` |
+
+When any of `SMTP_USER` / `SMTP_PASSWORD` is unset, email delivery is **silently disabled**; the JSONL queue still writes and the dashboard bell still surfaces every event.
+
+### Notification tuning (under `AIPLAYBOOK_*`)
+
+| Var | Prefix | Purpose | Required? | Default | Where read |
+|---|---|---|---|---|---|
+| `AIPLAYBOOK_NOTIFICATIONS_FILE` | `AIPLAYBOOK_` | Override the JSONL queue path. | no | `<repo>/.ai-playbook/notifications.jsonl` | `scripts/notify.py` |
+| `AIPLAYBOOK_NOTIFICATIONS_FROM` | `AIPLAYBOOK_` | Email `From:` header. | no | `$SMTP_USER` | `scripts/notify.py` |
+| `AIPLAYBOOK_NOTIFICATIONS_TO` | `AIPLAYBOOK_` | Email `To:` recipient. | no | `$SMTP_USER` | `scripts/notify.py` |
+| `AIPLAYBOOK_NOTIFICATIONS_EMAIL_MIN_SEVERITY` | `AIPLAYBOOK_` | Lowest severity that triggers email. Values: `silent \| info \| warn \| error \| never`. | no | `warn` | `scripts/notify.py` |
+
+---
+
+## `ATLASSIAN_*` (Jira automation via `scripts/issue_sync.py` / `scripts/release_cut.py`)
+
+| Var | Prefix | Purpose | Required? | Default | Where read |
+|---|---|---|---|---|---|
+| `ATLASSIAN_URL` | `ATLASSIAN_` | Jira Cloud base URL (e.g. `https://consumer-a.atlassian.net`). | yes (for private-repo tracker sync) | unset | `scripts/issue_sync.py`, `scripts/release_cut.py` |
+| `ATLASSIAN_USERNAME` | `ATLASSIAN_` | Atlassian account email (for REST basic auth). | yes | unset | same |
+| `ATLASSIAN_API_TOKEN` | `ATLASSIAN_` | Personal API token (SOPS-decrypted). | yes | unset | same |
+| `AIPLAYBOOK_JIRA_DEFAULT_PROJECT` | `AIPLAYBOOK_` | Jira project key for private consumers without an explicit mapping. | no | `consumer-a` | `scripts/issue_sync.py` |
+| `AIPLAYBOOK_JIRA_DEFAULT_ISSUE_TYPE` | `AIPLAYBOOK_` | Jira issue type for auto-created stories. | no | `Story` | `scripts/issue_sync.py` |
+
+---
+
+## `AIPLAYBOOK_GH_*` (GitHub automation)
+
+| Var | Prefix | Purpose | Required? | Default | Where read |
+|---|---|---|---|---|---|
+| `AIPLAYBOOK_GH_PROJECT_NUMBER` | `AIPLAYBOOK_` | GitHub Project (v2) number to auto-add new Issues to for public repos. | no (Issue-only if unset) | unset | `scripts/issue_sync.py` |
+
+Uses the standard `GH_TOKEN` / `GITHUB_TOKEN` for authentication — pulled from Actions context automatically, or from local `gh auth status` in human runs.
+
+---
+
 ## Standard `GIT_*` (read-only)
 
 | Var | Prefix | Purpose | Required? | Default | Where read |

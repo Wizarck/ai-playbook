@@ -102,30 +102,44 @@ code is truly shared.
 
 ---
 
-## 4. Automation (deferred, spec'd here for T25+)
+## 4. Automation (LIVE as of 2026-04-23)
 
-Planned scripts (not yet built; open RFC when picking up):
+Zero-touch automation — no human intervention in the happy path. See
+[docs/zero-touch-automation.md](../docs/zero-touch-automation.md) for the end-to-end flow.
 
-- `scripts/issue_sync.py` — on `/opsx:propose`, reads project repo visibility from the projects
-  registry (`personal: true` + repo visibility) and creates either:
-  - a Jira issue via the `atlassian-consumer-a` MCP, OR
-  - a GH Issue via `gh` CLI, adding it to the org-level GitHub Project for public repos.
+- **`scripts/issue_sync.py`** — scans `openspec/changes/*/proposal.md`, creates Jira issues
+  (private repos via Atlassian REST / `atlassian-consumer-a` tenant) OR GH Issues + optional GH
+  Project add (public repos). Embeds `tracker_id: PROJ-42` (Jira) or `tracker_issue: 42`
+  (GitHub) in the proposal frontmatter via a follow-up commit. Idempotent; failed creates
+  queue to `.ai-playbook/issue_sync_queue.jsonl` for retry. Wired as
+  `.github/workflows/issue-sync.yml` firing on PR merge into main/master.
 
-  Returns the tracker id that the OpenSpec change's `proposal.md` embeds.
+- **`scripts/release_cut.py`** — on semver tag push, parses CHANGELOG, collects archived
+  OpenSpec changes since the previous tag, creates GH Release (public) OR Jira fixVersion
+  (private), marks associated tracker ids as `Released`. Refuses to overwrite existing GH
+  Releases. Wired as `.github/workflows/release-cut.yml` firing on `v*.*.*` tag push.
 
-- `scripts/release_cut.py` — on semver bump: creates the GH Release (public) OR the Jira
-  fixVersion (private) and posts a summary to the notification channel.
+- **`scripts/notify.py`** — shared emitter; every step in the two scripts above calls it.
+  Writes JSONL at `.ai-playbook/notifications.jsonl` (dashboard bell reads it via SSE) and
+  emails via SMTP for severity ≥ `warn`. Rate-limited (≤5 info/min per event+actor, 60s
+  dedup window). Stdlib-only (urllib + smtplib); zero runtime deps added.
 
-- `scripts/lifecycle_check.py` extension — check that every `openspec/changes/*/proposal.md`
-  carries a `tracker_id` or `tracker_issue`; flag changes lacking them.
+- **`scripts/lifecycle_check.py`** — monthly retro already flags `tracker_id-less` archived
+  changes; these get emitted as `warn` notifications.
 
-Until these land, the workflow is **manual**:
-- Human opens the Jira ticket OR GH Issue.
-- Embeds the id in the proposal.
-- Closes the ticket on archive.
+Consumer repos inherit the two workflows via `templates/new-project/.github/workflows/*.tmpl`
+copied by `scripts/bootstrap.py`.
 
-Retros (`lifecycle_check.py` monthly report, T14i) flag `tracker_id-less` changes so the
-manual habit becomes visible.
+**Manual override** for any blocked gate: `--force-with-reason="<≥10 chars>"` per
+[break-glass.md](break-glass.md). Every override emits a `warn` notification and lands in
+`.ai-playbook/overrides.log`.
+
+### Required env vars
+
+Full catalogue in [env-vars.md](env-vars.md) — new sections: `SMTP_*`, `ATLASSIAN_*`,
+`AIPLAYBOOK_GH_PROJECT_NUMBER`, `AIPLAYBOOK_JIRA_DEFAULT_PROJECT`,
+`AIPLAYBOOK_NOTIFICATIONS_*`. All credentials live in SOPS; GitHub Actions pull from repo
+secrets mirrored by the same names.
 
 ---
 
