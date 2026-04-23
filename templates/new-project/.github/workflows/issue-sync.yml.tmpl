@@ -1,0 +1,65 @@
+# issue-sync.yml — zero-touch OpenSpec change → tracker sync for
+# consumer repos. Copied here by scripts/bootstrap.py.
+#
+# Requires the same secrets as the playbook's own issue-sync.yml.
+
+name: issue-sync
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - "openspec/changes/**/proposal.md"
+
+jobs:
+  sync:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install playbook tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml jsonschema
+
+      - name: Configure git actor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run issue_sync
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          AIPLAYBOOK_NOTIFICATIONS_TO: ${{ secrets.AIPLAYBOOK_NOTIFICATIONS_TO }}
+          ATLASSIAN_URL: ${{ secrets.ATLASSIAN_URL }}
+          ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+          AIPLAYBOOK_JIRA_DEFAULT_PROJECT: ${{ secrets.AIPLAYBOOK_JIRA_DEFAULT_PROJECT }}
+          AIPLAYBOOK_GH_PROJECT_NUMBER: ${{ secrets.AIPLAYBOOK_GH_PROJECT_NUMBER }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python .ai-playbook/scripts/issue_sync.py
+
+      - name: Commit updated proposal.md (if any)
+        run: |
+          if ! git diff --quiet -- openspec/changes; then
+            git add openspec/changes
+            git commit -m "chore(issue-sync): embed tracker ids [skip ci]"
+            git push origin HEAD:${{ github.event.pull_request.base.ref }}
+          fi
