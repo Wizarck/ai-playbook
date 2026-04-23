@@ -31,6 +31,11 @@ tracing = [
 injection = [
     "anthropic>=0.30",
 ]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "pymdown-extensions>=10.7",
+]
 
 [project.scripts]
 ai-playbook-doctor = "scripts.doctor:main"
