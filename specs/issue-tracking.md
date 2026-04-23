@@ -20,7 +20,7 @@ Decision rule (apply to every repo under `Wizarck`):
 
 | Repo visibility | Planning surface | Release surface | Ticket prefix |
 |---|---|---|---|
-| Public AGPL-3.0 (`project-c-legacy`, `awesome-paperclip`, `paperclip-mcp`, `nanoclaw`, …) | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
+| Public AGPL-3.0 (`project-c-legacy`, `awesome-paperclip`, `paperclip-mcp`, …) | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
 | Private enterprise (`project-d`, `project-b`, `project-b-hub`, `EPSILON`, future SaaS) | **Jira** (`atlassian-project-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
 | Private personal (`ai-playbook`, `project-d-skills`, `skills-manager-personal`, `zeta`, `GTM-Helper`) | GitHub Issues (lightweight; no project board) | git tag only | `#<issue-number>` |
 
