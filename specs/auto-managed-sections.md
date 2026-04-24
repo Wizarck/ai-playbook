@@ -1,6 +1,6 @@
 # auto-managed-sections.md
 
-> **Status**: v1.0.0. Populated in T17.
+> **Status**: v1.0.0.
 
 Contract for the `<!-- BEGIN auto-managed: <source_spec> -->` / `<!-- END auto-managed -->` markers used to keep consumer documents aligned with canonical playbook specs without hand-copying.
 

@@ -1,6 +1,6 @@
 # skills-registry.md
 
-> **Status**: v1.0.0. Populated in T20. Defines the integration contract between
+> **Status**: v1.0.0. Defines the integration contract between
 > playbook consumers and the `eligia-skills` HTTP registry.
 
 The skills registry is the **authoritative discovery surface** for project skills.

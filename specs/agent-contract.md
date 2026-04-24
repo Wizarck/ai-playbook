@@ -1,6 +1,6 @@
 # agent-contract.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T06.
+> **Status**: v1.0.0.
 
 Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an advisor — carries an
 explicit identity, scope, memory binding, and budget. This spec defines the **input envelope** the
@@ -246,8 +246,9 @@ regardless of what it self-reported.
 
 ## 5. JSON Schema (draft 2020-12)
 
-Consumers copy this into `specs/agent-contract.schema.json` (stub pending T06 follow-up). Linters
-and the harness MUST validate against it.
+The canonical JSON Schema file lives at [agent-contract.schema.json](agent-contract.schema.json).
+The inline copy below is for reading convenience; the `.json` file is authoritative. Linters
+and the harness MUST validate against the `.json` file, not the inline block.
 
 ```json
 {

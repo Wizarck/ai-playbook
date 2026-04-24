@@ -1,6 +1,6 @@
 # degradation-modes.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T04b.
+> **Status**: v1.0.0.
 
 Degradation is **observed and announced, never guessed**. Every playbook-driven agent exposes a degradation state to the rest of the stack via OTel span attributes, and the dashboard (T19) surfaces the current state. This spec defines the state enum, the transitions, the circuit-breaker windows, and how degradation composes with the model-routing matrix.
 

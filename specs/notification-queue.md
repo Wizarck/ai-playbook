@@ -1,6 +1,6 @@
 # notification-queue.md
 
-> **Status**: v1.0.0. Populated in T25+.
+> **Status**: v1.0.0.
 
 Contract for the JSONL notification queue + email transport used by every
 zero-touch playbook automation. This spec realises the *shape* of a

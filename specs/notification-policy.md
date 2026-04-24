@@ -1,6 +1,6 @@
 # notification-policy.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in **T14e**.
+> **Status**: v1.0.0.
 
 Canonical policy for every user-visible notification a playbook-driven agent or script emits. Levels are abstract; channels are pluggable. The contract protects Arturo's (and future team devs') attention budget and keeps the audit trail uniform across projects.
 
@@ -104,7 +104,7 @@ Events not in this table emit `silent` by default. Adding a row requires an RFC.
 
 ## 5. Retro surface
 
-`scripts/lifecycle_check.py` (T14i, owned by Subagent A — **TODO: verify the script actually reads the JSONL notification log once that script is populated; spec assumes it does**) queries the notifications log per actor per week and produces:
+`scripts/lifecycle_check.py` queries the notifications log per actor per week and produces:
 
 - Count per level per actor per project per week. Anomalies (±2σ from the 4-week rolling baseline) flagged in the monthly retro.
 - Top-N `event` types by volume — a chronic `info` spammer is usually a miscalibrated emit site, fix the emitter.

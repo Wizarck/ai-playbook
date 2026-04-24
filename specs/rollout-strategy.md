@@ -1,6 +1,6 @@
 # rollout-strategy.md
 
-> **Status**: v1.0.0. Populated in T22g.
+> **Status**: v1.0.0.
 
 How breaking changes to the playbook are proposed, announced, deprecated, and removed. The spec is written for the consumer's protection: a dev whose project pins `.ai-playbook@v0.1.0` must never wake up to a merge conflict because the maintainer silently renamed a flag on `master`.
 
