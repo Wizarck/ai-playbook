@@ -153,12 +153,11 @@ ai-playbook/
 
 | Repo | How it consumes |
 |---|---|
-| `consumer-c-legacy` | `.ai-playbook/` as git submodule pinned to `v0.2.0`. |
+| `consumer-c-legacy` | `.ai-playbook/` as git submodule, semver-pinned. |
 | `consumer-d` | `.ai-playbook/` as git submodule + `consumer-d.md` personal add-on. |
-| `consumer-b` | `.ai-playbook/` as git submodule. |
 | New projects | Run `python <playbook>/scripts/bootstrap.py --project-name X --owner Y` from a fresh repo. |
 
-Each consumer pins its own semver tag. Upgrading is opt-in (`cd .ai-playbook && git checkout vX.Y.Z && cd .. && git commit`).
+Each consumer pins its own semver tag — see [`~/.ai-playbook/projects.yaml`](specs/projects-registry.md) for the current inventory per dev machine. Upgrading is opt-in; run `python <playbook>/scripts/bump_consumers.py --tag vX.Y.Z` to batch-bump every registered consumer.
 
 ## Getting started
 
