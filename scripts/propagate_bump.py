@@ -90,17 +90,34 @@ def _load_consumers(path: Path) -> list[dict]:
     return out
 
 
+def _configure_git_credentials(token: str) -> None:
+    """Install a global `url.<base>.insteadOf` rewrite so every github.com
+    clone (including nested submodules) transparently uses the PAT.
+
+    Called once per run; overwrites any existing rewrite for github.com.
+    """
+    _run(
+        [
+            "git",
+            "config",
+            "--global",
+            f"url.https://{token}@github.com/.insteadOf",
+            "https://github.com/",
+        ],
+    )
+    # Also disable any credential helper so git doesn't try to prompt on miss.
+    _run(
+        ["git", "config", "--global", "credential.helper", ""],
+        check=False,
+    )
+
+
 def _clone_consumer(name: str, repo: str, token: str, workdir: Path) -> Path:
-    """Clone with the PAT embedded in the URL. Works for both classic PATs
-    (just username-as-token) and fine-grained tokens (oauth2:token)."""
-    # Classic-PAT form: https://<token>@github.com/owner/repo.git
-    # (GitHub accepts the PAT as the username with an empty password.)
-    url = f"https://{token}@github.com/{repo}.git"
+    """Clone the consumer (and its submodules). Relies on the `insteadOf`
+    rewrite from `_configure_git_credentials` to authenticate transparently."""
+    url = f"https://github.com/{repo}.git"
     dest = workdir / name
     _run(["git", "clone", "--quiet", "--recurse-submodules", url, str(dest)])
-    # Persist the token-embedded URL in the local remote so subsequent push
-    # calls don't fall back to credential helpers that would prompt for stdin.
-    _run(["git", "remote", "set-url", "origin", url], cwd=dest)
     return dest
 
 
@@ -278,6 +295,8 @@ def main() -> int:
     if not consumers_path.exists():
         print(f"❌ consumers registry not found at {consumers_path}", file=sys.stderr)
         return 1
+
+    _configure_git_credentials(token)
 
     consumers = _load_consumers(consumers_path)
     print(f"Propagating {args.tag} to {len(consumers)} active consumer(s).\n")
