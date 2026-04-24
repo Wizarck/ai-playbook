@@ -141,6 +141,12 @@ ai-playbook/
 ├── rfcs/                        # proposals for breaking changes
 │   └── README.md                # RFC template + process
 │
+├── runbooks/                    # AI-executable ops procedures
+│   ├── INDEX.md                 # table of runbooks + when to run
+│   ├── release.md               # cut a semver tag → auto-propagates PRs
+│   ├── rotate-secrets.md        # PAT / SMTP / ATLASSIAN rotation
+│   └── propagate-bump-troubleshooting.md  # debug failing propagation Action
+│
 └── tests/                       # 27 test files, 504 tests passing
     ├── test_bootstrap.py        test_doctor.py  test_drift_check.py
     ├── test_mcp_validate.py     test_mcp_render.py
@@ -165,6 +171,7 @@ Each consumer pins its own semver tag — see [`~/.ai-playbook/projects.yaml`](s
 2. **Working inside this repo**: see [AGENTS.md](AGENTS.md).
 3. **Onboarding a dev**: [docs/start-here.md](docs/start-here.md) → [docs/quickstart.md](docs/quickstart.md) → [docs/curriculum.md](docs/curriculum.md).
 4. **Contributing a spec / script**: [docs/contributing.md](docs/contributing.md) + [rfcs/README.md](rfcs/README.md) for breaking changes.
+5. **Running an operation** (cutting a release, rotating a secret, debugging a failed Action): [runbooks/INDEX.md](runbooks/INDEX.md).
 
 ## Versioning
 
