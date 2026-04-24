@@ -2,6 +2,31 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.2.2] — 2026-04-24 — Hindsight loop closed (read + write + sessionstart wiring)
+
+### Added
+
+- `scripts/_hindsight.py` — shared HTTP client (CF Access auth + bearer fallback + 45 s default timeout). 9 tests.
+- `scripts/retain_lesson.py` — write side. CLI: `--content`, `--bulk JSONL`, `--replay-queue`. Sanitises through `secrets_scan` before POST. Hard-blocks API-key shapes, soft-redacts softer matches. Queues to `.ai-playbook/hindsight-queue.jsonl` when Hindsight is unreachable. 9 tests.
+- `runbooks/hindsight-retain.md` — when to retain, how to invoke, sanitisation contract, degraded-mode replay, verify-it-landed.
+- `openTrattOS/.claude/settings.json` + `eligia-core/.claude/settings.json` — SessionStart hooks invoking `inject_context.py` with the project bank id (timeout 60 s).
+- `openTrattOS/mcp-servers.yaml` (project layer, schema mcp-servers/v1) + rendered `openTrattOS/.mcp.json` + `openTrattOS/.gemini/settings.json` (11 servers from base+project layers; personal layer excluded since openTrattOS is public AGPL).
+
+### Changed
+
+- `scripts/inject_context.py` — recall now goes through `_hindsight.post_recall` against the real API path `/v1/default/banks/{bank_id}/memories/recall` with CF Access headers. Bank id rides in URL, not body. Maps `top_k` → `max_tokens` (~800 tokens per top_k unit). 21 tests pass.
+- `specs/env-vars.md` §HINDSIGHT_* — replaced bearer-only contract with the real auth resolution order: CF Access pair preferred, bearer fallback. Documents the 45 s timeout and queue file.
+- `specs/memory-hierarchy.md` §5 — added the canonical retain CLI invocation as the lead bullet.
+- `docs/session-start-hook.md` — bumped hook timeout from 15 s to 60 s; updated command to use full path + `--bank-id <slug>`.
+
+### Replayed to Hindsight
+
+Four lessons from the 2026-04-24 session retained to bank `eligia` (cross-project personal knowledge): zero-touch propagation loop architecture, runbooks-as-AI-executable doctrine, 3 GitHub Actions gotchas (setuptools / x-access-token / submodule auth via insteadOf), Hindsight production deployment shape (CF Access + REST endpoints + 30 s cold recall).
+
+### Known gap (deferred)
+
+`eligia-core/.mcp.json` not rendered — the existing `eligia-core/mcp-servers.yaml` follows a legacy v2-metadata schema that pre-dates the playbook's mcp-servers/v1 layer schema. Migrating it is a separate piece of work (touches helm chart consumers, sync-configs.py, etc.). The SessionStart hook wired in eligia-core works regardless because it shells out to `inject_context.py` directly — `.mcp.json` is only needed for in-session MCP tool registration which isn't load-bearing today.
+
 ## [0.2.1] — 2026-04-24 — docs + propagation automation
 
 ### Added

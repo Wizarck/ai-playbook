@@ -57,13 +57,31 @@ Playbook scripts MUST NOT read these directly — they flow through the eligia d
 
 ---
 
-## `HINDSIGHT_*`
+## `HINDSIGHT_*` + Cloudflare Access pair
+
+The current ELIGIA Hindsight deployment (`https://eligia-hindsight.palafitofood.com`)
+sits behind Cloudflare Access service auth. The `scripts/_hindsight.py` client
+prefers CF Access headers and falls back to bearer when present — both shapes
+are documented below.
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `HINDSIGHT_API_KEY` | `HINDSIGHT_` | API key for Hindsight memory MCP server. | yes (if hindsight MCP enabled) | unset | MCP server at connect-time |
-| `HINDSIGHT_URL` | `HINDSIGHT_` | Base URL of Hindsight deployment. | yes (if hindsight MCP enabled) | unset | MCP server at connect-time |
-| `HINDSIGHT_BANK_ID` | `HINDSIGHT_` | Project-scoped memory bank id. | recommended | derived from `project` slug | MCP server at connect-time |
+| `HINDSIGHT_URL` | `HINDSIGHT_` | Base URL of Hindsight deployment (no trailing slash). | **yes** (if any Hindsight call is made) | unset | `scripts/_hindsight.py::load_credentials` |
+| `HINDSIGHT_BANK_ID` | `HINDSIGHT_` | Default bank when neither `--bank-id`/`--bank` flag nor AGENTS.md `bank_id` is supplied. | recommended | derived from project slug | `scripts/inject_context.py`, `scripts/retain_lesson.py` |
+| `CF_ACCESS_CLIENT_ID` | *(CF reserved)* | Cloudflare Access service-token client id. | **yes** (preferred auth path) | unset | `scripts/_hindsight.py::load_credentials` |
+| `CF_ACCESS_CLIENT_SECRET` | *(CF reserved)* | Cloudflare Access service-token client secret. | **yes** (preferred auth path) | unset | `scripts/_hindsight.py::load_credentials` |
+| `HINDSIGHT_API_KEY` | `HINDSIGHT_` | Bearer fallback when the deployment is direct-network (no CF Access in front). | conditional — required iff CF Access pair is unset | unset | `scripts/_hindsight.py::load_credentials` |
+| `HINDSIGHT_TIMEOUT_MS` | `HINDSIGHT_` | Override the 45 000 ms default. Cold recall ~30 s; lower at your peril. | no | `45000` | `scripts/_hindsight.py` |
+
+**Auth resolution order** (per `scripts/_hindsight.py`):
+
+1. If `CF_ACCESS_CLIENT_ID` AND `CF_ACCESS_CLIENT_SECRET` are set → CF Access headers.
+2. Else if `HINDSIGHT_API_KEY` is set → `Authorization: Bearer …`.
+3. Else `HindsightAuthMissing` is raised; calls fail before hitting the network.
+
+`scripts/retain_lesson.py` queues unsuccessful calls to
+`<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored) when `--queue-on-fail`
+is set (default true) — see `specs/memory-hierarchy.md` §9.
 
 ---
 
