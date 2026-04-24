@@ -2,6 +2,32 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.2.1] — 2026-04-24 — docs + propagation automation
+
+### Added
+- `consumers.yaml` — committed org-level registry of downstream repos consuming the playbook (distinct from per-dev `~/.ai-playbook/projects.yaml`). Schema `ai-playbook/consumers/v1`; active entries: openTrattOS, eligia-core.
+- `scripts/bump_consumers.py` — manual CLI to bump every consumer's `.ai-playbook/` submodule pin against `~/.ai-playbook/projects.yaml`. Flags: `--tag`, `--dry-run`, `--only`, `--push`, `--open-pr`, `--allow-dirty`, `--force`, `--force-with-reason`.
+- `scripts/propagate_bump.py` — CI-side twin that reads `consumers.yaml` + `$GH_TOKEN`, clones each active consumer, bumps submodule, opens PR via `gh`. Idempotent (skips if PR already open). Emits `warn` notifications per PR.
+- `.github/workflows/propagate-playbook-bump.yml` — event-driven primary propagation path: fires `on: push: tags: v*.*.*`, runs `propagate_bump.py`, uploads notifications.jsonl. Needs repo secret `PLAYBOOK_PROPAGATION_TOKEN`.
+- `eligia-core/langgraph-aiops/workflows/playbook_bump_propagator.py` + CronJob wiring — daily circuit-breaker for the GH Action: queries consumer submodule SHAs, re-invokes propagator for laggards, emits `warn` on every firing (meaning the Action missed a fire).
+- `specs/dispatcher-chain.md`, `specs/bootstrap-directive.md`, `docs/bootstrap-new-project.md` — 3 real v0.1.0 stubs closed to full v1.0.0 content.
+- `specs/agent-contract.schema.json` — JSON Schema file extracted from the spec prose (was "stub pending T06 follow-up"); now the authoritative validation target.
+- README.md — full directory map (35 specs, 24 scripts, templates, docs, routers, rfcs, tests) + 4 persona getting-started paths + honest status.
+
+### Changed
+- 36 spec/doc Status headers normalized — dropped confusing `Populated in **T14b**` provenance phrases that read like TODOs.
+- 13 in-prose "stub" references inside v1.0.0 specs resolved (scripts they pointed at are fully populated).
+- `scripts/_break_glass.py` — wires `ai_playbook.override.*` OTel span via `trace_emit.override_attrs` (no-op safe when OTel absent). Removes the stale T07c TODO.
+- `scripts/mcp/validate.py` — stale "wire through _break_glass" TODO removed (the wiring already existed).
+- `docs/quickstart.md`, `docs/quickstart-lessons.md`, `docs/start-here.md`, `AGENTS.md` — outdated "bootstrap.py is a stub" warnings replaced with real usage.
+
+### Notes
+- Deferred-by-design items (not addressed here, not stubs):
+  - `specs/incident-response.md` activates at first paying client.
+  - `docs/model-migration.md` activates at first pinned-model retirement.
+  - `specs/notification-queue.md` full spec is T25+ (Phase 5).
+- Consumer pins today: openTrattOS + eligia-core still at v0.1.0. The propagation loop above will open bump-to-v0.2.1 PRs on tag push; humans merge per propose-only HITL convention.
+
 ## [0.2.0] — 2026-04-23 — MVP complete (T01–T23)
 
 ### Added (Batch 10 — governance + upstream sync, 3 parallel subagents)
