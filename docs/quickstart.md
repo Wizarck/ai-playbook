@@ -1,6 +1,6 @@
 # quickstart.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in **T14c**. Honest 25–40 min walkthrough for a new dev bootstrapping a fresh consumer project called `acme-shop`. Per-OS friction and timing deltas land in [quickstart-lessons.md](quickstart-lessons.md) after T15 dry-runs.
+> **Status**: v1.0.0. Honest 25–40 min walkthrough for a new dev bootstrapping a fresh consumer project called `acme-shop`. Per-OS friction and timing deltas land in [quickstart-lessons.md](quickstart-lessons.md) after T15 dry-runs.
 
 ---
 
@@ -45,29 +45,21 @@ The submodule MUST be pinned to a semver tag, never a branch. This is the inheri
 ## Step 2 — Bootstrap (≈2 min)
 
 ```bash
-python -m scripts.bootstrap acme-shop
+python -m scripts.bootstrap --project-name acme-shop --owner you@example.com
 ```
 
-**Expected behaviour** (the contract `bootstrap.py` will honour when fully populated; at v0.1.0 it is a stub):
+Full flag list and contract live in [bootstrap-new-project.md](bootstrap-new-project.md). Summary of what runs:
 
-1. Copy `templates/new-project/AGENTS.md.tmpl` → `AGENTS.md` in the project root, substituting `{{PROJECT_NAME}}`, `{{OWNER_EMAIL}}`, `{{TODAY}}`.
-2. Copy `templates/new-project/mcp-servers.yaml.tmpl` → `mcp-servers.yaml` with `{{PROJECT_NAME}}` substituted.
-3. Copy `templates/new-project/docs/` stubs into `docs/`.
-4. Append `projects.yaml` and `.ai-playbook/overrides.log` to `.gitignore`.
-5. Invoke `scripts/discover_projects.py` to register the new project.
-6. Print a summary of files touched.
-
-> **v0.1.0 workaround**: `bootstrap.py` is a stub. Until T14a lands, copy the templates manually:
-> ```bash
-> cp .ai-playbook/templates/new-project/AGENTS.md.tmpl AGENTS.md
-> cp .ai-playbook/templates/new-project/mcp-servers.yaml.tmpl mcp-servers.yaml
-> cp -r .ai-playbook/templates/new-project/docs/* docs/
-> ```
-> Then edit the `{{PLACEHOLDER}}` tokens by hand.
+1. Adds the playbook as a submodule at `.ai-playbook/`, pinned to the current released tag.
+2. Copies `templates/new-project/` → project root with `{{PLACEHOLDER}}` substitution for the tokens it knows (`{{PROJECT_NAME}}`, `{{OWNER_EMAIL}}`, `{{TODAY}}`).
+3. Installs pre-commit hooks.
+4. Registers the project in `~/.ai-playbook/projects.yaml` via `scripts/discover_projects.py`.
+5. Runs `scripts/doctor.py` as a smoke test (must verdict `✅` before exit).
+6. Prints the remaining human-fill tokens and the next-step banner.
 
 ### What can go wrong
 
-- **`ModuleNotFoundError: scripts`** → you ran the command from outside `.ai-playbook/`. `cd .ai-playbook && python -m scripts.bootstrap ../` or use the absolute path form below.
+- **`ModuleNotFoundError: scripts`** → run with `PYTHONPATH=.ai-playbook python -m scripts.bootstrap ...` or invoke the script by absolute path (see the Windows section of [quickstart-lessons.md](quickstart-lessons.md)).
 - **Template already exists** → bootstrap refuses to clobber. Move the old file aside or pass `--force-with-reason="..."` per `break-glass.md`.
 - **Windows vs POSIX paths** — the template writes forward slashes; Windows handles them fine but some editors auto-convert. Leave them as `/`.
 

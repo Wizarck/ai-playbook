@@ -142,7 +142,6 @@ def apply_break_glass(
     git_user_email : str | None
         Actor identifier. Falls back to `$GIT_AUTHOR_EMAIL`, then `"unknown"`.
     """
-    # TODO: emit ai_playbook.override.* span once T07c OTel helpers are wired in
     if not override_allowed:
         if reason:
             _emit_refused_override_error(script, gate)
@@ -164,7 +163,34 @@ def apply_break_glass(
     with log_path.open("a", encoding="utf-8") as f:
         f.write(f'{ts} {actor} {script} {gate} "{stripped}"\n')
 
+    _emit_override_span(script=script, gate=gate, reason=stripped, actor=actor, ts=ts)
+
     return OverrideResult(applied=True, reason=stripped)
+
+
+def _emit_override_span(
+    *, script: str, gate: str, reason: str, actor: str, ts: str
+) -> None:
+    """Emit `ai_playbook.override.*` span per `specs/break-glass.md`.
+
+    No-op safe — tracing must never block a legitimate override. The log file
+    written above is the durable source of truth; the span is for dashboards.
+    """
+    try:
+        from scripts.tracing.trace_emit import override_attrs, span
+    except Exception:  # noqa: BLE001 — tracing import optional
+        return
+    try:
+        with span(
+            "ai_playbook.override",
+            override_attrs(gate=gate, reason=reason, actor=actor, script=script),
+        ) as s:
+            try:
+                s.set_attribute("ai_playbook.override.ts", ts)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001 — never crash the caller
+        return
 
 
 __all__ = [

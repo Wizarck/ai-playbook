@@ -1,6 +1,6 @@
 # data-retention.md
 
-> **Status**: v1.0.0. Populated in T22d. Defines what the playbook and consumer projects retain, where, for how long, who reads it, and how it is deleted. The spec is normative; per-project deviations require an override under [../docs/contributing.md](../docs/contributing.md) §6 (backwards compatibility) + an entry in the project's AGENTS.md §7.
+> **Status**: v1.0.0. Defines what the playbook and consumer projects retain, where, for how long, who reads it, and how it is deleted. The spec is normative; per-project deviations require an override under [../docs/contributing.md](../docs/contributing.md) §6 (backwards compatibility) + an entry in the project's AGENTS.md §7.
 
 Retention is a safety surface. Too little retention makes audits impossible; too much creates a GDPR liability. This spec names the defaults and the deletion paths.
 

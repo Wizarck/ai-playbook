@@ -1,6 +1,6 @@
 # break-glass.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T07b.
+> **Status**: v1.0.0.
 
 Contract for the `--force-with-reason="<text>"` flag that every blocking check in a playbook script MUST support. Break-glass is the *explicit, logged, justified* escape hatch — not a convenience shortcut.
 
@@ -71,7 +71,7 @@ As of v1.0.0 of the playbook, every blocking check in the table below accepts `-
 | `scripts/secrets_scan.py` | regex + gitleaks match | **OVERRIDE: none always** — there is no legitimate reason to commit a plaintext secret |
 | `scripts/doctor.py` | prereq + env var checks | never (doctor warnings are advisory) |
 
-A new blocking script that doesn't follow this contract fails the `verdict_lint.py --shape script-cli` CI check (**TODO: clarify with maintainer** — this CLI check lands in T05 alongside the verdict linter).
+A new blocking script that doesn't follow this contract fails the `verdict_lint.py --shape script-cli` CI check. As of v1.0.0 that shape is a placeholder scaffold (the linter prints an advisory and exits 0); the enforcement rules land alongside the first external contributor who adds a blocking script without using `_break_glass.py`.
 
 ---
 
@@ -150,14 +150,22 @@ def apply_break_glass(
     with log_path.open("a", encoding="utf-8") as f:
         f.write(f'{ts} {actor} {script} {gate} "{stripped}"\n')
 
-    # Emit OTel span (populated in T07c alongside tracing bootstrap).
-    # For v1.0.0 of this spec, the tracing call is a TODO; the log file
-    # is the source of truth until OTel is wired in.
+    # Emit OTel span with `ai_playbook.override.*` attributes. Uses
+    # `scripts.tracing.trace_emit.span` + `override_attrs`; no-op safe when
+    # OTel is disabled (the JSONL log file remains the source of truth).
+    try:
+        from scripts.tracing.trace_emit import override_attrs, span
+        with span("ai_playbook.override", override_attrs(
+            script=script, gate=gate, reason=stripped, actor=actor,
+        )) as s:
+            s.set_attribute("ai_playbook.override.ts", ts)
+    except Exception:
+        pass  # tracing must never block a legitimate override
 
     return OverrideResult(applied=True, reason=stripped)
 ```
 
-Real implementation lands alongside the first script that needs it (probably `schema_validate.py` in T03a or `secrets_scan.py` in T10). The helper is stable API; scripts call it.
+Implementation lives at [`scripts/_break_glass.py`](../scripts/_break_glass.py) and is consumed by every blocking script listed in §4. The helper is stable API; scripts call it.
 
 ---
 

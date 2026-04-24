@@ -1,6 +1,6 @@
 # channels.md
 
-> **Status**: v1.0.0. Populated in T22k.
+> **Status**: v1.0.0.
 
 The communication surfaces the playbook team uses, by purpose, with triage cadence and the line between ephemeral chat and load-bearing decisions. Written for the current state (Arturo solo) and the near-term growth horizon (0–3 months, 3–5 devs).
 

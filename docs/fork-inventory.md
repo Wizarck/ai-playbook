@@ -1,6 +1,6 @@
 # fork-inventory.md
 
-> **Status**: v1.0.0. Populated in T23a. Companion to [`../specs/upstream-sync.md`](../specs/upstream-sync.md).
+> **Status**: v1.0.0. Companion to [`../specs/upstream-sync.md`](../specs/upstream-sync.md).
 
 The authoritative list of upstream-tracked forks Arturo maintains. Each entry links to its local
 clone and the in-repo `PATCHES.md` that enumerates its local patches.

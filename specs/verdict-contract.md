@@ -1,6 +1,6 @@
 # verdict-contract.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T05.
+> **Status**: v1.0.0.
 
 Every QA-style artefact produced by an agent (code review, readiness check, spec audit, retro) ends
 with exactly one **verdict line**, optionally followed by a structured findings list. This contract

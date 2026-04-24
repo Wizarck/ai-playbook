@@ -101,9 +101,10 @@ def _emit(err: CanonicalError) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Break-glass (tolerant of Subagent C's helper not existing yet)
+# Break-glass — delegates to scripts/_break_glass.py when available, with an
+# inline fallback for the (rare) case where the shared helper isn't importable
+# (e.g. when this script is vendored into a consumer without the full playbook).
 # ---------------------------------------------------------------------------
-# TODO: wire through scripts/_break_glass.py once T09 lands
 def _apply_break_glass(*, gate: str, script: str, reason: str | None,
                        repo_root: Path) -> bool:
     """Return True if the override was accepted and logged, False if no override supplied.

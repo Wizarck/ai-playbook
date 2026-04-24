@@ -1,6 +1,6 @@
 # issue-tracking.md
 
-> **Status**: v1.0.0. Populated in T22-followup (post-MVP, 2026-04-23).
+> **Status**: v1.0.0.
 
 How user stories, features, bugs, and releases flow through **two** tracker surfaces:
 

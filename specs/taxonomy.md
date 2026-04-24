@@ -1,6 +1,6 @@
 # taxonomy.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T03c.
+> **Status**: v1.0.0.
 
 Canonical glossary for terms used across `ai-playbook/specs/*`, consumer AGENTS.md files,
 and all tooling. When a spec uses any of these words it means the definition below — no

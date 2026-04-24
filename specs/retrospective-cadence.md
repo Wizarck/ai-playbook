@@ -1,6 +1,6 @@
 # retrospective-cadence.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in **T14i** (spec). The automation (`scripts/lifecycle_check.py`) is owned by the Subagent A track of T14i; this file specifies what that script must produce and how humans consume it.
+> **Status**: v1.0.0. The automation (`scripts/lifecycle_check.py`) is owned by the Subagent A track of T14i; this file specifies what that script must produce and how humans consume it.
 
 Retros are not a ritual. They are the feedback loop that keeps the playbook honest — if a spec is ambiguous, a gate miscalibrated, or a pattern chronically painful, the retros catch it before it metastasises. Three cadences cover three horizons.
 
@@ -54,7 +54,7 @@ The first time a project generates retros, `reports/retros/` is auto-created by 
 
 ## 4. Automation
 
-[`scripts/lifecycle_check.py`](../scripts/lifecycle_check.py) (owned by Subagent A in T14i — **TODO: verify the script's exact CLI once populated; this spec captures the contract it must honour**) generates the **monthly retro skeleton** and powers the lifecycle-check output block (template §1). Humans fill narrative; the script fills evidence.
+[`scripts/lifecycle_check.py`](../scripts/lifecycle_check.py) generates the **monthly retro skeleton** and powers the lifecycle-check output block (template §1). Humans fill narrative; the script fills evidence.
 
 Contract the script must satisfy:
 

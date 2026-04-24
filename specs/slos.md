@@ -1,6 +1,6 @@
 # slos.md
 
-> **Status**: v1.0.0. Populated in T22f.
+> **Status**: v1.0.0.
 
 Service-level objectives for the `ai-playbook` repo itself — the shared norms and tooling consumed as a submodule by every Wizarck project. These SLOs target the playbook-as-product: the contract it makes with Arturo (solo maintainer) and future team devs who inherit from it.
 

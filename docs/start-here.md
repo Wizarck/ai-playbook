@@ -1,6 +1,6 @@
 # start-here.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in **T14b**. A 60-second orientation so a new dev (or future Arturo on a fresh PC) knows the next move without having to read the full spec tree.
+> **Status**: v1.0.0. A 60-second orientation so a new dev (or future Arturo on a fresh PC) knows the next move without having to read the full spec tree.
 
 ## What this repo is
 
@@ -71,8 +71,6 @@ If any of these fail, the error carries a `FIX:` line per [../specs/error-messag
 
 ## Status snapshot
 
-- **Version**: `v0.1.0` (scaffold committed; baseline branch for rollback).
-- **Active track**: T14 EX package (start-here, quickstart, FEEDBACK, notification-policy, governance stub, retro templates, retrospective cadence).
-- **Downstream**: T15 cross-OS dry-run → T17 live docs → T19 dashboard → T22 governance.
-- **Most `specs/*.md` are v1.0.0** with a handful still at stub pending their dedicated track. Every file declares its status in the first header line.
+- **Version**: `v0.2.0` tagged; downstream consumer repos pin to it.
+- **All core specs v1.0.0**. A small number are intentionally deferred-by-design and say so in their header (e.g. [incident-response.md](../specs/incident-response.md) activates when a paying client lands; [model-migration.md](model-migration.md) activates at the first pinned-model retirement).
 - **What "dogfooding" means here**: the pre-commit config in this repo runs the same validators it ships to consumers.

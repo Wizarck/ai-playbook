@@ -1,6 +1,6 @@
 # runbook-bmad-openspec.md
 
-> **Status**: v1.0.0. Populated in T11.
+> **Status**: v1.0.0.
 
 The canonical flow for any consumer project that adopts the playbook: BMAD for Discovery, OpenSpec for Implementation, worker→QA pairing per artefact, max-2-rework, with human-in-the-loop (HITL) gates at each phase transition.
 
@@ -120,7 +120,7 @@ Post-archive retro is mandatory; weekly and monthly retros cover accumulation.
 | Weekly | All archives + `FEEDBACK.md` gripes + break-glass usages. | `retros/weekly-<YYYY-WW>.md`. |
 | Monthly | Lifecycle check — stale changes, outdated memories, drift findings. | `retros/monthly-<YYYY-MM>.md`. |
 
-Full cadence in `specs/retrospective-cadence.md` (stub at v0.1.0; filled in T14i).
+Full cadence in [`specs/retrospective-cadence.md`](retrospective-cadence.md).
 
 ## 5 HITL summary
 

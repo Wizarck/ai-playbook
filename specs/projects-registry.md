@@ -1,6 +1,6 @@
 # projects-registry.md
 
-> **Status**: spec, v0.1.0 (**T02-pre**). This spec is populated — the registry is load-bearing for T02d/e/f dispatcher resolution.
+> **Status**: v1.0.0. The registry is load-bearing for dispatcher resolution across CLIs.
 
 ## Purpose
 

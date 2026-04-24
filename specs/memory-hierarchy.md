@@ -1,6 +1,6 @@
 # memory-hierarchy.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T06.
+> **Status**: v1.0.0.
 
 Agents operate across four memory tiers with different read/write patterns, retention windows,
 and failure modes. This spec defines the tiers, the `bank_id` convention for durable memory, the
@@ -121,8 +121,8 @@ input envelope declares:
 
 ## 8. Interaction with `scripts/inject_context.py`
 
-`scripts/inject_context.py` (stub at v0.1.0, populated in T12) is the read-side pipeline that
-composes a subagent's LEAN prompt from the four tiers: pulls the relevant slice of session
+`scripts/inject_context.py` is the read-side pipeline that composes a subagent's LEAN prompt
+from the four tiers: pulls the relevant slice of session
 state, project artefacts, and a top-k recall from the right Hindsight bank. This spec defines
 the **semantics** of what each tier contains; `inject_context.py` defines the **mechanics** of
 assembling them into a brief. Consumers do not call Hindsight directly at spawn time — they go

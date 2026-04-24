@@ -1,6 +1,6 @@
 # contributing.md
 
-> **Status**: v1.0.0 governance stub. Supersedes T02-pre stub. Populated in **T14g**. Full governance suite (deprecation watcher, post-mortem template, RBAC vs k8s ServiceAccount matrix) lands **T22**; this doc covers what a 0–3-month team needs to collaborate safely.
+> **Status**: v1.0.0. Friendly summary of the governance model; the normative contract lives in [../specs/role-matrix.md](../specs/role-matrix.md), [../specs/post-mortem.md](../specs/post-mortem.md), and the deprecation watcher under [../specs/rollout-strategy.md](../specs/rollout-strategy.md).
 
 ---
 

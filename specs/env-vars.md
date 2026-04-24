@@ -1,6 +1,6 @@
 # env-vars.md
 
-> **Status**: v1.0.0. Supersedes the T02-pre stub. Populated in T09.
+> **Status**: v1.0.0.
 
 Single source of truth for every env var the playbook (or a playbook script) reads. Adding a new var = updating this spec in the same commit.
 

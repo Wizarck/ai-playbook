@@ -1,6 +1,6 @@
 # post-mortem.md
 
-> **Status**: v1.0.0. Populated in T22h. Contract for post-mortem artefacts produced after an S1 incident or a SYSTEMIC verdict escalation. Pairs with [../templates/post-mortem.md.tmpl](../templates/post-mortem.md.tmpl).
+> **Status**: v1.0.0. Contract for post-mortem artefacts produced after an S1 incident or a SYSTEMIC verdict escalation. Pairs with [../templates/post-mortem.md.tmpl](../templates/post-mortem.md.tmpl).
 
 A post-mortem is the artefact that turns a painful event into a durable improvement. Blameless by contract, systems-focused by construction. A post-mortem without action items is not a post-mortem — it is a confession.
 
