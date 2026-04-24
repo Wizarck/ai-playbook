@@ -72,6 +72,9 @@ Tracked in the project plan outside this repo. Current tag: `v0.2.0`. Core specs
 | Rollback to pre-refactor state | `git checkout baseline` |
 | Discover local projects / populate registry | `python -m scripts.discover_projects` |
 | List current registry | `python -m scripts.discover_projects --list` |
+| Cut a new playbook release | [runbooks/release.md](runbooks/release.md) |
+| Rotate a secret (PAT / SMTP / ATLASSIAN) | [runbooks/rotate-secrets.md](runbooks/rotate-secrets.md) |
+| Debug a failed propagation Action | [runbooks/propagate-bump-troubleshooting.md](runbooks/propagate-bump-troubleshooting.md) |
 
 ## 6 MCP sources
 
