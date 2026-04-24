@@ -18,8 +18,8 @@ Add to the consumer's `.claude/settings.json` (project-level) OR the dev's `~/.c
         "hooks": [
           {
             "type": "command",
-            "command": "sops exec-env secrets/secrets.env -- python -m scripts.inject_context 2>/dev/null || true",
-            "timeout": 15
+            "command": "sops exec-env secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id <project-bank> 2>/dev/null || true",
+            "timeout": 60
           }
         ]
       }
@@ -30,10 +30,11 @@ Add to the consumer's `.claude/settings.json` (project-level) OR the dev's `~/.c
 
 Notes:
 
-- `sops exec-env secrets/secrets.env --` decrypts `HINDSIGHT_URL` + `HINDSIGHT_API_KEY` + `HINDSIGHT_BANK_ID` into the subprocess's env. Without SOPS, set the three vars in the shell profile instead.
-- `2>/dev/null || true` suppresses stderr from the hook (`inject_context.py` prints a one-line `✅` on success and a canonical error on missing credentials). Hooks that print noisily clutter the startup UX.
-- `timeout: 15` covers the Hindsight HTTP roundtrip + sanitisation. If Hindsight is degraded the script bails in ≤10s (`DEFAULT_TIMEOUT_SECS`) and writes a `DEGRADED_CONTEXT` banner — the session still starts healthy.
+- `sops exec-env secrets/secrets.env --` decrypts `HINDSIGHT_URL`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` (and optionally `HINDSIGHT_API_KEY` for non-CF deployments) into the subprocess env. Without SOPS, set the vars in the shell profile instead. See [`../specs/env-vars.md`](../specs/env-vars.md) §HINDSIGHT_* for the full auth contract.
+- `2>/dev/null || true` suppresses stderr from the hook so a one-off Hindsight outage doesn't visually block session start. `inject_context.py` writes a `DEGRADED_CONTEXT` banner to `.claude/injected-context.md` instead.
+- `timeout: 60` covers cold recall (~30 s on the production deployment) plus sanitisation overhead. The script's internal `DEFAULT_TIMEOUT_SECS` is 45 s; the hook envelope adds 15 s buffer.
 - The output file (`.claude/injected-context.md`) is read by Claude Code's own bootstrap and surfaced alongside the project's `AGENTS.md`.
+- Replace `<project-bank>` with the project's bank id from [`../specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) §2 (e.g. `consumer-c-legacy`, `consumer-d`, `consumer-b`).
 
 ## Gemini CLI / Antigravity
 

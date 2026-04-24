@@ -1,16 +1,16 @@
-"""Recall project context from Hindsight MCP and inject it into the agent session.
-
-Populated in T12. Supersedes the T02-pre stub.
+"""Recall project context from Hindsight and inject it into the agent session.
 
 Reads Hindsight credentials from environment variables (typically supplied via
 `sops exec-env <secrets.env> -- python -m scripts.inject_context`):
 
-    HINDSIGHT_URL       — base URL of Hindsight deployment.
-    HINDSIGHT_API_KEY   — bearer token.
-    HINDSIGHT_BANK_ID   — project-scoped memory bank (default: resolved from registry).
+    HINDSIGHT_URL                                — base URL of Hindsight deployment.
+    CF_ACCESS_CLIENT_ID + CF_ACCESS_CLIENT_SECRET → CF Access service auth (preferred).
+    HINDSIGHT_API_KEY                            → bearer fallback (legacy/direct).
+    HINDSIGHT_BANK_ID                            — project bank (override AGENTS.md).
 
-Calls ``hindsight.recall(query, bank_id, top_k)`` via HTTP (no MCP SDK dep —
-this script is called by hooks where keeping the dep graph minimal matters).
+Calls ``POST /v1/default/banks/{bank_id}/memories/recall`` via HTTP through
+the shared client at ``scripts._hindsight`` (stdlib-only; no MCP SDK dep —
+this script runs in SessionStart hooks where the dep graph must stay tiny).
 
 Writes results to ``<consumer>/.claude/injected-context.md``. Consumer's
 ``SessionStart`` hook (configured per-project) reads that file and surfaces it
@@ -76,7 +76,7 @@ for _stream in (sys.stdout, sys.stderr):
 SCRIPT_BASENAME = "inject_context.py"
 GATE_NAME = "hindsight-recall"
 DEFAULT_TOP_K = 5
-DEFAULT_TIMEOUT_SECS = 10.0
+DEFAULT_TIMEOUT_SECS = 45.0  # cold recall ~30 s; hook envelope should be 60 s.
 
 
 @dataclass
@@ -153,15 +153,36 @@ def _resolve_project_from_agents_md(consumer_root: Path) -> tuple[str | None, st
 
 
 # ---------------------------------------------------------------------------
-# Hindsight HTTP client — deliberately small, no SDK dep
+# Hindsight HTTP client — delegates to scripts._hindsight (shared with retain).
 # ---------------------------------------------------------------------------
+
+from scripts._hindsight import (  # noqa: E402
+    HindsightAuthMissing,
+    HindsightCreds,
+    HindsightUrlMissing,
+    load_credentials as _load_credentials_full,
+    post_recall as _post_recall,
+)
 
 
 def _load_credentials() -> tuple[str | None, str | None]:
-    """Return ``(url, api_key)``. Either may be None when unset."""
-    url = (os.environ.get("HINDSIGHT_URL") or "").strip() or None
-    api_key = (os.environ.get("HINDSIGHT_API_KEY") or "").strip() or None
-    return url, api_key
+    """Compat shim — return ``(url, api_key)`` for legacy callers/tests.
+
+    ``api_key`` here is "any auth method present" — present means there is
+    EITHER a CF Access pair OR a bearer token. New code should use
+    ``scripts._hindsight.load_credentials()`` directly.
+    """
+    try:
+        creds = _load_credentials_full()
+    except (HindsightUrlMissing, HindsightAuthMissing):
+        return (
+            (os.environ.get("HINDSIGHT_URL") or "").strip() or None,
+            (os.environ.get("HINDSIGHT_API_KEY") or "").strip() or None,
+        )
+    placeholder = creds.api_key or (
+        "<cf-access>" if creds.cf_client_id and creds.cf_client_secret else None
+    )
+    return creds.url, placeholder
 
 
 def recall(
@@ -173,42 +194,34 @@ def recall(
     top_k: int = DEFAULT_TOP_K,
     timeout: float = DEFAULT_TIMEOUT_SECS,
 ) -> RecallResult:
-    """POST <url>/recall with a JSON body; normalise response.
+    """POST recall to Hindsight; normalise response into RecallResult.
 
-    The Hindsight surface is POST-driven; we send ``{bank_id, query, top_k}``
-    and accept either a bare list of entries or an envelope with ``{"entries": [...]}``.
+    Resolves auth from env (CF Access preferred, bearer fallback). The
+    ``api_key`` arg is honoured as a bearer fallback when env has nothing,
+    which keeps test mocks working.
     """
-    endpoint = url.rstrip("/") + "/recall"
-    body = json.dumps({"bank_id": bank_id, "query": query, "top_k": int(top_k)}).encode("utf-8")
-    req = urlrequest.Request(
-        endpoint,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "ai-playbook/inject_context",
-        },
+    # Build creds: prefer env (CF Access), fall back to the api_key arg.
+    cf_id = (os.environ.get("CF_ACCESS_CLIENT_ID") or "").strip() or None
+    cf_secret = (os.environ.get("CF_ACCESS_CLIENT_SECRET") or "").strip() or None
+    creds = HindsightCreds(
+        url=url.rstrip("/"),
+        cf_client_id=cf_id,
+        cf_client_secret=cf_secret,
+        api_key=(os.environ.get("HINDSIGHT_API_KEY") or api_key).strip() or None,
     )
-    try:
-        with urlrequest.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except urlerror.HTTPError as exc:
-        return RecallResult(ok=False, entries=[], reason=f"error:http-{exc.code}")
-    except urlerror.URLError as exc:
-        return RecallResult(ok=False, entries=[], reason=f"degraded:url:{exc.reason}")
-    except TimeoutError:
-        return RecallResult(ok=False, entries=[], reason="degraded:timeout")
-    except OSError as exc:
-        return RecallResult(ok=False, entries=[], reason=f"degraded:os:{exc}")
+    if creds.auth_method == "none":
+        return RecallResult(ok=False, entries=[], reason="error:no-auth")
 
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return RecallResult(ok=False, entries=[], reason="error:malformed-json")
+    # The Hindsight `max_tokens` parameter is the closest analogue of `top_k`
+    # — recall returns "as many memories as fit". Map: top_k 5 ≈ 4096 tokens.
+    max_tokens = max(512, int(top_k) * 800)
+    http = _post_recall(creds, bank_id, query, max_tokens=max_tokens, timeout=timeout)
+    if not http.ok:
+        return RecallResult(ok=False, entries=[], reason=http.reason)
 
+    parsed = http.body
     if isinstance(parsed, dict):
-        items = parsed.get("entries") or parsed.get("results") or []
+        items = parsed.get("results") or parsed.get("entries") or []
     elif isinstance(parsed, list):
         items = parsed
     else:
@@ -221,10 +234,16 @@ def recall(
         entries.append(
             RecallEntry(
                 score=float(item.get("score", 0.0) or 0.0),
-                kind=str(item.get("kind") or item.get("type") or "unknown"),
+                kind=str(item.get("type") or item.get("kind") or "unknown"),
                 text=str(item.get("text") or item.get("content") or "").strip(),
-                when=item.get("when") or item.get("ts") or None,
-                trace_id=item.get("trace_id") or None,
+                when=(
+                    item.get("occurred_start")
+                    or item.get("mentioned_at")
+                    or item.get("when")
+                    or item.get("ts")
+                    or None
+                ),
+                trace_id=item.get("trace_id") or item.get("document_id") or None,
             )
         )
     return RecallResult(ok=True, entries=entries, reason="ok")
