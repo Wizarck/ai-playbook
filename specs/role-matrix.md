@@ -1,6 +1,6 @@
 # role-matrix.md
 
-> **Status**: v1.0.0. Populated in T22c. Formalises the 4-role matrix sketched in [../docs/contributing.md](../docs/contributing.md) §2. This spec is normative; `contributing.md` is the friendly summary.
+> **Status**: v1.0.0. Formalises the 4-role matrix sketched in [../docs/contributing.md](../docs/contributing.md) §2. This spec is normative; `contributing.md` is the friendly summary.
 
 Four people-roles govern who can do what in the ai-playbook repo. The roles are orthogonal to the process-roles named in [agent-contract.md](agent-contract.md) (k8s ServiceAccounts, subagent contracts) — see §5 for the mapping.
 
@@ -141,12 +141,12 @@ Mapping specifics are deferred until a second human has production cluster acces
 
 When IR activates (see [incident-response.md](incident-response.md) triggers) or the first non-Arturo operator lands, this section expands into a real table:
 
-| People-role | k8s role(s) | Namespaces |
-|---|---|---|
-| Maintainer | `cluster-admin` | `*` |
-| Reviewer | (TBD) read-only on prod, edit on staging | (TBD) |
-| Contributor | `view` on dev | `dev-*` |
-| Consumer-only | none | none |
+| People-role | k8s role(s) | Namespaces | Status |
+|---|---|---|---|
+| Maintainer | `cluster-admin` | `*` | active (Arturo only at v1.0.0) |
+| Reviewer | `view` on prod + `edit` on staging | `prod-*`, `staging-*` | spec-only; activates when a Reviewer lands |
+| Contributor | `view` on dev | `dev-*` | spec-only; activates when a Contributor lands |
+| Consumer-only | none | none | spec-only |
 
 Until then, Arturo is sole cluster admin. Break-glass for `kubectl` access is logged outside this repo per the ops runbook in `consumer-d/docs/operations/`.
 

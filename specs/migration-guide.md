@@ -1,6 +1,6 @@
 # migration-guide.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T03b.
+> **Status**: v1.0.0.
 
 Procedure for migrating an existing `AGENTS.md` (or equivalent ad-hoc dispatcher file) from **v0** (pre-schema) to **v1** (compliant with `C:\Projects\ai-playbook\specs\agents-md-v1.schema.json`).
 
@@ -103,8 +103,8 @@ Ordered steps. Do NOT skip or reorder.
 
 ## Autofix behavior
 
-`python scripts/schema_validate.py <path> --autofix` (**TODO: clarify with maintainer** —
-this flag lands in T03b/T04 script work; this section documents intended behavior).
+`python scripts/schema_validate.py <path> --autofix` is fully implemented as of
+`schema_validate.py` v1. This section is the normative contract; the script honours it.
 
 **What autofix WILL do:**
 - Inject a missing frontmatter block using the defaults below.

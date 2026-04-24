@@ -1,6 +1,6 @@
 # session-start-hook.md
 
-> **Status**: v1.0.0. Populated in T12.
+> **Status**: v1.0.0.
 
 How to wire `scripts/inject_context.py` into a consumer's Claude Code (or equivalent) `SessionStart` hook so Hindsight memory lands in the agent's context at every session.
 

@@ -1,6 +1,6 @@
 # model-routing.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T04a.
+> **Status**: v1.0.0.
 
 The routing matrix below is the canonical taxonomy every playbook consumer uses to pick a model for a given task class. It is **LLM-agnostic at the spec layer**: the primary and fallback columns name specific model IDs as of 2026-04, but the task classes and the fallback semantics are intended to outlive any specific generation of models. When a new family ships, bump IDs in the table; do not reshape the taxonomy lightly.
 

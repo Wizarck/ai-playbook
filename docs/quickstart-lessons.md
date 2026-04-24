@@ -1,6 +1,6 @@
 # quickstart-lessons.md
 
-> **Status**: v1.0.0. Populated partially in T15 (Windows dry-run, 2026-04-23). macOS / Linux / WSL2 sections carry **predicted** friction derived from static analysis; real dry-runs on those platforms will refine them.
+> **Status**: v1.0.0. macOS / Linux / WSL2 sections carry **predicted** friction derived from static analysis; real dry-runs on those platforms will refine them.
 
 This file records what actually went wrong when running the [quickstart](quickstart.md) on real hardware. `quickstart.md` tells you what to do; this file tells you what to expect to break and how to fix it.
 
@@ -39,7 +39,7 @@ Environment:
 | Step | Budgeted (quickstart.md) | Actual |
 |---|---|---|
 | 1. Clone playbook as submodule | 1 min | ~30s (fast internet, cached). |
-| 2. Bootstrap | 2 min | 30s — currently copy `templates/new-project/` manually since `bootstrap.py` is a stub. |
+| 2. Bootstrap | 2 min | 30s via `python -m scripts.bootstrap --project-name X --owner Y`. |
 | 3. Write AGENTS.md | 5 min | 8 min (first-time cost of thinking through sections §0–§8). |
 | 4. Register project | 30s | <5s. |
 | 5. MCP render dry-run | 2 min | ~5s. |

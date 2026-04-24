@@ -1,6 +1,6 @@
 # curriculum.md
 
-> **Status**: v1.0.0. Populated in T22j.
+> **Status**: v1.0.0.
 
 A 4-week structured learning path for a new dev onboarding to `ai-playbook` (or for future Arturo returning after 6 months away from the repo). Sits one layer above [quickstart.md](quickstart.md): quickstart is what you do on day 1; this curriculum is what you internalise across weeks 1–4 so you operate the playbook, then review it, then contribute to it, then maintain it.
 

@@ -1,6 +1,6 @@
 site_name: "ai-playbook"
 site_description: "Universal AI-dev norms, specs, scripts, and templates for Wizarck org projects."
-site_url: "https://wizarck.github.io/ai-playbook/"  # TBD — confirm final Pages URL on first deploy
+site_url: "https://wizarck.github.io/ai-playbook/"
 repo_url: "https://github.com/Wizarck/ai-playbook"
 repo_name: "Wizarck/ai-playbook"
 edit_uri: "edit/master/docs/"

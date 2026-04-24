@@ -1,7 +1,6 @@
 # mcp-servers-schema.md
 
-> **Status**: v1.0.0. Supersedes the T02-pre stub. Full schema populated in
-> T20 (Batch 9B). Formal JSON Schema (`mcp-servers.schema.json`) tracks this
+> **Status**: v1.0.0. Formal JSON Schema (`mcp-servers.schema.json`) tracks this
 > doc verbatim.
 
 Single-source-of-truth contract for the 3-layer MCP server configuration

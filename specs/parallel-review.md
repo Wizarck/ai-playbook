@@ -1,6 +1,6 @@
 # parallel-review.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T05.
+> **Status**: v1.0.0.
 
 For high-stakes artefacts — code review on a non-trivial diff, proposal review, implementation
 readiness check, retrospective — the playbook spawns **three orthogonal subagents in parallel**.
@@ -226,8 +226,7 @@ Each subagent emits an OTel span child of the parent trace. Required attributes:
 | `ai_playbook.tool_calls` | int |
 
 The parent aggregates across the three children with attribute `ai_playbook.review.triple=true` on
-its own span, and emits a single JSONL record via `scripts/log_event.py` (stub; see playbook
-AGENTS.md §5 capability map).
+its own span, and emits a single JSONL record via `scripts/log_event.py`.
 
 ## 7. Discipline rules
 
@@ -281,4 +280,4 @@ incremented by the parent. All three return `✅ APPROVED`. Parent commits with
   `cascade_failure` — the three layers are the main defence against these.
 - [memory-hierarchy.md](memory-hierarchy.md) — each layer queries `hindsight.recall` on its own
   bank scope.
-- [model-routing.md](model-routing.md) (stub) — Sonnet × 3 vs Opus × 1 decision rule.
+- [model-routing.md](model-routing.md) — Sonnet × 3 vs Opus × 1 decision rule.

@@ -1,6 +1,6 @@
 # error-message-standard.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in T07a.
+> **Status**: v1.0.0.
 
 Canonical error format for any message a playbook script emits to a human (CLI stderr, log, dashboard cell, notification). Agents parsing playbook output rely on this shape; linters enforce it.
 
@@ -108,7 +108,7 @@ See [agentic-failures.md](agentic-failures.md) for how these attributes drive fa
 
 ## Linter
 
-`scripts/verdict_lint.py --shape error` (**TODO: clarify with maintainer** — flag lands alongside T05 verdict lint work) enforces:
+`scripts/verdict_lint.py --shape error` enforces:
 
 - Exactly one `❌` line per error.
 - `FIX:` and `OVERRIDE:` lines are present with 3-space continuation indent.

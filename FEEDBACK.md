@@ -1,6 +1,6 @@
 # FEEDBACK.md
 
-> **Status**: v1.0.0. Supersedes T02-pre stub. Populated in **T14d**. Append-only, low-friction gripe channel. No issue, no RFC, no review required — just commit the line.
+> **Status**: v1.0.0. Append-only, low-friction gripe channel. No issue, no RFC, no review required — just commit the line.
 
 ## Format
 

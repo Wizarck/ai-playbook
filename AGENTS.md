@@ -50,7 +50,7 @@ Any agent editing this repo MUST:
 
 ## 3 Active work
 
-Tracked in the project plan outside this repo. Current version: `0.1.0` (scaffold). Most `specs/*.md` and `scripts/*.py` are stubs populated by downstream tracks — see each file's `TODO: populated in TXX` banner.
+Tracked in the project plan outside this repo. Current tag: `v0.2.0`. Core specs and scripts are v1.0.0; the handful deferred-by-design (e.g. `incident-response.md`, `model-migration.md`) declare their activation trigger in the header.
 
 ## 4 Hard rules (this repo only)
 

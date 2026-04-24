@@ -1,6 +1,6 @@
 # upstream-sync.md
 
-> **Status**: v1.0.0. Populated in T23a.
+> **Status**: v1.0.0.
 
 Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving
 upstream repos (Hindsight, Hermes, Paperclip, LightRAG, and others). Upstream commits land at
@@ -151,6 +151,6 @@ patching that file and open an upstream RFC instead).
 
 ---
 
-**TODO: clarify with maintainer** — the tagging convention for `Last rebase` timestamps (ISO
-date vs. git-tag style) will firm up once the first real refresh cycle runs; until then ISO-8601
-date (YYYY-MM-DD) is the default.
+**Convention note.** `Last rebase` timestamps in per-fork `PATCHES.md` use ISO-8601 date
+(`YYYY-MM-DD`) without time component. If a refresh cadence finer than daily is ever needed,
+the field accepts full RFC 3339 (`YYYY-MM-DDTHH:MM:SSZ`) without spec change.
