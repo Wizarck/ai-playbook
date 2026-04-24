@@ -1,0 +1,57 @@
+# ai-playbook consumers registry — committed, org-level source of truth.
+#
+# Distinct from `~/.ai-playbook/projects.yaml` (per-dev, gitignored) which
+# maps project names to local filesystem paths for dispatcher resolution.
+# This file enumerates every downstream repo that consumes the playbook
+# as a git submodule, so automation (GitHub Actions, LangGraph workflows)
+# can open "bump playbook pin" PRs across the whole inventory when a new
+# tag is cut.
+#
+# Add a consumer: PR against this file.
+# Remove a consumer: PR against this file.
+# The per-dev projects.yaml continues to hold local paths independently.
+#
+# Schema
+# ------
+#   schema: ai-playbook/consumers/v1
+#   consumers:
+#     <name>:
+#       repo: <org>/<name>              # GitHub slug
+#       default_branch: master | main   # base for PRs
+#       submodule_path: .ai-playbook    # (optional, defaults to .ai-playbook)
+#       personal: true | false          # (optional) personal add-on repo
+#       visibility: public | private    # (optional, for audit)
+#       status: active | paused | archived  # paused = skip automation
+#       notes: free text                # (optional)
+#
+# Automation consumers of this file:
+#   - .github/workflows/propagate-playbook-bump.yml (event-driven on tag push)
+#   - eligia-core/langgraph-aiops/workflows/playbook_bump_propagator.py (daily)
+#   - scripts/bump_consumers.py (manual CLI; merges with projects.yaml for
+#     resolution of local paths when run interactively)
+
+schema: ai-playbook/consumers/v1
+version: 1
+
+consumers:
+  openTrattOS:
+    repo: Wizarck/openTrattOS
+    default_branch: master
+    visibility: public
+    status: active
+    notes: Community AGPL-3.0 repo.
+
+  eligia-core:
+    repo: Wizarck/eligia-core
+    default_branch: master
+    visibility: private
+    personal: true
+    status: active
+    notes: Personal add-on (ELIGIA.md) lives alongside the playbook submodule.
+
+# Candidates (not yet consuming — onboarding tracked separately):
+#
+# palafito-b2b:
+#   repo: Wizarck/palafito-b2b
+#   status: paused
+#   notes: Not yet bootstrapped with .ai-playbook submodule.
