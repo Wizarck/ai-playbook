@@ -1,6 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+# Only package the importable Python trees; leave rfcs/specs/routers/templates/
+# alone (they are markdown + YAML, not Python packages).
+include = ["scripts*"]
+exclude = ["rfcs*", "specs*", "routers*", "templates*", "docs*", "tests*"]
+
 [project]
 name = "ai-playbook"
-version = "0.1.0"
+version = "0.2.1"
 description = "Universal AI-dev norms, specs, scripts, and templates for Wizarck org projects"
 requires-python = ">=3.11"
 authors = [
