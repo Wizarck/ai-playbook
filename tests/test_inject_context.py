@@ -13,6 +13,7 @@ from urllib import error as urlerror
 
 import pytest
 
+from scripts import _hindsight as hs
 from scripts import inject_context as ic
 
 
@@ -49,11 +50,12 @@ def _write_consumer(tmp_path: Path, *, project: str = "acme-shop", bank: str | N
     return consumer
 
 
-def _fake_response(body: bytes):
+def _fake_response(body: bytes, status: int = 200):
     """Return a context-manager-compatible fake urlopen response."""
     class _Resp:
-        def __init__(self, data: bytes) -> None:
+        def __init__(self, data: bytes, status: int) -> None:
             self._data = data
+            self.status = status
 
         def read(self) -> bytes:
             return self._data
@@ -64,7 +66,12 @@ def _fake_response(body: bytes):
         def __exit__(self, *a) -> None:
             return None
 
-    return _Resp(body)
+    return _Resp(body, status)
+
+
+def _patch_urlopen(monkeypatch: pytest.MonkeyPatch, fake) -> None:
+    """Patch the urlopen used inside scripts._hindsight (where the real call lives now)."""
+    monkeypatch.setattr(hs.urlrequest, "urlopen", fake)
 
 
 # ---------------------------------------------------------------------------
@@ -97,14 +104,16 @@ def test_resolve_project_missing_agents_md(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_recall_parses_entries_list(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_recall_parses_results_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Real Hindsight returns ``{results: [{type, text, occurred_start, document_id, ...}]}``."""
     payload = json.dumps({
-        "entries": [
-            {"score": 0.91, "kind": "lesson", "text": "prefer X over Y", "ts": "2026-03-01"},
-            {"score": 0.80, "kind": "gotcha", "text": "port 3101 in prod"},
+        "results": [
+            {"type": "lesson", "text": "prefer X over Y", "occurred_start": "2026-03-01",
+             "document_id": "doc-1"},
+            {"type": "gotcha", "text": "port 3101 in prod", "document_id": "doc-2"},
         ]
     }).encode("utf-8")
-    monkeypatch.setattr(ic.urlrequest, "urlopen", lambda *a, **kw: _fake_response(payload))
+    _patch_urlopen(monkeypatch, lambda *a, **kw: _fake_response(payload))
 
     result = ic.recall(url="https://h.example/", api_key="k", bank_id="acme", query="q", top_k=3)
 
@@ -112,14 +121,15 @@ def test_recall_parses_entries_list(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.reason == "ok"
     assert len(result.entries) == 2
     assert result.entries[0].kind == "lesson"
-    assert result.entries[0].score == pytest.approx(0.91)
+    assert result.entries[0].when == "2026-03-01"
+    assert result.entries[0].trace_id == "doc-1"
 
 
 def test_recall_accepts_bare_list(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = json.dumps([
-        {"score": 0.5, "kind": "decision", "content": "use DDD"}
+        {"type": "decision", "content": "use DDD"}
     ]).encode("utf-8")
-    monkeypatch.setattr(ic.urlrequest, "urlopen", lambda *a, **kw: _fake_response(payload))
+    _patch_urlopen(monkeypatch, lambda *a, **kw: _fake_response(payload))
     result = ic.recall(url="https://h.example/", api_key="k", bank_id="acme", query="q")
     assert result.ok
     assert result.entries[0].text == "use DDD"
@@ -129,7 +139,7 @@ def test_recall_degraded_on_urlerror(monkeypatch: pytest.MonkeyPatch) -> None:
     def _boom(*a, **kw):
         raise urlerror.URLError("unreachable")
 
-    monkeypatch.setattr(ic.urlrequest, "urlopen", _boom)
+    _patch_urlopen(monkeypatch, _boom)
     result = ic.recall(url="https://h.example/", api_key="k", bank_id="acme", query="q")
     assert result.ok is False
     assert result.reason.startswith("degraded:url")
@@ -139,14 +149,14 @@ def test_recall_error_on_http_status(monkeypatch: pytest.MonkeyPatch) -> None:
     def _boom(*a, **kw):
         raise urlerror.HTTPError("https://h.example/", 500, "err", {}, io.BytesIO(b""))
 
-    monkeypatch.setattr(ic.urlrequest, "urlopen", _boom)
+    _patch_urlopen(monkeypatch, _boom)
     result = ic.recall(url="https://h.example/", api_key="k", bank_id="acme", query="q")
     assert result.ok is False
     assert result.reason == "error:http-500"
 
 
 def test_recall_error_on_malformed_json(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ic.urlrequest, "urlopen", lambda *a, **kw: _fake_response(b"not-json"))
+    _patch_urlopen(monkeypatch, lambda *a, **kw: _fake_response(b"not-json"))
     result = ic.recall(url="https://h.example/", api_key="k", bank_id="acme", query="q")
     assert result.ok is False
     assert result.reason == "error:malformed-json"
@@ -274,7 +284,7 @@ def test_main_happy_path_writes_file(
     payload = json.dumps({
         "entries": [{"score": 0.8, "kind": "lesson", "text": "be careful with X"}]
     }).encode("utf-8")
-    monkeypatch.setattr(ic.urlrequest, "urlopen", lambda *a, **kw: _fake_response(payload))
+    _patch_urlopen(monkeypatch, lambda *a, **kw: _fake_response(payload))
 
     rc = ic.main(["--consumer-root", str(consumer), "--top-k", "3"])
     assert rc == 0
@@ -291,7 +301,7 @@ def test_main_dry_run_does_not_write(
     consumer = _write_consumer(tmp_path, project="acme")
 
     payload = json.dumps([{"score": 0.5, "kind": "gotcha", "text": "port 3101"}]).encode("utf-8")
-    monkeypatch.setattr(ic.urlrequest, "urlopen", lambda *a, **kw: _fake_response(payload))
+    _patch_urlopen(monkeypatch, lambda *a, **kw: _fake_response(payload))
 
     rc = ic.main(["--consumer-root", str(consumer), "--dry-run"])
     assert rc == 0
@@ -310,7 +320,7 @@ def test_main_degraded_hindsight_still_exits_0(
     def _boom(*a, **kw):
         raise urlerror.URLError("unreachable")
 
-    monkeypatch.setattr(ic.urlrequest, "urlopen", _boom)
+    _patch_urlopen(monkeypatch, _boom)
     rc = ic.main(["--consumer-root", str(consumer)])
     assert rc == 0
     body = (consumer / ".claude" / "injected-context.md").read_text(encoding="utf-8")
@@ -324,14 +334,18 @@ def test_main_bank_id_override_used(
     monkeypatch.setenv("HINDSIGHT_API_KEY", "k")
     consumer = _write_consumer(tmp_path, project="acme")
 
-    captured: dict[str, bytes] = {}
+    captured: dict[str, object] = {}
 
     def _capture(req, timeout):  # noqa: ANN001
         captured["body"] = req.data
-        return _fake_response(b'{"entries":[]}')
+        captured["url"] = req.full_url
+        return _fake_response(b'{"results":[]}')
 
-    monkeypatch.setattr(ic.urlrequest, "urlopen", _capture)
+    _patch_urlopen(monkeypatch, _capture)
     rc = ic.main(["--consumer-root", str(consumer), "--bank-id", "acme-personal"])
     assert rc == 0
+    # Per the real Hindsight API the bank_id rides in the URL path, not the body.
+    assert "/v1/default/banks/acme-personal/memories/recall" in captured["url"]
     sent = json.loads(captured["body"].decode("utf-8"))
-    assert sent["bank_id"] == "acme-personal"
+    assert "query" in sent  # body still carries the recall query
+    assert sent.get("max_tokens", 0) > 0
