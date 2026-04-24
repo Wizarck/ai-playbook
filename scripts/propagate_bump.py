@@ -91,10 +91,16 @@ def _load_consumers(path: Path) -> list[dict]:
 
 
 def _clone_consumer(name: str, repo: str, token: str, workdir: Path) -> Path:
-    """Clone with token embedded in the URL; submodules too."""
-    url = f"https://x-access-token:{token}@github.com/{repo}.git"
+    """Clone with the PAT embedded in the URL. Works for both classic PATs
+    (just username-as-token) and fine-grained tokens (oauth2:token)."""
+    # Classic-PAT form: https://<token>@github.com/owner/repo.git
+    # (GitHub accepts the PAT as the username with an empty password.)
+    url = f"https://{token}@github.com/{repo}.git"
     dest = workdir / name
     _run(["git", "clone", "--quiet", "--recurse-submodules", url, str(dest)])
+    # Persist the token-embedded URL in the local remote so subsequent push
+    # calls don't fall back to credential helpers that would prompt for stdin.
+    _run(["git", "remote", "set-url", "origin", url], cwd=dest)
     return dest
 
 
