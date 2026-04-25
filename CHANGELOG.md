@@ -2,6 +2,28 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.2.3] — 2026-04-25 — project-b onboarded + project-d mcp render + hook validated
+
+### Added
+
+- `project-b/` (third active consumer) — `.ai-playbook/` submodule pinned to v0.2.2; `AGENTS.md` (v1 dispatcher); `mcp-servers.project.yaml` (project layer with `project-b` bank); `.claude/settings.json` (SessionStart hook); `.mcp.json` + `.gemini/settings.json` rendered. `consumers.yaml` updated.
+- `project-d/mcp-servers.project.yaml` — playbook-side project layer for the render pipeline. The legacy `mcp-servers.yaml` (v2-metadata SSOT for helm + desktop-stack + scripts) stays untouched; the playbook validator now resolves `mcp-servers.project.yaml` first, falls back to `mcp-servers.yaml` only when the legacy file declares `schema: mcp-servers/v1`. project-d's `.mcp.json` rendered (23 servers across base+project+personal).
+- `runbooks/rotate-secrets.md` §"Fine-grained PAT scope" — explicit GitHub UI fields (token name, description, resource owner, expiration, repos-to-select, exact permission grants).
+
+### Changed
+
+- `scripts/mcp/validate.py::load_layers` — supports `mcp-servers.project.yaml` as a v1-explicit alternative filename. New helper `_resolve_project_layer_file` picks the right file per consumer; preserves backward compat for consumers using `mcp-servers.yaml` directly.
+
+### Verified end-to-end on 2026-04-25
+
+- SessionStart hook fires correctly: `sops exec-env ../project-d/secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id project-c-legacy` writes `injected-context.md` with 7 entries (semantic indexing breaks one retained lesson into multiple recall results, as designed).
+- Retain CLI works against production: `retain_lesson.py --bank project-c-legacy --content "..."` lazy-creates the bank, sanitises, POSTs, returns `✅ retained 1 item(s) to bank=project-c-legacy; usage=4844 tokens`.
+- Loop closed: retain → semantic indexing → recall → injected context all working against production Hindsight v0.5.4 behind CF Access.
+
+### Fixes (in project-d, related)
+
+- `secrets/secrets.env` — added `HINDSIGHT_URL=https://project-d-hindsight.example.com` (was missing; SessionStart hooks were failing silently via `|| true`).
+
 ## [0.2.2] — 2026-04-24 — Hindsight loop closed (read + write + sessionstart wiring)
 
 ### Added
