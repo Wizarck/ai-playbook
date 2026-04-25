@@ -49,9 +49,9 @@ consumers:
     status: active
     notes: Personal add-on alongside the playbook submodule.
 
-# Candidates (not yet consuming — onboarding tracked separately):
-#
-# consumer-b:
-#   repo: Wizarck/consumer-b
-#   status: paused
-#   notes: Not yet bootstrapped with .ai-playbook submodule.
+  consumer-b:
+    repo: Wizarck/consumer-b
+    default_branch: master
+    visibility: private
+    status: active
+    notes: Internal product (description redacted). Onboarded 2026-04-25.

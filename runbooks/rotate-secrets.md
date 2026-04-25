@@ -33,10 +33,29 @@ For classic PATs on a Wizarck org with SSO, the token must also be
 Preferred: **fine-grained PAT** scoped to exactly the repos in
 `consumers.yaml`. This is the least-privilege option.
 
+### Fine-grained PAT scope (recommended)
+
+GitHub PAT generation is **UI-only** (no API to create tokens) — perform on
+https://github.com/settings/personal-access-tokens/new. Set:
+
+| Field | Value |
+|---|---|
+| Token name | `playbook-propagation` |
+| Description | `Used by Wizarck/ai-playbook propagate-playbook-bump.yml to open bump PRs across consumers in consumers.yaml` |
+| Resource owner | `Wizarck` |
+| Expiration | 90 days (calendar-rotated; or 1 year if Wizarck policy allows) |
+| Repository access | "Only select repositories" → check **every active row in `consumers.yaml`** (today: `Wizarck/consumer-c-legacy`, `Wizarck/consumer-d`, `Wizarck/consumer-b`) |
+| Repository permissions | `Contents: Read and write`, `Pull requests: Read and write`, `Metadata: Read-only` (auto). All other permissions stay at "No access". |
+| Account permissions | None. |
+
+After generating, copy the `github_pat_…` token value and continue with the rotation steps below.
+
 ### Rotation steps
 
-1. **Generate new PAT** at https://github.com/settings/tokens (or
-   fine-grained: https://github.com/settings/personal-access-tokens/new).
+1. **Generate new PAT** at https://github.com/settings/personal-access-tokens/new
+   following the table above. (The legacy classic-PAT path at
+   https://github.com/settings/tokens is still supported but discouraged —
+   classic PATs grant org-wide access regardless of which repos you check.)
 2. **Set the repo secret** on `Wizarck/ai-playbook`:
    ```bash
    gh secret set PLAYBOOK_PROPAGATION_TOKEN --repo Wizarck/ai-playbook --body "<new-pat>"
