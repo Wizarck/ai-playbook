@@ -235,10 +235,40 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
+def _resolve_project_layer_file(consumer_root: Path) -> Path:
+    """Resolve the v1 project-layer YAML for a consumer.
+
+    A consumer may ship its own legacy ``mcp-servers.yaml`` as SSOT for other
+    tooling (e.g. eligia-core's helm chart + desktop-stack scripts predate the
+    playbook v1 layer schema). Those files declare ``metadata:`` rather than
+    ``schema: mcp-servers/v1`` and would fail playbook validation.
+
+    Resolution order:
+      1. ``<consumer>/mcp-servers.project.yaml`` — explicit v1 file. Use as-is.
+      2. ``<consumer>/mcp-servers.yaml`` — only when the file declares
+         ``schema: mcp-servers/v1`` (otherwise treated as legacy + skipped).
+    """
+    explicit = consumer_root / "mcp-servers.project.yaml"
+    if explicit.is_file():
+        return explicit
+    default = consumer_root / "mcp-servers.yaml"
+    if not default.is_file():
+        return default  # treated as not-present by caller
+    try:
+        head = _load_yaml(default)
+    except RuntimeError:
+        return default
+    if head.get("schema") == SCHEMA:
+        return default
+    # Legacy shape — point at the explicit-file location so callers see "absent"
+    # for the v1 surface without erroring on the legacy file.
+    return explicit
+
+
 def load_layers(*, playbook_root: Path, consumer_root: Path,
                 personal_file: Path | None) -> tuple[Layer, Layer, Layer]:
     base_path = playbook_root / "mcp-servers-base.yaml"
-    project_path = consumer_root / "mcp-servers.yaml"
+    project_path = _resolve_project_layer_file(consumer_root)
 
     base = Layer(name=LAYER_BASE, path=base_path, present=base_path.is_file())
     if base.present:

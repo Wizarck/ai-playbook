@@ -49,9 +49,9 @@ consumers:
     status: active
     notes: Personal add-on (ELIGIA.md) lives alongside the playbook submodule.
 
-# Candidates (not yet consuming — onboarding tracked separately):
-#
-# palafito-b2b:
-#   repo: Wizarck/palafito-b2b
-#   status: paused
-#   notes: Not yet bootstrapped with .ai-playbook submodule.
+  palafito-b2b:
+    repo: Wizarck/palafito-b2b
+    default_branch: master
+    visibility: private
+    status: active
+    notes: WordPress + WooCommerce B2B for the Mexican wholesale market. Onboarded 2026-04-25.
