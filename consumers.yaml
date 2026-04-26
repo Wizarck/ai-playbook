@@ -23,9 +23,20 @@
 #       visibility: public | private    # (optional, for audit)
 #       status: active | paused | archived  # paused = skip automation
 #       notes: free text                # (optional)
+#       skills_pins:                    # (optional, RFC-0001) per-source-repo
+#         <source-repo-slug>: <semver>  # tag pin for skills materialisation.
+#                                       # Source slugs match the repo's bare
+#                                       # name (e.g. `ai-playbook`,
+#                                       # `eligia-skills`). Absence of a key
+#                                       # = consumer doesn't pull from that
+#                                       # source. propagate_skills_bump.py
+#                                       # only opens PRs for consumers that
+#                                       # already have a pin for the bumped
+#                                       # source.
 #
 # Automation consumers of this file:
 #   - .github/workflows/propagate-playbook-bump.yml (event-driven on tag push)
+#   - .github/workflows/propagate-skills-bump.yml   (RFC-0001 Phase 2b)
 #   - eligia-core/langgraph-aiops/workflows/playbook_bump_propagator.py (daily)
 #   - scripts/bump_consumers.py (manual CLI; merges with projects.yaml for
 #     resolution of local paths when run interactively)
