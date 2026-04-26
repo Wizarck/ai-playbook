@@ -1,6 +1,6 @@
 # agent-contract.md
 
-> **Status**: v1.0.0.
+> **Status**: v1.0.0. **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md). The JSON Schema is published at [`agent-contract.schema.json`](agent-contract.schema.json) but no harness validates spawn envelopes today. Activation: when a real `Task`-tool harness ships, wire `jsonschema.validate` at spawn time.
 
 Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an advisor — carries an
 explicit identity, scope, memory binding, and budget. This spec defines the **input envelope** the

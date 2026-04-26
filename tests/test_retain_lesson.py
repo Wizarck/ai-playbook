@@ -1,18 +1,18 @@
-"""Tests for scripts/retain_lesson.py — write side of the Hindsight loop."""
+"""Tests for the scripts.retain_lesson deprecation shim (v0.3.0+).
+
+The real tests live in tests/test_retain_memory.py. These verify that the
+deprecation shim still imports + emits a warning + delegates correctly so
+older runbooks/hooks/scripts that haven't migrated yet continue to work.
+
+Will be removed in v1.0.0 alongside scripts/retain_lesson.py itself.
+"""
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import warnings
 
 import pytest
 
 from scripts import _hindsight as hs
-from scripts import retain_lesson as rl
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 def _resp(body: bytes, status: int = 200):
@@ -33,191 +33,40 @@ def _resp(body: bytes, status: int = 200):
     return _R(body, status)
 
 
-def _patch_urlopen(monkeypatch: pytest.MonkeyPatch, fake) -> None:
-    monkeypatch.setattr(hs.urlrequest, "urlopen", fake)
+def test_shim_re_exports_public_api() -> None:
+    """Old `from scripts.retain_lesson import X` calls must still work."""
+    from scripts import retain_lesson  # noqa: F401
+
+    # Symbols that downstream callers may have imported.
+    assert hasattr(retain_lesson, "RetainItem")
+    assert hasattr(retain_lesson, "ALLOWED_KINDS")
+    assert hasattr(retain_lesson, "QUEUE_FILE")
+    assert hasattr(retain_lesson, "main")
 
 
-def _wire_creds(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_shim_main_emits_deprecation_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("HINDSIGHT_URL", "https://h.example/")
     monkeypatch.setenv("CF_ACCESS_CLIENT_ID", "cid")
     monkeypatch.setenv("CF_ACCESS_CLIENT_SECRET", "csec")
-    monkeypatch.delenv("HINDSIGHT_API_KEY", raising=False)
-
-
-# ---------------------------------------------------------------------------
-# RetainItem rendering
-# ---------------------------------------------------------------------------
-
-
-def test_retain_item_to_hindsight_minimal() -> None:
-    item = rl.RetainItem(content="hello world", bank="eligia")
-    out = item.to_hindsight()
-    assert out["content"] == "hello world"
-    # `kind` defaults to lesson, becomes context + tag
-    assert out["context"] == "lesson"
-    assert "lesson" in out["tags"]
-
-
-def test_retain_item_to_hindsight_full() -> None:
-    item = rl.RetainItem(
-        content="rotated PAT to fine-grained scope",
-        bank="eligia",
-        kind="decision",
-        project="ai-playbook",
-        why="least-privilege",
-        trace_id="trace-abc",
-        tags=["security", "rotation"],
-        ttl_days=180,
-        timestamp="2026-04-24T14:00:00Z",
-    )
-    out = item.to_hindsight()
-    assert "WHY: least-privilege" in out["content"]
-    assert out["timestamp"] == "2026-04-24T14:00:00Z"
-    assert out["context"] == "decision"
-    assert out["tags"] == ["security", "rotation", "decision", "ai-playbook"]
-    assert out["metadata"]["trace_id"] == "trace-abc"
-    assert out["metadata"]["ttl_days"] == "180"
-    assert out["metadata"]["project"] == "ai-playbook"
-    assert out["metadata"]["kind"] == "decision"
-
-
-# ---------------------------------------------------------------------------
-# CLI happy path
-# ---------------------------------------------------------------------------
-
-
-def test_cli_single_item_retain_ok(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _wire_creds(monkeypatch)
-    monkeypatch.chdir(tmp_path)
-
-    captured: dict[str, object] = {}
-
-    def _cap(req, timeout):  # noqa: ANN001
-        captured["body"] = req.data
-        captured["url"] = req.full_url
-        return _resp(b'{"success":true,"items_count":1,"usage":{"total_tokens":100}}')
-
-    _patch_urlopen(monkeypatch, _cap)
+    monkeypatch.setattr(hs.urlrequest, "urlopen",
+                        lambda req, timeout: _resp(b'{"items_count":1}'))
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_lesson", "--bank", "eligia", "--content", "Test lesson here",
-         "--why", "Because reasons", "--kind", "decision", "--project", "ai-playbook"],
+        ["retain_lesson", "--bank", "eligia", "--content", "x" * 30, "--dry-run"],
     )
-    rc = rl.main()
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        from scripts import retain_lesson
+
+        rc = retain_lesson.main()
+
     assert rc == 0
-    out = capsys.readouterr().out
-    assert "retained 1 item(s) to bank=eligia" in out
-    assert "100" in out  # token usage echoed
-    assert "/banks/eligia/memories" in captured["url"]
-
-
-def test_cli_dry_run_does_not_post(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _wire_creds(monkeypatch)
-    called = {"n": 0}
-
-    def _spy(req, timeout):  # noqa: ANN001
-        called["n"] += 1
-        return _resp(b'{"items_count":1}')
-
-    _patch_urlopen(monkeypatch, _spy)
-    monkeypatch.setattr(
-        "sys.argv",
-        ["retain_lesson", "--bank", "eligia", "--content", "x" * 50, "--dry-run"],
-    )
-    rc = rl.main()
-    assert rc == 0
-    assert called["n"] == 0
-    body = capsys.readouterr().out
-    parsed = json.loads(body)
-    assert parsed["content"] == "x" * 50
-
-
-def test_cli_bulk_jsonl(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _wire_creds(monkeypatch)
-    monkeypatch.chdir(tmp_path)
-    bulk = tmp_path / "lessons.jsonl"
-    bulk.write_text(
-        json.dumps({"content": "first", "kind": "lesson", "project": "p"}) + "\n" +
-        json.dumps({"content": "second", "kind": "gotcha", "tags": ["foo"]}) + "\n",
-        encoding="utf-8",
-    )
-
-    captured: dict[str, object] = {}
-
-    def _cap(req, timeout):  # noqa: ANN001
-        captured["body"] = req.data
-        return _resp(b'{"success":true,"items_count":2,"usage":{"total_tokens":250}}')
-
-    _patch_urlopen(monkeypatch, _cap)
-    monkeypatch.setattr(
-        "sys.argv",
-        ["retain_lesson", "--bank", "eligia", "--bulk", str(bulk)],
-    )
-    rc = rl.main()
-    assert rc == 0
-    sent = json.loads(captured["body"].decode("utf-8"))
-    assert len(sent["items"]) == 2
-    assert sent["items"][0]["content"] == "first"
-    assert sent["items"][1]["content"] == "second"
-
-
-# ---------------------------------------------------------------------------
-# Degraded-mode queue
-# ---------------------------------------------------------------------------
-
-
-def test_cli_queues_on_unreachable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("HINDSIGHT_URL", raising=False)  # forces HindsightUrlMissing
-    monkeypatch.setattr(
-        "sys.argv",
-        ["retain_lesson", "--bank", "eligia", "--content", "queued lesson"],
-    )
-    rc = rl.main()
-    assert rc == 0
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
     err = capsys.readouterr().err
-    assert "queued" in err
-    queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
-    assert queue.is_file()
-    rec = json.loads(queue.read_text(encoding="utf-8").strip())
-    assert rec["item"]["content"] == "queued lesson"
-    assert rec["bank"] == "eligia"
-
-
-def test_replay_queue_drains(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _wire_creds(monkeypatch)
-    monkeypatch.chdir(tmp_path)
-    queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
-    queue.parent.mkdir(parents=True)
-    queue.write_text(
-        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "eligia",
-                    "item": {"content": "queued"}}) + "\n" +
-        json.dumps({"ts": "2026-04-24T00:01:00", "bank": "other-bank",
-                    "item": {"content": "skip me"}}) + "\n",
-        encoding="utf-8",
-    )
-
-    _patch_urlopen(monkeypatch, lambda req, timeout: _resp(b'{"items_count":1}'))
-    monkeypatch.setattr(
-        "sys.argv",
-        ["retain_lesson", "--bank", "eligia", "--replay-queue"],
-    )
-    rc = rl.main()
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "replayed 1 item(s)" in out
-    assert "1 remain queued" in out
-    # The other-bank entry stays in the queue.
-    remaining = queue.read_text(encoding="utf-8").strip()
-    assert "other-bank" in remaining
-    assert "queued" not in remaining  # the eligia entry was drained
+    assert "deprecated" in err.lower()

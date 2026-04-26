@@ -1,9 +1,0 @@
-# GEMINI.md (example router — PROJECT level)
-
-> Copy this to `<project>/GEMINI.md`. Thin router for Gemini CLI + Google Antigravity.
-
-Gemini CLI / Antigravity: read [AGENTS.md](AGENTS.md) first. That file is the project dispatcher.
-
-Follow its bootstrap directive (section 0) before any task.
-
-This file exists because Antigravity's file-precedence prefers `GEMINI.md`. All logic lives in `AGENTS.md`.

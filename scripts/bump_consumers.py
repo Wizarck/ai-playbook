@@ -59,10 +59,16 @@ for _stream in (sys.stdout, sys.stderr):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
+from scripts._bumper import (  # noqa: E402
+    DEFAULT_SUBMODULE_PATH,
+    bump_branch,
+    commit_message,
+)
 
 
 DEFAULT_REGISTRY = Path.home() / ".ai-playbook" / "projects.yaml"
-SUBMODULE_PATH = ".ai-playbook"
+SUBMODULE_PATH = DEFAULT_SUBMODULE_PATH
+# Re-export for back-compat with any external caller importing this name.
 COMMIT_TEMPLATE = "chore(playbook): bump .ai-playbook to {tag}"
 
 
@@ -192,7 +198,7 @@ def _bump_one(
 
     # Stage + commit in the parent.
     _run(["git", "add", SUBMODULE_PATH], cwd=consumer.path)
-    commit_msg = COMMIT_TEMPLATE.format(tag=tag)
+    commit_msg = commit_message(tag)
     _run(["git", "commit", "-m", commit_msg], cwd=consumer.path)
 
     if push:
@@ -200,7 +206,7 @@ def _bump_one(
         branch = _run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=consumer.path
         ).stdout.strip()
-        push_branch = f"chore/bump-playbook-{tag}"
+        push_branch = bump_branch(tag)
         _run(["git", "checkout", "-b", push_branch], cwd=consumer.path)
         _run(["git", "push", "-u", "origin", push_branch], cwd=consumer.path)
 

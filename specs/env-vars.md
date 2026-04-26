@@ -67,7 +67,7 @@ are documented below.
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
 | `HINDSIGHT_URL` | `HINDSIGHT_` | Base URL of Hindsight deployment (no trailing slash). | **yes** (if any Hindsight call is made) | unset | `scripts/_hindsight.py::load_credentials` |
-| `HINDSIGHT_BANK_ID` | `HINDSIGHT_` | Default bank when neither `--bank-id`/`--bank` flag nor AGENTS.md `bank_id` is supplied. | recommended | derived from project slug | `scripts/inject_context.py`, `scripts/retain_lesson.py` |
+| `HINDSIGHT_BANK_ID` | `HINDSIGHT_` | Default bank when neither `--bank-id`/`--bank` flag nor AGENTS.md `bank_id` is supplied. | recommended | derived from project slug | `scripts/inject_context.py`, `scripts/retain_memory.py` |
 | `CF_ACCESS_CLIENT_ID` | *(CF reserved)* | Cloudflare Access service-token client id. | **yes** (preferred auth path) | unset | `scripts/_hindsight.py::load_credentials` |
 | `CF_ACCESS_CLIENT_SECRET` | *(CF reserved)* | Cloudflare Access service-token client secret. | **yes** (preferred auth path) | unset | `scripts/_hindsight.py::load_credentials` |
 | `HINDSIGHT_API_KEY` | `HINDSIGHT_` | Bearer fallback when the deployment is direct-network (no CF Access in front). | conditional — required iff CF Access pair is unset | unset | `scripts/_hindsight.py::load_credentials` |
@@ -79,7 +79,7 @@ are documented below.
 2. Else if `HINDSIGHT_API_KEY` is set → `Authorization: Bearer …`.
 3. Else `HindsightAuthMissing` is raised; calls fail before hitting the network.
 
-`scripts/retain_lesson.py` queues unsuccessful calls to
+`scripts/retain_memory.py` queues unsuccessful calls to
 `<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored) when `--queue-on-fail`
 is set (default true) — see `specs/memory-hierarchy.md` §9.
 
