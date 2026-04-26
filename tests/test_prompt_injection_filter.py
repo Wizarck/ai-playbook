@@ -15,13 +15,11 @@ from unittest import mock
 
 import pytest
 
-from scripts import prompt_injection_filter
 from scripts.prompt_injection_filter import (
     InjectionVerdict,
     filter_text,
     main,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers for mocking layer 2

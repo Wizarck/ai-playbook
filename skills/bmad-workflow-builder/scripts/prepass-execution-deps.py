@@ -24,7 +24,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -232,7 +232,7 @@ def scan_execution_deps(skill_path: Path) -> dict:
         'script': 'prepass-execution-deps.py',
         'version': '1.0.0',
         'skill_path': str(skill_path),
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': datetime.now(UTC).isoformat(),
         'status': status,
         'dependency_graph': {
             'stages': sorted(all_stages),

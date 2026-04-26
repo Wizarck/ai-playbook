@@ -32,10 +32,11 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 # Force UTF-8 stdio.
 for _stream in (sys.stdout, sys.stderr):
@@ -302,7 +303,7 @@ def scan_stale_retros(
     Reads ``reports/lifecycle/*.md`` and treats each file's `YYYY-MM` filename
     stem as its logical month; files older than the cutoff produce a finding.
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     cutoff = now - timedelta(days=STALE_RETRO_DAYS)
     lifecycle_dir = _lifecycle_dir(root)
     if not lifecycle_dir.is_dir():
@@ -316,7 +317,7 @@ def scan_stale_retros(
             continue
         year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3) or 1)
         try:
-            file_dt = datetime(year, month, day, tzinfo=timezone.utc)
+            file_dt = datetime(year, month, day, tzinfo=UTC)
         except ValueError:
             continue
         if file_dt < cutoff:

@@ -6,7 +6,6 @@ email was sent when SMTP env is absent or below threshold.
 """
 from __future__ import annotations
 
-import io
 import json
 import smtplib
 from pathlib import Path

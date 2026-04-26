@@ -23,9 +23,8 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 # Patterns to detect
 # Double-prefix: {project-root}/{config-variable} — config vars already contain project-root
@@ -268,7 +267,7 @@ def scan_skill(skill_path: Path, skip_fenced: bool = True) -> dict:
         'script': 'scan-path-standards.py',
         'version': '3.0.0',
         'skill_path': str(skill_path),
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': datetime.now(UTC).isoformat(),
         'files_scanned': files_scanned,
         'status': 'pass' if not all_findings else 'fail',
         'findings': all_findings,

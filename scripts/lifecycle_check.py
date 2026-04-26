@@ -30,11 +30,10 @@ import argparse
 import json
 import shlex
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
 
 # Force UTF-8 stdio — markdown carries non-ASCII sigils.
 for _stream in (sys.stdout, sys.stderr):
@@ -116,7 +115,7 @@ def _parse_iso_ts(raw: str) -> datetime | None:
     except ValueError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -191,7 +190,7 @@ def scan_openspec_changes(openspec_dir: Path, *, now: datetime) -> tuple[list[Cl
             if not p.is_file():
                 continue
             try:
-                m = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+                m = datetime.fromtimestamp(p.stat().st_mtime, tz=UTC)
             except OSError:
                 continue
             if oldest_mtime is None or m < oldest_mtime:
@@ -206,7 +205,7 @@ def scan_openspec_changes(openspec_dir: Path, *, now: datetime) -> tuple[list[Cl
             if CLARIFY_MARKER not in text:
                 continue
             try:
-                m = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+                m = datetime.fromtimestamp(p.stat().st_mtime, tz=UTC)
             except OSError:
                 continue
             age = (now - m).days
@@ -525,9 +524,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.now:
         parsed_now = _parse_iso_ts(args.now)
-        now = parsed_now or datetime.now(timezone.utc)
+        now = parsed_now or datetime.now(UTC)
     else:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
     month = args.month or _previous_month(now.date())
     migration_log = args.migration_log or _default_migration_log()

@@ -131,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     first = protected[0]
     emit_error(
         why=(
-            f"openspec/specs/*.md edited directly (not via `openspec archive`)"
+            "openspec/specs/*.md edited directly (not via `openspec archive`)"
             if commit_msg
             else "openspec/specs/*.md hand-edit detected and commit message unavailable"
         ),

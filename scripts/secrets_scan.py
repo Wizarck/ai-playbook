@@ -33,9 +33,9 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator
 
 # Force UTF-8 stdio — Windows default cp1252 cannot encode the ❌/⚠️/✅ sigils
 # we emit, and secrets-scan output on Windows CI is routinely piped into UTF-8

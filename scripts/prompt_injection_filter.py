@@ -45,6 +45,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -334,10 +335,10 @@ def _apply_break_glass_fallback(
         print("   FIX: re-run with a detailed reason.", file=sys.stderr)
         print("   OVERRIDE: none", file=sys.stderr)
         return False
-    from datetime import datetime, timezone
+    from datetime import datetime
     log_path = repo_root / ".ai-playbook" / "overrides.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    ts = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     actor = os.environ.get("GIT_AUTHOR_EMAIL", "unknown")
     with log_path.open("a", encoding="utf-8") as f:
         f.write(f'{ts} {actor} {script} {gate} "{stripped}"\n')

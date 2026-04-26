@@ -25,6 +25,8 @@ from scripts.retain_memory import (  # noqa: F401, E402
     QUEUE_FILE,
     SCRIPT_BASENAME,
     RetainItem,
+)
+from scripts.retain_memory import (
     main as _main,
 )
 

@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import io
 import json
-
-import pytest
 from urllib import error as urlerror
 
-from scripts import _hindsight as hs
+import pytest
 
+from scripts import _hindsight as hs
 
 # ---------------------------------------------------------------------------
 # Fixtures

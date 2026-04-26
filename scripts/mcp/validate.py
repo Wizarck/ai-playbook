@@ -40,7 +40,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -150,7 +150,7 @@ def _apply_break_glass(*, gate: str, script: str, reason: str | None,
     log_path = repo_root / ".ai-playbook" / "overrides.log"
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        ts = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
         actor = os.environ.get("GIT_AUTHOR_EMAIL") or os.environ.get("USER") or "unknown"
         with log_path.open("a", encoding="utf-8") as f:
             f.write(f'{ts} {actor} {script} {gate} "{stripped}"\n')

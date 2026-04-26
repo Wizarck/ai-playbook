@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from scripts import cost_report as cr
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -23,11 +22,11 @@ def _write_events(path: Path, events: list[dict]) -> None:
 
 
 def _recent_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _old_iso(days: int) -> str:
-    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+    return (datetime.now(UTC) - timedelta(days=days)).isoformat(timespec="seconds")
 
 
 def _llm_event(
@@ -148,7 +147,7 @@ def test_since_filter_drops_old_events(
     )
     rc = cr.main([
         "--events", str(events),
-        "--since", (datetime.now(timezone.utc) - timedelta(days=10)).date().isoformat(),
+        "--since", (datetime.now(UTC) - timedelta(days=10)).date().isoformat(),
         "--json",
     ])
     assert rc == 0

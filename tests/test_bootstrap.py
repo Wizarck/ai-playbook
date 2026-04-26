@@ -7,15 +7,11 @@ covered.
 """
 from __future__ import annotations
 
-import os
-import subprocess
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from scripts import bootstrap as bs
-
 
 # ---------------------------------------------------------------------------
 # Helpers
