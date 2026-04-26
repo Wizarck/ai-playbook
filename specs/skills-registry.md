@@ -1,14 +1,20 @@
 # skills-registry.md
 
-> **Status**: v1.0.0. Defines the integration contract between
-> playbook consumers and the `eligia-skills` HTTP registry.
+> **Status**: v2.0.0 (post-RFC-0001). Defines the **discovery contract**
+> between playbook consumers and the `eligia-skills` HTTP registry.
+> Distribution of skill content is a separate concern — see
+> [`skills-distribution.md`](skills-distribution.md).
 
-The skills registry is the **authoritative discovery surface** for project skills.
-Consumers query it at bootstrap and mid-task instead of maintaining a
-copy-pasted `SKILL.md` index in `.claude/skills/`. The service lives at
-`eligia-skills.palafitofood.com` behind a Cloudflare Tunnel (local port 9002 in
-dev). This spec defines the HTTP contract, the scope model, caching, degraded
-behaviour, and the security envelope.
+The skills registry is the **authoritative discovery surface** for project
+skills. It answers "what skills exist in scope X, what version, where do they
+live?" and returns metadata only — never SKILL.md content. Distribution of
+skill content is a separate concern handled by git submodules per
+[`skills-distribution.md`](skills-distribution.md) and
+[RFC-0001](../rfcs/RFC-0001-skills-distribution.md).
+
+The service lives at `eligia-skills.palafitofood.com` behind a Cloudflare
+Tunnel (local port 9002 in dev). This spec defines the HTTP contract, the
+scope model, caching, degraded behaviour, and the security envelope.
 
 ---
 
@@ -24,9 +30,19 @@ available to its `.claude/skills/` directory. That model:
 - **Has no catalog surface.** The agent cannot "ask what exists"; it must
   enumerate the directory manually.
 
-The registry replaces all three failure modes with a single HTTP surface.
-Consumers keep `.claude/skills/` for **locally-authored** skills only; everything
-shared comes over the wire.
+RFC-0001 splits the problem cleanly:
+
+- **Discovery** (what skills exist, where, at which version) — this spec.
+  HTTP catalog returns metadata; consumers query at bootstrap or mid-task.
+- **Distribution** (how SKILL.md content reaches consumers) — see
+  [`skills-distribution.md`](skills-distribution.md). git submodules
+  pinned by semver tag; bootstrap copies into per-LLM mirrors.
+
+The registry never serves content. The aspirational "everything shared comes
+over the wire" prose from earlier drafts is superseded; consumers source
+content from the canonical `<source-repo>/skills/` location at the pinned
+tag, and the registry's `source` field points there explicitly (e.g.
+`Wizarck/ai-playbook@v0.4.0:skills/bmad-create-prd/`).
 
 ## 2. API contract
 
@@ -51,7 +67,7 @@ Response `200 application/json`:
     {
       "name": "bmad-code-review",
       "description": "3-layer parallel code review",
-      "source": "ai-playbook/.claude/skills/bmad-code-review/SKILL.md",
+      "source": "Wizarck/ai-playbook@v0.4.0:skills/bmad-code-review/",
       "version": "1.0.0",
       "scope": "public"
     }
@@ -61,8 +77,14 @@ Response `200 application/json`:
 ```
 
 Every entry carries: `name` (kebab-case, unique within scope), `description`
-(one sentence), `source` (origin-repo-relative path or URL), `version`
-(semver), `scope` (same enum as the query).
+(one sentence), `source` (canonical pin in the form
+`<owner>/<repo>@<tag>:skills/<name>/` per RFC-0001), `version` (semver),
+`scope` (same enum as the query).
+
+The `source` format is **load-bearing**: consumers materialise content by
+parsing this field to know which submodule + tag + path to sparse-checkout.
+Drift between the registry's reported `source` and the actual canonical layout
+of the source repo is detected periodically by `drift_check.py --scope skills-catalog`.
 
 Error responses:
 

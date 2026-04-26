@@ -4,15 +4,16 @@
 
 | File | Status | Summary |
 | --- | --- | --- |
-| [agent-contract.md](agent-contract.md) | v1.0.0. | Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an advisor — carries an |
+| [agent-contract.md](agent-contract.md) | v1.0.0. **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md). The JSON Schema is published at [`agent-contract.schema.json`](agent-contract.schema.json) but no harness validates spawn envelopes today. Activation: when a real `Task`-tool harness ships, wire `jsonschema.validate` at spawn time. | Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an advisor — carries an |
 | [agentic-failures.md](agentic-failures.md) | v1.0.0. Draws from Google Agentic Design | This catalog enumerates the failure modes an agent can enter, with a detectable signal, a |
 | [auto-managed-sections.md](auto-managed-sections.md) | v1.0.0. | Contract for the `<!-- BEGIN auto-managed: <source_spec> -->` / `<!-- END auto-managed -->` markers… |
-| [bootstrap-directive.md](bootstrap-directive.md) | v1.0.0. Authored in T02a; formalised in T22-followup. | Every consumer `AGENTS.md` MUST open with a **bootstrap directive** — an imperative block that forc… |
+| [bootstrap-directive.md](bootstrap-directive.md) | v1.1.0. Aligned with the SessionStart hook reality (2026-04-25). | Every consumer `AGENTS.md` MUST open with a **bootstrap directive** — an imperative block that forc… |
 | [break-glass.md](break-glass.md) | v1.0.0. | Contract for the `--force-with-reason="<text>"` flag that every blocking check in a playbook script… |
 | [channels.md](channels.md) | v1.0.0. | The communication surfaces the playbook team uses, by purpose, with triage cadence and the line bet… |
 | [data-retention.md](data-retention.md) | v1.0.0. Defines what the playbook and consumer projects retain, where, for how long, who reads it, and how it is deleted. The spec is normative; per-project deviations require an override under [../docs/contributing.md](../docs/contributing.md) §6 (backwards compatibility) + an entry in the project's AGENTS.md §7. | Retention is a safety surface. Too little retention makes audits impossible; too much creates a GDP… |
 | [degradation-modes.md](degradation-modes.md) | v1.0.0. | Degradation is **observed and announced, never guessed**. Every playbook-driven agent exposes a deg… |
 | [dispatcher-chain.md](dispatcher-chain.md) | v1.0.0. Authored in T02h; populated to full contract in T22-followup. | Define the 3-level dispatcher inheritance model so any agent (Claude Code, Gemini CLI, Antigravity,… |
+| [enforcement-status.md](enforcement-status.md) | v1.0.0. Companion to every spec in this repo. The matrix below | The playbook is part framework, part documented protocol. This file makes |
 | [env-vars.md](env-vars.md) | v1.0.0. | Single source of truth for every env var the playbook (or a playbook script) reads. Adding a new va… |
 | [error-message-standard.md](error-message-standard.md) | v1.0.0. | Canonical error format for any message a playbook script emits to a human (CLI stderr, log, dashboa… |
 | [incident-response.md](incident-response.md) | deferred — activates when a paying client lands. Populated in T22a as a placeholder so downstream specs can cross-reference the contract; real runbook content is gated on the trigger conditions below. | Incident Response (IR) is the contract that coordinates humans and tooling during a user-visible ou… |
@@ -23,7 +24,7 @@
 | [model-routing.md](model-routing.md) | v1.0.0. | The routing matrix below is the canonical taxonomy every playbook consumer uses to pick a model for… |
 | [notification-policy.md](notification-policy.md) | v1.0.0. | Canonical policy for every user-visible notification a playbook-driven agent or script emits. Level… |
 | [notification-queue.md](notification-queue.md) | v1.0.0. | Contract for the JSONL notification queue + email transport used by every |
-| [parallel-review.md](parallel-review.md) | v1.0.0. | For high-stakes artefacts — code review on a non-trivial diff, proposal review, implementation |
+| [parallel-review.md](parallel-review.md) | v1.0.0. **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md). The 3-layer pattern is documented and the BMAD review skills exist (`bmad-code-review`, `bmad-review-edge-case-hunter`, `bmad-review-adversarial-general`). No coordinator script verifies all 3 layers ran on a given artefact today. | For high-stakes artefacts — code review on a non-trivial diff, proposal review, implementation |
 | [post-mortem.md](post-mortem.md) | v1.0.0. Contract for post-mortem artefacts produced after an S1 incident or a SYSTEMIC verdict escalation. Pairs with [../templates/post-mortem.md.tmpl](../templates/post-mortem.md.tmpl). | A post-mortem is the artefact that turns a painful event into a durable improvement. Blameless by c… |
 | [projects-registry.md](projects-registry.md) | v1.0.0. The registry is load-bearing for dispatcher resolution across CLIs. | A **per-dev, gitignored YAML file** mapping project logical names to absolute paths on the current… |
 | [prompt-caching.md](prompt-caching.md) | v1.0.0. | Prompt caching is **the single largest cost and latency lever** in this stack. A well-ordered promp… |
@@ -31,7 +32,8 @@
 | [role-matrix.md](role-matrix.md) | v1.0.0. Formalises the 4-role matrix sketched in [../docs/contributing.md](../docs/contributing.md) §2. This spec is normative; `contributing.md` is the friendly summary. | Four people-roles govern who can do what in the ai-playbook repo. The roles are orthogonal to the p… |
 | [rollout-strategy.md](rollout-strategy.md) | v1.0.0. | How breaking changes to the playbook are proposed, announced, deprecated, and removed. The spec is… |
 | [runbook-bmad-openspec.md](runbook-bmad-openspec.md) | v1.0.0. | The canonical flow for any consumer project that adopts the playbook: BMAD for Discovery, OpenSpec… |
-| [skills-registry.md](skills-registry.md) | v1.0.0. Defines the integration contract between | The skills registry is the **authoritative discovery surface** for project skills. |
+| [skills-distribution.md](skills-distribution.md) | v1.0.0 (introduced by [RFC-0001](../rfcs/RFC-0001-skills-distribution.md)). | The distribution model is **semver-pinned source repos materialised as git |
+| [skills-registry.md](skills-registry.md) | v2.0.0 (post-RFC-0001). Defines the **discovery contract** | The skills registry is the **authoritative discovery surface** for project |
 | [slos.md](slos.md) | v1.0.0. | Service-level objectives for the `ai-playbook` repo itself — the shared norms and tooling consumed… |
 | [taxonomy.md](taxonomy.md) | v1.0.0. | Canonical glossary for terms used across `ai-playbook/specs/*`, consumer AGENTS.md files, |
 | [upstream-sync.md](upstream-sync.md) | v1.0.0. | Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving |
