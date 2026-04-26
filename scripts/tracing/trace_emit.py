@@ -20,8 +20,9 @@ stays importable even without ``opentelemetry`` installed.
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 # Force UTF-8 stdio for consistency with the rest of the toolchain.
 for _stream in (sys.stdout, sys.stderr):

@@ -40,7 +40,7 @@ import argparse
 import os
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Force UTF-8 stdio — Windows default cp1252 cannot encode the sigils we emit.
@@ -158,7 +158,7 @@ def apply_break_glass(
 
     log_path = repo_root / ".ai-playbook" / "overrides.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    ts = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     actor = git_user_email or os.environ.get("GIT_AUTHOR_EMAIL") or "unknown"
     with log_path.open("a", encoding="utf-8") as f:
         f.write(f'{ts} {actor} {script} {gate} "{stripped}"\n')

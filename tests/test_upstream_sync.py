@@ -5,7 +5,6 @@ files are written to `tmp_path` and loaded via the public CLI path.
 """
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,7 +16,6 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts import upstream_sync  # noqa: E402
-
 
 VALID_REGISTRY_YAML = """\
 schema: ai-playbook/forks-registry/v1

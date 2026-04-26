@@ -24,9 +24,8 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 # =============================================================================
 # External Linter Integration
@@ -553,7 +552,7 @@ def scan_skill_scripts(skill_path: Path) -> dict:
             'script': 'scan-scripts.py',
             'version': '2.0.0',
             'skill_path': str(skill_path),
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
             'status': 'pass',
             'findings': [{
                 'file': 'scripts/',
@@ -685,7 +684,7 @@ def scan_skill_scripts(skill_path: Path) -> dict:
         'script': 'scan-scripts.py',
         'version': '2.0.0',
         'skill_path': str(skill_path),
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': datetime.now(UTC).isoformat(),
         'status': status,
         'findings': all_findings,
         'assessments': {

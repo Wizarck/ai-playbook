@@ -27,7 +27,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 try:
@@ -368,7 +368,7 @@ def scan_structure_capabilities(skill_path: Path) -> dict:
             'script': 'prepass-structure-capabilities.py',
             'version': '1.0.0',
             'skill_path': str(skill_path),
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
             'status': 'fail',
             'issues': [{'file': 'SKILL.md', 'line': 1, 'severity': 'critical',
                          'category': 'missing-file', 'issue': 'SKILL.md does not exist'}],
@@ -428,7 +428,7 @@ def scan_structure_capabilities(skill_path: Path) -> dict:
         'script': 'prepass-structure-capabilities.py',
         'version': '1.0.0',
         'skill_path': str(skill_path),
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': datetime.now(UTC).isoformat(),
         'status': status,
         'metadata': {
             'frontmatter': frontmatter,

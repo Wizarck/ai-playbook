@@ -5,14 +5,12 @@ load-bearing for T02d/e/f dispatcher resolution.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
 import yaml
 
 from scripts import discover_projects as dp
-
 
 AGENTS_MD_TEMPLATE = """\
 ---

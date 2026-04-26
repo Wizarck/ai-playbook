@@ -15,7 +15,6 @@ import pytest
 
 from scripts import skills_registry as sr
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -52,7 +51,7 @@ def _fake_response(body: bytes):
         def read(self) -> bytes:
             return self._data
 
-        def __enter__(self) -> "_Resp":
+        def __enter__(self) -> _Resp:
             return self
 
         def __exit__(self, *a) -> None:

@@ -261,7 +261,7 @@ def test_multi_skill_not_detected_as_standalone():
             skill.mkdir()
             (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
             (skill / "assets").mkdir()
-            (skill / "assets" / "module.yaml").write_text(f'code: tst\nname: "Test"\ndescription: "Test"\n')
+            (skill / "assets" / "module.yaml").write_text('code: tst\nname: "Test"\ndescription: "Test"\n')
 
         code, data = run_validate(module_dir)
         assert code == 1

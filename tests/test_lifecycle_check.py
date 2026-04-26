@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from scripts import lifecycle_check as lc
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -17,7 +16,7 @@ from scripts import lifecycle_check as lc
 
 
 def _now() -> datetime:
-    return datetime(2026, 4, 23, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(2026, 4, 23, 12, 0, 0, tzinfo=UTC)
 
 
 def _write_overrides(path: Path, lines: list[str]) -> None:

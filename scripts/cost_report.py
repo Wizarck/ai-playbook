@@ -31,13 +31,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 # Force UTF-8 stdio — table rendering may carry non-ASCII.
 for _stream in (sys.stdout, sys.stderr):
@@ -118,7 +118,7 @@ def _parse_event_ts(raw: Any) -> datetime | None:
     except ValueError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -445,10 +445,10 @@ def _resolve_since(arg: str | None, *, period: str) -> datetime:
             d = _parse_iso_date(arg)
         except ValueError:
             raise SystemExit(1)
-        return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+        return datetime(d.year, d.month, d.day, tzinfo=UTC)
     # period-aware defaults; period is advisory but we honour it for the
     # common "give me the last month/week/day" shortcut.
-    today = datetime.now(timezone.utc)
+    today = datetime.now(UTC)
     match period:
         case "daily":
             return today - timedelta(days=1)

@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import yaml
 
 from scripts import deprecation_watcher as dw
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -167,7 +166,7 @@ def test_stale_retro_flagged_past_cutoff(tmp_path: Path) -> None:
     proj = tmp_path / "p"
     proj.mkdir()
     _make_lifecycle_report(proj, "2025-01")  # ~16 months before 2026-04
-    now = datetime(2026, 4, 23, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 23, tzinfo=UTC)
     findings = dw.scan_stale_retros(proj, "p", now=now)
     assert len(findings) == 1
     assert findings[0].kind == "stale_retro"
@@ -177,7 +176,7 @@ def test_stale_retro_ignored_within_cutoff(tmp_path: Path) -> None:
     proj = tmp_path / "p"
     proj.mkdir()
     _make_lifecycle_report(proj, "2026-03")  # 1 month before
-    now = datetime(2026, 4, 23, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 23, tzinfo=UTC)
     assert dw.scan_stale_retros(proj, "p", now=now) == []
 
 
