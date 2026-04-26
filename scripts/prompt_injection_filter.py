@@ -5,9 +5,13 @@ Two-layer defence per `specs/agentic-failures.md` §2.3:
   Layer 1 — regex for well-known injection templates. Fires synchronously,
              no network calls, always runs.
   Layer 2 — LLM-as-judge (Haiku). Optional; runs only when
-             `ANTHROPIC_API_KEY` is set AND the `anthropic` package is
-             installed AND the caller did not pass `--layer 1`. Treated as a
-             best-effort classifier — gracefully degrades to layer-1-only.
+             `ANTHROPIC_API_KEY_INJECTION` is set AND the `anthropic` package
+             is installed AND the caller did not pass `--layer 1`. Treated as
+             a best-effort classifier — gracefully degrades to layer-1-only.
+
+Per-consumer key isolation: Layer 2 reads `ANTHROPIC_API_KEY_INJECTION`
+(NOT the generic `ANTHROPIC_API_KEY`) so injection-filter spend stays
+separate from other consumers. Configure via SOPS-encrypted secrets.env.
 
 CLI
 ---
@@ -170,15 +174,16 @@ def _run_layer2(text: str) -> tuple[str, str]:
     verdict ∈ {"safe", "injection", "skipped", "error"}.
     """
     # Skip conditions (graceful degradation):
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        return "skipped", "ANTHROPIC_API_KEY not set"
+    api_key = os.environ.get("ANTHROPIC_API_KEY_INJECTION")
+    if not api_key:
+        return "skipped", "ANTHROPIC_API_KEY_INJECTION not set"
     try:
         import anthropic  # type: ignore[import-not-found]
     except ImportError:
         return "skipped", "anthropic package not installed"
 
     try:
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic(api_key=api_key)
         resp = client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=256,
