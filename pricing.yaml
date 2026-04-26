@@ -1,0 +1,86 @@
+# Pricing catalog for cost_report.py
+#
+# When this file exists, cost_report.py computes estimated_cost_usd per row.
+# Without it, costs are reported as None.
+#
+# Format:
+#   <model_name>:
+#     input_per_1k:       USD per 1000 input tokens
+#     output_per_1k:      USD per 1000 output tokens
+#     cache_read_per_1k:  USD per 1000 cache-read tokens (Anthropic prompt caching)
+#
+# Model names match what providers report in `gen_ai.response.model` event attr.
+# Loader is at ai-playbook/scripts/cost_report.py:_load_pricing
+#
+# Last updated: 2026-04-26 (Anthropic Claude 4.x family + Gemini 2.5 + OpenRouter passthroughs)
+
+# ---------- Anthropic ----------
+# Source: https://www.anthropic.com/pricing — Claude 4.x family pricing
+claude-haiku-4-5:
+  input_per_1k:      0.001
+  output_per_1k:     0.005
+  cache_read_per_1k: 0.0001
+claude-haiku-4-5-20251001:
+  input_per_1k:      0.001
+  output_per_1k:     0.005
+  cache_read_per_1k: 0.0001
+claude-sonnet-4-6:
+  input_per_1k:      0.003
+  output_per_1k:     0.015
+  cache_read_per_1k: 0.0003
+claude-opus-4-7:
+  input_per_1k:      0.015
+  output_per_1k:     0.075
+  cache_read_per_1k: 0.0015
+
+# ---------- Anthropic via OpenRouter (passthrough — same prices) ----------
+"anthropic/claude-haiku-4-5":
+  input_per_1k:      0.001
+  output_per_1k:     0.005
+  cache_read_per_1k: 0.0001
+"anthropic/claude-sonnet-4-6":
+  input_per_1k:      0.003
+  output_per_1k:     0.015
+  cache_read_per_1k: 0.0003
+"anthropic/claude-opus-4-7":
+  input_per_1k:      0.015
+  output_per_1k:     0.075
+  cache_read_per_1k: 0.0015
+
+# ---------- Google Gemini 2.5 ----------
+# Source: https://ai.google.dev/gemini-api/docs/pricing
+gemini-2.5-flash:
+  input_per_1k:      0.000075
+  output_per_1k:     0.0003
+  cache_read_per_1k: 0.00001875
+gemini-2.5-pro:
+  input_per_1k:      0.00125
+  output_per_1k:     0.005
+  cache_read_per_1k: 0.0003125
+"google/gemini-2.5-flash":
+  input_per_1k:      0.000075
+  output_per_1k:     0.0003
+  cache_read_per_1k: 0.00001875
+"google/gemini-2.5-pro":
+  input_per_1k:      0.00125
+  output_per_1k:     0.005
+  cache_read_per_1k: 0.0003125
+
+# ---------- Groq (free tier + low cost) ----------
+# Source: https://groq.com/pricing
+"groq/llama-3.3-70b-versatile":
+  input_per_1k:      0.00059
+  output_per_1k:     0.00079
+  cache_read_per_1k: 0
+"groq/llama-3.1-8b-instant":
+  input_per_1k:      0.00005
+  output_per_1k:     0.00008
+  cache_read_per_1k: 0
+
+# ---------- OpenRouter passthrough placeholders ----------
+# OpenRouter passes upstream pricing — these are illustrative; OpenRouter's
+# real cost is per-call from their API. Add specific models as they get used.
+"openrouter/openai/gpt-oss-20b":
+  input_per_1k:      0.000075
+  output_per_1k:     0.0003
+  cache_read_per_1k: 0
