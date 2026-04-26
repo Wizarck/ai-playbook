@@ -51,6 +51,9 @@ consumers:
     visibility: public
     status: active
     notes: Community AGPL-3.0 repo.
+    skills_pins:
+      ai-playbook: v0.4.0
+      consumer-d-skills: v0.2.0
 
   consumer-d:
     repo: Wizarck/consumer-d
@@ -59,6 +62,9 @@ consumers:
     personal: true
     status: active
     notes: Personal add-on alongside the playbook submodule.
+    skills_pins:
+      ai-playbook: v0.4.0
+      consumer-d-skills: v0.2.0
 
   consumer-b:
     repo: Wizarck/consumer-b
@@ -66,3 +72,16 @@ consumers:
     visibility: private
     status: active
     notes: Internal product (description redacted). Onboarded 2026-04-25.
+    skills_pins:
+      ai-playbook: v0.4.0
+      consumer-d-skills: v0.2.0
+
+  consumer-e:
+    repo: Wizarck/consumer-e
+    default_branch: main
+    visibility: private
+    status: active
+    notes: Internal product (description redacted). Onboarded 2026-04-26 via ai-playbook v0.3.1 bootstrap; first consumer to land with RFC-0001 skills_pins from day one.
+    skills_pins:
+      ai-playbook: v0.4.0
+      consumer-d-skills: v0.2.0
