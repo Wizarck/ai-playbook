@@ -1,9 +1,0 @@
-# CLAUDE.md (example router — PROJECT level)
-
-> Copy this to `<project>/CLAUDE.md`. Thin router (~10 lines). All project logic lives in `AGENTS.md`.
-
-Claude Code: read [AGENTS.md](AGENTS.md) first. That file is the project dispatcher.
-
-Follow its bootstrap directive (section 0) before any task.
-
-For universal norms, `AGENTS.md` inherits from `.ai-playbook/specs/*` (git submodule).

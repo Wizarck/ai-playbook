@@ -2,6 +2,7 @@
 
 > **Status**: v1.0.0. Draws from Google Agentic Design
 > Patterns (failure modes chapter) plus practical incidents logged by playbook consumers.
+> **Enforcement**: 📋 spec-only with 🟡 partial detectors — see [enforcement-status.md](enforcement-status.md). Active detectors: `prompt_injection_filter.py` (mode 2.3 partial), `secrets_scan.py` (mode 2.11 wired). Modes 2.1, 2.2, 2.4–2.10, 2.12 are documented but no automated detector runs in real time; retros surface them retrospectively.
 
 This catalog enumerates the failure modes an agent can enter, with a detectable signal, a
 first-response playbook, a pointer to the detector (script or OTel attribute), and a plausible

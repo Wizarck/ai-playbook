@@ -68,7 +68,7 @@ its life.
 
 ## 5. Write rules
 
-- **Retain via the canonical CLI.** `python -m scripts.retain_lesson --bank <bank> --content "<text>" --kind lesson|gotcha|decision|failure --why "<rationale>"` — see [env-vars.md](env-vars.md) §HINDSIGHT_* for the required env. Bulk retain via `--bulk path/to/items.jsonl`. The script sanitises through `secrets_scan.sanitise` before POST and queues to `.ai-playbook/hindsight-queue.jsonl` when Hindsight is unreachable.
+- **Retain via the canonical CLI.** `python -m scripts.retain_memory --bank <bank> --content "<text>" --kind lesson|gotcha|decision|failure --why "<rationale>"` — see [env-vars.md](env-vars.md) §HINDSIGHT_* for the required env. Bulk retain via `--bulk path/to/items.jsonl`. The script sanitises through `secrets_scan.sanitise` before POST and queues to `.ai-playbook/hindsight-queue.jsonl` when Hindsight is unreachable.
 - **Retain on lesson, not on fact.** Facts live in the code and in `docs/`. `hindsight.retain`
   captures *why* a decision was made, what alternative was rejected, and what would invalidate
   the decision.

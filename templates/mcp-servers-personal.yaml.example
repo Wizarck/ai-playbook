@@ -1,0 +1,90 @@
+# mcp-servers-personal.yaml.example — starter template for `~/.config/mcp-servers.yaml`.
+#
+# Copy this to `~/.config/mcp-servers.yaml` and replace the placeholders with
+# YOUR concrete tenants (Google workspace, Trello, Atlassian instance, etc).
+# This file is the personal layer per `specs/mcp-servers-schema.md` — never
+# commit it; per-dev secrets and tenant identifiers live here.
+#
+# Render order (precedence personal > project > base):
+#   1. ai-playbook/mcp-servers-base.yaml      — generic universal templates
+#   2. <consumer>/mcp-servers.project.yaml    — project-specific overrides
+#   3. ~/.config/mcp-servers.yaml             — THIS file (personal instances)
+#
+# Tenant-naming convention: `<server-type>-<tenant-slug>` (e.g.
+# `google-workspace-arturo`, `atlassian-acme`). Distinct tenants get distinct
+# entries — they share the base template but have different env/endpoints.
+
+schema: mcp-servers/v1
+version: 0.1.0
+layer: personal
+
+servers:
+
+  # ---------------------------------------------------------------------------
+  # Atlassian Cloud (Jira + Confluence) — instance per tenant.
+  # ---------------------------------------------------------------------------
+  # atlassian-mycompany:
+  #   id: atlassian-mycompany
+  #   description: Jira Cloud tenant for MyCompany, exposed via Cloudflare Access tunnel.
+  #   transport: http
+  #   endpoint: https://mcp.example.com/atlassian/mycompany
+  #   env:
+  #     required: [ATLASSIAN_URL, ATLASSIAN_API_TOKEN]
+  #     optional: [ATLASSIAN_USERNAME, ATLASSIAN_DEFAULT_PROJECT]
+  #   auth: cf-access
+  #   scope: personal
+  #   capabilities_hint: [jira-search, jira-issue, confluence-search]
+
+  # ---------------------------------------------------------------------------
+  # Google Workspace — per Gmail/Drive/Calendar tenant.
+  # ---------------------------------------------------------------------------
+  # google-workspace-personal:
+  #   id: google-workspace-personal
+  #   description: Personal Google Workspace (Gmail, Drive, Calendar).
+  #   transport: http
+  #   endpoint: https://mcp.example.com/google-workspace/personal
+  #   env:
+  #     required: [GOOGLE_OAUTH_TOKEN, GOOGLE_CLIENT_ID]
+  #     optional: [GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN]
+  #   auth: oauth
+  #   scope: personal
+  #   capabilities_hint: [gmail, drive, calendar]
+
+  # google-workspace-work:
+  #   id: google-workspace-work
+  #   description: Work Google Workspace (separate tenant).
+  #   transport: http
+  #   endpoint: https://mcp.example.com/google-workspace/work
+  #   env:
+  #     required: [GOOGLE_WORK_OAUTH_TOKEN, GOOGLE_WORK_CLIENT_ID]
+  #     optional: [GOOGLE_WORK_CLIENT_SECRET, GOOGLE_WORK_REFRESH_TOKEN]
+  #   auth: oauth
+  #   scope: personal
+  #   capabilities_hint: [gmail, drive, calendar]
+
+  # ---------------------------------------------------------------------------
+  # Trello — per board owner.
+  # ---------------------------------------------------------------------------
+  # trello-personal:
+  #   id: trello-personal
+  #   description: Personal Trello boards.
+  #   transport: http
+  #   endpoint: https://mcp.example.com/trello/personal
+  #   env:
+  #     required: [TRELLO_API_KEY, TRELLO_TOKEN]
+  #     optional: [TRELLO_DEFAULT_BOARD_ID]
+  #   auth: bearer
+  #   scope: personal
+  #   capabilities_hint: [trello-card, trello-board, trello-list]
+
+  # ---------------------------------------------------------------------------
+  # Add any other server you use locally — Camoufox, Context7, NotebookLM,
+  # Paperclip, MS365, Twenty CRM, WhatsApp, WooCommerce, tspoonlab, etc.
+  # ---------------------------------------------------------------------------
+  # camoufox:
+  #   id: camoufox
+  #   description: Camoufox stealth browser MCP (local stdio).
+  #   transport: stdio
+  #   command: "npx -y camoufox-mcp-server"
+  #   scope: personal
+  #   capabilities_hint: [browser, stealth, scrape]

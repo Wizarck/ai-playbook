@@ -1,0 +1,65 @@
+# docs-deploy.yml — publish the MkDocs site to GitHub Pages on every tag push.
+#
+# Triggers on:
+#   - push to main (refresh `latest` site)
+#   - push of v*.*.* tag (publish versioned site under `gh-pages`)
+#
+# Site URL: https://wizarck.github.io/ai-playbook/
+#
+# The site dogfoods the existing docs/ tree (no separate docs source); see
+# mkdocs.yml at the repo root for the navigation contract.
+
+name: docs-deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install MkDocs deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs]"
+
+      - name: Build site
+        run: mkdocs build --strict --site-dir _site
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

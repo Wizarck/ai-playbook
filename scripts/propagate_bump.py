@@ -48,6 +48,10 @@ for _stream in (sys.stdout, sys.stderr):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Shared with bump_consumers.py — keeps the "what tag, what branch, what message"
+# vocabulary in one place. See scripts/_bumper.py.
+from scripts._bumper import bump_branch, commit_message  # noqa: E402
+
 
 @dataclass
 class PropagationResult:
@@ -169,7 +173,7 @@ def _propagate_one(
     repo = consumer["repo"]
     default_branch = consumer.get("default_branch", "master")
     submodule_path = consumer.get("submodule_path", ".ai-playbook")
-    head_branch = f"chore/bump-playbook-{tag}"
+    head_branch = bump_branch(tag)
 
     try:
         root = _clone_consumer(name, repo, token, workdir)
@@ -208,7 +212,7 @@ def _propagate_one(
     )
     _run(["git", "checkout", "-b", head_branch], cwd=root)
     _run(["git", "add", submodule_path], cwd=root)
-    commit_msg = f"chore(playbook): bump .ai-playbook to {tag}"
+    commit_msg = commit_message(tag)
     _run(["git", "commit", "-m", commit_msg], cwd=root)
 
     _run(["git", "push", "-u", "origin", head_branch], cwd=root)
