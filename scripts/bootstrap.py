@@ -52,6 +52,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
+from scripts._skills_materialiser import materialise_skills  # noqa: E402
 
 SCRIPT_BASENAME = "bootstrap.py"
 GATE_NAME = "submodule-unreachable"
@@ -83,6 +84,8 @@ class BootstrapArgs:
                                       # row for this project.
     visibility: str = "private"       # GitHub repo visibility (public|private).
     default_branch: str = "main"      # for consumers.yaml registration.
+    refresh_skills: bool = False      # If True, only run skills materialisation
+                                      # against the resolved target dir + exit.
 
 
 # ---------------------------------------------------------------------------
@@ -424,7 +427,9 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         prog="bootstrap",
         description="Bootstrap a new consumer project with the ai-playbook submodule + templates.",
     )
-    parser.add_argument("project_name", help="Slug for the new project (must match [a-zA-Z0-9][a-zA-Z0-9_-]*).")
+    parser.add_argument("project_name", nargs="?", default=None,
+                        help="Slug for the new project (must match [a-zA-Z0-9][a-zA-Z0-9_-]*). "
+                             "Optional when --refresh-skills is used.")
     parser.add_argument("--owner", default=None, help="Owner email (default: $GIT_AUTHOR_EMAIL or git config user.email).")
     parser.add_argument("--path", type=Path, default=None, help="Target directory (default: <cwd>/<project-name>).")
     parser.add_argument("--playbook-pin", default=DEFAULT_PIN, help="Playbook semver tag to pin (default: %(default)s).")
@@ -443,10 +448,21 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                         help="Default branch name written to consumers.yaml "
                              "(default: main).")
     parser.add_argument("--dry-run", action="store_true", help="Report actions without side effects.")
+    parser.add_argument("--refresh-skills", action="store_true",
+                        help="Skip the full bootstrap flow and only run "
+                             "skills materialisation against --path (or cwd). "
+                             "Reads `skills_sources` from the consumer's "
+                             "AGENTS.md frontmatter; see RFC-0001 §2.")
     add_break_glass_flag(parser)
     ns = parser.parse_args(argv)
+    project_name = ns.project_name
+    if not project_name:
+        if not ns.refresh_skills:
+            parser.error("project_name is required unless --refresh-skills is used")
+        # Use a placeholder; --refresh-skills path doesn't validate the slug.
+        project_name = "_refresh-skills"
     return BootstrapArgs(
-        project_name=ns.project_name,
+        project_name=project_name,
         path=ns.path,
         owner=ns.owner,
         playbook_pin=ns.playbook_pin,
@@ -457,11 +473,31 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         register_in=ns.register_in,
         visibility=ns.visibility,
         default_branch=ns.default_branch,
+        refresh_skills=ns.refresh_skills,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+
+    # --refresh-skills short-circuit: skip the bootstrap flow entirely and
+    # only re-run skills materialisation against the target dir.
+    if args.refresh_skills:
+        target_dir = (args.path or Path.cwd()).expanduser().resolve()
+        if not target_dir.is_dir():
+            print(
+                f"❌ --refresh-skills target {target_dir} is not a directory "
+                f"at {SCRIPT_BASENAME}:refresh-skills",
+                file=sys.stderr,
+            )
+            print("   FIX: pass --path <consumer-root> or run from inside the "
+                  "consumer dir.", file=sys.stderr)
+            print("   OVERRIDE: none", file=sys.stderr)
+            return 1
+        result = materialise_skills(target_dir, dry_run=args.dry_run)
+        if not result.ok:
+            return 2 if any("git not on PATH" in e for e in result.errors) else 1
+        return 0
 
     validate_slug(args.project_name)
 
@@ -559,6 +595,25 @@ def main(argv: list[str] | None = None) -> int:
     install_pre_commit(target_dir, dry_run=args.dry_run)
     run_doctor(target_dir, dry_run=args.dry_run)
     run_discover(target_dir, dry_run=args.dry_run)
+
+    # Step 4.5: skills materialisation (RFC-0001). Opt-in via AGENTS.md
+    # `skills_sources`; consumer pre-Phase-5 will no-op silently. Failures
+    # warn but don't abort the bootstrap.
+    try:
+        skills_result = materialise_skills(target_dir, dry_run=args.dry_run)
+        if not skills_result.ok:
+            print(
+                f"⚠️ skills materialisation failed for {target_dir}; "
+                f"bootstrap continues. Errors: "
+                f"{'; '.join(skills_result.errors)[:300]}",
+                file=sys.stderr,
+            )
+    except Exception as exc:  # noqa: BLE001 — never abort bootstrap on skills errors
+        print(
+            f"⚠️ skills materialisation raised {type(exc).__name__}: {exc}; "
+            "bootstrap continues.",
+            file=sys.stderr,
+        )
 
     # Step 5: render .mcp.json + .gemini/settings.json from the merged layers.
     render_mcp_configs(target_dir, args.project_name, args.dry_run)
