@@ -699,8 +699,8 @@ def register_consumer(
         f"    repo: {org}/{project_name}\n"
         f"    default_branch: {default_branch}\n"
         f"    visibility: {visibility}\n"
-        + (f"    personal: true\n" if personal else "")
-        + f"    status: active\n"
+        + ("    personal: true\n" if personal else "")
+        + "    status: active\n"
         + f"    notes: {notes}\n"
     )
 

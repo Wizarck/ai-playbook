@@ -43,9 +43,9 @@ import os
 import re
 import shutil
 import sys
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Iterable
 
 # Force UTF-8 stdio — Windows default cp1252 cannot encode the ✅/⚠️/❌ sigils.
 for _stream in (sys.stdout, sys.stderr):

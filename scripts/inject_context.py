@@ -55,15 +55,11 @@ aware memory is unavailable. Queued-retain logic lives in a companion script
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-from urllib import error as urlerror
-from urllib import request as urlrequest
 
 # Force UTF-8 stdio — banners contain ✅/⚠️ sigils.
 for _stream in (sys.stdout, sys.stderr):
@@ -160,7 +156,11 @@ from scripts._hindsight import (  # noqa: E402
     HindsightAuthMissing,
     HindsightCreds,
     HindsightUrlMissing,
+)
+from scripts._hindsight import (
     load_credentials as _load_credentials_full,
+)
+from scripts._hindsight import (
     post_recall as _post_recall,
 )
 
@@ -280,7 +280,7 @@ def render_injected_context(
     now: datetime | None = None,
 ) -> str:
     """Render the markdown body that will be written."""
-    now = now or datetime.now(timezone.utc).astimezone()
+    now = now or datetime.now(UTC).astimezone()
     ts = now.isoformat(timespec="seconds")
     lines: list[str] = []
     lines.append(f"# Injected context — {project}")
@@ -415,9 +415,9 @@ def main(argv: list[str] | None = None) -> int:
 
         emit_error(
             why="Hindsight credentials missing",
-            where=f"env:HINDSIGHT_URL/HINDSIGHT_API_KEY",
+            where="env:HINDSIGHT_URL/HINDSIGHT_API_KEY",
             fix="run under `sops exec-env <secrets.env>` or export the two vars; "
-                f"see specs/env-vars.md.",
+                "see specs/env-vars.md.",
             override_invocation=(
                 f"{SCRIPT_BASENAME} --force-with-reason=\"<>=10 char reason\""
             ),

@@ -23,9 +23,8 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 # Template artifacts that should NOT appear in finalized skills
 TEMPLATE_ARTIFACTS = [
@@ -357,7 +356,7 @@ def scan_workflow_integrity(skill_path: Path) -> dict:
             'script': 'prepass-workflow-integrity.py',
             'version': '1.0.0',
             'skill_path': str(skill_path),
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
             'status': 'fail',
             'issues': [{'file': 'SKILL.md', 'line': 1, 'severity': 'critical',
                          'category': 'missing-file', 'issue': 'SKILL.md does not exist'}],
@@ -421,7 +420,7 @@ def scan_workflow_integrity(skill_path: Path) -> dict:
         'script': 'prepass-workflow-integrity.py',
         'version': '1.0.0',
         'skill_path': str(skill_path),
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': datetime.now(UTC).isoformat(),
         'status': status,
         'metadata': {
             'frontmatter': frontmatter,

@@ -49,11 +49,9 @@ import json
 import os
 import subprocess
 import sys
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
@@ -67,7 +65,6 @@ for _stream in (sys.stdout, sys.stderr):
 
 from scripts import notify as notify_mod
 from scripts._break_glass import add_break_glass_flag, apply_break_glass
-
 
 SCRIPT_BASENAME = "issue_sync.py"
 GATE_NAME = "issue-sync-preflight"
@@ -371,7 +368,7 @@ def create_jira_issue(
     }
     endpoint = f"{creds.url}/rest/api/3/issue"
     auth = base64.b64encode(
-        f"{creds.username}:{creds.api_token}".encode("utf-8")
+        f"{creds.username}:{creds.api_token}".encode()
     ).decode("ascii")
     req = urlrequest.Request(
         endpoint,
@@ -465,7 +462,7 @@ def queue_entry(consumer_root: Path, *, change_id: str, reason: str, attempt: in
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         entry = {
-            "ts": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+            "ts": datetime.now(UTC).astimezone().isoformat(timespec="seconds"),
             "change_id": change_id,
             "reason": reason,
             "attempt": attempt,
@@ -498,7 +495,7 @@ def read_queue(consumer_root: Path) -> list[dict]:
 
 def prune_queue(consumer_root: Path, *, now: datetime | None = None) -> list[dict]:
     """Remove entries older than QUEUE_TTL_DAYS. Return the dropped entries."""
-    now = now or datetime.now(timezone.utc).astimezone()
+    now = now or datetime.now(UTC).astimezone()
     entries = read_queue(consumer_root)
     keep: list[dict] = []
     dropped: list[dict] = []

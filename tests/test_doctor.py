@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 import builtins
-import importlib
 import json
 from pathlib import Path
 
 import pytest
 
 from scripts import doctor
-
 
 # ---------------------------------------------------------------------------
 # CheckResult shape

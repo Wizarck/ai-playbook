@@ -5,14 +5,11 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Any
-from urllib import error as urlerror
 
 import pytest
 
-from scripts import issue_sync
+from scripts import issue_sync, release_cut
 from scripts import notify as notify_mod
-from scripts import release_cut
-
 
 CHANGELOG = """\
 # Changelog

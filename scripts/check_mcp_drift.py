@@ -51,7 +51,6 @@ for _stream in (sys.stdout, sys.stderr):
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 
-
 SCRIPT_BASENAME = "check_mcp_drift.py"
 GATE = "mcp-drift"
 LEGACY_FILENAME = "mcp-servers.yaml"

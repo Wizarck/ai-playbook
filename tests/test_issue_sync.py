@@ -1,9 +1,9 @@
 """Tests for scripts/issue_sync.py — zero-touch tracker sync."""
 from __future__ import annotations
 
-import io
 import json
 import subprocess
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +11,6 @@ import pytest
 
 from scripts import issue_sync
 from scripts import notify as notify_mod
-
 
 PROPOSAL_WITHOUT = """\
 ---
@@ -278,10 +277,10 @@ def test_queue_entry_and_read(tmp_path: Path) -> None:
 
 
 def test_prune_queue_drops_old(tmp_path: Path) -> None:
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    old = (datetime.now(timezone.utc).astimezone() - timedelta(days=10)).isoformat(timespec="seconds")
-    recent = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    old = (datetime.now(UTC).astimezone() - timedelta(days=10)).isoformat(timespec="seconds")
+    recent = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     path = issue_sync._queue_path(tmp_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

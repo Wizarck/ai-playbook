@@ -25,9 +25,8 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 # Defensive padding / filler patterns
 WASTE_PATTERNS = [
@@ -220,7 +219,7 @@ def scan_prompt_metrics(skill_path: Path) -> dict:
         'script': 'prepass-prompt-metrics.py',
         'version': '1.0.0',
         'skill_path': str(skill_path),
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': datetime.now(UTC).isoformat(),
         'status': 'info',
         'skill_md_summary': {
             'line_count': skill_md_data['line_count'] if skill_md_data else 0,

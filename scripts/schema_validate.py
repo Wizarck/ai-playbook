@@ -465,7 +465,7 @@ def validate_one(
     """Validate a single file. Returns exit code for this file."""
     if not file_path.is_file():
         emit_error(
-            why=f"AGENTS.md not found",
+            why="AGENTS.md not found",
             where=f"{_format_path(file_path)}",
             fix=(
                 f"create {file_path.name} with the default frontmatter, or re-run "
@@ -575,7 +575,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if result.applied:
         print(f"⚠️ OVERRIDE APPLIED: {result.reason}")
-        print(f"   actor: logged")
+        print("   actor: logged")
         print(f"   logged: {(Path.cwd() / '.ai-playbook' / 'overrides.log').as_posix()}")
         return 0
     return overall

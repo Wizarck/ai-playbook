@@ -9,7 +9,6 @@ import pytest
 from scripts import _hindsight as hs
 from scripts import retain_memory as rl
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

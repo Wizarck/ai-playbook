@@ -21,7 +21,7 @@ import json
 import platform
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -83,7 +83,7 @@ def build_report_data(original_metrics: dict, rebuilt_metrics: dict,
         'meta': {
             'skill_name': analysis.get('skill_name', 'Unknown'),
             'original_source': analysis.get('original_source', ''),
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
         },
         'metrics': {
             'original': original_metrics,

@@ -20,9 +20,9 @@ Example:
     uv run scripts/init-sanctum.py /Users/me/myproject /path/to/agent-creative-muse
 """
 
-import sys
 import re
 import shutil
+import sys
 from datetime import date
 from pathlib import Path
 

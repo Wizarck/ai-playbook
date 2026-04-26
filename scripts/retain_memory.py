@@ -55,10 +55,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +79,6 @@ from scripts._hindsight import (  # noqa: E402
     load_credentials,
     post_retain,
 )
-
 
 SCRIPT_BASENAME = "retain_lesson.py"
 QUEUE_FILE = ".ai-playbook/hindsight-queue.jsonl"
@@ -198,7 +196,7 @@ def _queue_item(consumer_root: Path, item: RetainItem) -> Path:
     qp = _resolve_queue_path(consumer_root)
     qp.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ts": datetime.now(UTC).isoformat(timespec="seconds"),
         "item": item.to_hindsight(),
         "bank": item.bank,
     }

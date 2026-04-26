@@ -21,7 +21,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts import propagate_bump as pb
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -36,7 +35,7 @@ def _make_consumers_yaml(path: Path, *, status_per_repo: dict[str, str]) -> None
     for name, status in status_per_repo.items():
         body.append(f"  {name}:")
         body.append(f"    repo: Wizarck/{name}")
-        body.append(f"    default_branch: master")
+        body.append("    default_branch: master")
         body.append(f"    status: {status}")
     path.write_text("\n".join(body), encoding="utf-8")
 

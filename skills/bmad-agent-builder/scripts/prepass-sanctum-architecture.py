@@ -26,9 +26,8 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 STANDARD_TEMPLATES = [
     "INDEX-template.md",
@@ -184,7 +183,7 @@ def main():
 
     if not is_memory_agent:
         result = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "skill_path": str(skill_path),
             "is_memory_agent": False,
             "message": "Not a memory agent — no sanctum templates found in assets/",
@@ -348,7 +347,7 @@ def main():
             })
 
     result = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "skill_path": str(skill_path),
         "is_memory_agent": True,
         "skill_md": skill_analysis,

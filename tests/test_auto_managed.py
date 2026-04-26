@@ -12,7 +12,6 @@ import pytest
 
 from scripts import auto_managed as am
 
-
 PLAYBOOK_ROOT = am.find_playbook_root()
 assert PLAYBOOK_ROOT is not None, "test suite must run from inside the playbook"
 

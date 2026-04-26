@@ -8,15 +8,12 @@ from __future__ import annotations
 
 import io
 import subprocess
-import sys
 from pathlib import Path
-from unittest import mock
 
 import pytest
 
 from scripts import secrets_scan
-from scripts.secrets_scan import Match, main, sanitise, scan
-
+from scripts.secrets_scan import main, sanitise, scan
 
 # ---------------------------------------------------------------------------
 # Importable API — `scan` fires per pattern

@@ -14,7 +14,6 @@ import yaml
 from scripts import auto_managed as am
 from scripts import drift_check as dc
 
-
 PLAYBOOK_ROOT = am.find_playbook_root()
 assert PLAYBOOK_ROOT is not None, "test suite must run from inside the playbook"
 

@@ -85,7 +85,7 @@ def lint_artifact(file_path: Path, *, audit: bool) -> int:
         emit_error(
             why="artefact not found",
             where=file_path.resolve().as_posix(),
-            fix=f"create the file or pass an existing path to `verdict_lint.py`.",
+            fix="create the file or pass an existing path to `verdict_lint.py`.",
             override_invocation=None,
         )
         return 1

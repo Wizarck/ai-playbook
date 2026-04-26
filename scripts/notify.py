@@ -49,10 +49,10 @@ import sys
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Any, Deque
+from typing import Any
 
 # Force UTF-8 stdio — notifications can carry ✅/⚠️/❌ sigils.
 for _stream in (sys.stdout, sys.stderr):
@@ -76,7 +76,7 @@ DEFAULT_EMAIL_MIN_SEVERITY = "warn"
 
 # Per-process state (test-friendly: expose reset helper below).
 _LOCK = threading.Lock()
-_RATE_BUCKET: dict[tuple[str, str], Deque[float]] = defaultdict(deque)
+_RATE_BUCKET: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 _RATE_DROPPED: dict[tuple[str, str], int] = defaultdict(int)
 _DEDUP_CACHE: dict[tuple[str, str, str | None], float] = {}
 
@@ -314,7 +314,7 @@ def _append_failure_breadcrumb(path: Path, reason: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps({
-                "ts": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+                "ts": datetime.now(UTC).astimezone().isoformat(timespec="seconds"),
                 "event": "ai_playbook.notify.failed",
                 "severity": "error",
                 "summary": f"notify helper failed: {reason}",
@@ -350,7 +350,7 @@ def notify(
         actor_resolved = _resolve_actor(actor)
         attrs_final: dict[str, Any] = dict(attrs or {})
         now_ts = now if now is not None else time.time()
-        ts_iso = datetime.fromtimestamp(now_ts, tz=timezone.utc).astimezone().isoformat(
+        ts_iso = datetime.fromtimestamp(now_ts, tz=UTC).astimezone().isoformat(
             timespec="seconds"
         )
         path = notifications_file or default_notifications_path()

@@ -41,12 +41,9 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-import os
 import subprocess
 import sys
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
@@ -60,10 +57,9 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
+from scripts import issue_sync  # reuse parse_frontmatter, creds, etc.
 from scripts import notify as notify_mod
 from scripts._break_glass import add_break_glass_flag, apply_break_glass
-from scripts import issue_sync  # reuse parse_frontmatter, creds, etc.
-
 
 SCRIPT_BASENAME = "release_cut.py"
 GATE_NAME = "release-cut-preflight"
@@ -281,7 +277,7 @@ def _jira_authorised_request(
     depending on the endpoint (e.g. `/project/KEY/versions` returns a list)."""
     endpoint = f"{creds.url}{path}"
     auth = base64.b64encode(
-        f"{creds.username}:{creds.api_token}".encode("utf-8")
+        f"{creds.username}:{creds.api_token}".encode()
     ).decode("ascii")
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urlrequest.Request(

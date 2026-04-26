@@ -65,7 +65,6 @@ from scripts._bumper import (  # noqa: E402
     commit_message,
 )
 
-
 DEFAULT_REGISTRY = Path.home() / ".ai-playbook" / "projects.yaml"
 SUBMODULE_PATH = DEFAULT_SUBMODULE_PATH
 # Re-export for back-compat with any external caller importing this name.

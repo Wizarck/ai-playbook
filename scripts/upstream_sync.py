@@ -40,7 +40,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 # Force UTF-8 stdio — Windows default cp1252 cannot encode the sigils we emit.
 for _stream in (sys.stdout, sys.stderr):

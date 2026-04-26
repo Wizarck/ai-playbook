@@ -252,11 +252,11 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run:
         print()
         print("Next steps:")
-        print(f"  1. Review the diff: git diff")
-        print(f"  2. Set up your Hindsight instance (or skip if you don't want memory layer).")
-        print(f"  3. Create your first consumer: copy templates/new-project/ → "
-              f"<org>/<repo>/, customise, add row to consumers.yaml, push.")
-        print(f"  4. Cut your first tag: see runbooks/release.md.")
+        print("  1. Review the diff: git diff")
+        print("  2. Set up your Hindsight instance (or skip if you don't want memory layer).")
+        print("  3. Create your first consumer: copy templates/new-project/ → "
+              "<org>/<repo>/, customise, add row to consumers.yaml, push.")
+        print("  4. Cut your first tag: see runbooks/release.md.")
 
     return 0
 

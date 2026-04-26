@@ -16,7 +16,6 @@ import pytest
 from scripts import _hindsight as hs
 from scripts import inject_context as ic
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -60,7 +59,7 @@ def _fake_response(body: bytes, status: int = 200):
         def read(self) -> bytes:
             return self._data
 
-        def __enter__(self) -> "_Resp":
+        def __enter__(self) -> _Resp:
             return self
 
         def __exit__(self, *a) -> None:
