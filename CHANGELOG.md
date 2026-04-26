@@ -2,7 +2,7 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [0.4.0] — unreleased — skills distribution: copy-paste → semver-pinned submodule
+## [0.4.0] — 2026-04-26 — skills distribution: copy-paste → semver-pinned submodule
 
 Implements [RFC-0001](rfcs/RFC-0001-skills-distribution.md). Skills now ship
 with the same audit/versioning posture the playbook itself enjoys: source repos
