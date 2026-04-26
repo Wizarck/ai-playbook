@@ -63,8 +63,8 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
-from scripts import notify as notify_mod
-from scripts._break_glass import add_break_glass_flag, apply_break_glass
+from scripts import notify as notify_mod  # noqa: E402
+from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 
 SCRIPT_BASENAME = "issue_sync.py"
 GATE_NAME = "issue-sync-preflight"

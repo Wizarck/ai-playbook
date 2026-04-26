@@ -152,7 +152,7 @@ def validate_slug(name: str) -> None:
 
 def resolve_target_path(project_name: str, cli_path: Path | None) -> Path:
     """Return the resolved target directory. Error if a file collides."""
-    if cli_path is not None:
+    if cli_path is not None:  # noqa: SIM108 — ternary equivalent exceeds 120c
         target = cli_path.expanduser().resolve()
     else:
         target = (Path.cwd() / project_name).resolve()
@@ -430,11 +430,15 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
     parser.add_argument("project_name", nargs="?", default=None,
                         help="Slug for the new project (must match [a-zA-Z0-9][a-zA-Z0-9_-]*). "
                              "Optional when --refresh-skills is used.")
-    parser.add_argument("--owner", default=None, help="Owner email (default: $GIT_AUTHOR_EMAIL or git config user.email).")
-    parser.add_argument("--path", type=Path, default=None, help="Target directory (default: <cwd>/<project-name>).")
-    parser.add_argument("--playbook-pin", default=DEFAULT_PIN, help="Playbook semver tag to pin (default: %(default)s).")
+    parser.add_argument("--owner", default=None,
+                        help="Owner email (default: $GIT_AUTHOR_EMAIL or git config user.email).")
+    parser.add_argument("--path", type=Path, default=None,
+                        help="Target directory (default: <cwd>/<project-name>).")
+    parser.add_argument("--playbook-pin", default=DEFAULT_PIN,
+                        help="Playbook semver tag to pin (default: %(default)s).")
     parser.add_argument("--playbook-path", type=Path, default=None,
-                        help="Offline fallback: copy from a local playbook checkout instead of cloning from GitHub. Requires --force-with-reason.")
+                        help="Offline fallback: copy from a local playbook checkout instead of cloning "
+                             "from GitHub. Requires --force-with-reason.")
     parser.add_argument("--personal", action="store_true", help="Mark the new AGENTS.md with `personal: true`.")
     parser.add_argument("--register-in", type=Path, default=None,
                         help="Path to a playbook checkout. If set, append a row for this "

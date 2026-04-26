@@ -36,7 +36,7 @@ try:
     import yaml
 except ImportError:
     print("❌ PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 
 DEFAULT_REGISTRY_PATH = Path.home() / ".ai-playbook" / "projects.yaml"

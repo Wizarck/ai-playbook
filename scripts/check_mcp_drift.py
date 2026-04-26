@@ -158,18 +158,20 @@ def _compare(server_id: str, legacy: ServerView, project: ServerView) -> list[Dr
     """
     findings: list[DriftFinding] = []
     for field in TRACKED_FIELDS:
-        l = getattr(legacy, field)
-        p = getattr(project, field)
+        legacy_val = getattr(legacy, field)
+        project_val = getattr(project, field)
         # Treat None / empty tuple as "not declared on this side".
-        l_present = l is not None and l != ()
-        p_present = p is not None and p != ()
-        if not l_present or not p_present:
+        legacy_present = legacy_val is not None and legacy_val != ()
+        project_present = project_val is not None and project_val != ()
+        if not legacy_present or not project_present:
             continue
-        if isinstance(l, tuple) and isinstance(p, tuple):
-            if set(l) != set(p):
-                findings.append(DriftFinding(server_id, field, list(l), list(p)))
-        elif l != p:
-            findings.append(DriftFinding(server_id, field, l, p))
+        if isinstance(legacy_val, tuple) and isinstance(project_val, tuple):
+            if set(legacy_val) != set(project_val):
+                findings.append(
+                    DriftFinding(server_id, field, list(legacy_val), list(project_val)),
+                )
+        elif legacy_val != project_val:
+            findings.append(DriftFinding(server_id, field, legacy_val, project_val))
     return findings
 
 

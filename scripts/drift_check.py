@@ -56,7 +56,7 @@ try:
     import yaml
 except ImportError:
     print("❌ PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 from scripts import auto_managed  # noqa: E402
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
@@ -291,7 +291,7 @@ def check_auto_managed(
     findings: list[DriftFinding] = []
     for md in _files_with_auto_markers(roots):
         try:
-            if fix:
+            if fix:  # noqa: SIM108 — ternary equivalent exceeds 120c
                 diffs = auto_managed.apply_fix(md, playbook_root)
             else:
                 diffs = auto_managed.regenerate(md, playbook_root)

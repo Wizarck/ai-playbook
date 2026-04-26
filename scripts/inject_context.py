@@ -157,10 +157,10 @@ from scripts._hindsight import (  # noqa: E402
     HindsightCreds,
     HindsightUrlMissing,
 )
-from scripts._hindsight import (
+from scripts._hindsight import (  # noqa: E402
     load_credentials as _load_credentials_full,
 )
-from scripts._hindsight import (
+from scripts._hindsight import (  # noqa: E402
     post_recall as _post_recall,
 )
 
@@ -351,11 +351,14 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Recall project context from Hindsight MCP and write to .claude/injected-context.md",
     )
     p.add_argument("--query", default=None, help="Free-text recall query (default: resolved from project).")
-    p.add_argument("--bank-id", default=None, help="Override Hindsight bank_id (default: project slug or HINDSIGHT_BANK_ID).")
-    p.add_argument("--project", default=None, help="Override project name (default: resolved from consumer AGENTS.md).")
+    p.add_argument("--bank-id", default=None,
+                   help="Override Hindsight bank_id (default: project slug or HINDSIGHT_BANK_ID).")
+    p.add_argument("--project", default=None,
+                   help="Override project name (default: resolved from consumer AGENTS.md).")
     p.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help=f"Recall depth (default {DEFAULT_TOP_K}).")
     p.add_argument("--consumer-root", type=Path, default=None, help="Consumer repo root (default: cwd).")
-    p.add_argument("--output", type=Path, default=None, help="Output path (default: <consumer>/.claude/injected-context.md).")
+    p.add_argument("--output", type=Path, default=None,
+                   help="Output path (default: <consumer>/.claude/injected-context.md).")
     p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECS, help="HTTP timeout seconds.")
     p.add_argument("--dry-run", action="store_true", help="Print output to stdout instead of writing to disk.")
     # Break-glass — inject_context is safe to force (it only writes injected-context.md).

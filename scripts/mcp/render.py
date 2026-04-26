@@ -37,7 +37,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts.mcp.validate import (
+from scripts.mcp.validate import (  # noqa: E402
     CanonicalError,
     _apply_break_glass,
     _emit,
