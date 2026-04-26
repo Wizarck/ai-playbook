@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts import validate_skills_mirror as vsm
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -129,7 +128,8 @@ def test_fix_regenerates_drift_to_zero(tmp_path: Path) -> None:
     rc_clean = vsm.validate_consumer(tmp_path, fix=False)
     assert rc_clean == 0
     # Re-copied content matches canonical.
-    assert "DRIFTED" not in (tmp_path / ".claude" / "skills" / "alpha" / "SKILL.md").read_text(encoding="utf-8")
+    mirror_path = tmp_path / ".claude" / "skills" / "alpha" / "SKILL.md"
+    assert "DRIFTED" not in mirror_path.read_text(encoding="utf-8")
 
 
 def test_fix_regenerates_missing_mirror(tmp_path: Path) -> None:

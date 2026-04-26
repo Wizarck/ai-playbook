@@ -20,7 +20,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts import propagate_skills_bump as psb
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -35,7 +34,7 @@ def _make_consumers_yaml(path: Path, entries: dict) -> None:
     for name, meta in entries.items():
         body.append(f"  {name}:")
         body.append(f"    repo: Wizarck/{name}")
-        body.append(f"    default_branch: main")
+        body.append("    default_branch: main")
         body.append(f"    status: {meta.get('status', 'active')}")
         if "skills_pins" in meta:
             body.append("    skills_pins:")
@@ -293,4 +292,5 @@ def test_bump_branch_format() -> None:
 
 
 def test_commit_message_format() -> None:
-    assert psb.commit_message("ai-playbook", "v0.4.0") == "chore(skills): bump ai-playbook to v0.4.0"
+    expected = "chore(skills): bump ai-playbook to v0.4.0"
+    assert psb.commit_message("ai-playbook", "v0.4.0") == expected
