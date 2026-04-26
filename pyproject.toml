@@ -56,8 +56,22 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 
 [tool.ruff]
-line-length = 100
+# 120 chars is the modern convention (Black default = 88, ruff/PEP-suggested 100,
+# practical team default 120). Bumped from 100 in the RFC-0001 ruff cleanup —
+# 55 of 66 outstanding E501 violations were 101-120 chars, an artificial cliff.
+# Lines >120 stay flagged; break them or extract to intermediate variables.
+line-length = 120
 target-version = "py311"
+extend-exclude = [
+    # Skills tree (RFC-0001) is content + assets, not playbook code.
+    # Some assets are templates with placeholder syntax that trip lint.
+    "skills",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+# SIM105 (use contextlib.suppress) would mass-rewrite a try-except-pass
+# pattern that's consistent across the playbook (skills_registry.py,
+# _break_glass.py, etc.). Keeping the explicit form for stylistic
+# consistency until a dedicated cleanup PR addresses it.
+ignore = ["SIM105"]

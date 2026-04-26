@@ -358,8 +358,8 @@ def test_sync_all_queues_on_failure(
     queue = issue_sync.read_queue(root)
     assert queue[0]["change_id"] == "fails"
     # Emits warn notification.
-    lines = [json.loads(l) for l in jsonl_path.read_text(encoding="utf-8").splitlines()]
-    assert any(l["event"] == "issue_sync.failed" for l in lines)
+    lines = [json.loads(line) for line in jsonl_path.read_text(encoding="utf-8").splitlines()]
+    assert any(line["event"] == "issue_sync.failed" for line in lines)
 
 
 def test_sync_all_dry_run_does_not_write(

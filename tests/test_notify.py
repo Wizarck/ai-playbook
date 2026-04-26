@@ -134,8 +134,8 @@ def test_notify_rate_limits_info_bursts(jsonl_path: Path) -> None:
             now=2000.0 + i * 0.01,
         )
     lines = _read_lines(jsonl_path)
-    infos = [l for l in lines if l["severity"] == "info"]
-    bursts = [l for l in lines if l["event"] == "notification.burst"]
+    infos = [line for line in lines if line["severity"] == "info"]
+    bursts = [line for line in lines if line["event"] == "notification.burst"]
     assert len(infos) == notify_mod.RATE_LIMIT_MAX_PER_WINDOW
     assert len(bursts) >= 1
     assert bursts[0]["severity"] == "warn"
@@ -148,7 +148,7 @@ def test_notify_does_not_rate_limit_warn(jsonl_path: Path) -> None:
             event="demo.warn_flood", severity="warn", summary=f"s{i}",
             now=3000.0 + i * 0.01,
         )
-    warns = [l for l in _read_lines(jsonl_path) if l["severity"] == "warn"]
+    warns = [line for line in _read_lines(jsonl_path) if line["severity"] == "warn"]
     assert len(warns) == 10
 
 
@@ -163,8 +163,8 @@ def test_notify_rate_limit_recovers_after_window(jsonl_path: Path) -> None:
         event="demo.rl2", severity="info", summary="after-window",
         now=4000.0 + notify_mod.RATE_LIMIT_WINDOW_S + 5.0,
     )
-    infos = [l for l in _read_lines(jsonl_path) if l["severity"] == "info"]
-    assert any(l["summary"] == "after-window" for l in infos)
+    infos = [line for line in _read_lines(jsonl_path) if line["severity"] == "info"]
+    assert any(line["summary"] == "after-window" for line in infos)
 
 
 # ---------------------------------------------------------------------------
@@ -307,7 +307,7 @@ def test_email_failure_does_not_raise(
     notify_mod.notify(event="demo.boom", severity="error", summary="s")
     lines = _read_lines(jsonl_path)
     # Envelope still written despite SMTP failure.
-    assert any(l["event"] == "demo.boom" for l in lines)
+    assert any(line["event"] == "demo.boom" for line in lines)
 
 
 # ---------------------------------------------------------------------------

@@ -412,10 +412,7 @@ def _emit_error_block(verdict: InjectionVerdict) -> None:
 
 
 def _print_verdict_human(verdict: InjectionVerdict) -> None:
-    if verdict.verdict == "injection":
-        sigil = "❌"
-    else:
-        sigil = "✅"
+    sigil = "❌" if verdict.verdict == "injection" else "✅"
     print(f"{sigil} verdict={verdict.verdict} severity={verdict.severity or '-'} "
           f"layer1={verdict.layer1_match} layer2={verdict.layer2_verdict}")
     if verdict.reason:

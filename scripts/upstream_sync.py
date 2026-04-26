@@ -52,7 +52,7 @@ try:
     import yaml
 except ImportError:
     print("❌ PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 

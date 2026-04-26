@@ -226,10 +226,9 @@ def _iter_event_files(events: Path | None, directory: Path | None) -> list[Path]
     files: list[Path] = []
     if events is not None:
         files.append(events)
-    if directory is not None:
-        if directory.is_dir():
-            for p in sorted(directory.glob("**/*.jsonl")):
-                files.append(p)
+    if directory is not None and directory.is_dir():
+        for p in sorted(directory.glob("**/*.jsonl")):
+            files.append(p)
     return files
 
 
@@ -443,8 +442,8 @@ def _resolve_since(arg: str | None, *, period: str) -> datetime:
     if arg:
         try:
             d = _parse_iso_date(arg)
-        except ValueError:
-            raise SystemExit(1)
+        except ValueError as exc:
+            raise SystemExit(1) from exc
         return datetime(d.year, d.month, d.day, tzinfo=UTC)
     # period-aware defaults; period is advisory but we honour it for the
     # common "give me the last month/week/day" shortcut.

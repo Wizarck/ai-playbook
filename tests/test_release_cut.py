@@ -398,8 +398,8 @@ def test_run_release_emits_complete_notification(
 
     rc, _ = release_cut.run_release(repo_root=root, tag_override="v1.2.3")
     assert rc == 0
-    lines = [json.loads(l) for l in jsonl_path.read_text(encoding="utf-8").splitlines()]
-    events = [l["event"] for l in lines]
+    lines = [json.loads(line) for line in jsonl_path.read_text(encoding="utf-8").splitlines()]
+    events = [line["event"] for line in lines]
     assert "release_cut.start" in events
     assert "release_cut.changes_collected" in events
     assert "release_cut.github_released" in events

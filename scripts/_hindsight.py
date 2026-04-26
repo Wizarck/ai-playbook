@@ -63,11 +63,11 @@ class HindsightError(Exception):
     """Base for all Hindsight client errors."""
 
 
-class HindsightAuthMissing(HindsightError):
+class HindsightAuthMissing(HindsightError):  # noqa: N818  # public API name; rename = breaking change
     """No CF Access creds AND no HINDSIGHT_API_KEY in the environment."""
 
 
-class HindsightUrlMissing(HindsightError):
+class HindsightUrlMissing(HindsightError):  # noqa: N818  # public API name; rename = breaking change
     """HINDSIGHT_URL env var is unset."""
 
 

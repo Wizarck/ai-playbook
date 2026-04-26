@@ -58,11 +58,11 @@ def resolve_target_sha(submodule_path: Path, tag: str) -> str:
     try:
         _run(["git", "fetch", "--tags", "--quiet", "origin"], cwd=submodule_path)
     except subprocess.CalledProcessError as exc:
-        raise BumperError(f"could not fetch tags in {submodule_path}: {exc.stderr.strip()}")
+        raise BumperError(f"could not fetch tags in {submodule_path}: {exc.stderr.strip()}") from exc
     try:
         r = _run(["git", "rev-parse", f"refs/tags/{tag}^{{commit}}"], cwd=submodule_path)
-    except subprocess.CalledProcessError:
-        raise BumperError(f"tag {tag} not found in {submodule_path} remote")
+    except subprocess.CalledProcessError as exc:
+        raise BumperError(f"tag {tag} not found in {submodule_path} remote") from exc
     return r.stdout.strip()
 
 
@@ -71,7 +71,7 @@ def checkout_tag(submodule_path: Path, tag: str) -> None:
     try:
         _run(["git", "checkout", "--quiet", tag], cwd=submodule_path)
     except subprocess.CalledProcessError as exc:
-        raise BumperError(f"could not checkout {tag} in {submodule_path}: {exc.stderr.strip()}")
+        raise BumperError(f"could not checkout {tag} in {submodule_path}: {exc.stderr.strip()}") from exc
 
 
 def commit_bump(
@@ -92,7 +92,7 @@ def commit_bump(
     try:
         _run(["git", "commit", "-m", msg], cwd=consumer_root)
     except subprocess.CalledProcessError as exc:
-        raise BumperError(f"git commit failed in {consumer_root}: {exc.stderr.strip()}")
+        raise BumperError(f"git commit failed in {consumer_root}: {exc.stderr.strip()}") from exc
 
 
 def bump_branch(tag: str) -> str:
