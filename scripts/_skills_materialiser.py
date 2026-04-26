@@ -449,7 +449,7 @@ def materialise_skills(
         return result
 
     if dry_run:
-        for ref, owner, repo, tag in parsed:
+        for _ref, owner, repo, tag in parsed:
             print(f"(dry-run) Would add submodule {owner}/{repo}@{tag} → "
                   f".skills-sources/{repo}/")
         print("(dry-run) Would merge sources into skills/.")
