@@ -2,6 +2,104 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.4.0] — unreleased — skills distribution: copy-paste → semver-pinned submodule
+
+Implements [RFC-0001](rfcs/RFC-0001-skills-distribution.md). Skills now ship
+with the same audit/versioning posture the playbook itself enjoys: source repos
+(`ai-playbook`, `consumer-d-skills`) cut independent semver tags; consumers pin per
+source via `AGENTS.md.skills_sources` + `consumers.yaml.skills_pins`; bootstrap
+materialises content via git submodule sparse-checkout into a vendor-neutral
+`<consumer>/skills/` path; per-LLM mirrors at `.claude/skills/` and
+`.gemini/skills/` are gitignored copies regenerated deterministically.
+
+The HTTP registry at `consumer-d-skills.consumer-bfood.com` keeps its discovery role
+(catalog of `{name, description, scope, version, source, updated}`) — content
+distribution moves to git, where it belongs. The `source` field in the catalog
+now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
+
+### Added
+
+- `skills/` (1067 files) — canonical methodology skills tree under the playbook
+  itself, populated from `consumer-c-legacy/.claude/skills/` (the de-facto canonical
+  copy). 65 BMAD agents/workflows/QA + 4 OpenSpec commands = 69 skills.
+- `rfcs/RFC-0001-skills-distribution.md` — full design rationale, alternatives
+  considered, KPIs, FRs/NFRs, migration recipe per consumer.
+- `specs/skills-distribution.md` — formal contract for the new distribution
+  surface (canonical layout, pinning model, materialisation algorithm, drift
+  detection, propagation, fallback, security, KPIs).
+- `runbooks/skills-version-bump.md` — maintainer procedure for cutting a tag
+  on a source repo and walking it through the propagation workflow PR-by-PR.
+- `scripts/_skills_materialiser.py` (533 LOC) — idempotent submodule
+  sparse-checkout + merge + per-LLM mirror copy. Public entry point
+  `materialise_skills(consumer_dir, dry_run=False) → SkillsMaterialisationResult`.
+- `scripts/propagate_skills_bump.py` (380 LOC) — sibling of
+  `propagate_bump.py`; opens consumer PRs on a skills source-repo tag push.
+  Line-level regex edit of `AGENTS.md` + `consumers.yaml` (no whole-file
+  rewrites; preserves YAML comments and ordering).
+- `scripts/validate_skills_mirror.py` (180 LOC) — pre-commit hook detecting
+  drift between `<consumer>/skills/` and `<consumer>/.claude/skills/` /
+  `.gemini/skills/`. `--fix` regenerates; report-only otherwise. No-op for
+  pre-migration consumers (silent until the consumer migrates).
+- `.github/workflows/propagate-skills-bump.yml` — fires on tag push or
+  `repository_dispatch` event `skills-tag-pushed`; per-consumer PR fan-out.
+- `.pre-commit-hooks.yaml` — exposes `validate-skills-mirror` as a public
+  pre-commit hook (consumers add `repo: <playbook-url>` to their
+  `.pre-commit-config.yaml`).
+- `tests/test_skills_materialiser.py` (17 tests), `tests/test_propagate_skills_bump.py`
+  (16 tests), `tests/test_validate_skills_mirror.py` (12 tests) — 45 new tests
+  total covering happy path + edge cases (missing AGENTS.md, malformed source
+  refs, idempotency, name collisions, partial mirror state, drift detection,
+  --fix regeneration).
+
+### Changed
+
+- `specs/skills-registry.md` bumped to v2.0.0: scope clarified to
+  **discovery-only** (catalog metadata, never content). The `source` field
+  format changes to canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
+- `scripts/bootstrap.py`: new `--refresh-skills` flag re-runs only the
+  materialisation step without redoing the full bootstrap. Skills
+  materialisation is wired as step 4.5 of the normal bootstrap flow (warns
+  but does not abort if materialisation fails — skills remain opt-in for
+  pre-migration consumers).
+- `consumers.yaml`: schema gains optional `skills_pins` field (dict of
+  `<source-repo-slug>: <git-ref>`). No existing consumer rows modified.
+- `consumer-d-skills` (companion repo): catalog moves from root to
+  `consumer-d-skills/skills/` (68 git-mv'd renames at 100% similarity, history
+  preserved). `Dockerfile` env updated (`SKILLS_CATALOG_DIR=/app/skills`,
+  scoped `COPY skills`). README + `docs/api-contract.md` reflect the new
+  canonical layout. Backend (`backend/`), tests (`tests/`), docs (`docs/`),
+  `claude-plugins-official/` and `hindsight/` stay at root. consumer-d-skills cut
+  as v0.2.0 in parallel with this playbook release.
+
+### Deprecated
+
+- `Wizarck/skills-manager-personal` — frozen since 2026-04-07, content
+  identical to `consumer-d-skills` for shared skills, no installer remaining
+  (CLI lived on a now-decommissioned PC). Will be archived on GitHub as part
+  of Phase 5.
+
+### Verified
+
+- 568 unit tests pass globally (45 new + 523 pre-existing); 2 skipped E2E
+  guard `AIPLAYBOOK_E2E=1`. The 2 pre-existing failures in
+  `tests/test_issue_sync.py` (`consumer-b → consumer-a` mapping) are unrelated
+  to this release — verified to fail also at parent commit `01fccf9`.
+- Smoke test (Win11 Pro, Git Bash + native PowerShell): bootstrap dry-run +
+  live materialisation + drift inject + `--fix` regen + drift re-check all
+  pass per `runbooks/skills-version-bump.md` smoke recipe.
+- `consumer-d-skills` test suite (21 tests) green post-restructure. Catalog
+  smoke test detects 64 valid skills with `SKILLS_CATALOG_DIR=./skills` (4
+  pre-existing broken-frontmatter skills are tracked as backlog cleanup).
+
+### Migration
+
+Consumers migrate one at a time via the per-consumer recipe in
+[`rfcs/RFC-0001-skills-distribution.md` §"Per-consumer migration recipe"](rfcs/RFC-0001-skills-distribution.md).
+The recipe is mechanical: `git rm -r .claude/skills/`, add `skills_sources`
+to `AGENTS.md`, run `bootstrap.py --refresh-skills`, smoke-test a key skill,
+commit. Consumers that have not migrated continue working with their
+pre-RFC-0001 copy-pasted skills.
+
 ## [0.3.1] — 2026-04-26 — onboarding flow for new consumer projects
 
 User question: "I have a brand-new repo, how do I anex it to ai-playbook?"
