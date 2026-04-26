@@ -1,50 +1,52 @@
 # mcp-servers-base.yaml — well-known MCP server templates (playbook SSOT base layer).
 #
-# Consumers merge this with their own `<repo>/mcp-servers.yaml` (project layer) and
-# `~/.config/mcp-servers.yaml` (personal layer, overridable via
-# $AIPLAYBOOK_PERSONAL_MCP_FILE). Render pipeline = 3-layer merge with precedence
-# personal > project > base, field-by-field (deep merge, not wholesale replacement).
+# This file ships UNIVERSAL templates only — servers that any Wizarck-org
+# consumer (or fork) would plausibly use, with no tenant- or person-specific
+# names baked in. Tenant-named instances (google-workspace-<your-tenant>,
+# trello-<your-tenant>, atlassian-<your-instance>) live in the dev's personal
+# layer at `~/.config/mcp-servers.yaml`. A starter template for that personal
+# layer ships at `templates/mcp-servers-personal.yaml.example` — copy to
+# `~/.config/mcp-servers.yaml` and customise.
 #
-# Keys are canonical short-form IDs (`hindsight`, `guardrails-mcp`, …). Never
-# prefixed with a consumer name. See `specs/mcp-servers-schema.md` for the full
-# merge + render contract.
+# 3-layer merge precedence: personal > project > base, field-by-field deep merge.
+# Render pipeline: `python scripts/mcp/render.py --project <name>`.
 #
 # Fields per server entry:
 #   id                canonical short-form (must match the map key)
 #   description       one-sentence intent, readable by an LLM agent
 #   transport         stdio | http
-#   endpoint          http URL (only when transport == http)
+#   endpoint          http URL (only when transport == http; null = override per-layer)
 #   command           stdio launcher command (only when transport == stdio)
 #   env:
 #     required        [ENV_VAR_NAMES] — render refuses if any is unset at merge time
 #     optional        [ENV_VAR_NAMES]
 #   auth              none | bearer | oauth | cf-access
-#   scope             personal | project | universal
-#                     personal-scope servers are rejected outside the personal layer
+#   scope             universal — every entry in THIS file is universal.
+#                     Personal-named instances live in the personal layer file.
 #   capabilities_hint [short tokens used by router/health checks]
 
 schema: mcp-servers/v1
-version: 0.2.0
+version: 0.3.0
 layer: base
 
 servers:
 
   hindsight:
     id: hindsight
-    description: Episodic memory + semantic recall backing Hermes and every downstream agent.
+    description: Episodic memory + semantic recall. Cross-project durable layer; bank_id scopes per project.
     transport: http
-    endpoint: null  # resolved per-environment in project/personal layer
+    endpoint: null  # consumers override to point at their Hindsight deployment
     command: null
     env:
-      required: [HINDSIGHT_API_KEY, HINDSIGHT_URL, HINDSIGHT_BANK_ID]
-      optional: [HINDSIGHT_TIMEOUT_MS]
-    auth: bearer
+      required: [HINDSIGHT_URL, HINDSIGHT_BANK_ID]
+      optional: [CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET, HINDSIGHT_API_KEY, HINDSIGHT_TIMEOUT_MS]
+    auth: cf-access
     scope: universal
     capabilities_hint: [recall, retain, search, timeline]
 
   litellm:
     id: litellm
-    description: LLM routing + budget + fallback proxy in front of Anthropic/OpenAI/local.
+    description: LLM routing + budget + fallback proxy in front of Anthropic/OpenAI/local models.
     transport: http
     endpoint: null
     command: null
@@ -68,9 +70,9 @@ servers:
     scope: universal
     capabilities_hint: [filter, classify, policy]
 
-  atlassian-consumer-a:
-    id: atlassian-consumer-a
-    description: Jira Cloud tenant (consumer-a.atlassian.net) exposed via Cloudflare Access tunnel.
+  atlassian:
+    id: atlassian
+    description: Jira Cloud + Confluence (generic; tenant-specific instances live in the personal layer).
     transport: http
     endpoint: null
     command: null
@@ -81,57 +83,28 @@ servers:
     scope: universal
     capabilities_hint: [jira-search, jira-issue, confluence-search]
 
-  # Per-tenant templates below are `scope: universal` at the base layer (templates
-  # are universally available). Activating them (setting endpoint + env) is done
-  # in the personal layer so OAuth tokens never touch a shared repo.
-  google-workspace-arturo:
-    id: google-workspace-arturo
-    description: Gmail + Drive + Calendar for Arturo's personal Google Workspace tenant.
+  google-workspace:
+    id: google-workspace
+    description: Gmail + Drive + Calendar (generic; per-tenant instances live in the personal layer).
     transport: http
     endpoint: null
     command: null
     env:
-      required: [GOOGLE_ARTURO_OAUTH_TOKEN, GOOGLE_ARTURO_CLIENT_ID]
-      optional: [GOOGLE_ARTURO_CLIENT_SECRET, GOOGLE_ARTURO_REFRESH_TOKEN]
+      required: [GOOGLE_OAUTH_TOKEN, GOOGLE_CLIENT_ID]
+      optional: [GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN]
     auth: oauth
     scope: universal
     capabilities_hint: [gmail, drive, calendar]
 
-  google-workspace-consumer-b:
-    id: google-workspace-consumer-b
-    description: Gmail + Drive + Calendar for the consumer-b (restaurant) Google Workspace tenant.
-    transport: http
-    endpoint: null
-    command: null
-    env:
-      required: [GOOGLE_consumer-b_OAUTH_TOKEN, GOOGLE_consumer-b_CLIENT_ID]
-      optional: [GOOGLE_consumer-b_CLIENT_SECRET, GOOGLE_consumer-b_REFRESH_TOKEN]
-    auth: oauth
-    scope: universal
-    capabilities_hint: [gmail, drive, calendar]
-
-  trello-arturo:
-    id: trello-arturo
-    description: Trello boards under Arturo's personal account (all non-consumer-b boards).
+  trello:
+    id: trello
+    description: Trello cards + boards (generic; per-account instances live in the personal layer).
     transport: http
     endpoint: null
     command: null
     env:
       required: [TRELLO_API_KEY, TRELLO_TOKEN]
       optional: [TRELLO_DEFAULT_BOARD_ID]
-    auth: bearer
-    scope: universal
-    capabilities_hint: [trello-card, trello-board, trello-list]
-
-  trello-consumer-b:
-    id: trello-consumer-b
-    description: Trello board for the consumer-b restaurant operations.
-    transport: http
-    endpoint: null
-    command: null
-    env:
-      required: [TRELLO_API_KEY, TRELLO_TOKEN]
-      optional: [TRELLO_consumer-b_BOARD_ID]
     auth: bearer
     scope: universal
     capabilities_hint: [trello-card, trello-board, trello-list]

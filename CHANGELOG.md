@@ -2,6 +2,119 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.3.0] — 2026-04-25 — architectural review fixes + template-readiness
+
+Substantive structural changes from a software + agentic-architect review.
+Theme: preserve everything that worked, eliminate personal-namespace leak,
+make the framework template-ready for forks, mark spec-vs-wired status
+honestly, close the manual-vs-automation script duplication.
+
+### Added
+
+- `specs/enforcement-status.md` — full matrix of every spec with one of
+  ✅ wired / 🟡 partial / 📋 spec-only / 📌 deferred status. Three most
+  aspirational specs (`agent-contract.md`, `parallel-review.md`,
+  `agentic-failures.md`) carry banner pointers to it. Lets future
+  contributors know which rows are framework definitions vs harness-
+  enforced contracts.
+- `scripts/check_mcp_drift.py` (197 LOC) + `tests/test_check_mcp_drift.py`
+  (10 tests) — detects drift between a consumer's legacy `mcp-servers.yaml`
+  SSOT and the playbook v1 layer file `mcp-servers.project.yaml`. Skips
+  fields where only one side declares a value (asymmetric tracking ≠ drift).
+  CLI `--json` for CI; `--force-with-reason` for intentional staging
+  divergence.
+- `scripts/_bumper.py` — shared submodule-bump primitives consumed by both
+  `bump_consumers.py` (manual) and `propagate_bump.py` (CI). Centralises
+  the commit message template, branch name pattern, tag→SHA resolution.
+- `scripts/init_org.py` (190 LOC) + `tests/test_init_org.py` (8 tests) —
+  parametrises a fresh fork for a new org. Walks the worktree, applies a
+  set of substitutions (`Wizarck/* → <org>/*`, Hindsight URL, SOPS path,
+  owner email), resets `consumers.yaml` to a stub. Dry-run mode for review
+  before write. Lets a third party clone the playbook + run one command to
+  re-skin it for their stack.
+- `scripts/retain_memory.py` — canonical name for the retain CLI (handles
+  every `kind`: lesson/gotcha/decision/failure/fact). Tests migrated under
+  `tests/test_retain_memory.py` (7 tests).
+- `templates/mcp-servers-personal.yaml.example` — starter template for the
+  personal layer at `~/.config/mcp-servers.yaml`. Documents the
+  `<server>-<tenant>` naming convention with commented examples for
+  Atlassian, Google Workspace, Trello, Camoufox.
+- `tests/test_propagate_bump.py` (8 tests) — covers the CI-side propagation
+  script. Mocks subprocess; verifies idempotency (skip if PR open),
+  no-submodule skip, up-to-date skip, error path on clone failure.
+- `tests/integration/test_e2e_loop.py` — env-gated end-to-end Hindsight
+  loop test. Requires `AIPLAYBOOK_E2E=1` + creds. Posts a sentinel,
+  polls recall until it surfaces (Hindsight indexing is async).
+- `.github/workflows/docs-deploy.yml` — publishes the MkDocs site to
+  GitHub Pages on every tag push + main push.
+
+### Changed (BREAKING — see Migration below)
+
+- `mcp-servers-base.yaml` — restructured. Removed tenant-named entries
+  (`google-workspace-arturo`, `trello-arturo`, `atlassian-consumer-a`, etc).
+  Base now ships only generic templates (`atlassian`, `google-workspace`,
+  `trello`) plus truly universal servers (`hindsight`, `litellm`,
+  `guardrails-mcp`, `skills-registry`, `crm`, `rag`). Tenant-named
+  instances live in the personal layer.
+- `scripts/retain_lesson.py` → `scripts/retain_memory.py`. The old name
+  remains as a deprecation shim that re-exports + emits a `DeprecationWarning`;
+  will be removed in v1.0.0. Update invocations:
+  `python -m scripts.retain_memory ...`.
+- `specs/bootstrap-directive.md` — rewritten to reflect SessionStart-hook
+  reality. Step 2 now says "Consult `.claude/injected-context.md`"
+  (populated by the auto-fired hook BEFORE the session starts) instead of
+  the deprecated "Call MCP `hindsight.recall`" wording (the MCP tool isn't
+  loaded in vanilla Claude Code sessions; the file-based delivery is canon).
+  Consumer AGENTS.md files updated.
+- `consumer-d/mcp-servers.yaml` — `hindsight` entry's `url` no longer
+  includes the deprecated `/mcp/consumer-d/` path; aligned with the v1 layer
+  file. `notes` field documents that REST API uses
+  `/v1/default/banks/{bank}/...`.
+- `scripts/mcp/validate.py` already accepts `mcp-servers.project.yaml` as
+  the v1-explicit alternative; no change here, just confirming the flow.
+
+### Removed
+
+- `routers/CLAUDE.md.example`, `routers/GEMINI.md.example`,
+  `routers/cursor-rules.example` — dead weight. Canonical templates live
+  at `templates/new-project/CLAUDE.md.tmpl` etc; the `routers/` examples
+  were never updated and never referenced.
+
+### Migration (consumer + dev impact)
+
+For consumers (consumer-c-legacy, consumer-d, consumer-b): nothing breaks.
+The propagation Action handles the submodule bump as usual.
+
+For devs invoking scripts directly:
+
+    OLD: python -m scripts.retain_lesson --bank ... --content ...
+    NEW: python -m scripts.retain_memory  --bank ... --content ...
+
+The shim still works through v0.x; will emit a stderr warning. Update
+your runbook bookmarks + shell aliases.
+
+For YOUR personal layer (`~/.config/mcp-servers.yaml`): no change — your
+existing entries (`google-workspace-arturo`, `trello-consumer-b`, etc) keep
+working. They're now solely in the personal layer instead of being
+duplicated as `scope: universal` in the base.
+
+For forks of the playbook (third parties): you can now run
+`python -m scripts.init_org --org-name <yours> --owner-email <email>`
+to re-skin the fork in one command instead of finding-and-replacing
+across 6+ files.
+
+### Verified
+
+- 550 unit tests pass (was 522 in v0.2.3); +28 new tests across
+  check_mcp_drift, propagate_bump, init_org, retain_memory shim.
+- `scripts/check_mcp_drift.py --consumer-root /c/Projects/consumer-d`
+  reports `✅ no drift across 1 server(s)` after the legacy yaml
+  endpoint cleanup.
+- `scripts/init_org.py --org-name acme --dry-run` produces a clean
+  25-replacement plan touching exactly 4 files; no specs/* drift.
+- Re-rendered `.mcp.json` for consumer-c-legacy shows 9 generic servers (was
+  11 incl. `*-arturo` leak in v0.2.3).
+
 ## [0.2.3] — 2026-04-25 — consumer-b onboarded + consumer-d mcp render + hook validated
 
 ### Added

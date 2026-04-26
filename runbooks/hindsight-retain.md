@@ -37,7 +37,7 @@ Skip retain when the content is already trivially recoverable from `git log`,
 
 ```bash
 sops exec-env ../consumer-d/secrets/secrets.env -- \
-  python .ai-playbook/scripts/retain_lesson.py \
+  python .ai-playbook/scripts/retain_memory.py \
     --bank consumer-d \
     --kind decision \
     --project ai-playbook \
@@ -64,7 +64,7 @@ cat > /tmp/lessons.jsonl <<'EOF'
 EOF
 
 sops exec-env ../consumer-d/secrets/secrets.env -- \
-  python .ai-playbook/scripts/retain_lesson.py --bank consumer-d --bulk /tmp/lessons.jsonl
+  python .ai-playbook/scripts/retain_memory.py --bank consumer-d --bulk /tmp/lessons.jsonl
 ```
 
 Each line is one item. Required field: `content`. Optional: `why`, `kind`,
@@ -77,7 +77,7 @@ When the lesson body is tricky (multi-line, near a secret-shaped pattern),
 dry-run first to confirm the rendered Hindsight payload looks right:
 
 ```bash
-python .ai-playbook/scripts/retain_lesson.py \
+python .ai-playbook/scripts/retain_memory.py \
     --bank consumer-d --content "..." --kind lesson --dry-run
 ```
 
@@ -85,7 +85,7 @@ Prints the JSON that would be POSTed; no network call.
 
 ## Sanitisation contract
 
-`retain_lesson.py` runs the merged (`content` + `why`) text through
+`retain_memory.py` runs the merged (`content` + `why`) text through
 `scripts.secrets_scan.sanitise` before POSTing.
 
 - **Hard block** on shapes that look like API keys (`anthropic-api-key`,
@@ -105,7 +105,7 @@ comes back:
 
 ```bash
 sops exec-env ../consumer-d/secrets/secrets.env -- \
-  python .ai-playbook/scripts/retain_lesson.py --bank consumer-d --replay-queue
+  python .ai-playbook/scripts/retain_memory.py --bank consumer-d --replay-queue
 ```
 
 The script POSTs each queued item, removes it from the queue on success,
@@ -132,6 +132,6 @@ necessarily first if other entries are more relevant).
 
 - [`specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) §5 — write rules.
 - [`specs/env-vars.md`](../specs/env-vars.md) §HINDSIGHT_* — env contract.
-- [`scripts/retain_lesson.py`](../scripts/retain_lesson.py) — the script.
+- [`scripts/retain_memory.py`](../scripts/retain_memory.py) — the script.
 - [`scripts/_hindsight.py`](../scripts/_hindsight.py) — shared HTTP client.
 - [`docs/session-start-hook.md`](../docs/session-start-hook.md) — read side; the partner hook recalls memory at session start.

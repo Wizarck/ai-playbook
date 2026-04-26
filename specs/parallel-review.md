@@ -1,6 +1,6 @@
 # parallel-review.md
 
-> **Status**: v1.0.0.
+> **Status**: v1.0.0. **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md). The 3-layer pattern is documented and the BMAD review skills exist (`bmad-code-review`, `bmad-review-edge-case-hunter`, `bmad-review-adversarial-general`). No coordinator script verifies all 3 layers ran on a given artefact today.
 
 For high-stakes artefacts — code review on a non-trivial diff, proposal review, implementation
 readiness check, retrospective — the playbook spawns **three orthogonal subagents in parallel**.
