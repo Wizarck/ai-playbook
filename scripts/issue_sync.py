@@ -69,7 +69,7 @@ from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa
 SCRIPT_BASENAME = "issue_sync.py"
 GATE_NAME = "issue-sync-preflight"
 
-PALAFITO_PROJECTS: set[str] = set()
+PALAFITO_PROJECTS = {"palafito-b2b", "eligia-core"}
 GEEPLO_PROJECTS = {"diakopa", "ESILDA"}
 
 DEFAULT_JIRA_ISSUE_TYPE = "Story"
