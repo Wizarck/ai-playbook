@@ -57,7 +57,7 @@ except ImportError:  # pragma: no cover - dep bootstrap
     print("❌ PyYAML required at mcp/validate startup", file=sys.stderr)
     print("   FIX: pip install pyyaml", file=sys.stderr)
     print("   OVERRIDE: none", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 
 SCHEMA = "mcp-servers/v1"

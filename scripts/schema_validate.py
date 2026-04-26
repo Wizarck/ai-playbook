@@ -52,13 +52,13 @@ try:
     import yaml
 except ImportError:
     print("❌ PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 try:
     import jsonschema
 except ImportError:
     print("❌ jsonschema is required. Install with: pip install jsonschema", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 
@@ -129,7 +129,7 @@ def load_schema() -> dict[str, Any]:
             file=sys.stderr,
         )
         print("   OVERRIDE: none", file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from None
     import json
 
     return json.loads((root / SCHEMA_RELPATH).read_text(encoding="utf-8"))

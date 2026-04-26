@@ -140,7 +140,9 @@ def test_main_refresh_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert data["projects"]["beta"]["personal_addon"].endswith("consumer-d.md")
 
 
-def test_main_dry_run_does_not_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_main_dry_run_does_not_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
     _write_project(tmp_path, "alpha")
     registry = tmp_path / "registry.yaml"
     monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)

@@ -167,7 +167,9 @@ def _systemic_gates(entries: list[OverrideEntry]) -> list[tuple[str, int]]:
 # ---------------------------------------------------------------------------
 
 
-def scan_openspec_changes(openspec_dir: Path, *, now: datetime) -> tuple[list[ClarifyFinding], list[StaleChangeFinding]]:
+def scan_openspec_changes(
+    openspec_dir: Path, *, now: datetime,
+) -> tuple[list[ClarifyFinding], list[StaleChangeFinding]]:
     clarifies: list[ClarifyFinding] = []
     stale: list[StaleChangeFinding] = []
     changes_dir = openspec_dir / "changes"

@@ -85,3 +85,11 @@ consumers:
     skills_pins:
       ai-playbook: v0.4.0
       consumer-d-skills: v0.2.0
+  livekit:
+    repo: Wizarck/livekit
+    default_branch: master
+    visibility: private
+    personal: true
+    status: active
+    notes: Personal infra.
+

@@ -305,7 +305,7 @@ def test_real_base_yaml_is_structurally_valid(tmp_path: Path, all_env_set: None,
     consumer.mkdir()
     # Set every env required by the real base file.
     real = yaml.safe_load((repo_root / "mcp-servers-base.yaml").read_text(encoding="utf-8"))
-    for sid, entry in (real.get("servers") or {}).items():
+    for _sid, entry in (real.get("servers") or {}).items():
         for var in (entry.get("env") or {}).get("required", []):
             os.environ.setdefault(var, "test")
     rc = mcp_validate.main([

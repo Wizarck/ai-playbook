@@ -49,7 +49,7 @@ try:
     import yaml
 except ImportError:  # pragma: no cover - optional import guard
     print("❌ PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(2) from None
 
 
 # ---------------------------------------------------------------------------

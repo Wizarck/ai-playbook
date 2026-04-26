@@ -37,8 +37,10 @@ def _set_mtime(path: Path, dt: datetime) -> None:
 def test_parse_overrides_log_counts_entries(tmp_path: Path) -> None:
     log = tmp_path / "overrides.log"
     _write_overrides(log, [
-        '2026-04-20T09:00:00+00:00 jane@example.com schema_validate.py agents-md "bootstrapping acme-shop project before submodule"',
-        '2026-04-21T09:00:00+00:00 jane@example.com schema_validate.py agents-md "retry after fixing lint error"',
+        '2026-04-20T09:00:00+00:00 jane@example.com schema_validate.py agents-md '
+            '"bootstrapping acme-shop project before submodule"',
+        '2026-04-21T09:00:00+00:00 jane@example.com schema_validate.py agents-md '
+            '"retry after fixing lint error"',
     ])
     entries = lc.parse_overrides_log(log)
     assert len(entries) == 2
@@ -156,7 +158,7 @@ def test_count_memory_decay_candidates(tmp_path: Path) -> None:
         {"ts": (_now() - timedelta(days=10)).isoformat(), "name": "hindsight.retain", "attrs": {}},
         {"ts": (_now() - timedelta(days=150)).isoformat(), "name": "llm.call", "attrs": {}},  # wrong name
     ]
-    events.write_text("\n".join(json.dumps(l) for l in lines) + "\n", encoding="utf-8")
+    events.write_text("\n".join(json.dumps(line) for line in lines) + "\n", encoding="utf-8")
     count = lc.count_memory_decay_candidates(events, now=_now())
     assert count == 2
 
