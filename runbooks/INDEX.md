@@ -17,6 +17,7 @@ All runbooks follow the same shape:
 
 | Runbook | When to run it | Cross-refs |
 |---|---|---|
+| [onboard-new-project.md](onboard-new-project.md) | Add a brand-new repo as a consumer of the playbook (submodule + dispatcher + Hindsight loop + auto-propagation). | [scripts/bootstrap.py](../scripts/bootstrap.py), [consumers.yaml](../consumers.yaml), [templates/new-project/](../templates/new-project/) |
 | [release.md](release.md) | Cut a new semver tag on `ai-playbook`; auto-propagates PRs to every consumer. | [consumers.yaml](../consumers.yaml), [specs/rollout-strategy.md](../specs/rollout-strategy.md) |
 | [rotate-secrets.md](rotate-secrets.md) | Any secret expires, rotates, or is compromised (PLAYBOOK_PROPAGATION_TOKEN, SMTP, ATLASSIAN, GITHUB_TOKEN). | [specs/data-retention.md](../specs/data-retention.md), [specs/env-vars.md](../specs/env-vars.md) |
 | [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md) | `propagate-playbook-bump.yml` Action fails or a consumer's PR doesn't appear. Decision tree by failing step. | [scripts/propagate_bump.py](../scripts/propagate_bump.py), [.github/workflows/propagate-playbook-bump.yml](../.github/workflows/propagate-playbook-bump.yml) |

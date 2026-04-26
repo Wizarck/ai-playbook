@@ -2,7 +2,7 @@
 schema: agents-md/v1
 version: 0.1.0
 inherits_from:
-  - github.com/Wizarck/ai-playbook@v0.1.0
+  - github.com/Wizarck/ai-playbook@v0.3.0
 updated: {{TODAY}}
 project: {{PROJECT_NAME}}
 owner: {{OWNER_EMAIL}}
@@ -11,14 +11,15 @@ capabilities_map: true
 
 # {{PROJECT_NAME}} — AGENTS.md
 
-> Project dispatcher. Lean file. For universal norms, see `.ai-playbook/specs/*`.
+> Project dispatcher. Lean file. Universal norms inherit from `.ai-playbook/specs/*` (pinned via `inherits_from` above).
 
 ## 0 Bootstrap directive
 
 Before responding to ANY task:
-1. Read `.ai-playbook/specs/dispatcher-chain.md` — universal norms.
-2. Call MCP `hindsight.recall(query="{{PROJECT_NAME}} <topic>")`.
-3. Check `openspec/changes/*/` for active work on the topic.
+
+1. Read `.ai-playbook/specs/dispatcher-chain.md` — universal norms inherited from the pinned playbook tag.
+2. Consult `.claude/injected-context.md` — populated by the SessionStart hook from `hindsight.recall(query="{{PROJECT_NAME}} <topic>")` against bank `{{PROJECT_BANK}}`. If absent or showing `DEGRADED_CONTEXT`, announce + proceed without prior recall.
+3. Check `openspec/changes/*/` for active work on the topic. If a change is live, extend it — don't start parallel work.
 4. Only then respond.
 
 ## 1 Project identity
@@ -29,15 +30,19 @@ Before responding to ANY task:
 
 | Topic | Pointer |
 |---|---|
-| PRD | `docs/prd.md` |
-| Architecture | `docs/architecture/` |
-| Runbook | `docs/runbook.md` |
+| Daily-dev runbook | [docs/runbook.md](docs/runbook.md) |
+| Architecture decisions | `docs/architecture-decisions.md` *(create when first ADR lands)* |
+| PRD | `docs/prd.md` *(create when product brief lands)* |
+| Universal playbook norms | [.ai-playbook/specs/](.ai-playbook/specs/) |
+| Verdict + severity contract | [.ai-playbook/specs/verdict-contract.md](.ai-playbook/specs/verdict-contract.md) |
+| Memory hierarchy + retain CLI | [.ai-playbook/specs/memory-hierarchy.md](.ai-playbook/specs/memory-hierarchy.md) |
+| Hindsight retain runbook | [.ai-playbook/runbooks/hindsight-retain.md](.ai-playbook/runbooks/hindsight-retain.md) |
 
 ## 3 Active work
 
 {{ACTIVE_OPENSPEC_CHANGE_OR_NONE}}
 
-## 4 Project hard rules
+## 4 Project hard rules (project-specific, NOT duplicating playbook)
 
 {{PROJECT_SPECIFIC_RULES_NOT_DUPLICATING_PLAYBOOK}}
 
@@ -45,16 +50,24 @@ Before responding to ANY task:
 
 | Need | Tool / skill | Where |
 |---|---|---|
-| Prior decisions | `hindsight.recall` | MCP |
-| Persist lesson | `hindsight.retain` | MCP |
-| OpenSpec ops | `/opsx:propose|apply|archive|explore` | `.claude/commands/` |
-| Validate OpenSpec | `python .ai-playbook/scripts/openspec_validate.py` | playbook |
+| Recall prior decisions | `python .ai-playbook/scripts/inject_context.py --bank-id {{PROJECT_BANK}}` (auto-fired by SessionStart hook) | playbook |
+| Retain a lesson / decision / gotcha | `python .ai-playbook/scripts/retain_memory.py --bank {{PROJECT_BANK}} --kind <kind> --content "..." --why "..."` | playbook |
+| OpenSpec ops | `/opsx:propose | apply | archive | explore` | `.claude/commands/` |
+| Validate OpenSpec change | `python .ai-playbook/scripts/openspec_validate.py` | playbook |
+| Validate this AGENTS.md | `python .ai-playbook/scripts/schema_validate.py AGENTS.md` | playbook |
 | Render MCP configs | `python .ai-playbook/scripts/mcp/render.py --project {{PROJECT_NAME}}` | playbook |
 | Secrets scan | `python .ai-playbook/scripts/secrets_scan.py` | playbook |
+| Check for legacy↔v1 mcp-servers drift | `python .ai-playbook/scripts/check_mcp_drift.py` | playbook |
 
 ## 6 MCP sources (SSOT pointer)
 
-Snapshot ≤10 lines. Full source of truth: `mcp-servers.yaml` (project layer) merged with playbook base + personal override. See `.ai-playbook/specs/mcp-servers-schema.md`.
+3-layer SSOT per [.ai-playbook/specs/mcp-servers-schema.md](.ai-playbook/specs/mcp-servers-schema.md):
+
+1. **Base** — `.ai-playbook/mcp-servers-base.yaml` (universal templates).
+2. **Project** — [`mcp-servers.project.yaml`](mcp-servers.project.yaml) (this project's overrides + Hindsight bank `{{PROJECT_BANK}}`).
+3. **Personal** — `~/.config/mcp-servers.yaml` (per-dev tenant instances; never committed).
+
+Rendered to [`.mcp.json`](.mcp.json) + [`.gemini/settings.json`](.gemini/settings.json) via `scripts/mcp/render.py`. Regenerate after editing the project layer.
 
 ## 7 Overrides inherited from playbook
 
@@ -63,3 +76,11 @@ Snapshot ≤10 lines. Full source of truth: `mcp-servers.yaml` (project layer) m
 ## 8 Gotchas
 
 {{EMPTY_FILL_AS_YOU_LEARN}}
+
+Append one-line dated entries when a project gotcha is discovered:
+
+```
+- YYYY-MM-DD — <what went wrong>. <rule to apply next time>.
+```
+
+Promote recurring gotchas to Hindsight via `retain_memory.py --kind gotcha` so other sessions and projects benefit.
