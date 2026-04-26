@@ -52,3 +52,10 @@ repos:
         language: system
         files: ^openspec/changes/.*/(review|reviews/.*|qa/.*|readiness).*\.md$
         pass_filenames: true
+
+      - id: validate-skills-mirror
+        name: validate-skills-mirror (RFC-0001 drift guard)
+        entry: python -m scripts.validate_skills_mirror
+        language: system
+        pass_filenames: false
+        files: ^(skills|\.claude/skills|\.gemini/skills)/
