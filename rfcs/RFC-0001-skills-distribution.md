@@ -253,3 +253,57 @@ Rejected because:
 Semver impact: **minor** for `ai-playbook` (new optional schema field, all consumers continue working pre-migration); **minor** for `consumer-d-skills` (path restructure, but the FastAPI catalog endpoint remains backwards-compatible for a deprecation window).
 
 Roll-forward strategy: see `specs/rollout-strategy.md`. Roll-back strategy: revert the per-consumer PR; the pre-RFC-0001 copy-paste model still works as a fallback because consumers' `git rm -r .claude/skills/` step is the last in the migration recipe.
+
+## Implementation notes
+
+Recorded during Phase 2 (tooling) implementation, 2026-04-26. Captures decisions made when the prose RFC underspecified an edge case.
+
+### Submodule path layout
+
+Submodules land at `<consumer>/.skills-sources/<repo-slug>/` (a hidden directory) instead of `<consumer>/skills-<source>/` (the RFC §2 sketch). Rationale: the canonical `<consumer>/skills/` is the consumer-visible artefact; sources are derived state used only by the materialiser. Hiding them under `.skills-sources/` keeps `ls` output of the consumer root clean and matches the hidden-derived-state convention already used by `.ai-playbook/` (the playbook submodule itself).
+
+The mirrors at `.claude/skills/` and `.gemini/skills/` are the consumer-facing copies; the canonical merged tree at `skills/` is the reproducibility anchor. Per RFC §2, the merged `skills/` is union-of-sources; `_skills_materialiser._merge_sources` wipes it on every run so partial-state hand-edits never accumulate. The submodule references inside `.gitmodules` ARE the audit trail; the merged dir is regenerable.
+
+### Sparse-checkout in submodules on Windows
+
+`git sparse-checkout` works the same way under Git Bash, native Windows git, and WSL on Windows 11 ≥ git 2.25 (released 2020). The materialiser uses `--no-cone` mode for the broadest compatibility (cone mode requires git ≥ 2.27 with newer pattern semantics). On older gits or when sparse-checkout configuration fails for any reason, the fallback is a full submodule checkout — heavier but functionally correct.
+
+The `_enable_sparse_checkout` helper is best-effort by design: if `git sparse-checkout` isn't available or returns an error, the script keeps going. Tests don't exercise this path since the suite stubs `_add_submodule` entirely; the smoke test (manual, post-Phase-5) is the place where sparse-checkout coverage actually lands.
+
+### Idempotency via wipe-and-recopy
+
+Both the merged `<consumer>/skills/` and per-LLM mirrors are regenerated from scratch on every materialiser invocation. The script does not attempt incremental sync. Reasoning: skills are O(MB), copying is O(seconds), and any incremental algorithm would have to defend against drift introduced between runs (`shutil.copytree` after `shutil.rmtree` is the simplest correct primitive). NFR-1 (≤ 30 s for 100 skills cold) easily holds.
+
+Pre-existing `<consumer>/skills/` content is wiped without confirmation. This is the contract — `skills/` is derived state. Hand-edits go upstream (to a source repo), not into the merged tree.
+
+### AGENTS.md frontmatter editing in `propagate_skills_bump.py`
+
+The propagation script does NOT round-trip the entire YAML frontmatter through `yaml.safe_load` + `yaml.dump`. Instead, it walks the lines between the `---` fences and surgically rewrites the matching `- <owner>/<repo>@<tag>` line via regex.
+
+Rationale: `yaml.dump` would re-quote, re-order, and strip comments — anything currently in `AGENTS.md` would change cosmetically, producing review noise that buries the actual semantic delta. The line-level edit produces a one-line diff that reviewers can verify at a glance. The cost is that the rewriter only handles canonical list-item syntax (`  - <owner>/<repo>@<tag>`); flow style, anchors, and other YAML niceties would silently fail to match. That's acceptable for a project convention enforced by `templates/new-project/AGENTS.md.tmpl`.
+
+### Pre-commit hook scope
+
+`validate_skills_mirror.py` is a strict consumer-side hook. It is silently a no-op when:
+
+- `<consumer>/skills/` does not exist (consumer not yet migrated).
+- Neither `.claude/skills/` nor `.gemini/skills/` exists (consumer mid-migration, before first materialise).
+
+This makes the hook safe to land **before** every consumer migrates — it can be added to the playbook's own `.pre-commit-config.yaml` and the template `.pre-commit-config.yaml.tmpl` immediately, and it will only start firing once a consumer actually completes the migration recipe.
+
+### `--refresh-skills` short-circuit
+
+`bootstrap.py --refresh-skills` calls `materialise_skills()` directly and exits. It never re-runs slug validation, template copy, doctor, discover, mcp/render, or any other Phase 1 bootstrap step. This is the canonical post-merge command for a consumer that just took a propagation PR: re-resolve `skills_sources`, regenerate the mirrors, done.
+
+The flag is **not** an alternative to the post-discover materialiser step; both call into the same `materialise_skills()` so behaviour is identical. The flag is just the "skip everything else" knob.
+
+### Where Phase 2 stops
+
+Phase 2 ships tooling only:
+- `scripts/_skills_materialiser.py` + bootstrap wiring
+- `scripts/propagate_skills_bump.py` + `.github/workflows/propagate-skills-bump.yml`
+- `scripts/validate_skills_mirror.py` + `.pre-commit-hooks.yaml` + dogfood entry in `.pre-commit-config.yaml`
+- `consumers.yaml` schema docs for `skills_pins` (no existing consumer touched)
+
+Phase 5 (per RFC §6 deprecations) is the per-consumer migration that actually populates `skills_pins`, edits AGENTS.md, and removes `.claude/skills/` from version control. Phase 5 is out of scope for this commit batch.
+
