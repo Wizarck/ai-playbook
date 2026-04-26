@@ -72,7 +72,7 @@ from scripts._break_glass import add_break_glass_flag, apply_break_glass
 SCRIPT_BASENAME = "issue_sync.py"
 GATE_NAME = "issue-sync-preflight"
 
-consumer-b_PROJECTS = {"consumer-d", "consumer-b", "consumer-b-hub"}
+consumer-b_PROJECTS: set[str] = set()
 consumer-a_PROJECTS = {"diakopa", "ESILDA"}
 
 DEFAULT_JIRA_ISSUE_TYPE = "Story"
@@ -291,10 +291,14 @@ def decide_surface(consumer_root: Path) -> SurfaceDecision:
     nwo = _gh_repo_nwo(consumer_root) if gh_auth else None
 
     if personal:
-        # Personal repos → GH Issues in the same repo, no project board.
+        # Personal/private repos without a public OS counterpart → GH Issues
+        # in the same repo. Add to a per-repo Project board if
+        # AIPLAYBOOK_GH_PROJECT_NUMBER is set (env or per-repo override).
+        gh_project_num = os.environ.get("AIPLAYBOOK_GH_PROJECT_NUMBER", "").strip() or None
         return SurfaceDecision(
             kind="github-personal",
             gh_repo=nwo,
+            gh_project_number=gh_project_num,
             reason="personal flag in AGENTS.md",
         )
 
@@ -588,7 +592,7 @@ def _sync_one(
         return False, "", "gh-unavailable"
     number, reason = create_gh_issue(
         repo=surface.gh_repo, title=title, body=description,
-        project_number=surface.gh_project_number if surface.kind == "github" else None,
+        project_number=surface.gh_project_number,
         cwd=consumer_root,
     )
     if not number:

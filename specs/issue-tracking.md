@@ -18,11 +18,14 @@ releases) so the two audiences stay on surfaces they expect.
 
 Decision rule (apply to every repo under `Wizarck`):
 
-| Repo visibility | Planning surface | Release surface | Ticket prefix |
-|---|---|---|---|
-| Public AGPL-3.0 (`consumer-c-legacy`, `awesome-paperclip`, `paperclip-mcp`, …) | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
-| Private enterprise (`consumer-d`, `consumer-b`, `consumer-b-hub`, `ESILDA`, future SaaS) | **Jira** (`atlassian-consumer-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
-| Private personal (`ai-playbook`, `consumer-d-skills`, `skills-manager-personal`, `diakopa`, `GTM-Helper`) | GitHub Issues (lightweight; no project board) | git tag only | `#<issue-number>` |
+| Repo class | Examples | Planning surface | Release surface | Ticket prefix |
+|---|---|---|---|---|
+| Public AGPL-3.0 (community) | `consumer-c-legacy`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
+| Private with public OS counterpart (dual-repo) | `consumer-c-legacy Enterprise` (mirrors consumer-c-legacy), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-consumer-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
+| Private standalone (no public counterpart) | `consumer-d`, `consumer-b`, `consumer-b-hub`, `ESILDA`, future closed-source SaaS without an OSS half | **GitHub Project** (per-repo board) + GitHub Issues | git tag + optional GitHub Release | `#<issue-number>` |
+| Tooling / lightweight | `ai-playbook`, `consumer-d-skills`, `skills-manager-personal`, `diakopa`, `GTM-Helper` | GitHub Issues (no project board) | git tag only | `#<issue-number>` |
+
+**Rule of thumb**: Jira is reserved for the *enterprise half* of a dual-repo (community public + enterprise private) so the two audiences live on the surface they expect. A private repo without a public counterpart has no audience split → GH is sufficient. Per-repo project boards (vs the org-level board) are used for private standalone repos so the work stays scoped to the repo's collaborators.
 
 Mixed-mode repos (Arturo runs some public + some private inside the same org) follow the
 visibility of the repo where the work lands; never straddle. A feature that ships in
