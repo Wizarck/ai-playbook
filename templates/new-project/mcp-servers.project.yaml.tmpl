@@ -1,0 +1,33 @@
+# mcp-servers.project.yaml — {{PROJECT_NAME}} PROJECT layer for the ai-playbook
+# render pipeline (`schema: mcp-servers/v1`).
+#
+# Merged with `.ai-playbook/mcp-servers-base.yaml` (universal templates) and
+# `~/.config/mcp-servers.yaml` (per-dev personal layer with tenant-named
+# instances) by `scripts/mcp/render.py` to produce `.mcp.json` and
+# `.gemini/settings.json`.
+#
+# This file SHOULD declare:
+#   - hindsight (with the project's bank_id)
+#   - any project-only servers not in the universal base
+#
+# It SHOULD NOT declare tenant-named instances (google-workspace-acme,
+# trello-bob, …) — those live in the personal layer per the ai-playbook
+# convention (see specs/mcp-servers-schema.md).
+
+schema: mcp-servers/v1
+version: 0.1.0
+layer: project
+project: {{PROJECT_NAME}}
+
+servers:
+  hindsight:
+    id: hindsight
+    description: Hindsight memory for the {{PROJECT_BANK}} bank — recall + retain via REST.
+    transport: http
+    endpoint: https://consumer-d-hindsight.consumer-bfood.com  # override per-deployment
+    env:
+      required: [HINDSIGHT_URL, HINDSIGHT_BANK_ID, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET]
+      optional: [HINDSIGHT_TIMEOUT_MS]
+    auth: cf-access
+    scope: project
+    capabilities_hint: [recall, retain]
