@@ -2,6 +2,42 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.3.1] — 2026-04-26 — onboarding flow for new consumer projects
+
+User question: "I have a brand-new repo, how do I anex it to ai-playbook?"
+The pieces existed (bootstrap.py, templates/new-project/) but were
+incomplete: no SessionStart hook template, no v1 mcp-servers.project.yaml
+template, no Cursor router, no consumers.yaml registration, no rendered
+.mcp.json. A canonical end-to-end onboarding runbook was missing.
+
+This release ships the complete one-command onboarding flow.
+
+### Added
+
+- `templates/new-project/CLAUDE.md.tmpl` — thin Claude Code router pointing at AGENTS.md.
+- `templates/new-project/.claude/settings.json.tmpl` — SessionStart hook with `--bank-id {{PROJECT_BANK}}` and 60 s timeout for cold Hindsight recall.
+- `templates/new-project/mcp-servers.project.yaml.tmpl` — v1 layer file declaring the Hindsight server with the project's bank id.
+- `templates/new-project/.cursor/rules/00-dispatcher.mdc.tmpl` — Cursor thin router (alwaysApply: true).
+- `templates/new-project/.gitignore.tmpl` — playbook integration entries (overrides.log, hindsight-queue.jsonl, etc).
+- `runbooks/onboard-new-project.md` — canonical one-page procedure: `gh repo create` → `bootstrap.py --register-in <playbook>` → 3 placeholders in AGENTS.md → 2 commits → done. Covers SOPS path overrides, rollback, and the verification suite.
+
+### Changed
+
+- `templates/new-project/AGENTS.md.tmpl` — bumped pin from `v0.1.0` → `v0.3.0`, rewrote §0 bootstrap directive to match the post-v0.3.0 file-based delivery (§2 says "Consult `.claude/injected-context.md`" via SessionStart hook), expanded §5 capability map with retain CLI + drift check + memory hierarchy pointers.
+- `scripts/bootstrap.py`:
+  - New `{{PROJECT_BANK}}` placeholder substituted with `project_name.lower()` for SessionStart hook + mcp-servers.project.yaml.
+  - New `render_mcp_configs()` step runs `mcp/render.py` after templates land — produces `.mcp.json` + `.gemini/settings.json` automatically.
+  - New `--register-in <playbook-path>` flag appends a row to `<playbook>/consumers.yaml` (idempotent; skips if already present). The dev still commits + pushes the playbook change.
+  - New `--visibility public|private` and `--default-branch <name>` flags feed the consumers.yaml row.
+  - `print_next_steps` updated with the registered/non-registered branches.
+  - Default playbook pin bumped from `v0.1.0` → `v0.3.0`.
+
+### Verified
+
+- 550 unit tests pass.
+- Dry-run on a fake project copies 18 template files (was 14 in v0.3.0) including the 5 new templates above.
+- `--register-in` dry-run leaves `consumers.yaml` unchanged.
+
 ## [0.3.0] — 2026-04-25 — architectural review fixes + template-readiness
 
 Substantive structural changes from a software + agentic-architect review.
