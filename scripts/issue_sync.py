@@ -69,7 +69,7 @@ from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa
 SCRIPT_BASENAME = "issue_sync.py"
 GATE_NAME = "issue-sync-preflight"
 
-project-b_PROJECTS: set[str] = set()
+project-b_PROJECTS = {"project-b", "project-d"}
 project-a_PROJECTS = {"zeta", "EPSILON"}
 
 DEFAULT_JIRA_ISSUE_TYPE = "Story"
