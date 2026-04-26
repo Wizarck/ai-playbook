@@ -51,6 +51,9 @@ consumers:
     visibility: public
     status: active
     notes: Community AGPL-3.0 repo.
+    skills_pins:
+      ai-playbook: v0.4.0
+      eligia-skills: v0.2.0
 
   eligia-core:
     repo: Wizarck/eligia-core
@@ -59,6 +62,9 @@ consumers:
     personal: true
     status: active
     notes: Personal add-on (ELIGIA.md) lives alongside the playbook submodule.
+    skills_pins:
+      ai-playbook: v0.4.0
+      eligia-skills: v0.2.0
 
   palafito-b2b:
     repo: Wizarck/palafito-b2b
@@ -66,3 +72,16 @@ consumers:
     visibility: private
     status: active
     notes: WordPress + WooCommerce B2B for the Mexican wholesale market. Onboarded 2026-04-25.
+    skills_pins:
+      ai-playbook: v0.4.0
+      eligia-skills: v0.2.0
+
+  iguanatrader:
+    repo: Wizarck/iguanatrader
+    default_branch: main
+    visibility: private
+    status: active
+    notes: Algorithmic trading bot. Onboarded 2026-04-26 via ai-playbook v0.3.1 bootstrap; first consumer to land with RFC-0001 skills_pins from day one.
+    skills_pins:
+      ai-playbook: v0.4.0
+      eligia-skills: v0.2.0
