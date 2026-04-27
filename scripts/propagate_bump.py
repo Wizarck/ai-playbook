@@ -261,9 +261,9 @@ def _propagate_one(
 def _notify(event: str, severity: str, summary: str, detail: str) -> None:
     """Fire-and-forget notification via scripts/notify.py (JSONL + SMTP)."""
     try:
-        from scripts.notify import emit
+        from scripts.notify import notify
 
-        emit(event=event, severity=severity, summary=summary, detail=detail)
+        notify(event=event, severity=severity, summary=summary, detail=detail)
     except Exception as exc:  # noqa: BLE001 — notify must never block propagation
         print(f"[propagate_bump] notify failed: {exc}", file=sys.stderr)
 
