@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!--
+  Variants index for {{PROJECT_NAME}} — the comparison page from step 3 of the
+  UX track three-step order (ux-track.md §3.3 + §7).
+
+  Lists every variant produced in step 3 with a short fingerprint description
+  (what makes each visually distinct: typography, density, motion). After the
+  user picks a canonical variant, this page is rewritten by Phase A scrub
+  (ux-track.md §9) to show only the canonical pick + fallback (if any) +
+  link to palette-options.html (the decision rationale) + link to _archive/
+  for historical reference.
+
+  Replace {{PROJECT_NAME}}, {{MODULE_NAME}}, and the variant cards. Add or
+  remove cards as needed for your N variants.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{PROJECT_NAME}} — UX variants ({{MODULE_NAME}})</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; padding: 32px; max-width: 880px; margin: 0 auto; line-height: 1.55; color: #18181b; }
+h1 { font-size: 26px; margin-bottom: 6px; letter-spacing: -0.02em; }
+p.lede { color: #6b7280; font-size: 14px; margin-bottom: 20px; max-width: 640px; }
+.note { background: #f5f4f0; border-left: 3px solid #2E8B85; padding: 10px 14px; border-radius: 4px; margin: 18px 0 24px; font-size: 13px; color: #52525b; }
+.note code { background: #ecebe6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 22px; }
+.card { border: 1px solid #e4e4e7; border-radius: 10px; padding: 18px 20px; transition: all 150ms; background: #fff; }
+.card:hover { border-color: #2E8B85; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+.card.canonical { border-color: #2E8B85; border-width: 2px; background: linear-gradient(180deg, #F4EFE6 0%, #fff 35%); }
+.card a.title { color: #18181b; text-decoration: none; font-size: 17px; font-weight: 600; display: block; margin-bottom: 4px; }
+.card a.title:hover { text-decoration: underline; }
+.card .desc { color: #52525b; font-size: 13px; line-height: 1.55; margin-top: 6px; }
+.card .vibe { font-size: 12px; font-weight: 500; color: #15803d; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f4f4f5; }
+.tier-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin: 4px 0 10px; }
+.aside-links { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.aside-links a { font-size: 13px; color: #2E8B85; text-decoration: none; padding: 6px 12px; border: 1px solid #d4d4d8; border-radius: 6px; }
+footer { margin-top: 36px; padding-top: 18px; border-top: 1px solid #e4e4e7; color: #71717a; font-size: 12px; }
+footer code { background: #f4f4f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>{{PROJECT_NAME}} — UX variants</h1>
+<p class="lede">{{MODULE_NAME}} per-journey mocks. The canonical design system lives at <code style="background:#f4f4f5;padding:1px 4px;border-radius:3px;font-size:12px;">docs/ux/DESIGN.md</code>; per-journey docs at <code style="background:#f4f4f5;padding:1px 4px;border-radius:3px;font-size:12px;">docs/ux/jN.md</code>.</p>
+
+<div class="note">
+  Earlier brand-voice exploration variants were archived to <code>_archive/</code> once a canonical was picked. They&#39;re kept as a record of the rationale, not as live deliverables.
+</div>
+
+<div class="tier-label">Per-journey mocks (canonical)</div>
+<div class="grid">
+  <div class="card canonical">
+    <a class="title" href="mock-j1-<descriptor>.html">J1 — &lt;happy path title&gt;</a>
+    <div class="desc">[One paragraph: persona, device, what the mock shows, key components on screen.] Companion doc: <a href="../j1.md">j1.md</a>.</div>
+    <div class="vibe">[The visual fingerprint in one sentence.]</div>
+  </div>
+
+  <div class="card">
+    <a class="title" href="mock-j2-<descriptor>.html">J2 — &lt;audit / spike / etc.&gt;</a>
+    <div class="desc">[Description.] Companion doc: <a href="../j2.md">j2.md</a>.</div>
+  </div>
+
+  <!-- Additional journey cards as needed -->
+</div>
+
+<div class="tier-label">Edge case + future (no separate mock)</div>
+<div class="grid">
+  <div class="card">
+    <a class="title" href="../j4.md">J4 — &lt;edge case title&gt;</a>
+    <div class="desc">[Description.] Inline mock embedded in the doc.</div>
+  </div>
+  <div class="card">
+    <a class="title" href="../j5.md">J5 — &lt;forward-looking, M&lt;N+&gt;.x&gt;</a>
+    <div class="desc">Design intent only — not in M&lt;N&gt; MVP. Records the contract M&lt;N&gt; must keep open for the next milestone.</div>
+  </div>
+</div>
+
+<div class="tier-label">Fallback (kept for revert)</div>
+<div class="grid">
+  <div class="card">
+    <a class="title" href="mock-&lt;letter&gt;-&lt;descriptor&gt;.html">Mock &lt;letter&gt; — earlier variant</a>
+    <div class="desc">[Why this is kept as fallback.] Not edited going forward; canonical lives in <code>DESIGN.md</code>.</div>
+  </div>
+</div>
+
+<div class="tier-label">Decision rationale</div>
+<div class="aside-links">
+  <a href="palette-options.html">→ palette-options.html</a>
+  <span style="font-size:13px;color:#71717a;align-self:center;">— the palette comparison that led to picking the canonical.</span>
+</div>
+
+<footer>
+After per-journey mocks (J1-JN) and <code>components.md</code> are written, the iteration scratch can be retired to <code>_archive/</code> entirely — <code>DESIGN.md</code> + per-journey docs + <code>components.md</code> become the single source of truth.
+</footer>
+
+</body>
+</html>
