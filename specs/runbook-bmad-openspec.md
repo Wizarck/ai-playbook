@@ -11,15 +11,20 @@ Project-specific deviations live in `<consumer>/docs/runbook.md`. This file is t
 ## 1 Phase map
 
 ```
-Discovery (BMAD)             Implementation (OpenSpec)
-────────────────             ─────────────────────────
-PRD → Personas → ADRs → ERD  propose → specs || design → tasks → apply → archive
-       │                      │
-       ▼ HITL gate            ▼ per-artefact: worker → QA → verdict
-  Human approves         max 2 rework cycles; iter 3 ⇒ SYSTEMIC ⇒ blocked-by-spec
+Discovery (BMAD)                    Implementation (OpenSpec)
+────────────────                    ─────────────────────────
+PRD → Personas → ADRs → ERD     ──┐ propose → specs || design → tasks → apply → archive
+       │              │           │      │
+       ▼ Gate A       │           │      ▼ per-artefact: worker → QA → verdict
+       │              ├── Gate B ─┤      max 2 rework cycles; iter 3 ⇒ blocked-by-spec
+       └─► UX Track ──┘           │
+           (parallel)              │
+                              Gate C
 ```
 
 BMAD produces **what** and **why**. OpenSpec produces **how**. The boundary is non-negotiable: an agent that writes tasks.md without an approved proposal + specs/design is `goal_drift`.
+
+The **UX Track** runs in parallel with `bmad-create-architecture` between Gate A and Gate B; see [ux-track.md](ux-track.md) for the full spec. Headless/API-only consumers skip it via a one-line `docs/ux/README.md` declaration.
 
 ## 2 BMAD Discovery (Phase 1–2)
 
@@ -38,12 +43,18 @@ BMAD produces **what** and **why**. OpenSpec produces **how**. The boundary is n
 Human MUST approve before the next phase starts:
 
 - **Gate A** — after PRD: "Is the problem correctly framed? Are the KPIs the right ones?" If no → rework PRD; do not start ADRs.
-- **Gate B** — after ADRs + data-model: "Are these the right irreversible bets?" If no → rework ADRs; do not start slicing.
-- **Gate C** — after slicing (§3): "Do the proposed OpenSpec changes match the PRD boundary?" If no → re-slice; do not create change folders.
+- **Gate B** — after ADRs + data-model **and UX Track** (per §2.3): "Are these the right irreversible bets? Is the UX coherent across journeys?" If no → rework the failing track; do not start slicing.
+- **Gate C** — after slicing (§2.4): "Do the proposed OpenSpec changes match the PRD boundary?" If no → re-slice; do not create change folders.
 
 An agent that advances past a gate without recorded human approval is `goal_drift` per `agentic-failures.md`.
 
-### 2.3 Slicing (human-led, agent-assisted)
+### 2.3 UX Track (parallel with Architecture)
+
+For consumers that ship a UI, the UX Track produces mocks-per-journey + a project-level `DESIGN.md` + component candidates. It runs in parallel with `bmad-create-architecture` after Gate A. **Gate B now waits on both Architecture and UX.** See [ux-track.md](ux-track.md) for the full spec — artefacts, output format, component-library curation pattern (Storybook + design review), curated external skill recommendations, and QA discipline.
+
+Headless / API-only consumers declare `no-ui-consumer` in a one-line `docs/ux/README.md` and Gate B passes on Architecture alone.
+
+### 2.4 Slicing (human-led, agent-assisted)
 
 Break the PRD into OpenSpec-shaped changes. One change = one bounded context or one feature in a bounded context. Heuristics:
 
@@ -127,7 +138,7 @@ Full cadence in [`specs/retrospective-cadence.md`](retrospective-cadence.md).
 | Gate | Who | What they approve | Agent blocked without approval |
 |---|---|---|---|
 | A — Post-PRD | Human (role: PM) | Problem + outcome + KPIs. | Cannot start ADRs. |
-| B — Post-ADRs | Human (role: Architect or PM) | Tech bets + data model. | Cannot slice. |
+| B — Post-ADRs + Post-UX | Human (role: Architect or PM) | Tech bets + data model + UX coherence (mocks per journey + DESIGN.md). Headless consumers skip UX gate via `docs/ux/README.md` no-ui declaration. | Cannot slice. |
 | C — Post-slice | Human (role: PM) | Change list + scope notes. | Cannot `/opsx:propose`. |
 | D — Per artefact | QA subagent (auto) + human override | Verdict `✅`. | Next artefact cannot start. |
 | E — Pre-apply | Human (role: Eng lead) | Tasks approved + readiness check `✅`. | Cannot `openspec apply`. |

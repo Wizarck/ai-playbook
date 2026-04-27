@@ -2,6 +2,48 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.5.0] — 2026-04-27 — UX Track formalised between Gate A and Gate C
+
+Adds a normative UX design phase to the BMAD+OpenSpec workflow. Previously the
+runbook was silent on UX; mocks lived ad-hoc inside individual `design.md` per
+OpenSpec change, producing two recurring failures: no coherent UX vision across
+changes, and component sprawl during `/opsx:apply`.
+
+### Added
+
+- `specs/ux-track.md` (v1.0.0) — full spec for the UX Track: position in
+  workflow, artefacts (`docs/ux/DESIGN.md` 9-section format + per-journey
+  files + components.md), Storybook-first component-library curation pattern,
+  design-review trigger for non-trivial components, QA discipline mirroring
+  [parallel-review.md](specs/parallel-review.md), and curated external-skill
+  recommendations.
+- Curated third-party skill recommendations (not vendored — distribution per
+  RFC-0001): pbakaus/impeccable + Leonxlnx/taste-skill (drop-in),
+  nextlevelbuilder/ui-ux-pro-max-skill (adapt), VoltAgent/awesome-design-md
+  (inspire-from / format pattern), modstart-lib/skillui (skip).
+
+### Changed
+
+- `specs/runbook-bmad-openspec.md` — phase map updated to show UX Track in
+  parallel with Architecture; new §2.3 cross-references [ux-track.md](specs/ux-track.md);
+  Gate B now waits on both Architecture and UX (HITL summary updated). Headless
+  / API-only consumers declare `no-ui-consumer` in `docs/ux/README.md` and skip
+  the UX gate.
+
+### Compatibility
+
+- **Backward-compatible** for consumers shipping a UI: their existing UX work
+  (if any) needs to be expressed in the new `docs/ux/` layout. Per
+  [contributing.md](docs/contributing.md) §6, deviations from the recommended
+  DESIGN.md format land in the consumer's `AGENTS.md` §7.
+- **No-op** for headless / API-only consumers via the one-line escape hatch.
+
+### Validating use-case
+
+openTrattOS Module 2 (Recipes/Escandallo) PRD discovery (2026-04-26 — 2026-04-27)
+surfaced the UX gap in real time. Five external skill repos analysed; star
+counts + licenses verified via `gh api repos/{owner}/{repo}` on 2026-04-27.
+
 ## [0.4.0] — 2026-04-26 — skills distribution: copy-paste → semver-pinned submodule
 
 Implements [RFC-0001](rfcs/RFC-0001-skills-distribution.md). Skills now ship
