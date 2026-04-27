@@ -1,0 +1,112 @@
+---
+title: {{PROJECT_NAME}} Components Catalogue
+status: canonical (M<N> MVP) + design-intent (M<N+>.x deferred)
+last-updated: YYYY-MM-DD
+parent: docs/ux/
+related:
+  - DESIGN.md
+  - jN.md (per-journey docs)
+  - ../prd-<module>.md
+  - ../architecture-decisions.md
+---
+
+# {{PROJECT_NAME}} Components Catalogue
+
+Per-component contracts: purpose, data shape, states, visual treatment, interactions, edge cases, Storybook stories, cross-references. **Visual tokens come from [DESIGN.md](DESIGN.md); this file does not redefine them.** Storybook stories listed here are the canonical visual surfaces — when implementing, build the stories first and verify them against the per-journey mocks.
+
+## Index
+
+| # | Component                            | Tier | Used by               |
+|---|--------------------------------------|------|-----------------------|
+| 1 | [`ComponentA`](#componenta)          | M<N> | J1, J2                |
+| 2 | [`ComponentB`](#componentb)          | M<N> | J1                    |
+| ... | ...                                | ...  | ...                   |
+| N | [`DeferredComponent`](#deferred)     | M<N+>.x | (deferred)         |
+
+## Conventions
+
+Every component below must honour these defaults; entries only call out departures.
+
+- **Tokens by name, never hex.** `var(--accent)`, never `#......`. See DESIGN.md §2 (OKLCH canonical).
+- **Universal states**: `default` / `hover` / `focus` (`:focus-visible` 3px `--accent` ring, 2px offset) / `active` / `disabled` / `loading` / `error` (border + icon + text — never colour-only) / `success` (border + ✓ icon + text — never green-only).
+- **Touch targets ≥ 48 px** on every interactive control.
+- **`prefers-reduced-motion`** respected globally.
+- **WCAG-AA** on every text pair; verify and document the ratio.
+- **Numerals**: `font-variant-numeric: tabular-nums lining-nums` on every digit.
+- **Citations** (where AI-derived data is shown): visible badge inline; full source on `title` attribute.
+- **Verb + object** on every button label.
+
+---
+
+## Tier 1 — M<N> MVP canonical
+
+### `ComponentA`
+
+**Purpose.** [One sentence.]
+
+**Used by.** [J<N>](j<N>.md) · [J<M>](j<M>.md).
+
+**Capability.** FR<n>, FR<m>.
+
+**Data shape.**
+```ts
+type ComponentAProps = {
+  // ... key props only
+};
+```
+
+**Component-specific states.** [Beyond universal 8.]
+
+**Tokens.** [Specific DESIGN.md tokens.]
+
+**Behaviour.** [Interactions, keyboard model, screen reader treatment.]
+
+**Edge cases.**
+- **<Edge case>**: [Degradation strategy.]
+
+**Storybook stories.**
+- Default
+- Loading skeleton
+- Empty state
+- Error state
+- Edge state (long text, missing data, ...)
+- ...
+
+---
+
+### `ComponentB`
+
+[Same structure as ComponentA.]
+
+---
+
+## Tier 2 — M<N+>.x deferred (design intent only)
+
+These are recorded so the catalogue tracks them as `status: deferred`, not gaps. The current milestone's implementation must not foreclose them.
+
+### `DeferredComponent`
+
+**Status.** M<N+>.x deferred.
+
+**Purpose.** [One sentence.]
+
+**Used by.** [Future surface — link to j<N>.md design-intent doc if it exists.]
+
+**Why deferred.** [What is missing in the current milestone that this depends on.]
+
+**Tokens (intent).** [DESIGN.md tokens this would use.]
+
+**Storybook stories (planned).** [List for the future milestone.]
+
+---
+
+## Stewardship
+
+When the PRD adds a new component:
+1. Add it to DESIGN.md §4 first (intent + tokens).
+2. Add it here with a stub entry (purpose, status, capability, intended tokens).
+3. Implement: build the Storybook stories before the live mount; verify stories against any per-journey mocks that depend on the component.
+
+When a component is implemented in the consumer's `packages/ui-kit/`, the entry here gets a `status` upgrade from `M<N> design intent` to `M<N> canonical implemented`, and a link to the Storybook story files.
+
+The components catalogue is the contract between design and engineering. If a story in Storybook does not match the doc here, the doc is wrong — fix it.
