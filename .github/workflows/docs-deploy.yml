@@ -62,6 +62,13 @@ jobs:
 
   deploy:
     needs: build
+    # Conditional on `PAGES_ENABLED` repo variable. Set it to `true` once
+    # GitHub Pages is enabled for the repo (Settings → Pages → Source =
+    # GitHub Actions). For private repos this requires GitHub Pro / Team /
+    # Enterprise; free-tier private repos can't use Pages and should leave
+    # this var unset so the deploy step is skipped (build still verifies the
+    # site assembles cleanly).
+    if: ${{ vars.PAGES_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
