@@ -43,14 +43,26 @@ The **UX Track** runs in parallel with `bmad-create-architecture` between Gate A
 Human MUST approve before the next phase starts:
 
 - **Gate A** — after PRD: "Is the problem correctly framed? Are the KPIs the right ones?" If no → rework PRD; do not start ADRs.
-- **Gate B** — after ADRs + data-model **and UX Track** (per §2.3): "Are these the right irreversible bets? Is the UX coherent across journeys?" If no → rework the failing track; do not start slicing.
+- **Gate B** — after ADRs + data-model **and UX Track** (per §2.3): "Are these the right irreversible bets? Is the UX coherent across journeys?" Verify: (a) DESIGN.md tokens consistent with ADR data shapes, (b) every PRD journey has a mock or design-intent doc, (c) components catalogue matches journey usage, (d) no engine references leaked into canonical artefacts after Phase A scrub. If no → rework the failing track; do not start slicing.
 - **Gate C** — after slicing (§2.4): "Do the proposed OpenSpec changes match the PRD boundary?" If no → re-slice; do not create change folders.
 
 An agent that advances past a gate without recorded human approval is `goal_drift` per `agentic-failures.md`.
 
 ### 2.3 UX Track (parallel with Architecture)
 
-For consumers that ship a UI, the UX Track produces mocks-per-journey + a project-level `DESIGN.md` + component candidates. It runs in parallel with `bmad-create-architecture` after Gate A. **Gate B now waits on both Architecture and UX.** See [ux-track.md](ux-track.md) for the full spec — artefacts, output format, component-library curation pattern (Storybook + design review), curated external skill recommendations, and QA discipline.
+For consumers that ship a UI, the UX Track runs in parallel with `bmad-create-architecture` after Gate A. **Gate B waits on both Architecture and UX.**
+
+The track follows a mandatory **three-step order** (visual artefact at every step; never substitute by text descriptions):
+
+1. **Inspiration** — references in / themes out (`docs/ux/inspiration.md`).
+2. **Palette validation** — 3-5 palettes as visual swatches + mini-previews (`docs/ux/variants/palette-options.html`); user picks.
+3. **Variant generation** — one agent per creative engine in parallel on the locked palette (`docs/ux/variants/mock-*.html` + `index.html` comparison page).
+
+After the user picks, **Phase A scrub** (archive rejected, strip engine references from the canonical) and **Phase B consolidation** (write `docs/ux/DESIGN.md` 9-section, then per-journey `jN.md` docs + companion mocks where warranted, then `components.md` Storybook-style with stewardship clause). Iteration uses a bones+layer remix pattern (`mock-X<N>-<descriptor>.html`).
+
+Colour discipline is **OKLCH-canonical** — every token declared in `oklch(L% C H)`, hex as derivation comment only. WCAG-AA verified on every text pair and recorded in the head-comment audit.
+
+See [ux-track.md](ux-track.md) for the full spec (artefacts, agent prompt template, component curation pattern, anti-patterns checklist, QA discipline). Copyable templates live in [`templates/ux/`](../templates/ux/).
 
 Headless / API-only consumers declare `no-ui-consumer` in a one-line `docs/ux/README.md` and Gate B passes on Architecture alone.
 

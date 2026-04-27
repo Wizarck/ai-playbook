@@ -1,0 +1,64 @@
+---
+title: {{PROJECT_NAME}} — UX inspiration board
+purpose: Step 1 of the UX track three-step order — record the user's references and extract recurring themes that anchor steps 2 (palette validation) and 3 (variant generation).
+status: research scratch
+last-updated: YYYY-MM-DD
+parent: docs/ux/
+related:
+  - ../prd-<module>.md (PRD this UX track serves)
+  - ../personas-jtbd.md (personas + devices)
+---
+
+# {{PROJECT_NAME}} — Inspiration board
+
+Step 1 of the UX track. The user provides reference images, URLs, or vibe descriptions; this doc records what was seen and what recurring themes emerge. Themes anchor step 2 (palette validation) and step 3 (variant generation).
+
+## References provided
+
+[List the references the user provided. URLs, image filenames, brand names, descriptors. One per line. No analysis yet — just record.]
+
+- <reference 1>
+- <reference 2>
+- <reference 3>
+- ...
+
+## Recurring themes
+
+After looking at all references, the following themes appear (with rough frequency in parentheses):
+
+### Color temperature
+
+[Predominant temperature (warm / cool / neutral). Specific hue families that recur. Saturation register (saturated, muted, dusty, faded).]
+
+### Typography
+
+[Serif vs sans dominance. Display vs body weights. Any notable typeface families that recur. Numerals (lining vs old-style, tabular vs proportional).]
+
+### Density
+
+[Sparse / medium / dense. Margin generosity. Line-height register.]
+
+### Motion / energy
+
+[Static / kinetic. Hand-made / computed. Slow / fast. Friction-heavy / friction-light.]
+
+### Other recurring elements
+
+[Specific visual motifs that show up: textures, materials, photographic register, iconography, silhouette / shape.]
+
+## Themes the user is NOT looking for
+
+[If the user described what they explicitly want to avoid — capture it here. "Not corporate", "not playful", "not minimalist-cold", etc.]
+
+## Devices and contexts
+
+[From the personas-jtbd.md cross-reference: which devices these surfaces will be read on, and any contextual constraints (lighting, pace, attention budget).]
+
+## What this anchors next
+
+- **Step 2 (palette validation)**: 3-5 palettes derived from the temperature + saturation + recurring elements above. Render as `docs/ux/variants/palette-options.html`.
+- **Step 3 (variant generation)**: each agent receives this inspiration doc plus the locked palette + the same surface brief. Variants differ in typography / spatial / motion (the things palette doesn't fix), and the recurring themes here are what each agent's interpretation should respect.
+
+## Notes
+
+[Any additional notes from the conversation: things the user mentioned in passing, constraints they alluded to, edge cases worth remembering for later.]

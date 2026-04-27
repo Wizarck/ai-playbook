@@ -142,8 +142,11 @@ def test_proposal_has_tracker() -> None:
 
 
 def test_jira_project_for_names() -> None:
-    assert issue_sync._jira_project_for("project-b") == "project-b"
-    assert issue_sync._jira_project_for("project-d") == "project-b"
+    # project-b_PROJECTS is empty by default since d0dd734 (project-b +
+    # project-d moved to GitHub Issues). Every name routes to project-a
+    # unless explicitly added to project-b_PROJECTS.
+    assert issue_sync._jira_project_for("project-b") == "project-a"
+    assert issue_sync._jira_project_for("project-d") == "project-a"
     assert issue_sync._jira_project_for("zeta") == "project-a"
     assert issue_sync._jira_project_for("unknown") == "project-a"
 
@@ -178,7 +181,10 @@ def test_decide_surface_private_falls_back_to_jira(
     monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: None)
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "jira"
-    assert decision.jira_project == "project-b"
+    # Default Jira project is project-a since d0dd734 (project-b out of
+    # project-b_PROJECTS). The fall-back-to-jira path still fires when gh
+    # CLI is unavailable; the project is now project-a not project-b.
+    assert decision.jira_project == "project-a"
 
 
 # ---------------------------------------------------------------------------

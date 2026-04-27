@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<!--
+  Palette options for {{PROJECT_NAME}} — step 2 of the UX track three-step order
+  (ux-track.md §3.2).
+
+  Show 3-5 candidate palettes derived from the inspiration themes (step 1).
+  Each palette renders as real swatches + mini-previews of the actual product
+  surface so the user can pick on visual evidence, not on token tables.
+
+  After the user picks, the chosen palette propagates to step 3 (variant
+  generation), where each creative-engine produces a variant on the locked
+  palette.
+
+  Replace {{PROJECT_NAME}}, {{SURFACE_NAME}}, and the four palette blocks
+  (P1-P4) with the actual content. Add or remove palette sections as needed.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{PROJECT_NAME}} — palette options</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px; line-height: 1.55; color: #18181b;
+  padding: 32px 24px; max-width: 1100px; margin: 0 auto;
+  background: #fafafa;
+}
+h1 { font-size: 26px; letter-spacing: -0.02em; margin-bottom: 6px; }
+.lede { color: #6b7280; font-size: 14px; max-width: 720px; }
+h2 { font-size: 16px; letter-spacing: -0.01em; margin-bottom: 4px; font-weight: 600; }
+h2 .id { font-family: ui-monospace, monospace; font-size: 12px; color: #71717a; font-weight: 500; margin-right: 6px; padding: 2px 6px; background: #f4f4f5; border-radius: 4px; }
+h2.recommended .id { background: #ecfdf5; color: #047857; }
+h2.recommended::after { content: "★ recommended"; font-size: 11px; font-weight: 600; color: #047857; margin-left: 8px; padding: 2px 6px; background: #ecfdf5; border-radius: 999px; vertical-align: 2px; }
+.soul { color: #6b7280; font-size: 13px; font-style: italic; margin-bottom: 14px; }
+
+.palette-section { background: #fff; border: 1px solid #e4e4e7; border-radius: 14px; padding: 24px; margin-bottom: 24px; }
+
+.swatches { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 18px; }
+.swatch { padding: 12px 10px; border-radius: 8px; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.4; min-height: 76px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid rgba(0,0,0,0.06); }
+.swatch .label { font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.65; }
+.swatch .hex { font-weight: 500; }
+
+.preview-grid { display: grid; grid-template-columns: 1fr 320px; gap: 18px; }
+@media (max-width: 760px) { .preview-grid { grid-template-columns: 1fr; } }
+
+/* The preview shapes are intentionally generic so the template applies to any product surface. Replace with a meaningful mini-render of YOUR product's surface. */
+.preview-frame { border-radius: 12px; padding: 18px; border: 1px solid; min-height: 280px; font-size: 13px; }
+.frame-row { display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid; gap: 10px; }
+.frame-row:last-of-type { border-bottom: none; }
+.frame-row .name { flex: 1; font-weight: 500; }
+.frame-row .num { font-family: ui-monospace, monospace; font-feature-settings: "tnum"; }
+.frame-actions { display: flex; gap: 6px; margin-top: 14px; }
+.frame-btn { font-family: inherit; font-size: 13px; padding: 6px 12px; border-radius: 7px; cursor: pointer; border: 1px solid; font-weight: 500; }
+.frame-btn-primary { font-weight: 600; }
+
+.aside-frame { padding: 16px; border-radius: 12px; border: 1px solid; }
+.aside-frame h3 { font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+.aside-frame .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid; }
+
+.notes { font-size: 12px; color: #6b7280; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e4e4e7; }
+.notes strong { color: #18181b; }
+
+footer { margin-top: 36px; padding-top: 20px; border-top: 1px solid #e4e4e7; color: #71717a; font-size: 13px; }
+footer code { background: #f4f4f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+/* ─── Palette token sets — replace with real palettes ─── */
+.p1 { --bg: #FAFAFA; --surface: #F4F4F5; --ink: #18181B; --mute: #71717A; --border: #E4E4E7; --accent: #18181B; --accent-fg: #FAFAFA; --warn-bg: #FEF9C3; --destructive: #B91C1C; }
+.p2 { --bg: #FAFAFA; --surface: #F4F4F5; --ink: #18181B; --mute: #71717A; --border: #E4E4E7; --accent: #18181B; --accent-fg: #FAFAFA; --warn-bg: #FEF9C3; --destructive: #B91C1C; }
+.p3 { --bg: #FAFAFA; --surface: #F4F4F5; --ink: #18181B; --mute: #71717A; --border: #E4E4E7; --accent: #18181B; --accent-fg: #FAFAFA; --warn-bg: #FEF9C3; --destructive: #B91C1C; }
+.p4 { --bg: #FAFAFA; --surface: #F4F4F5; --ink: #18181B; --mute: #71717A; --border: #E4E4E7; --accent: #18181B; --accent-fg: #FAFAFA; --warn-bg: #FEF9C3; --destructive: #B91C1C; }
+
+.preview-frame { background: var(--bg); border-color: var(--border); color: var(--ink); }
+.frame-row { border-color: var(--border); }
+.frame-btn { background: var(--bg); border-color: var(--border); color: var(--ink); }
+.frame-btn-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.aside-frame { background: var(--surface); border-color: var(--border); color: var(--ink); }
+.aside-frame .badge { background: var(--warn-bg); color: var(--destructive); border-color: var(--destructive); }
+</style>
+</head>
+<body>
+
+<h1>{{PROJECT_NAME}} — palette options</h1>
+<p class="lede">Step 2 of the UX track three-step order. {{N}} candidate palettes derived from the inspiration themes (step 1: <code>docs/ux/inspiration.md</code>). Pick one — or a hybrid like <em>"P{{N}} accent + P1 ink"</em>.</p>
+
+<!-- ────────────────── P1 ────────────────── -->
+<section class="palette-section p1">
+  <h2><span class="id">P1</span>{{PALETTE_1_NAME}} <em style="font-weight:400;color:#71717a;font-size:14px;">— {{PALETTE_1_TAGLINE}}</em></h2>
+  <p class="soul">{{PALETTE_1_SOUL_DESCRIPTION}}</p>
+
+  <div class="swatches">
+    <!-- one swatch per token in the palette -->
+    <div class="swatch" style="background:var(--bg);color:#18181B;"><div class="label">bg</div><div class="hex">#FAFAFA</div></div>
+    <!-- ... -->
+  </div>
+
+  <div class="preview-grid">
+    <div class="preview-frame">
+      <!-- Mini-render of YOUR product's primary data row -->
+      <div class="frame-row"><span class="name">Sample row</span><span class="num">value</span></div>
+      <div class="frame-actions">
+        <button class="frame-btn">Secondary</button>
+        <button class="frame-btn frame-btn-primary">Primary</button>
+      </div>
+    </div>
+    <div class="aside-frame">
+      <h3>Critical badge</h3>
+      <span class="badge">⚠ Sample warning</span>
+    </div>
+  </div>
+  <div class="notes"><strong>Strength:</strong> {{PALETTE_1_STRENGTH}}. <strong>Risk:</strong> {{PALETTE_1_RISK}}.</div>
+</section>
+
+<!-- Repeat sections P2, P3, P4 with their own .p2 / .p3 / .p4 token blocks -->
+
+<footer>
+After picking — say <code>P1</code> / <code>P2</code> / <code>P3</code> / <code>P4</code> or a hybrid (e.g. <em>"P3 accent + P2 ink"</em>) — the agent runs step 3 (variant generation) on the locked palette.
+</footer>
+
+</body>
+</html>

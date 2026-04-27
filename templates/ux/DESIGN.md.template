@@ -1,0 +1,216 @@
+---
+title: {{PROJECT_NAME}} Design System
+status: canonical
+last-updated: {{YYYY-MM-DD}}
+parent: docs/ux/
+supersedes:
+  - docs/ux/variants/_archive/* (exploration round)
+related:
+  - docs/architecture-decisions.md
+  - docs/prd-{{MODULE}}.md
+  - docs/personas-jtbd.md
+---
+
+# {{PROJECT_NAME}} Design System
+
+The single source of truth for {{PROJECT_NAME}} visual language, components, and design rules. Per-journey mocks (`docs/ux/jN.md`) and the components catalogue (`docs/ux/components.md`) reference this document; they do not redefine its tokens.
+
+## 1. Principles
+
+5-8 design principles. Examples to draw from:
+
+1. **Restraint as discipline.** [Why this product needs restraint — kitchen reality / regulated context / cognitive load.]
+2. **[Brand vibe in 4 words]** without [the cliché this product must avoid].
+3. **[Primary device] reality.** [What the device imposes — touch, latency, reach, glance time.]
+4. **Citations as trust mechanism.** Any AI-suggested value carries visible provenance; without citation there is no trust.
+5. **[Regulatory or domain duty].** [What is non-negotiable.]
+6. **[Spine metric].** What is the most weighted element on the screen and why.
+7. **Agent-ready, agent-optional.** Same surfaces renderable by agents and humans; API is the contract.
+8. **Boring before clever.** Reach for novelty only when convention fails the persona — and document why.
+
+## 2. Colors
+
+[One-paragraph description of the palette's soul.]
+
+### Tokens
+
+| Token            | OKLCH                       | Hex (derivation) | Where used                                            |
+|------------------|------------------------------|------------------|-------------------------------------------------------|
+| `--bg`           | `oklch(... ... ...)`         | `#......`        | Page canvas.                                          |
+| `--surface`      | `oklch(... ... ...)`         | `#......`        | Cards, panels, raised data domains.                   |
+| `--ink`          | `oklch(... ... ...)`         | `#......`        | Body text, headings. Warm/cool charcoal — never #000. |
+| `--mute`         | `oklch(... ... ...)`         | `#......`        | Source text, secondary copy, eyebrows.                |
+| `--border`       | `oklch(... ... ...)`         | `#......`        | 1px borders.                                          |
+| `--accent`       | `oklch(... ... ...)`         | `#......`        | Primary CTA, focus ring, citation hover.              |
+| `--accent-fg`    | `oklch(... ... ...)`         | `#......`        | Text on `--accent`. Off-white, never #fff.            |
+| `--success`      | `oklch(... ... ...)`         | `#......`        | Semantic only — never decorative.                     |
+| `--destructive`  | `oklch(... ... ...)`         | `#......`        | Allergen / error / regulatory.                        |
+| `--warn-bg`      | `oklch(... ... ...)`         | `#......`        | Warning surface tint.                                 |
+
+### CSS variables
+
+OKLCH is the canonical form — declare colours in OKLCH for perceptual uniformity across displays. The hex values in the comments are derivation references, not the runtime values.
+
+```css
+:root {
+  --bg:           oklch(... ... ...);     /* #...... */
+  --surface:      oklch(... ... ...);     /* #...... */
+  --ink:          oklch(... ... ...);     /* #...... */
+  --mute:         oklch(... ... ...);     /* #...... */
+  --border:       oklch(... ... ...);     /* #...... */
+  --accent:       oklch(... ... ...);     /* #...... */
+  --accent-fg:    oklch(... ... ...);     /* #...... */
+  --success:      oklch(... ... ...);     /* #...... */
+  --destructive:  oklch(... ... ...);     /* #...... */
+  --warn-bg:      oklch(... ... ...);     /* #...... */
+}
+```
+
+**Why OKLCH, not hex.** Perceptually uniform; preserves saturation on wide-gamut displays where hex is sRGB-clamped.
+
+### Contrast (WCAG-AA verified)
+
+| Pair                            | Ratio    | Status      |
+|---------------------------------|----------|-------------|
+| `--ink` on `--bg`               | ~XX:1    | AA+ body    |
+| `--mute` on `--bg`              | ~X.X:1   | AA body     |
+| ...                             |          |             |
+
+### Usage rules
+
+- **Accent ≤ 10% surface area.**
+- **No `#000`, no `#fff`.**
+- **No pure greys.** Every neutral carries low chroma toward the brand hue.
+- **Allergen / regulatory badges**: `--destructive` text + border on `--warn-bg`. Icon + text always.
+
+## 3. Typography
+
+```css
+:root {
+  --font-sans:  ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: <serif family if any>, ui-serif, Georgia, serif;
+  --font-mono:  ui-monospace, "SF Mono", monospace;
+}
+```
+
+[State the typography strategy: pure system stack? One serif accent on which surface? Why?]
+
+### Loading discipline
+
+`font-display: swap` mandatory. System fallback must be visually compatible.
+
+### Scale (5-step modular, ratio 1.25)
+
+| Step          | Size   | Use                              |
+|---------------|--------|----------------------------------|
+| `--text-xs`   | 12-13px| Eyebrow, citations, footnotes    |
+| `--text-sm`   | 13-14px| Source text, secondary metadata  |
+| `--text-md`   | 14-16px| Body, table cells (default)      |
+| `--text-lg`   | 18-20px| Panel titles, key numbers        |
+| `--text-xl`   | 22-26px| Section headings                 |
+| `--text-2xl`  | 28-34px| Page titles                      |
+
+- Minimum body size: **13 px**.
+- `text-wrap: balance` on H1 and H2.
+- `font-variant-numeric: tabular-nums lining-nums` on every digit.
+
+## 4. Components
+
+[List every named component with intent + token usage. Full Storybook stories live in `components.md`; this section sets the contract.]
+
+[For each component: `### ComponentName` — purpose, intended tokens, special states beyond universal 8.]
+
+### Component states (universal)
+
+Every interactive component must implement: default / hover / focus / active / disabled / loading / error / success.
+
+## 5. Spacing
+
+```css
+:root {
+  --space-2xs: 4px;
+  --space-xs:  8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+}
+```
+
+- **Touch targets ≥ 48px** on every interactive control.
+- **Variety required.** Same padding everywhere is monotony.
+
+## 6. Depth
+
+[State the depth strategy: luminance-stepping? bordered surfaces? when cards?]
+
+- **Forbidden:** drop shadows for elevation, glassmorphism, nested cards, side-stripe accent borders.
+
+## 7. Guidelines
+
+### Accessibility
+
+- WCAG-AA on every critical screen.
+- Allergen / regulatory icons + text + border, never colour-only.
+- Touch targets ≥ 48px.
+- `:focus-visible` ring on every focusable element.
+
+### Motion
+
+- Duration scale: 100 / 300 / 500 ms only.
+- `@media (prefers-reduced-motion: reduce)` disables all transitions.
+- Only `opacity` and `transform` animated. Layout properties forbidden.
+- No bounce, no elastic, no celebration animations.
+
+### Performance
+
+- [Page]-view < 1 s on slow Wi-Fi (NFR).
+- [Live calc] recalculation < 200 ms (NFR).
+
+### Copy
+
+- Verb + object on every button label ("Save recipe" not "Save").
+- Tone: matter-of-fact, [domain]-professional.
+- No em dashes. Use commas, periods, or middle-dot.
+- One term per concept.
+
+## 8. Responsive patterns
+
+### Breakpoints
+
+| Token            | Min width | Surface                              |
+|------------------|-----------|--------------------------------------|
+| `--bp-mobile`    | 0         | Phone, single column                 |
+| `--bp-tablet`    | 720 px    | Compact tablet                       |
+| `--bp-tablet-l`  | 1024 px   | **Primary** ([device])               |
+| `--bp-desktop`   | 1280 px   | Office / lookback                    |
+
+[Per-persona device locks table.]
+
+## 9. Agent prompts
+
+Guidance for AI agents producing new components in this system.
+
+### Hard rules
+
+1. Always start from semantic tokens, never raw hex.
+2. If a number, wrap in `font-variant-numeric: tabular-nums lining-nums`.
+3. If allergen / regulated, badge MUST be icon + text + border.
+4. If destructive action, default to ghost button not red.
+5. Respect `prefers-reduced-motion`.
+6. Verify WCAG-AA on every text pair introduced.
+7. Cards reserved for distinct data domains.
+8. Touch targets ≥ 48px.
+
+### Anti-patterns (per ux-track.md §13)
+
+[Listed checklist.]
+
+### Prompt template
+
+> Produce a `<ComponentName>` for {{PROJECT_NAME}} following `docs/ux/DESIGN.md`. Persona: `<persona>`. Device: `<device>`. Data shape: `<schema>`. States required: default / hover / focus / active / disabled / loading / error / success. Use only semantic tokens from §2 and §5. Verify WCAG-AA on every text pair you introduce. List the design choices you made (token selections, anti-patterns avoided) in a short head comment.
+
+---
+
+**Stewardship.** Changes to this design system land in this file via PR. Mocks and per-journey docs reference its tokens; they never redefine them.
