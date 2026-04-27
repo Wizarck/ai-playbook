@@ -37,4 +37,5 @@
 | [slos.md](slos.md) | v1.0.0. | Service-level objectives for the `ai-playbook` repo itself — the shared norms and tooling consumed… |
 | [taxonomy.md](taxonomy.md) | v1.0.0. | Canonical glossary for terms used across `ai-playbook/specs/*`, consumer AGENTS.md files, |
 | [upstream-sync.md](upstream-sync.md) | v1.0.0. | Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving |
+| [ux-track.md](ux-track.md) | v1.0.0. Formalises a UX design phase that runs in parallel with `bmad-create-architecture`, between Gate A and Gate C of the BMAD+OpenSpec workflow ([runbook-bmad-openspec.md](runbook-bmad-openspec.md)). | The canonical workflow ([runbook-bmad-openspec.md](runbook-bmad-openspec.md)) used to be silent on… |
 | [verdict-contract.md](verdict-contract.md) | v1.0.0. | Every QA-style artefact produced by an agent (code review, readiness check, spec audit, retro) ends |
