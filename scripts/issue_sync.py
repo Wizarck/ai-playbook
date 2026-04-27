@@ -1,20 +1,24 @@
-"""Zero-touch sync of OpenSpec changes → Jira (private) OR GitHub Issues (public).
+"""Zero-touch sync of OpenSpec changes → GitHub Issues (default) OR Jira (dual-repo).
 
 Scans a consumer repo for ``openspec/changes/*/proposal.md`` files lacking a
 ``tracker_id`` (Jira) or ``tracker_issue`` (GitHub) entry in their YAML
 frontmatter, creates the ticket on the correct surface, and embeds the id back
 into the proposal.
 
-Surface choice
---------------
-1. If the consumer's registry entry is ``personal: true`` OR ``gh repo view``
-   reports the repo as private but Atlassian creds are missing, we create a
-   **GitHub Issue in the repo itself** (lightweight, no Project board).
+Surface choice (per ``specs/issue-tracking.md`` §1, v1.0.1+)
+------------------------------------------------------------
+1. If the consumer's registry entry is ``personal: true`` (private standalone
+   repo without a public OS counterpart, e.g. ``consumer-d``,
+   ``consumer-b``), we create a **GitHub Issue in the repo itself**, and
+   add it to a per-repo Project board if ``$AIPLAYBOOK_GH_PROJECT_NUMBER``
+   is set.
 2. Else if ``gh repo view --json visibility`` returns ``PUBLIC``, we create a
    GH Issue + (optionally) add it to the org Project from
    ``$AIPLAYBOOK_GH_PROJECT_NUMBER``.
-3. Else (private enterprise) we create a Jira issue in one of
-   ``consumer-b`` / ``consumer-a`` depending on the consumer name.
+3. Else (private with a public OS counterpart — the dual-repo case) we create
+   a Jira issue in ``consumer-b`` / ``consumer-a`` per ``_jira_project_for``.
+   ``consumer-b_PROJECTS`` is now empty by default; populate it only for repos
+   that mirror an open-source counterpart.
 
 Notifications
 -------------
@@ -69,7 +73,7 @@ from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa
 SCRIPT_BASENAME = "issue_sync.py"
 GATE_NAME = "issue-sync-preflight"
 
-consumer-b_PROJECTS = {"consumer-b", "consumer-d"}
+consumer-b_PROJECTS: set[str] = set()
 consumer-a_PROJECTS = {"diakopa", "ESILDA"}
 
 DEFAULT_JIRA_ISSUE_TYPE = "Story"
