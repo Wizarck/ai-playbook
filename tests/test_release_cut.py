@@ -357,7 +357,28 @@ def test_run_release_private_requires_jira_creds(
 def test_run_release_private_dry_run_skips_api(
     tmp_path: Path, jsonl_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import yaml as _yaml
     root = _make_repo(tmp_path)
+    # Register the test consumer with tracker_kind=jira so jira_project_for
+    # can resolve the project key from the registry.
+    registry = tmp_path / "consumers.yaml"
+    registry.write_text(
+        _yaml.safe_dump({
+            "schema": "ai-playbook/consumers/v1",
+            "version": 1,
+            "consumers": {
+                root.name: {
+                    "status": "active",
+                    "tracker_kind": "jira",
+                    "jira_project": "GEEPLO",
+                },
+            },
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AIPLAYBOOK_CONSUMERS_YAML", str(registry))
+    issue_sync._reset_registry_cache()
+
     monkeypatch.setattr(release_cut, "resolve_tag", lambda p, explicit=None: "v1.2.3")
     monkeypatch.setattr(release_cut, "resolve_previous_tag", lambda p, t: None)
     monkeypatch.setattr(

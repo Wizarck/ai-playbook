@@ -2,6 +2,34 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.6.1] — 2026-04-27 — declarative tracker_kind + notify drift fix
+
+Hardening pass on the consumers-routing layer that surfaced during the v0.6.0 PR. Two unrelated fixes bundled because both touch the same automation surface and shipping them together is cheaper than two propagation rounds.
+
+### Fixed
+
+- **`scripts/propagate_bump.py`** — was importing `emit` from `scripts/notify.py`, which exports `notify`. The mismatch logged `notify failed: cannot import name 'emit'` warnings during propagation but did not block PRs. Aligned the import + call site. Notifications now reach the JSONL queue + SMTP again.
+- **`scripts/issue_sync.py`** — replaced the implicit "private repo → Jira fallback" heuristic with a **declarative `tracker_kind` field** read from `consumers.yaml`. The previous flow had two latent failure modes: (a) any consumer name not in `PALAFITO_PROJECTS` fell silently to `GEEPLO`, regardless of whether a Jira project should exist for it; (b) `gh` CLI unavailability triggered the Jira branch even for GH-only consumers. Both are gone. `decide_surface` now raises `RuntimeError` for any active consumer without a valid `tracker_kind` instead of silently picking a default. The class of drift the v0.6.0 PR caught (tests asserted `PALAFITO`, code returned `GEEPLO`) cannot recur.
+- **`scripts/release_cut.py`** — the Jira-fixVersion path now reads the project key via the new `issue_sync.jira_project_for(consumer_root)` public helper (registry-driven). The private `_jira_project_for(name)` heuristic was removed.
+
+### Added
+
+- **`tracker_kind` field** in `consumers.yaml` schema (`github | jira`, required for active consumers). When `jira`, `jira_project` is also required.
+- **`tests/test_consumers_yaml.py`** — schema validation that runs on every CI build. Asserts every active consumer declares `tracker_kind`, every `jira` consumer has `jira_project`, and the status / repo / default_branch fields are present. The committed registry is the test target — drift between code and registry fails CI, not after-the-fact.
+- **`AIPLAYBOOK_CONSUMERS_YAML`** environment override for tests / vendored consumers.
+- **`issue_sync.jira_project_for(consumer_root)`** public helper for callers that need the Jira project key directly.
+
+### Removed
+
+- `scripts/issue_sync.py` private constants `PALAFITO_PROJECTS`, `GEEPLO_PROJECTS`, and `_jira_project_for(consumer_name)` function — replaced by the registry lookup.
+- `tests/test_issue_sync.py::test_jira_project_for_names` (function deleted).
+- `tests/test_issue_sync.py::test_decide_surface_private_falls_back_to_jira` (asserts behaviour that should not exist — there is no silent fallback to Jira).
+
+### Notes
+
+- All 5 active consumers default to `tracker_kind: github` in this release. The registry comment documents how to flip a consumer to Jira (set `tracker_kind: jira` + `jira_project: <KEY>`).
+- The propagation loop will open auto-bump PRs across the 5 consumers; the runtime behaviour is identical for all of them (everyone was already on GH path before, so this is a structural cleanup with no behaviour change for current consumers — just defence against future drift).
+
 ## [0.6.0] — 2026-04-27 — UX Track v2: three-step order, palette decoupling, OKLCH-canonical, components catalogue
 
 Substantial expansion of the UX Track from v0.5.0's framing into operational rules, based on consumer learnings (openTrattOS Module 2 UX track). Additive against v0.5.0; existing consumers may migrate at their own pace.
