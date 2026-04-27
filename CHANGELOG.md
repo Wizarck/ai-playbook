@@ -2,6 +2,43 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.6.0] — 2026-04-27 — UX Track v2: three-step order, palette decoupling, OKLCH-canonical, components catalogue
+
+Substantial expansion of the UX Track from v0.5.0's framing into operational rules, based on consumer learnings (consumer-c-legacy Module 2 UX track). Additive against v0.5.0; existing consumers may migrate at their own pace.
+
+### Added
+
+- **`specs/ux-track.md` v2.0.0** — rewritten and expanded. New sections:
+  - §3 **Three-step order** (mandatory): inspiration → palette validation → variant generation. Visual artefact at every step; text descriptions never substitute.
+  - §5 **Variant generation pattern** — one agent per creative engine in parallel; the 5-engine starter set codified (impeccable, taste-skill, huashu-design, ui-ux-pro-max-skill, awesome-design-md).
+  - §6 **Self-documenting deliverables** — banner + HTML head-comment audit format with internal-only citations (`DESIGN.md §N`, never external repo paths).
+  - §7 **Index/compare page** mandatory.
+  - §8 **Iteration loop** — palette decoupling as a separate visual step; bones+layer remix naming (`mock-X<N>-<descriptor>.html`).
+  - §9 **Phase A scrub + Phase B consolidation** — mechanical recipe for archiving rejected variants and consolidating to canonical DESIGN.md.
+  - §10 **OKLCH-canonical colour rule** — declare colours in `oklch(L% C H)`; hex as derivation comment only. Why: perceptual uniformity, wide-gamut display fidelity.
+  - §11 **Per-journey docs format** — frontmatter + 8-section structure (Goal / Trigger / Walkthrough / Components used / Capabilities satisfied / Edge cases / Decisions / Notes for implementation).
+  - §12 **Components catalogue Storybook-style** — written *after* journey mocks; per-component entries with TS data shape, states, tokens, edge cases, planned stories; explicit stewardship clause.
+  - §13 **Anti-patterns checklist** baked into the audit (~25 items).
+  - §14 **WCAG-AA verification ritual** — every new text pair recorded with ratio in the audit.
+  - §15 **Anti-pattern: hand-coded mocks pretending to be design** — they are baseline only.
+- **`templates/ux/`** — 6 copyable templates: `inspiration.md.template`, `palette-options.html.template`, `variants-index.html.template`, `DESIGN.md.template`, `journey.md.template`, `components.md.template`. Consumers copy on first use.
+- **`specs/runbook-bmad-openspec.md` §2.3** — expanded UX Track summary inline (the three steps + Phase A/B + OKLCH discipline) so the runbook is self-explanatory without requiring a jump to ux-track.md for the high-level shape.
+- **`skills/bmad-create-ux-design/workflow.md`** — rewritten to invoke the three-step order explicitly, point at the templates, and require: parallel agent fan-out at step 3, OKLCH declarations, internal-only citations, WCAG-AA verification block in the audit.
+
+### Changed
+
+- **Gate B verification checklist** in `runbook-bmad-openspec.md` §2 expanded to include: DESIGN.md ↔ ADR data-shape consistency, every PRD journey has a mock or design-intent doc, components catalogue matches journey usage, no engine references leaked into canonical artefacts after scrub.
+
+### Removed
+
+- **`specs/ux-track.md` §6.1 License compliance** (from v1.0.0). Was scaffolding; replaced with a one-line "consumers must check each engine's licence against their own project's licensing constraints" in the curated-engines table. Engines are referenced, never vendored — licensing remains the consumer's responsibility for their own use case.
+
+### Notes
+
+- v0.6.0 is **additive**. Existing consumers' UX docs from v0.5.0 are valid; the new rules apply going forward. Migration is opt-in; no consumer is forced to retrofit.
+- Star counts and license fields for the 5 engines verified via `gh api repos/{owner}/{repo}` on 2026-04-27. Refresh annually.
+- Consumer propagation via the existing zero-touch playbook propagation loop will open auto-bump PRs across the 5 consumers (consumer-c-legacy, consumer-b, consumer-d, consumer-d-rag, consumer-d-skills) once this lands on `main`.
+
 ## [0.5.2] — 2026-04-27 — docs-deploy: gate the deploy job behind PAGES_ENABLED
 
 ### Fixed

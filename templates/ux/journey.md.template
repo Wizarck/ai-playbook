@@ -1,0 +1,59 @@
+---
+journey: J<N> — <one-line title>
+status: canonical (M<N> MVP) | design intent (M<N+>.x deferred) | edge case
+persona: <persona name from personas-jtbd.md>
+device: <primary device, locked>
+mock: variants/mock-j<N>-<descriptor>.html | inline (single error state) | deferred to <next milestone>
+last-updated: YYYY-MM-DD
+parent: docs/ux/
+related:
+  - DESIGN.md
+  - <other journey files>
+  - ../prd-<module>.md §User Journeys §J<N>
+  - ../architecture-decisions.md (relevant ADRs)
+---
+
+# J<N> — <one-line title>
+
+[One paragraph: what this journey is, who does it, and which mock visually anchors it.]
+
+## Goal
+
+[The JTBD in one paragraph. What does the user achieve? Why does it matter?]
+
+## Trigger
+
+[When the user enters this journey. The conditions, the moment, the channel.]
+
+## Walkthrough
+
+The numbers below correspond to the regions of [variants/mock-j<N>-<descriptor>.html](variants/mock-j<N>-<descriptor>.html).
+
+1. **<Step 1 action>.** [What the user does. What the system does in response. Cite FR<n>. Cite components used (`ComponentName`) and DESIGN.md sections (DESIGN.md §N) where relevant.]
+2. **<Step 2 action>.** [...]
+3. ...
+
+## Components used
+
+`ComponentA` · `ComponentB` · `ComponentC`. See [components.md](components.md) for tokens + states.
+
+## Capabilities satisfied
+
+FR<n>, FR<m>, FR<p>. See [PRD §FR catalogue](../prd-<module>.md).
+
+## Edge cases (covered elsewhere)
+
+- **<Edge case 1>** → [J<M>](j<M>.md). FR<x>.
+- **<Edge case 2>** — [described inline or linked].
+
+## Decisions specific to J<N>
+
+- **<Decision 1>.** [Rationale.]
+- **<Decision 2>.** [Rationale.]
+
+## Notes for implementation
+
+- [Implementation-relevant note 1.]
+- [Implementation-relevant note 2.]
+- [Performance NFR if relevant.]
+- [Accessibility note if relevant.]

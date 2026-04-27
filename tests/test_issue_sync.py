@@ -142,8 +142,11 @@ def test_proposal_has_tracker() -> None:
 
 
 def test_jira_project_for_names() -> None:
-    assert issue_sync._jira_project_for("consumer-b") == "consumer-b"
-    assert issue_sync._jira_project_for("consumer-d") == "consumer-b"
+    # consumer-b_PROJECTS is empty by default since d0dd734 (consumer-b +
+    # consumer-d moved to GitHub Issues). Every name routes to consumer-a
+    # unless explicitly added to consumer-b_PROJECTS.
+    assert issue_sync._jira_project_for("consumer-b") == "consumer-a"
+    assert issue_sync._jira_project_for("consumer-d") == "consumer-a"
     assert issue_sync._jira_project_for("diakopa") == "consumer-a"
     assert issue_sync._jira_project_for("unknown") == "consumer-a"
 
@@ -178,7 +181,10 @@ def test_decide_surface_private_falls_back_to_jira(
     monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: None)
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "jira"
-    assert decision.jira_project == "consumer-b"
+    # Default Jira project is consumer-a since d0dd734 (consumer-b out of
+    # consumer-b_PROJECTS). The fall-back-to-jira path still fires when gh
+    # CLI is unavailable; the project is now consumer-a not consumer-b.
+    assert decision.jira_project == "consumer-a"
 
 
 # ---------------------------------------------------------------------------
