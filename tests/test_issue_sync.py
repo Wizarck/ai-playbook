@@ -142,8 +142,11 @@ def test_proposal_has_tracker() -> None:
 
 
 def test_jira_project_for_names() -> None:
-    assert issue_sync._jira_project_for("palafito-b2b") == "PALAFITO"
-    assert issue_sync._jira_project_for("eligia-core") == "PALAFITO"
+    # PALAFITO_PROJECTS is empty by default since d0dd734 (palafito-b2b +
+    # eligia-core moved to GitHub Issues). Every name routes to GEEPLO
+    # unless explicitly added to PALAFITO_PROJECTS.
+    assert issue_sync._jira_project_for("palafito-b2b") == "GEEPLO"
+    assert issue_sync._jira_project_for("eligia-core") == "GEEPLO"
     assert issue_sync._jira_project_for("diakopa") == "GEEPLO"
     assert issue_sync._jira_project_for("unknown") == "GEEPLO"
 
@@ -178,7 +181,10 @@ def test_decide_surface_private_falls_back_to_jira(
     monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: None)
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "jira"
-    assert decision.jira_project == "PALAFITO"
+    # Default Jira project is GEEPLO since d0dd734 (palafito-b2b out of
+    # PALAFITO_PROJECTS). The fall-back-to-jira path still fires when gh
+    # CLI is unavailable; the project is now GEEPLO not PALAFITO.
+    assert decision.jira_project == "GEEPLO"
 
 
 # ---------------------------------------------------------------------------
