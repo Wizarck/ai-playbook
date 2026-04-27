@@ -33,6 +33,19 @@
 #                                       # only opens PRs for consumers that
 #                                       # already have a pin for the bumped
 #                                       # source.
+#       tracker_kind: github | jira     # REQUIRED — the issue-tracker surface
+#                                       # this consumer publishes change-tracking
+#                                       # tickets on. `github` = the consumer's
+#                                       # own GitHub Issues / Projects. `jira` =
+#                                       # the explicit jira_project below.
+#                                       # No silent fallback: if this is missing
+#                                       # for an active consumer, automation
+#                                       # fails loudly. Read by issue_sync.py
+#                                       # decide_surface() and validated by the
+#                                       # consumers-schema CI check.
+#       jira_project: <KEY>             # REQUIRED iff tracker_kind == jira.
+#                                       # The Jira project key (e.g. TRATTOS).
+#                                       # Ignored when tracker_kind == github.
 #
 # Automation consumers of this file:
 #   - .github/workflows/propagate-playbook-bump.yml (event-driven on tag push)
@@ -50,7 +63,10 @@ consumers:
     default_branch: master
     visibility: public
     status: active
-    notes: Community AGPL-3.0 repo.
+    tracker_kind: github
+    notes: Community AGPL-3.0 repo. Designed with optional Jira routing for the
+      future; currently uses GH issues exclusively. To switch to Jira, set
+      tracker_kind=jira and jira_project=<KEY>.
     skills_pins:
       ai-playbook: v0.4.0
       eligia-skills: v0.2.0
@@ -61,6 +77,7 @@ consumers:
     visibility: private
     personal: true
     status: active
+    tracker_kind: github
     notes: Personal add-on (ELIGIA.md) lives alongside the playbook submodule.
     skills_pins:
       ai-playbook: v0.4.0
@@ -71,6 +88,7 @@ consumers:
     default_branch: master
     visibility: private
     status: active
+    tracker_kind: github
     notes: WordPress + WooCommerce B2B for the Mexican wholesale market. Onboarded 2026-04-25.
     skills_pins:
       ai-playbook: v0.4.0
@@ -81,6 +99,7 @@ consumers:
     default_branch: main
     visibility: private
     status: active
+    tracker_kind: github
     notes: Algorithmic trading bot. Onboarded 2026-04-26 via ai-playbook v0.3.1 bootstrap; first consumer to land with RFC-0001 skills_pins from day one.
     skills_pins:
       ai-playbook: v0.4.0
@@ -91,5 +110,6 @@ consumers:
     visibility: private
     personal: true
     status: active
+    tracker_kind: github
     notes: Personal infra.
 

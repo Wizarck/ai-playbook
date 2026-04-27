@@ -497,7 +497,16 @@ def run_release(
             outcome.errors.append("jira-creds")
             return 2, outcome
 
-        project_key = issue_sync._jira_project_for(issue_sync._consumer_name(ctx.repo_root))
+        project_key = issue_sync.jira_project_for(ctx.repo_root)
+        if not project_key:
+            notify_mod.notify(
+                event="release_cut.failed",
+                severity="error",
+                summary="Jira release path entered but consumer is tracker_kind=github",
+                attrs={"step": "jira-project-resolve"},
+            )
+            outcome.errors.append("jira-project-mismatch")
+            return 2, outcome
         fv_name = f"{ctx.repo_root.name}-{ctx.tag.lstrip('v')}"
 
         if dry_run:

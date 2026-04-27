@@ -141,50 +141,148 @@ def test_proposal_has_tracker() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_jira_project_for_names() -> None:
-    # PALAFITO_PROJECTS is empty by default since d0dd734 (palafito-b2b +
-    # eligia-core moved to GitHub Issues). Every name routes to GEEPLO
-    # unless explicitly added to PALAFITO_PROJECTS.
-    assert issue_sync._jira_project_for("palafito-b2b") == "GEEPLO"
-    assert issue_sync._jira_project_for("eligia-core") == "GEEPLO"
-    assert issue_sync._jira_project_for("diakopa") == "GEEPLO"
-    assert issue_sync._jira_project_for("unknown") == "GEEPLO"
+def _make_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    consumers: dict[str, dict],
+) -> Path:
+    """Write a consumers.yaml fixture and point AIPLAYBOOK_CONSUMERS_YAML at it."""
+    import yaml
+
+    path = tmp_path / "consumers.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "schema": "ai-playbook/consumers/v1",
+                "version": 1,
+                "consumers": consumers,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AIPLAYBOOK_CONSUMERS_YAML", str(path))
+    issue_sync._reset_registry_cache()
+    return path
 
 
 def test_decide_surface_personal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # personal flag in AGENTS.md wins over registry tracker_kind — personal
+    # repos never publish externally regardless of tracker_kind.
     root = _make_consumer(tmp_path, project="ai-playbook", personal=True)
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: True)
-    monkeypatch.setattr(issue_sync, "_gh_repo_visibility", lambda p: "PRIVATE")
     monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/ai-playbook")
+    _make_registry(
+        tmp_path, monkeypatch,
+        {"ai-playbook": {"status": "active", "tracker_kind": "github"}},
+    )
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "github-personal"
     assert decision.gh_repo == "Wizarck/ai-playbook"
 
 
-def test_decide_surface_public_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_decide_surface_github_from_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     root = _make_consumer(tmp_path, project="openTrattOS", personal=False)
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: True)
-    monkeypatch.setattr(issue_sync, "_gh_repo_visibility", lambda p: "PUBLIC")
     monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/openTrattOS")
     monkeypatch.setenv("AIPLAYBOOK_GH_PROJECT_NUMBER", "42")
+    _make_registry(
+        tmp_path, monkeypatch,
+        {"openTrattOS": {"status": "active", "tracker_kind": "github"}},
+    )
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "github"
     assert decision.gh_project_number == "42"
+    assert "tracker_kind=github" in decision.reason
 
 
-def test_decide_surface_private_falls_back_to_jira(
+def test_decide_surface_jira_from_registry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root = _make_consumer(tmp_path, project="palafito-b2b", personal=False)
+    root = _make_consumer(tmp_path, project="future-jira-consumer", personal=False)
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
-    monkeypatch.setattr(issue_sync, "_gh_repo_visibility", lambda p: None)
-    monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: None)
+    _make_registry(
+        tmp_path, monkeypatch,
+        {
+            "future-jira-consumer": {
+                "status": "active",
+                "tracker_kind": "jira",
+                "jira_project": "TRATTOS",
+            },
+        },
+    )
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "jira"
-    # Default Jira project is GEEPLO since d0dd734 (palafito-b2b out of
-    # PALAFITO_PROJECTS). The fall-back-to-jira path still fires when gh
-    # CLI is unavailable; the project is now GEEPLO not PALAFITO.
-    assert decision.jira_project == "GEEPLO"
+    assert decision.jira_project == "TRATTOS"
+    assert "tracker_kind=jira" in decision.reason
+
+
+def test_decide_surface_missing_from_registry_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _make_consumer(tmp_path, project="undeclared", personal=False)
+    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
+    _make_registry(
+        tmp_path, monkeypatch,
+        {"someone-else": {"status": "active", "tracker_kind": "github"}},
+    )
+    with pytest.raises(RuntimeError, match=r"undeclared.*consumers\.yaml"):
+        issue_sync.decide_surface(root)
+
+
+def test_decide_surface_invalid_tracker_kind_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _make_consumer(tmp_path, project="bad-config", personal=False)
+    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
+    _make_registry(
+        tmp_path, monkeypatch,
+        {"bad-config": {"status": "active", "tracker_kind": "atlassian"}},
+    )
+    with pytest.raises(RuntimeError, match=r"invalid tracker_kind"):
+        issue_sync.decide_surface(root)
+
+
+def test_decide_surface_jira_without_project_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _make_consumer(tmp_path, project="missing-jira-key", personal=False)
+    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
+    _make_registry(
+        tmp_path, monkeypatch,
+        {"missing-jira-key": {"status": "active", "tracker_kind": "jira"}},
+    )
+    with pytest.raises(RuntimeError, match=r"no jira_project key"):
+        issue_sync.decide_surface(root)
+
+
+def test_jira_project_for_returns_none_for_github(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _make_consumer(tmp_path, project="openTrattOS", personal=False)
+    _make_registry(
+        tmp_path, monkeypatch,
+        {"openTrattOS": {"status": "active", "tracker_kind": "github"}},
+    )
+    assert issue_sync.jira_project_for(root) is None
+
+
+def test_jira_project_for_returns_key_for_jira(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _make_consumer(tmp_path, project="some-jira-consumer", personal=False)
+    _make_registry(
+        tmp_path, monkeypatch,
+        {
+            "some-jira-consumer": {
+                "status": "active",
+                "tracker_kind": "jira",
+                "jira_project": "FOO",
+            },
+        },
+    )
+    assert issue_sync.jira_project_for(root) == "FOO"
 
 
 # ---------------------------------------------------------------------------
