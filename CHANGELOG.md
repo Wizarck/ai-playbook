@@ -2,6 +2,13 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.5.2] — 2026-04-27 — docs-deploy: gate the deploy job behind PAGES_ENABLED
+
+### Fixed
+
+- `.github/workflows/docs-deploy.yml` — deploy job now `if: ${{ vars.PAGES_ENABLED == 'true' }}`. After v0.5.1 unblocked the build phase (drop `--strict`), the deploy step still fails on private repos that don't have GitHub Pages enabled (free-tier limitation: Pages on private repos requires GitHub Pro/Team/Enterprise). The conditional skips the deploy job by default; consumers enable it by setting the `PAGES_ENABLED` repo variable to `true` once Pages is available.
+- For ai-playbook itself (currently private + free tier): build verifies site assembles, deploy skipped. To re-enable: make repo public OR upgrade plan, then set `PAGES_ENABLED=true` in repo Settings → Variables.
+
 ## [0.5.1] — 2026-04-27 — release-cut + docs-deploy resilience
 
 ### Fixed
