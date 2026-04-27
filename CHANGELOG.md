@@ -2,6 +2,32 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.5.1] — 2026-04-27 — release-cut + docs-deploy resilience
+
+### Fixed
+
+- `scripts/issue_sync.py::_load_jira_creds` — reject malformed `ATLASSIAN_URL`
+  values (missing `http://` / `https://` scheme) at creds load time. Previously
+  a bad URL like `mycompany.atlassian.net` would slip through and crash
+  `release_cut.py` deep in `urllib.request.Request` with `ValueError: unknown
+  url type`. Now `_load_jira_creds` returns `None` for malformed URLs and the
+  caller's existing graceful "credentials missing" path triggers cleanly.
+- `.github/workflows/docs-deploy.yml` — drop the `--strict` flag from
+  `mkdocs build`. The nav references files outside `docs_dir` (under
+  `../specs/*` and `../templates/*`) which mkdocs warns about then aborts on
+  under strict. The cross-tree references are intentional (specs dogfood the
+  docs site); the warnings are expected. Builds now publish with warnings
+  rather than not at all. Future enhancement: adopt `mkdocs-monorepo-plugin`
+  or move specs/ under docs/ to silence the warnings.
+
+### Notes
+
+- For private repos with `ATLASSIAN_URL` secret set, the URL value MUST
+  include the `https://` scheme. Verify in repo Settings → Secrets and
+  variables → Actions before next release.
+- Both fixes are pre-existing-bug repairs surfaced during the v0.5.0 cut;
+  they do not change any spec or workflow contract.
+
 ## [0.5.0] — 2026-04-27 — UX Track formalised between Gate A and Gate C
 
 Adds a normative UX design phase to the BMAD+OpenSpec workflow. Previously the

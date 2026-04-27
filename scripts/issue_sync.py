@@ -334,6 +334,12 @@ def _load_jira_creds() -> JiraCreds | None:
     token = (os.environ.get("ATLASSIAN_API_TOKEN") or "").strip()
     if not (url and user and token):
         return None
+    # Reject malformed URLs upfront — a value like `mycompany.atlassian.net`
+    # (no scheme) would make urllib raise `unknown url type` deep inside
+    # release_cut.py and crash the workflow. Fail at creds load with a clean
+    # None so the caller's existing graceful-skip path triggers instead.
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return None
     return JiraCreds(url=url.rstrip("/"), username=user, api_token=token)
 
 
