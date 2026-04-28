@@ -41,7 +41,11 @@ completedAt: '{{current_date}}'
 
 ### 3. Next Steps Guidance
 
-Architecture complete. Invoke the `bmad-help` skill.
+Architecture complete. This contributes to **Gate B** of the BMAD+OpenSpec runbook (per [runbook-bmad-openspec.md](../../../specs/runbook-bmad-openspec.md) §2.3 and §5). Gate B is **joint with the UX track** — `bmad-create-ux-design` runs in parallel and Gate B waits on both (headless consumers skip the UX side via `docs/ux/README.md`). Verdict literal at Gate B is `✅ APPROVED` per [verdict-contract.md](../../../specs/verdict-contract.md) §1.
+
+**Next after Gate B: slicing.** Humans + agent break the PRD into OpenSpec-shaped changes per runbook §2.4 and write the canonical artefact `docs/openspec-slice.md` per [bmad-openspec-bridge.md](../../../specs/bmad-openspec-bridge.md) (one row per change with bounded context, FR coverage, journeys/components, and dependencies).
+
+**Then Gate C** approves the slicing list. Only after Gate C does Phase 3 begin: `/opsx:propose <change-id>` reads the slicing file and scaffolds each change folder.
 
 Upon Completion of task output: offer to answer any questions about the Architecture Document.
 

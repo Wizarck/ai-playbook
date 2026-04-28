@@ -30,6 +30,46 @@ Skill content lives in **source repos** at the canonical, vendor-neutral path
       [steps-c/, templates/, data/, references/, ...]
 ```
 
+### Required SKILL.md sections (v0.7.0+)
+
+Every `SKILL.md` MUST contain the following sections in order. The `## Anti-patterns` section is new in v0.7.0 (pattern adopted from [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill)) and applies to skills authored or revised under v0.7.0+ — existing skills are migrated opportunistically (no flag day).
+
+```markdown
+---
+name: <skill-name>
+description: <one sentence: WHEN to use this skill, NEVER summarise the workflow>
+license: <SPDX or "see LICENSE">
+compatibility: <Claude Code | Cursor | universal>
+---
+
+# <Skill name> — <one-line tagline>
+
+## Purpose
+
+<one paragraph: what the skill does + when an agent should reach for it>
+
+## Workflow
+
+<numbered steps; concrete, no skeletons (per output-completeness.md)>
+
+## Anti-patterns
+
+<bulleted list of patterns this skill explicitly avoids, with one-line rationale per item.
+The list is the skill's "what we will NOT do" inventory. Specific > generic. Cite verdict-contract.md or
+agentic-failures.md where the failure mode is canonical.>
+
+## Verification
+
+<how the skill verifies its own output before emitting ✅ APPROVED, per verification-before-completion.md.
+For non-code skills, the audit pattern from §8 of that spec applies>
+
+## See also
+
+<cross-refs to other specs / skills>
+```
+
+**Description rule (CSO — "command-style operations" pattern from `obra/superpowers`):** the `description` field tells an LLM **when** to invoke the skill, not what the skill does internally. Bad: "Generates a PRD with 12 sections via guided elicitation". Good: "Use when the user wants to start a new module's discovery phase and write its product requirements". This rule is checked by `scripts/check_skill_descriptions.py` (warning-level in v0.7.0; hardening planned for v0.8.0 after a per-skill audit).
+
 Two source repos are recognised as of v0.4.0 (more may register later):
 
 | Repo | Scope | Family |

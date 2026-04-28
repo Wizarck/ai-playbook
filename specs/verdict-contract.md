@@ -1,6 +1,6 @@
 # verdict-contract.md
 
-> **Status**: v1.0.0.
+> **Status**: v1.1.0. ai-playbook v0.7.0 added the `⛔ ARCHITECTURE QUESTIONED` literal as a 4th canonical verdict (§1) for cases where repeated rework reveals a structural design issue rather than an implementation gap. Punctuation note: `⚠️ ISSUES FOUND (iter N)` uses a SPACE between `ISSUES` and `FOUND` (not an underscore) — this is the linter-checked literal.
 
 Every QA-style artefact produced by an agent (code review, readiness check, spec audit, retro) ends
 with exactly one **verdict line**, optionally followed by a structured findings list. This contract
@@ -20,6 +20,7 @@ emoji, capitalisation, and spacing are part of the contract and are checked by
 | `✅ APPROVED` | Artefact meets intent and all gates; no blocking findings. | Parent agent proceeds. |
 | `⚠️ ISSUES FOUND (iter N)` | One or more findings listed; `N` counts rework cycles starting at 1. | Fix, re-submit, increment `N`. |
 | `❓ CLARIFICATION NEEDED` | Judgement blocked by ambiguity; worker cannot proceed in good faith. | Halts track; human disambiguates. |
+| `⛔ ARCHITECTURE QUESTIONED` | Repeated rework (iter ≥ 2) reveals the structural design is wrong, not the implementation. The worker has tried in good faith and the same class of failure keeps recurring across attempts. | Halts track; an architect-level review (human or `bmad-agent-architect`) re-opens the design (`design.md`, ADR, or upstream spec). The worker does not attempt iter 3. |
 
 Rules:
 
@@ -66,14 +67,18 @@ A QA track runs at most **3 passes** total: the initial review plus **2 rework c
 - Iter 1 = `⚠️ ISSUES FOUND (iter 1)` after first review.
 - Iter 2 = second `⚠️ ISSUES FOUND (iter 2)` after worker's first fix.
 - Iter 3 = if QA still finds the **same** S1/S2 finding repeating, the issue is SYSTEMIC. The worker
-  DOES NOT attempt a third fix. The track escalates: verdict flips to `❓ CLARIFICATION NEEDED`
-  with `detail: "same finding recurred twice; the spec or the rule is ambiguous"` and halts per §4.
+  DOES NOT attempt a third fix. The track escalates per §4 with one of two literals:
+  - `❓ CLARIFICATION NEEDED` — when the spec or the rule is ambiguous and a human can disambiguate.
+  - `⛔ ARCHITECTURE QUESTIONED` — when the underlying structural design is wrong and the
+    implementation cannot be made to satisfy the spec without revising the design itself
+    (the spec is clear; the structural choice that the spec embodies isn't viable).
 
 "Same finding" is identified by the `title` field plus `location` prefix match. If iter 2 introduces
 a new S1/S2 not present in iter 1, the counter does not reset — the budget still ends at iter 2 and
 the track escalates.
 
-Rationale: further iterations burn tokens on a bad spec. Humans must break ties.
+Rationale: further iterations burn tokens on a bad spec or a bad design. Humans break ties on the
+spec; architects break ties on the design.
 
 ## 4. `❓ CLARIFICATION NEEDED` semantics
 
@@ -85,6 +90,29 @@ When a worker or reviewer emits `❓ CLARIFICATION NEEDED`:
    `blocked-by-spec` per [dispatcher-chain.md](dispatcher-chain.md) lifecycle notes.
 3. No further work on that track until a human edits the spec or replies. The playbook does not
    allow an agent to "answer its own question" — that pattern is `goal_drift`.
+
+## 4.1 `⛔ ARCHITECTURE QUESTIONED` semantics
+
+When a worker or reviewer emits `⛔ ARCHITECTURE QUESTIONED`:
+
+1. The QA artefact MUST include a section `## Architecture concern` naming:
+   - The structural choice in question (cite the ADR or the relevant `design.md` section).
+   - The class of failure that keeps recurring (with iter 1 + iter 2 evidence).
+   - One concrete proposal for how the design might be re-opened (e.g. "extract X from monolith into
+     separate context", "reverse the direction of dependency between A and B").
+2. The OpenSpec change moves to lifecycle state `blocked-by-architecture` (a sibling of
+   `blocked-by-spec`).
+3. Resolution is upstream: a human or `bmad-agent-architect` revises the design / ADR / upstream
+   spec, then the change is re-proposed (potentially as a different change ID if scope shifts).
+4. The worker does not attempt iter 3 on the same design. Burning a third iteration on a structural
+   problem is `goal_drift`.
+
+When to use `⛔` vs `❓`:
+
+- The spec is **ambiguous** (could be interpreted multiple ways) → `❓`.
+- The spec is **unambiguous, but the design that satisfies it isn't viable** → `⛔`.
+
+Most tracks never see `⛔`. It is the rare exit when implementation has revealed a planning miss.
 
 ## 5. Interaction with break-glass
 

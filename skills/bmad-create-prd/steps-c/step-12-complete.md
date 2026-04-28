@@ -78,7 +78,14 @@ Offer validation workflows to ensure PRD is ready for implementation:
 
 ### 4. Suggest Next Workflows
 
-PRD complete. Invoke the `bmad-help` skill.
+PRD complete. This satisfies **Gate A** of the BMAD+OpenSpec runbook (verdict literal `✅ APPROVED` per [verdict-contract.md](../../../specs/verdict-contract.md) §1).
+
+**Next: Phase 2 — design.** Two parallel tracks run after Gate A:
+
+- `bmad-create-architecture` — architecture decisions (ADRs) + data model extension (ERD).
+- `bmad-create-ux-design` — UX track (only if the project ships UI; headless consumers declare `no-ui-consumer` in `docs/ux/README.md` and skip).
+
+Both tracks converge at **Gate B**. After Gate B is approved, slicing runs (human-led, agent-assisted) per [runbook-bmad-openspec.md](../../../specs/runbook-bmad-openspec.md) §2.4 and produces `docs/openspec-slice.md` per [bmad-openspec-bridge.md](../../../specs/bmad-openspec-bridge.md). Gate C then approves the slice list before any `/opsx:propose` runs.
 
 ### 5. Final Completion Confirmation
 

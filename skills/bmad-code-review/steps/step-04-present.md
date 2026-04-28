@@ -76,21 +76,42 @@ If `{spec_file}` is **not** set, present only options 1 and 3 (omit option 2 —
 
   **HALT** — I am waiting for your numbered choice. Reply with only the number (or "0" for batch). Do not proceed until you select an option.
 
-**✅ Code review actions complete**
+**Code review actions complete** (interim — canonical verdict is emitted in section 6a)
 
 - Decision-needed resolved: <D>
 - Patches handled: <P>
 - Deferred: <W>
 - Dismissed: <R>
 
-### 6. Update story status and sync sprint tracking
+### 6. Emit canonical review verdict, update story status, and sync sprint tracking
+
+#### 6a. Emit the canonical QA verdict (always — even if `{spec_file}` is not set)
+
+Code review is a QA-style artefact and MUST end with one of the canonical verdict literals from [verdict-contract.md](../../../specs/verdict-contract.md) §1. The literals (exact emoji, capitalisation, and spacing — checked by `scripts/verdict_lint.py`):
+
+| Verdict | When to emit |
+|---|---|
+| `✅ APPROVED` | Zero blocking findings remain after triage (all `decision-needed` resolved; all `patch` either fixed or accepted as deferred; no unresolved HIGH/MEDIUM issues). |
+| `⚠️ ISSUES FOUND (iter N)` | Findings present that are not yet resolved (left as action items, or `patch` items the user chose not to fix this pass). For per-finding severity (S1–S4), see [verdict-contract.md](../../../specs/verdict-contract.md) §2. |
+| `❓ CLARIFICATION NEEDED` | A `decision-needed` finding cannot be resolved because the spec or the rule is ambiguous and the user could not disambiguate. Halts the track until a human edits the spec. |
+| `⛔ ARCHITECTURE QUESTIONED` | Use ONLY when iter ≥ 2 and the same class of failure has recurred across iterations because the structural design (not the spec) is wrong. See [verdict-contract.md](../../../specs/verdict-contract.md) §4.1. Do not emit on iter 1. |
+
+**Iteration counter `N`**: tracked per `{spec_file}`. On the first review pass for a story, `N = 1`. On a re-review (option 2 from section 7 — "Re-run code review"), increment `N`. If `{spec_file}` is not set, treat each invocation as iter 1. Per the max-2-rework rule ([verdict-contract.md](../../../specs/verdict-contract.md) §3), iter 3 is not attempted; on a third recurrence of the same finding, escalate to `❓` or `⛔` instead.
+
+Print the verdict line as the LAST line of the review summary message (a single literal on its own line).
+
+#### 6b. Update story status and sync sprint tracking
 
 Skip this section if `{spec_file}` is not set.
 
-#### Determine new status based on review outcome
+##### Determine new story status based on the verdict
 
-- If all `decision-needed` and `patch` findings were resolved (fixed or dismissed) AND no unresolved HIGH/MEDIUM issues remain: set `{new_status}` = `done`. Update the story file Status section to `done`.
-- If `patch` findings were left as action items, or unresolved issues remain: set `{new_status}` = `in-progress`. Update the story file Status section to `in-progress`.
+The story-file `Status` field tracks sprint lifecycle (NOT a QA verdict):
+
+- Verdict `✅ APPROVED` → `{new_status}` = `done`. Update the story file Status section to `done`.
+- Verdict `⚠️ ISSUES FOUND (iter N)` → `{new_status}` = `in-progress`. Update the story file Status section to `in-progress`.
+- Verdict `❓ CLARIFICATION NEEDED` → `{new_status}` = `blocked-by-spec` (per [verdict-contract.md](../../../specs/verdict-contract.md) §4 and the runbook lifecycle).
+- Verdict `⛔ ARCHITECTURE QUESTIONED` → `{new_status}` = `blocked-by-architecture`.
 
 Save the story file.
 
@@ -116,6 +137,8 @@ If `{sprint_status}` file does not exist, note that story status was updated in 
 > **Action Items Created:** <action_count>
 > **Deferred:** <W>
 > **Dismissed:** <R>
+>
+> <verdict literal — exactly one of `✅ APPROVED`, `⚠️ ISSUES FOUND (iter N)`, `❓ CLARIFICATION NEEDED`, `⛔ ARCHITECTURE QUESTIONED` per [verdict-contract.md](../../../specs/verdict-contract.md) §1; this MUST be the last line of the artefact>
 
 ### 7. Next steps
 
