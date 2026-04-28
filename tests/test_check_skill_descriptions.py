@@ -109,9 +109,8 @@ def test_mixed_skills_only_bad_ones_flagged(tmp_path: Path) -> None:
     _write_skill(tmp_path, "bad", "Generates artefacts via 4 phases")
     _write_skill(tmp_path, "good", "Use when the user wants the propose flow")
     findings = csd.scan(tmp_path)
-    paths = {f.path.name for f in findings}
-    assert "SKILL.md" in {f.path.name for f in findings}  # one finding
     assert len(findings) == 1
+    assert findings[0].path.name == "SKILL.md"
     assert findings[0].path.parent.name == "bad"
 
 
