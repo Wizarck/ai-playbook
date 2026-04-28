@@ -1,0 +1,81 @@
+---
+title: {{MODULE_NAME}} — OpenSpec slicing
+date: {{YYYY-MM-DD}}
+approver: {{HUMAN_APPROVER_NAME}}
+prereq_gates:
+  - Gate A — {{YYYY-MM-DD}}
+  - Gate B — {{YYYY-MM-DD}}
+status: approved | proposed | superseded
+runbook: .ai-playbook/specs/runbook-bmad-openspec.md §2.4
+related:
+  - docs/prd-{{module-slug}}.md
+  - docs/architecture-decisions.md
+  - docs/ux/DESIGN.md (if UI module)
+  - docs/ux/components.md (if UI module)
+---
+
+# {{MODULE_NAME}} — OpenSpec slicing
+
+[One paragraph: what was sliced and why. Cite the PRD, the FR count, the bounded contexts touched, and the user journeys (if UI). Note any dependencies on other modules in flight.]
+
+## Approved change list
+
+| # | Change ID                  | Bounded context | FRs           | Journeys     | Components     | Depends on |
+|---|----------------------------|------------------|---------------|--------------|----------------|------------|
+| 1 | `{{module}}-data-model`    | shared kernel   | (foundation) | —            | —              | —          |
+| 2 | `{{module}}-<feature>`     | <BC>             | FR<n-m>      | J<x>         | <Comp1>, <Comp2> | #1       |
+| 3 | `{{module}}-<feature>`     | <BC>             | FR<n-m>      | J<x>         | <Comp1>        | #1, #2     |
+
+[Add rows as needed. Heuristics from runbook §2.4: 1 bounded context per change; ≤10 acceptance scenarios; write_paths bounded; name ≤6 words.]
+
+## Track structure (parallelism opportunities)
+
+```
+{{visual sketch of which changes can run in parallel after foundations land}}
+```
+
+[E.g.:
+```
+Track A:  #1 → #2 → ┬→ #3
+                    ├→ #6
+                    └→ #8 → #9
+Track B:  #4 → #5 → ┬→ #7
+                    └→ #10
+```]
+
+## Volume estimate
+
+[N changes × ~K acceptance scenarios each ≈ <total>. Equivalent to ~<sprints> of implementation depending on cadence and team size.]
+
+---
+
+## Scope notes
+
+(One paragraph per change. Copy-paste-quality — `openspec-propose` echoes these into the scaffolded proposal as the initial framing. No `<TBD>` placeholders.)
+
+### 1. `{{module}}-data-model` — foundation (shared kernel)
+
+[What's in scope. What's out. Key entities/migrations. Why it's a foundation.]
+
+### 2. `{{module}}-<feature>`
+
+[What's in scope. What's out. Key services / endpoints / UI components touched. FR coverage rationale.]
+
+### 3. `{{module}}-<feature>`
+
+[Same shape per slice.]
+
+---
+
+## Cross-references
+
+- [PRD](prd-{{module-slug}}.md) — the source of FRs
+- [ADRs](architecture-decisions.md) — the architectural decisions each change must respect
+- [DESIGN.md](ux/DESIGN.md) — if UI module, the design system contract
+- [components.md](ux/components.md) — if UI module, the component catalogue each slice touches
+
+## Stewardship
+
+This file is approved at Gate C. Re-slicing (a change splits, merges, or is added) is a new revision: `git mv docs/openspec-slice.md docs/_archive/openspec-slice-{{old-date}}.md` and write the new one. Never edit silently mid-implementation.
+
+`openspec-propose <change-id>` reads this file at start. If the requested change-id is not in the table, the propose command refuses (or run with `--no-slice` for ad-hoc changes that bypass the slice contract).
