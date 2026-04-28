@@ -56,6 +56,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 # Indicators that mark a description as "summarises the workflow" (suspicious).
 SUMMARY_VERB_PATTERNS = (
     r"^(generates?|creates?|produces?|outputs?|runs?|executes?|computes?|builds?|writes?|drafts?|emits?)\b",
@@ -86,18 +88,32 @@ class Finding:
 
 
 def _parse_frontmatter(text: str) -> dict[str, str] | None:
-    """Extract the YAML-ish frontmatter from a SKILL.md (between two --- lines)."""
+    """Extract the YAML frontmatter from a SKILL.md (between two --- lines).
+
+    Uses ``yaml.safe_load`` so multi-line forms (folded ``>`` and literal ``|``
+    block scalars) are honoured. Coerces every value to ``str`` so callers can
+    treat ``fields["description"]`` uniformly regardless of source style.
+    """
     if not text.startswith("---"):
         return None
     end = text.find("\n---", 3)
     if end == -1:
         return None
-    block = text[3:end].strip()
+    block = text[3:end]
+    try:
+        loaded = yaml.safe_load(block)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(loaded, dict):
+        return None
     fields: dict[str, str] = {}
-    for line in block.splitlines():
-        if ":" in line and not line.lstrip().startswith("#"):
-            key, _, value = line.partition(":")
-            fields[key.strip()] = value.strip().strip('"').strip("'")
+    for key, value in loaded.items():
+        if value is None:
+            fields[str(key)] = ""
+        else:
+            # ``str(value)`` collapses folded-scalar newlines per YAML spec
+            # already (yaml.safe_load resolves ``>`` into a single-line string).
+            fields[str(key)] = str(value).strip()
     return fields
 
 
