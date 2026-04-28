@@ -75,7 +75,13 @@ Break the PRD into OpenSpec-shaped changes. One change = one bounded context or 
 - If the change's write_paths exceed ~2 directories → split.
 - If you cannot name the change in ≤6 words → split.
 
-The output of slicing is a list of proposed change IDs, each with a 1-paragraph scope note. Humans approve the list before any `/opsx:propose` runs.
+**Output: a single canonical artefact** at `docs/openspec-slice.md` (per [bmad-openspec-bridge.md](bmad-openspec-bridge.md)). The file is the contract between Phase 2 (BMAD slicing) and Phase 3 (OpenSpec implementation). It contains a table of change IDs with bounded context, FR coverage, journey usage (if UI), components touched (if UI), and dependencies — plus a one-paragraph scope note per change.
+
+Humans approve the artefact at Gate C before any `/opsx:propose` runs. A change-ID not present in `docs/openspec-slice.md` cannot enter Phase 3 without re-slicing (or `--no-slice` for ad-hoc changes that bypass the contract).
+
+**Path canon** (per the bridge spec):
+- `docs/` = canonical durable artefacts (PRD, ADRs, data model, UX docs, slicing).
+- `_bmad-output/planning-artifacts/` = workflow trail / step-by-step audit. Not gate-relevant; consumer-gitignore-able.
 
 ## 3 OpenSpec Implementation (Phase 3)
 
@@ -83,12 +89,16 @@ The output of slicing is a list of proposed change IDs, each with a 1-paragraph 
 
 Strict order. Each artefact runs through worker → QA → verdict before the next starts.
 
+`/opsx:propose <change-id>` reads the slicing artefact at `docs/openspec-slice.md` (per [bmad-openspec-bridge.md](bmad-openspec-bridge.md)) to scaffold the change folder pre-populated with FR coverage, dependencies, and (for UI changes) component contracts from `docs/ux/components.md`. A change-id not in the slicing file is rejected unless `--no-slice` is passed.
+
+For modules with many changes, batch mode is supported: `/opsx:propose --batch` iterates every row in dependency order. Idempotent — already-scaffolded folders are skipped.
+
 1. `proposal.md` — problem statement + approach. QA: Blind Hunter + Acceptance Auditor (no Edge Case at proposal stage).
 2. `specs/*.md` (|| concurrent with `design.md`) — `## Scenario: WHEN/THEN` acceptance criteria. QA: Edge Case Hunter + Acceptance Auditor.
 3. `design.md` (|| concurrent with `specs/`) — architecture notes, alternatives considered, invariants. QA: Blind Hunter.
 4. `tasks.md` — TDD-ordered implementation steps. QA: Acceptance Auditor (does every AC map to a task?).
-5. `openspec apply` — implementation + tests.
-6. `openspec archive` — promotes `specs/*.md` to `openspec/specs/` (hand-edits blocked by `scripts/block_manual_spec_edit.py`).
+5. `openspec apply` — implementation + tests. Workers emit `✅ APPROVED` only with verification output in the same message (per [verification-before-completion.md](verification-before-completion.md)). Deliverables comply with the no-skeleton rule (per [output-completeness.md](output-completeness.md)).
+6. `openspec archive` — promotes `specs/*.md` to `openspec/specs/` (hand-edits blocked by `scripts/block_manual_spec_edit.py`). Chain a retro write to `retros/<change-id>.md` automatically (Gate F deliverable).
 
 Commands in [capability map](../AGENTS.md) reference `/opsx:propose`, `/opsx:apply`, `/opsx:archive`, `/opsx:explore`.
 
