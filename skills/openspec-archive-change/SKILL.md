@@ -50,20 +50,16 @@ Archive a completed change in the experimental workflow.
 
    **If no tasks file exists:** Proceed without task-related warning.
 
-4. **Assess delta spec sync state**
+4. **Assess delta spec sync state** (informational only — no automated sync in this version)
 
-   Check for delta specs at `openspec/changes/<name>/specs/`. If none exist, proceed without sync prompt.
+   Check for delta specs at `openspec/changes/<name>/specs/`. If none exist, proceed without notice.
 
    **If delta specs exist:**
    - Compare each delta spec with its corresponding main spec at `openspec/specs/<capability>/spec.md`
    - Determine what changes would be applied (adds, modifications, removals, renames)
-   - Show a combined summary before prompting
+   - Show a combined summary so the user knows what an eventual sync would do.
 
-   **Prompt options:**
-   - If changes needed: "Sync now (recommended)", "Archive without syncing"
-   - If already synced: "Archive now", "Sync anyway", "Cancel"
-
-   If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Proceed to archive regardless of choice.
+   Future enhancement: a dedicated spec-sync skill is planned for v0.8.0 (per `specs/v0.8.0-roadmap.md` item 10). For now, archive only does the move + retro — no automated sync is performed.
 
 5. **Perform the archive**
 
@@ -82,7 +78,40 @@ Archive a completed change in the experimental workflow.
    mv openspec/changes/<name> openspec/changes/archive/YYYY-MM-DD-<name>
    ```
 
-6. **Display summary**
+6. **Chain a retrospective write to `retros/<change-id>.md`** (Gate F deliverable)
+
+   Per [runbook-bmad-openspec.md](../../specs/runbook-bmad-openspec.md) §3.1 and §4 + Gate F in §5, every archive MUST chain a retro write. Path: `retros/<change-id>.md` (relative to the project root). Create the `retros/` directory if it does not exist.
+
+   - **If a `bmad-retrospective` skill is available**, invoke it via the Skill tool, passing the change-id and the archive path. It produces the retro per the BMAD retrospective format.
+   - **Otherwise, write a stub markdown directly** with the following sections (the human fills them in):
+
+     ```markdown
+     # Retrospective: <change-id>
+
+     - **Archived**: YYYY-MM-DD
+     - **Archive path**: openspec/changes/archive/YYYY-MM-DD-<change-id>/
+     - **Schema**: <schema-name>
+
+     ## What worked
+
+     <one-paragraph: practices, patterns, decisions that paid off>
+
+     ## What didn't
+
+     <one-paragraph: friction, surprises, rework>
+
+     ## Lessons
+
+     <bulleted: durable lessons; candidates for retention to Hindsight if cross-project>
+
+     ## Carry-forward to next change
+
+     <bulleted: action items, follow-up tickets, spec edits>
+     ```
+
+   If `retros/<change-id>.md` already exists, do NOT overwrite — append a new dated section instead and warn the user.
+
+7. **Display summary**
 
    Show archive completion summary including:
    - Change name
@@ -99,7 +128,8 @@ Archive a completed change in the experimental workflow.
 **Change:** <change-name>
 **Schema:** <schema-name>
 **Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>/
-**Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync skipped")
+**Specs:** No automated sync (deferred to v0.8.0 spec-sync skill); delta-spec assessment shown above for human follow-up.
+**Retro:** retros/<change-id>.md (stub written / appended)
 
 All artifacts complete. All tasks complete.
 ```
@@ -110,5 +140,5 @@ All artifacts complete. All tasks complete.
 - Don't block archive on warnings - just inform and confirm
 - Preserve .openspec.yaml when moving to archive (it moves with the directory)
 - Show clear summary of what happened
-- If sync is requested, use openspec-sync-specs approach (agent-driven)
-- If delta specs exist, always run the sync assessment and show the combined summary before prompting
+- Always chain the retro write (step 6) — Gate F deliverable per the runbook; never skip silently
+- If delta specs exist, always run the assessment and show the combined summary (informational only until v0.8.0)

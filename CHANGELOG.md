@@ -2,6 +2,50 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.7.0] — 2026-04-28 — alignment + bridges + audit incorporation
+
+Major hardening of the BMAD↔OpenSpec hybrid flow. v0.7.0 closes the seam between Phase 2 (BMAD discovery + design) and Phase 3 (OpenSpec implementation), incorporates two patterns from external skill audits, adds a soft-warn lint for SKILL.md description quality, and records a roadmap of items deferred to v0.8.0. Additive against v0.6.x; existing consumers may migrate at their own pace.
+
+### Added — Phase 2 → Phase 3 bridge
+
+- **`specs/bmad-openspec-bridge.md`** v1.0.0 — defines the canonical slicing artefact (`docs/openspec-slice.md`) that BMAD writes at Gate C and `openspec-propose` reads at the start of Phase 3. Resolves the v0.6.x drift where the Phase 2 → 3 handoff was implicit. Also settles the `docs/` (canonical) vs `_bmad-output/planning-artifacts/` (workflow trail) path-canon split with explicit rules.
+- **`templates/openspec-slice.md.template`** — copyable starting point for the slicing artefact. Schema includes change-ID table (with bounded context, FRs, journeys, components, dependencies) plus per-change scope notes (copy-paste-quality prose, no `<TBD>` placeholders).
+
+### Added — Cross-cutting discipline specs (lifted from external audits)
+
+- **`specs/output-completeness.md`** v1.0.0 — anti-skeleton-output rules. Bans `// TODO`, "for brevity", placeholder skeletons, ellipses-as-substitute, and self-narration. Defines the deferral protocol (the only legitimate exit) and the PAUSED check-in pattern. Pattern adopted from [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill)'s `output-skill`; adapted for the hybrid flow.
+- **`specs/verification-before-completion.md`** v1.0.0 — iron law: no claim of completion without fresh verification output in the same message. Defines what "fresh verification" means (after the work, observable output, specific to the claim) and the synthesis-claim exception for non-code artefacts. Pattern adopted from [obra/superpowers](https://github.com/obra/superpowers) (MIT, © Jesse Vincent); adapted for the hybrid flow.
+
+### Added — Verdict vocabulary
+
+- **`verdict-contract.md` v1.1.0** — adds 4th canonical verdict literal **`⛔ ARCHITECTURE QUESTIONED`** for the case where repeated rework reveals a structural design issue rather than an implementation gap. Distinct from `❓ CLARIFICATION NEEDED` (spec ambiguity) — `⛔` is when the spec is clear but the design that satisfies it isn't viable. Triggers `blocked-by-architecture` lifecycle state and an architect-level review (human or `bmad-agent-architect`). Punctuation note added: `⚠️ ISSUES FOUND (iter N)` uses a SPACE (not underscore) — caught during the v0.7.0 audit.
+
+### Added — SKILL.md schema + lint
+
+- **`skills-distribution.md` §1** — required SKILL.md sections updated. `## Anti-patterns` and `## Verification` sections are now part of the canonical schema for skills authored or revised under v0.7.0+. Existing skills migrate opportunistically (no flag day); new skills MUST conform. Description-field rule (CSO — "command-style operations") added: descriptions tell the LLM **when** to invoke the skill, not what it does internally.
+- **`scripts/check_skill_descriptions.py`** — soft-warn lint that flags descriptions matching summary-verb / workflow-mechanics patterns or missing when-to-use indicators. Default mode is warning-only (exit 0 even with findings); `--strict` exits non-zero for CI use. 14 tests in `tests/test_check_skill_descriptions.py`.
+
+### Updated — runbook
+
+- **`runbook-bmad-openspec.md` §2.4** — slicing now produces the canonical artefact at `docs/openspec-slice.md`; path-canon split made explicit.
+- **`runbook-bmad-openspec.md` §3.1** — `/opsx:propose` reads the slicing artefact and supports `--batch` mode for many-change modules. Workers in `/opsx:apply` cite `verification-before-completion.md` for verdict emission and `output-completeness.md` for deliverable shape. `openspec archive` chains a retro write to `retros/<change-id>.md` automatically.
+
+### Roadmap
+
+- **`specs/v0.8.0-roadmap.md`** v0.1.0 — records design objectives + work items deferred from v0.7.0 to v0.8.0. Highlights:
+  - **KISS single-versioning** (Master, 2026-04-28): collapse `ai-playbook` + `consumer-d-skills` semver streams to one. Reduces AGENTS.md drift and per-consumer pin inconsistency.
+  - Complete the `bmad-create-ux-design` v1→v2 migration (workflow.md was rewritten in v0.6.0; the steps/ files underneath still produce the v1 monolithic doc).
+  - Vendor / lift `systematic-debugging` from `obra/superpowers` for the `/opsx:apply` worker debug path; wire the "3 failed fixes" rule to emit `⛔ ARCHITECTURE QUESTIONED`.
+  - Two-stage review split (spec-compliance vs code-quality) per the superpowers audit.
+  - Apply CSO description rewrites to existing skills (audit doc + batch rewrite, post-v0.7.0 propagation).
+  - Implement CI hardening of `check_output_completeness.py` and `check_verification.py`.
+
+### Notes
+
+- v0.7.0 is **additive**. Existing consumers' v0.6.x docs and skill folders are valid; the new rules apply going forward.
+- Skill fixes (5 surgical edits to bmad-create-prd, bmad-create-architecture, bmad-code-review, openspec-propose, openspec-archive-change) align them with the new specs. None breaks backwards compatibility — they add the right next-step pointers and verdict literals where they were missing or wrong.
+- Consumer propagation via the existing zero-touch loop will open auto-bump PRs across the 5 consumers (consumer-c-legacy, consumer-b, consumer-d, consumer-e, livekit) once this lands on `main`.
+
 ## [0.6.1] — 2026-04-27 — declarative tracker_kind + notify drift fix
 
 Hardening pass on the consumers-routing layer that surfaced during the v0.6.0 PR. Two unrelated fixes bundled because both touch the same automation surface and shipping them together is cheaper than two propagation rounds.
