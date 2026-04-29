@@ -2,6 +2,34 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.0-rc1] — 2026-04-30 — release management contract
+
+Codifies the source-control + project-board side of the BMAD+OpenSpec hybrid flow. Until now the runbook said "implementation in `slice/<id>` branch" and Gate F said "implementation diff + tests pass" without normatively answering: **is each `tasks.md` checkbox a separate branch + PR, or do all tasks of a change ship in one PR?** The implicit answer (one branch per change, tasks as PR checklist) was correct but undocumented; that gap surfaced in `iguanatrader` 2026-04-29 when slicing reached Gate E. v0.8.0-rc1 closes the gap.
+
+This is a **release candidate** — the contract is validated via iguanatrader Wave 0 (slices 1-3) before promoting to v0.8.0 stable. Existing consumers on v0.7.x are NOT auto-bumped; they migrate per `release-management.md` §8 when ready.
+
+### Added — Release management contract
+
+- **`specs/release-management.md`** v1.0.0 — defines the universal contract for how OpenSpec changes ship: 1 branch = 1 change = 1 PR (tasks tracked as PR checklist, never per-task branches), Status field schema with five canonical options (`Todo`, `Blocked`, `In Progress`, `Review`, `Done`), recommended `Risk` + `P&L impact` custom fields, CI-green-required-for-Review transition, dependency-driven merge order (Wave N before N+1), bootstrap-via-script (§7), migration path for existing consumers (§8), anti-patterns (§9). Complements `issue-tracking.md` v1.0.0 (which already automates ticket↔proposal sync) on the source-control side.
+- **`scripts/bootstrap_gh_project.py`** — one-command setup for a consumer's GH Project board: looks up project, adds canonical Status options idempotently (preserves existing names; flags case-only divergence as a soft warning), adds recommended custom fields (`Risk`, `P&L impact`), and (with `--slicing-file`) creates one draft project item per change row from `docs/openspec-slice.md` with initial Status set per dep graph. Stdlib-only (subprocess + json + urllib not used; just `gh api graphql`). Idempotent.
+
+### Updated — runbook v1.1.0
+
+- **`specs/runbook-bmad-openspec.md` §3.6** — new section, "Branch, PR + merge contract", points at `release-management.md` for the normative source-control contract. One-paragraph summary in the runbook for skim-readers; full detail in the spec.
+- **`specs/runbook-bmad-openspec.md` §5** — Gate F row now mentions "CI green on slice branch" as prerequisite (was implicit before).
+- **`specs/runbook-bmad-openspec.md` §6** — cross-refs add `release-management.md` + `issue-tracking.md`.
+
+### Validated against
+
+- **iguanatrader (Wizarck/iguanatrader)** — bootstrap of GH Project #2 successful in dry-run mode (3 status options already aligned, 2 added: `Blocked`, `Review`; both recommended custom fields already present; 20 slice rows parsed; 20 draft items would be created). Real run pending v0.8.0-rc1 merge to playbook main + iguanatrader bump.
+
+### Roadmap
+
+- v0.8.0 stable promotion: after iguanatrader Wave 0 (slices 1-3) lands, retro confirms the contract works under load. Items 1-10 from `specs/v0.8.0-roadmap.md` are still tracked separately; this RC is **scoped only** to release management.
+- Optional follow-ups (not blocking v0.8.0 stable):
+  - GH Action template `.github/workflows/project-status.yml` for auto Status transitions (commit-passing-CI → Review; squash-merge → Done; downstream-deps-merged → Blocked-to-Todo). Doc placeholder in spec §6.3; implementation deferred.
+  - Optional hard dependency-check workflow `.github/workflows/dep-check.yml` per spec §6.2.
+
 ## [0.7.1] — 2026-04-29 — apply-fix contract (Phase 5 bring-forward)
 
 Adds the `apply-fix-contract.md` spec — the canonical contract any workflow MUST honor when mutating prod state via human-in-the-loop approval. Lifts the propose-only ceiling that previously kept all `langgraph-aiops/workflows/*.py` write paths blocked behind `NotImplementedError("APPLY_FIX mode deferred to T29")`. Sibling to `break-glass.md`; different audiences (CLI gate overrides vs workflow mutation contracts).

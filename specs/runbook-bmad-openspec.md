@@ -1,6 +1,6 @@
 # runbook-bmad-openspec.md
 
-> **Status**: v1.0.0.
+> **Status**: v1.1.0. Section 3.6 added in v0.8.0-rc1 — explicit branch + PR + merge contract pointing at [release-management.md](release-management.md).
 
 The canonical flow for any consumer project that adopts the playbook: BMAD for Discovery, OpenSpec for Implementation, worker→QA pairing per artefact, max-2-rework, with human-in-the-loop (HITL) gates at each phase transition.
 
@@ -143,6 +143,14 @@ proposal-drafted ──► proposal-approved
                                    └── blocked-by-spec (from `❓` verdict; human unblocks)
 ```
 
+### 3.6 Branch, PR + merge contract
+
+The source-control side of OpenSpec implementation is normatively defined in [release-management.md](release-management.md). The contract in one paragraph:
+
+**1 branch = 1 OpenSpec change = 1 PR.** Each change owns one feature branch named `slice/<change-id>` (the kebab-case folder name under `openspec/changes/`); each branch targets `main` via exactly one pull request. Tasks within `tasks.md` are tracked as a markdown checklist in the PR description (NOT split into separate branches). The PR moves to project Status `Review` only when CI is green; Gate F approval gates the squash-merge. The dependency graph in `docs/openspec-slice.md` (per [bmad-openspec-bridge.md](bmad-openspec-bridge.md) §3.1) governs the merge order — Wave N changes squash-merge before Wave N+1 begins.
+
+Project board schema (Status options + custom fields) is canonical per [release-management.md](release-management.md) §5; consumer projects bootstrap their board with `python .ai-playbook/scripts/bootstrap_gh_project.py` before `/opsx:propose` runs (see §7 of that spec).
+
 ## 4 Retro cadence
 
 Post-archive retro is mandatory; weekly and monthly retros cover accumulation.
@@ -164,7 +172,7 @@ Full cadence in [`specs/retrospective-cadence.md`](retrospective-cadence.md).
 | C — Post-slice | Human (role: PM) | Change list + scope notes. | Cannot `/opsx:propose`. |
 | D — Per artefact | QA subagent (auto) + human override | Verdict `✅`. | Next artefact cannot start. |
 | E — Pre-apply | Human (role: Eng lead) | Tasks approved + readiness check `✅`. | Cannot `openspec apply`. |
-| F — Pre-archive | Human + QA | Implementation diff + tests pass + retro notes drafted. | Cannot `openspec archive`. |
+| F — Pre-archive | Human + QA | Implementation diff + CI green on slice branch + retro notes drafted. Squash-merge to main happens after this gate. | Cannot `openspec archive`. |
 
 Humans may delegate D/E/F to a designated reviewer, but the gate must be **recorded** in the retro. An archived change whose gates have no recorded approver is an audit-fail in the monthly lifecycle check.
 
@@ -176,3 +184,5 @@ Humans may delegate D/E/F to a designated reviewer, but the gate must be **recor
 - [agentic-failures.md](agentic-failures.md) — `goal_drift`, `over_confidence`, `premature_completion` all target the gates above.
 - [error-message-standard.md](error-message-standard.md) — how block-state errors are phrased.
 - [break-glass.md](break-glass.md) — overrides are permitted on some gates (A/B/C) with `--force-with-reason`; **D verdicts are never overridable**.
+- [release-management.md](release-management.md) — branch model, PR shape, CI gates, project board schema, dependency-driven merge order.
+- [issue-tracking.md](issue-tracking.md) — ticket↔proposal automation per surface (Jira / GH).
