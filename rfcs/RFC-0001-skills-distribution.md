@@ -44,7 +44,7 @@ Treat skills the same way the playbook is already treated by consumers: **semver
 Two source repos initially:
 
 - **`ai-playbook/skills/`** — methodology skills shipped with the playbook (BMAD family, OpenSpec family, BMAD upstream-tracked).
-- **`consumer-d-skills/skills/`** — Arturo's custom skills (code-reviewer, mcp-builder, shadcn-*, etc.). Note: the FastAPI backend stays in `consumer-d-skills/backend/`; only the catalogued skills move under `skills/`.
+- **`consumer-d-skills/skills/`** — Arturo's custom skills (e.g. `mcp-builder`, `qa-poc`, `kickoff`, `nuevo-lote`). Note: the FastAPI backend stays in `consumer-d-skills/backend/`; only the catalogued skills move under `skills/`.
 
 The path is deliberately `skills/`, **not** `.claude/skills/`. Skills are a vendor-neutral artefact (a SKILL.md is just a Markdown contract); `.claude/` is one consumer. Other agent CLIs (Gemini, Antigravity) consume the same files via their own conventions.
 
