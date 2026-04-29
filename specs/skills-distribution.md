@@ -75,7 +75,7 @@ Two source repos are recognised as of v0.4.0 (more may register later):
 | Repo | Scope | Family |
 |---|---|---|
 | `Wizarck/ai-playbook` | public methodology | BMAD agents, BMAD workflows, OpenSpec commands, BMAD upstream-tracked |
-| `Wizarck/eligia-skills` | public custom | code-reviewer, mcp-builder, shadcn-*, qa-*, etc. |
+| `Wizarck/eligia-skills` | public custom | mcp-builder, qa-* family, kickoff, nuevo-lote, etc. |
 
 The path is **deliberately not** `.claude/skills/`. Skills are vendor-neutral
 artefacts — a `SKILL.md` is just a Markdown contract — and consumer agents
@@ -189,11 +189,12 @@ etc.) is never written to disk on the consumer machine.
 
 ### 3.2 Collision rules
 
-If two source repos both publish a skill named `code-reviewer`:
+If two source repos both publish a skill with the same name (e.g. both
+publish `mcp-builder`):
 
 1. The materialiser raises `❓ CLARIFICATION NEEDED` at step 3b.
 2. Resolution requires either renaming the skill in one source repo (e.g.
-   `code-reviewer-bmad` vs `code-reviewer-eligia`) or excluding one source
+   `mcp-builder-bmad` vs `mcp-builder-eligia`) or excluding one source
    from the consumer's `skills_sources`.
 3. There is **no last-wins fallback** — silent shadowing across source repos
    would defeat the auditability goal of the whole architecture.
