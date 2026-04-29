@@ -2,6 +2,24 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.7.1] — 2026-04-29 — apply-fix contract (Phase 5 bring-forward)
+
+Adds the `apply-fix-contract.md` spec — the canonical contract any workflow MUST honor when mutating prod state via human-in-the-loop approval. Lifts the propose-only ceiling that previously kept all `langgraph-aiops/workflows/*.py` write paths blocked behind `NotImplementedError("APPLY_FIX mode deferred to T29")`. Sibling to `break-glass.md`; different audiences (CLI gate overrides vs workflow mutation contracts).
+
+### Added
+
+- **`specs/apply-fix-contract.md`** v1.0.0 — two-tier permission model (autonomous tier for `watchdogs.py`-class auto-mutators, HITL-gated tier for everything else), envelope shape (`command_preview`, `idempotency_key`, `reversal_hint`, `risk`, `mode`, `max_approval_age_seconds`), exact-match invariant (bytes-of-action MUST equal approved bytes), idempotency contract (workflows requesting `mode="apply"` MUST supply a precheck callable), identity binding rule (env-bound approvers; rejection logged not silently dropped), risk-tier rule (`risk=high` always HITL even on cron), Python helper API (`request_approval`, `verify_apply_safety`, `record_apply_outcome`), structured logging contract (rows to `incidents.jsonl` with `request_id` correlation).
+
+### Stale references retired (in consumers)
+
+- The strings `"T29"` and `"break-glass.md §propose-only ceiling"` no longer appear in any new code authored against v0.7.1+. The `§propose-only ceiling` section never existed in `break-glass.md`; the citation was a forward-reference to a milestone that was never scheduled. Consumers updating to v0.7.1 should also update their own `langgraph-aiops/workflows/hitl.py` and `langgraph-aiops/eligia_ops/tools.py` to drop the `NotImplementedError("APPLY_FIX mode deferred to T29")` guards and reference `apply-fix-contract.md` instead. eligia-core lands this companion change in its own commit (Change A Phase 1).
+
+### Notes
+
+- v0.7.1 is **additive** — no existing spec is modified, no contract is broken. v0.7.0 consumers can adopt at their own pace.
+- The companion code refactor (replacing the `NotImplementedError` guards in `hitl.py` and `tools.py`) lives in eligia-core, not in this repo. The v0.7.1 bump in consumers via `propagate-playbook-bump.yml` opens the playbook-pin PR; the eligia-core code refactor is a separate eligia-core commit gated by the new pin.
+- Phase 5 background: the `apply-fix-contract.md` spec, the eligia-core code refactor, and the upcoming HITL channel adapters (Telegram + WhatsApp via wa-mcp + Hermes), durable notification queue, LiteLLM enforcement, and incident-response/model-migration spec completion are tracked in `eligia-core/docs/openspec-slice-phase5.md` as 4 OpenSpec changes (one of which — `add-hitl-channels-and-apply-fix` — authored this v0.7.1 spec).
+
 ## [0.7.0] — 2026-04-28 — alignment + bridges + audit incorporation
 
 Major hardening of the BMAD↔OpenSpec hybrid flow. v0.7.0 closes the seam between Phase 2 (BMAD discovery + design) and Phase 3 (OpenSpec implementation), incorporates two patterns from external skill audits, adds a soft-warn lint for SKILL.md description quality, and records a roadmap of items deferred to v0.8.0. Additive against v0.6.x; existing consumers may migrate at their own pace.
