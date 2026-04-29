@@ -133,20 +133,19 @@ def _gh(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess
 def _gh_graphql(query: str, **variables: Any) -> dict:  # noqa: ANN401
     """Run a GraphQL query via `gh api graphql` and return the parsed `data`.
 
-    Variables are passed via -F (typed) so booleans/ints/lists are forwarded
-    without quoting issues.
+    The full request body (query + variables) is sent on stdin as JSON via
+    `--input -`, so complex types (lists, dicts) survive without quoting
+    games. ``gh``'s `-F` only handles scalars (bool / int / null / @file);
+    JSON arrays via `-F` get rejected as unparseable.
     """
-    cmd = ["api", "graphql", "-f", f"query={query}"]
-    for k, v in variables.items():
-        if isinstance(v, bool):
-            cmd += ["-F", f"{k}={'true' if v else 'false'}"]
-        elif isinstance(v, (int, float)):
-            cmd += ["-F", f"{k}={v}"]
-        elif isinstance(v, list):
-            cmd += ["-F", f"{k}={json.dumps(v)}"]
-        else:
-            cmd += ["-f", f"{k}={v}"]
-    result = _gh(cmd)
+    body = json.dumps({"query": query, "variables": variables})
+    result = subprocess.run(
+        ["gh", "api", "graphql", "--input", "-"],
+        input=body,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     payload = json.loads(result.stdout)
     if "errors" in payload:
         raise RuntimeError(f"GraphQL error: {payload['errors']}")
@@ -279,9 +278,13 @@ def add_status_options(
             added += 1
             continue
         # GitHub's `updateProjectV2Field` REPLACES the full option list, so we
-        # re-pass existing + the new one to add non-destructively.
+        # re-pass existing + the new one to add non-destructively. Mutate the
+        # in-memory dict so subsequent iterations include this newly-added
+        # option in their full-list send (otherwise iteration N+1 would drop
+        # iteration N's addition because the local dict is stale).
         all_options = list(status_field.options.keys()) + [canonical]
         _replace_status_options(project_id, status_field.id, all_options)
+        status_field.options[canonical] = ""  # placeholder; real id reloaded later
         added += 1
         _emit("bootstrap_gh_project.option_added", option=canonical)
     return added, skipped, divergent
@@ -459,6 +462,7 @@ def parse_slicing(path: Path) -> list[SliceRow]:
 class ProjectItem:
     id: str
     title: str
+    status: str  # current Status field value; "" if unset
 
 
 def list_items(project_id: str) -> list[ProjectItem]:
@@ -472,6 +476,7 @@ def list_items(project_id: str) -> list[ProjectItem]:
               fieldValues(first: 20) {
                 nodes {
                   ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
+                  ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
                 }
               }
             }
@@ -488,11 +493,13 @@ def list_items(project_id: str) -> list[ProjectItem]:
         items = data["node"]["items"]
         for n in items["nodes"]:
             title = ""
+            status = ""
             for fv in n["fieldValues"]["nodes"]:
+                if fv and fv.get("field", {}).get("name") == "Status":
+                    status = fv.get("name", "") or ""
                 if fv and fv.get("field", {}).get("name") == "Title":
                     title = fv.get("text", "")
-                    break
-            out.append(ProjectItem(id=n["id"], title=title))
+            out.append(ProjectItem(id=n["id"], title=title, status=status))
         page = items["pageInfo"]
         if not page["hasNextPage"]:
             break
@@ -631,15 +638,37 @@ def run(
         # Refresh status field after option addition.
         fields_now = list_fields(proj.id) if not dry_run else fields
         status_field_now = next((f for f in fields_now if f.name == "Status"), status_field)
-        existing_titles = (
-            {it.title for it in list_items(proj.id)} if not dry_run else set()
-        )
+        existing_items = list_items(proj.id) if not dry_run else []
+        existing_by_title: dict[str, ProjectItem] = {it.title: it for it in existing_items}
 
+        items_status_set = 0
         for i, row in enumerate(rows):
-            if row.change_id in existing_titles:
+            existing = existing_by_title.get(row.change_id)
+            # Initial status: foundation slice (i=0, no deps) → Todo; rest → Blocked.
+            initial = "Todo" if i == 0 and not row.depends_on else "Blocked"
+
+            if existing is not None:
                 items_skipped += 1
                 _emit("bootstrap_gh_project.item_skipped", title=row.change_id)
+                # Recovery: if the item was created earlier without a Status
+                # (e.g. the option didn't yet exist due to v0.8.0-rc1's
+                # in-memory option-list bug), set the canonical initial Status
+                # now. Items with an already-populated Status are left alone.
+                if (
+                    not existing.status
+                    and initial in status_field_now.options
+                    and not dry_run
+                ):
+                    set_item_status(
+                        proj.id,
+                        existing.id,
+                        status_field_now.id,
+                        status_field_now.options[initial],
+                        dry_run=dry_run,
+                    )
+                    items_status_set += 1
                 continue
+
             body = (
                 f"**Bounded context**: {row.bounded_context}\n"
                 f"**Depends on**: {', '.join(row.depends_on) if row.depends_on else '—'}\n\n"
@@ -647,8 +676,6 @@ def run(
             )
             item_id = add_draft_item(proj.id, row.change_id, body, dry_run=dry_run)
             items_added += 1
-            # Initial status: foundation slice (i=0, no deps) → Todo; rest → Blocked.
-            initial = "Todo" if i == 0 and not row.depends_on else "Blocked"
             if item_id is not None and initial in status_field_now.options:
                 set_item_status(
                     proj.id,
@@ -657,7 +684,11 @@ def run(
                     status_field_now.options[initial],
                     dry_run=dry_run,
                 )
-        print(f"→ Items: {items_added} added, {items_skipped} already present")
+                items_status_set += 1
+        print(
+            f"→ Items: {items_added} added, {items_skipped} already present"
+            + (f", {items_status_set} status-set" if items_status_set else "")
+        )
 
     _emit(
         "bootstrap_gh_project.complete",
