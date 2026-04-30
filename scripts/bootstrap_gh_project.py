@@ -455,8 +455,84 @@ def ensure_custom_fields(
 class SliceRow:
     change_id: str
     bounded_context: str
+    frs: str  # raw FRs/NFRs cell content (e.g. "FR1-FR5, FR11" or "(foundation: NFR-S1)")
     depends_on: list[str]
     scope_note: str  # full paragraph text, possibly multiline
+
+
+def _render_item_body(row: SliceRow, *, repo: str | None, slice_index: int) -> str:
+    """Render the markdown body for a project item card.
+
+    Per release-management.md §5.4: cards reference the source artefacts in
+    the repo so a reader can back-track to the proposal / spec / ADRs without
+    duplicating content (DRY). Each card carries:
+    - Header line with bounded context, deps, FRs.
+    - The scope note from `docs/openspec-slice.md` verbatim (single source
+      of truth — never edit the card body manually; re-run bootstrap).
+    - References block linking to the canonical artefacts.
+
+    ``repo`` is "owner/name" when known (from --repo); if None, the references
+    use relative paths only (won't resolve from the project page). ``slice_index``
+    is the 1-based row number from the slicing table, used for the deep-link
+    anchor into Scope notes.
+    """
+    base = f"https://github.com/{repo}/blob/main" if repo else ""
+
+    deps_md = (
+        ", ".join(
+            f"[`{d}`]({base}/openspec/changes/{d}/)" if base else f"`{d}`"
+            for d in row.depends_on
+        )
+        if row.depends_on
+        else "—"
+    )
+
+    refs_lines = []
+    if base:
+        anchor = f"#-{slice_index}-{row.change_id}"
+        refs_lines.append(
+            f"- 📋 [Slice plan row {slice_index}]({base}/docs/openspec-slice.md{anchor}) — canonical scope note"
+        )
+        refs_lines.append(
+            f"- 📄 [Proposal]({base}/openspec/changes/{row.change_id}/proposal.md) "
+            f"(landed after `/opsx:propose {row.change_id}`)"
+        )
+        refs_lines.append(
+            f"- 🏛️ [Architecture decisions]({base}/docs/architecture-decisions.md) "
+            f"· 🗃️ [Data model]({base}/docs/data-model.md) "
+            f"· 📁 [Project structure]({base}/docs/project-structure.md)"
+        )
+        refs_lines.append(
+            f"- ⚖️ [HITL gates log]({base}/docs/hitl-gates-log.md) — Gates A/B/C approvals"
+        )
+    else:
+        refs_lines.append(
+            "- 📋 `docs/openspec-slice.md` row " f"{slice_index} — canonical scope note"
+        )
+        refs_lines.append(
+            f"- 📄 `openspec/changes/{row.change_id}/proposal.md` "
+            f"(after `/opsx:propose {row.change_id}`)"
+        )
+        refs_lines.append(
+            "- 🏛️ `docs/architecture-decisions.md` · 🗃️ `docs/data-model.md` "
+            "· 📁 `docs/project-structure.md`"
+        )
+
+    return (
+        f"**Bounded context**: {row.bounded_context}  \n"
+        f"**Depends on**: {deps_md}  \n"
+        f"**FRs / NFRs**: {row.frs}\n"
+        "\n"
+        "---\n"
+        "\n"
+        f"{row.scope_note.strip()}\n"
+        "\n"
+        "---\n"
+        "\n"
+        "**References** (back-track to source):\n"
+        + "\n".join(refs_lines)
+        + "\n"
+    )
 
 
 def parse_slicing(path: Path) -> list[SliceRow]:
@@ -516,10 +592,12 @@ def parse_slicing(path: Path) -> list[SliceRow]:
                 if tok and tok != "—":
                     depends.append(tok)
         scope = notes_map.get(change_id_raw, "(scope note missing — re-run slicing per Gate C)")
+        frs_raw = cells[3].strip() if len(cells) > 3 else ""
         out.append(
             SliceRow(
                 change_id=change_id_raw,
                 bounded_context=cells[2].strip(),
+                frs=frs_raw or "—",
                 depends_on=depends,
                 scope_note=scope,
             )
@@ -537,6 +615,8 @@ class ProjectItem:
     id: str
     title: str
     status: str  # current Status field value; "" if unset
+    body: str = ""  # current draft-issue body markdown; "" if not a draft or no body
+    content_id: str = ""  # GraphQL id of the underlying DraftIssue (for body updates)
 
 
 def list_items(project_id: str) -> list[ProjectItem]:
@@ -547,6 +627,9 @@ def list_items(project_id: str) -> list[ProjectItem]:
           items(first: 100, after: $cursor) {
             nodes {
               id
+              content {
+                ... on DraftIssue { id title body }
+              }
               fieldValues(first: 20) {
                 nodes {
                   ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
@@ -568,17 +651,42 @@ def list_items(project_id: str) -> list[ProjectItem]:
         for n in items["nodes"]:
             title = ""
             status = ""
+            body = ""
+            content_id = ""
+            content = n.get("content") or {}
+            if content.get("title"):
+                title = content["title"]
+                body = content.get("body", "") or ""
+                content_id = content.get("id", "") or ""
             for fv in n["fieldValues"]["nodes"]:
                 if fv and fv.get("field", {}).get("name") == "Status":
                     status = fv.get("name", "") or ""
-                if fv and fv.get("field", {}).get("name") == "Title":
+                if fv and fv.get("field", {}).get("name") == "Title" and not title:
                     title = fv.get("text", "")
-            out.append(ProjectItem(id=n["id"], title=title, status=status))
+            out.append(
+                ProjectItem(
+                    id=n["id"], title=title, status=status, body=body, content_id=content_id
+                )
+            )
         page = items["pageInfo"]
         if not page["hasNextPage"]:
             break
         cursor = page["endCursor"]
     return out
+
+
+def update_draft_item_body(content_id: str, body: str, *, dry_run: bool) -> None:
+    """Update a DraftIssue's body markdown via the updateProjectV2DraftIssue mutation."""
+    if dry_run or not content_id:
+        return
+    mutation = """
+    mutation($draft_id: ID!, $body: String!) {
+      updateProjectV2DraftIssue(input: {draftIssueId: $draft_id, body: $body}) {
+        draftIssue { id }
+      }
+    }
+    """
+    _gh_graphql(mutation, draft_id=content_id, body=body)
 
 
 def add_draft_item(project_id: str, title: str, body: str, *, dry_run: bool) -> str | None:
@@ -754,19 +862,23 @@ def run(
         # Refresh status field after option addition.
         fields_now = list_fields(proj.id) if not dry_run else fields
         status_field_now = next((f for f in fields_now if f.name == "Status"), status_field)
-        existing_items = list_items(proj.id) if not dry_run else []
+        # list_items is read-only — safe to call in dry-run; gives accurate diff.
+        existing_items = list_items(proj.id)
         existing_by_title: dict[str, ProjectItem] = {it.title: it for it in existing_items}
 
         items_status_set = 0
+        items_body_refreshed = 0
         for i, row in enumerate(rows):
             existing = existing_by_title.get(row.change_id)
+            slice_index = i + 1  # 1-based for human-readable references
+            expected_body = _render_item_body(row, repo=repo, slice_index=slice_index)
             # Initial status: foundation slice (i=0, no deps) → Todo; rest → Blocked.
             initial = "Todo" if i == 0 and not row.depends_on else "Blocked"
 
             if existing is not None:
                 items_skipped += 1
                 _emit("bootstrap_gh_project.item_skipped", title=row.change_id)
-                # Recovery: if the item was created earlier without a Status
+                # Recovery 1: if the item was created earlier without a Status
                 # (e.g. the option didn't yet exist due to v0.8.0-rc1's
                 # in-memory option-list bug), set the canonical initial Status
                 # now. Items with an already-populated Status are left alone.
@@ -783,14 +895,21 @@ def run(
                         dry_run=dry_run,
                     )
                     items_status_set += 1
+                # Recovery 2: if the item's body diverges from the rendered
+                # template (e.g. the template was upgraded in a later
+                # bootstrap_gh_project version), refresh it. The slicing
+                # artefact is the single source of truth — never edit the
+                # card body manually.
+                if existing.content_id and existing.body.strip() != expected_body.strip():
+                    if not dry_run:
+                        update_draft_item_body(
+                            existing.content_id, expected_body, dry_run=dry_run
+                        )
+                    items_body_refreshed += 1
+                    _emit("bootstrap_gh_project.item_body_refreshed", title=row.change_id)
                 continue
 
-            body = (
-                f"**Bounded context**: {row.bounded_context}\n"
-                f"**Depends on**: {', '.join(row.depends_on) if row.depends_on else '—'}\n\n"
-                f"---\n\n{row.scope_note}\n"
-            )
-            item_id = add_draft_item(proj.id, row.change_id, body, dry_run=dry_run)
+            item_id = add_draft_item(proj.id, row.change_id, expected_body, dry_run=dry_run)
             items_added += 1
             if item_id is not None and initial in status_field_now.options:
                 set_item_status(
@@ -801,10 +920,13 @@ def run(
                     dry_run=dry_run,
                 )
                 items_status_set += 1
-        print(
-            f"→ Items: {items_added} added, {items_skipped} already present"
-            + (f", {items_status_set} status-set" if items_status_set else "")
-        )
+
+        summary_parts = [f"{items_added} added", f"{items_skipped} already present"]
+        if items_status_set:
+            summary_parts.append(f"{items_status_set} status-set")
+        if items_body_refreshed:
+            summary_parts.append(f"{items_body_refreshed} body-refreshed")
+        print(f"→ Items: {', '.join(summary_parts)}")
 
     _emit(
         "bootstrap_gh_project.complete",
