@@ -191,7 +191,17 @@ def resolve_playbook_root(explicit: Path | None, cwd: Path) -> Path:
 
 
 def resolve_personal_file(explicit: Path | None) -> Path | None:
-    """Resolve the personal-layer YAML path (may not exist — returns the candidate)."""
+    """Resolve the personal-layer YAML path (may not exist — returns the candidate).
+
+    Search order:
+        1. ``--personal-file`` CLI arg.
+        2. ``$AIPLAYBOOK_PERSONAL_MCP_FILE`` env var.
+        3. ``~/.config/mcp-servers.yaml`` (XDG convention).
+        4. ``~/Projects/consumer-d/mcp-servers.yaml`` (legacy fallback;
+           emits a stderr notice so the dev sees the cross-project read).
+        5. ``C:/Projects/consumer-d/mcp-servers.yaml`` (Windows legacy
+           fallback; same notice).
+    """
     if explicit is not None:
         return explicit.expanduser().resolve()
     env = os.environ.get("AIPLAYBOOK_PERSONAL_MCP_FILE")
@@ -200,12 +210,22 @@ def resolve_personal_file(explicit: Path | None) -> Path | None:
     xdg = Path.home() / ".config" / "mcp-servers.yaml"
     if xdg.is_file():
         return xdg.resolve()
-    # Convention fallback: consumer-d checkout next to other project dirs.
+
+    def _legacy_notice(path: Path) -> None:
+        print(
+            f"ℹ️  mcp-validate: using legacy personal-layer fallback at {path} "
+            f"(no ~/.config/mcp-servers.yaml found). Set $AIPLAYBOOK_PERSONAL_MCP_FILE "
+            f"or create ~/.config/mcp-servers.yaml to override.",
+            file=sys.stderr,
+        )
+
     legacy = Path.home() / "Projects" / "consumer-d" / "mcp-servers.yaml"
     if legacy.is_file():
+        _legacy_notice(legacy)
         return legacy.resolve()
     win_legacy = Path("C:/Projects/consumer-d/mcp-servers.yaml")
     if win_legacy.is_file():
+        _legacy_notice(win_legacy)
         return win_legacy.resolve()
     return None
 
@@ -674,7 +694,13 @@ def run(args: argparse.Namespace) -> int:
     # but skip env+drift to avoid false cascades when the yaml is unparseable.
     merged, provenance = merge_servers(base, project, personal)
 
-    if not args.skip_env_check:
+    # Pre-commit auto-skips env-check: PRE_COMMIT=1 is set by pre-commit when
+    # running hooks. Required env vars (ATLASSIAN_*, GOOGLE_*, etc.) live in
+    # SOPS-encrypted dotenv files and aren't sourced before `git commit`,
+    # so the env-check gives false positives in pre-commit context. CI and
+    # explicit invocations still hard-fail (drop --skip-env-check).
+    in_pre_commit = bool(os.environ.get("PRE_COMMIT"))
+    if not args.skip_env_check and not in_pre_commit:
         missing = collect_missing_env(merged)
         for sid, vars_ in sorted(missing.items()):
             errors.append(CanonicalError(
@@ -684,6 +710,18 @@ def run(args: argparse.Namespace) -> int:
                 fix=(f"export {', '.join(vars_)} (or source your SOPS-decrypted env file) "
                      "before re-running"),
             ))
+    elif in_pre_commit and not args.skip_env_check:
+        # Soft notice so the dev sees what was skipped.
+        missing = collect_missing_env(merged)
+        if missing:
+            count = sum(len(v) for v in missing.values())
+            print(
+                f"ℹ️  mcp-validate: skipped env-check in pre-commit context "
+                f"({count} env var(s) across {len(missing)} server(s) would have "
+                "fired; run `python .ai-playbook/scripts/mcp/validate.py` directly "
+                "with envs sourced for the full check)",
+                file=sys.stderr,
+            )
 
     if not args.skip_drift and not any("YAML" in e.why or "shape" in e.why for e in errors):
         detect_drift(merged=merged, consumer_root=consumer_root, errors=errors)
