@@ -2,6 +2,22 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.0-rc6] — 2026-04-30 — agents-md-v1 schema accepts pre-release semver suffix
+
+Hot fix surfaced when bumping consumer-e's `inherits_from` pin to
+`v0.8.0-rc5`: the schema regex didn't allow the `-rcN` suffix, so the
+`schema-validate-agents` pre-commit hook rejected it. This is a real
+limitation — pinning to an rc tag during dogfooding (before stable
+promotion) is exactly the use case `release-management.md` §8 calls
+out for migration.
+
+### Fixed
+
+- `specs/agents-md-v1.schema.json`: `inherits_from` items pattern
+  extended to `^github\\.com/[^/]+/[^@]+@v?\\d+\\.\\d+\\.\\d+(-[\\w.]+)?$`.
+  Now accepts: `@v1.0.0`, `@1.0.0`, `@v0.8.0-rc1`, `@v1.0.0-beta.3`,
+  `@v2.0.0-alpha.1.draft`, etc. (per https://semver.org §9 pre-release).
+
 ## [0.8.0-rc5] — 2026-04-30 — UTF-8 subprocess encoding for `gh api graphql`
 
 Hot fix surfaced when re-running `bootstrap_gh_project.py` against a populated project on Windows: the previous run's card bodies (with Spanish accented characters like "ñ", "á", "í") came back from `gh api graphql` as UTF-8 bytes. Python's `subprocess.run(..., text=True)` defaults to the system locale on Windows (`cp1252`), which silently dropped the response body. `result.stdout` was effectively None, breaking `json.loads`.

@@ -22,8 +22,8 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^github\\.com/[^/]+/[^@]+@v?\\d+\\.\\d+\\.\\d+$",
-        "description": "Pin of shape 'github.com/<org>/<repo>@<semver>'. The leading 'v' is optional so both '@v0.1.0' and '@0.1.0' validate."
+        "pattern": "^github\\.com/[^/]+/[^@]+@v?\\d+\\.\\d+\\.\\d+(-[\\w.]+)?$",
+        "description": "Pin of shape 'github.com/<org>/<repo>@<semver>'. Leading 'v' optional. Pre-release suffix allowed (e.g. '@v0.8.0-rc1', '@v1.0.0-beta.3') — supports validating against an rc tag during dogfooding before promoting to stable."
       },
       "description": "Ordered list of upstream playbook/spec pins this project inherits, evaluated left-to-right (later entries can override earlier ones — see specs/dispatcher-chain.md override semantics). Typically ONE entry pinning ai-playbook at a semver tag.",
       "$comment": "A pin is a tag, not a branch or commit SHA. Pinning to a branch defeats reproducibility: the playbook mutates out from under downstream agents."
