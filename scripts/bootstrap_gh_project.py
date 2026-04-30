@@ -118,6 +118,7 @@ def _gh_available() -> bool:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -130,6 +131,7 @@ def _gh(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess
         check=True,
         capture_output=capture,
         text=True,
+        encoding="utf-8",
     )
 
 
@@ -140,6 +142,11 @@ def _gh_graphql(query: str, **variables: Any) -> dict:  # noqa: ANN401
     `--input -`, so complex types (lists, dicts) survive without quoting
     games. ``gh``'s `-F` only handles scalars (bool / int / null / @file);
     JSON arrays via `-F` get rejected as unparseable.
+
+    `encoding="utf-8"` is required on Windows because the default is
+    cp1252, which silently drops the response body when GH returns
+    non-ASCII bytes (e.g. accented characters in card body markdown
+    persisted by previous bootstrap runs).
     """
     body = json.dumps({"query": query, "variables": variables})
     result = subprocess.run(
@@ -148,6 +155,7 @@ def _gh_graphql(query: str, **variables: Any) -> dict:  # noqa: ANN401
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     payload = json.loads(result.stdout)
     if "errors" in payload:
