@@ -2,6 +2,18 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.0-rc5] — 2026-04-30 — UTF-8 subprocess encoding for `gh api graphql`
+
+Hot fix surfaced when re-running `bootstrap_gh_project.py` against a populated project on Windows: the previous run's card bodies (with Spanish accented characters like "ñ", "á", "í") came back from `gh api graphql` as UTF-8 bytes. Python's `subprocess.run(..., text=True)` defaults to the system locale on Windows (`cp1252`), which silently dropped the response body. `result.stdout` was effectively None, breaking `json.loads`.
+
+### Fixed
+
+- `scripts/bootstrap_gh_project.py` — all four `subprocess.run` calls now pass `encoding="utf-8"` explicitly. This is portable (UTF-8 is also the modern default on Linux/macOS) and prevents the silent-drop on Windows.
+
+### Validated against
+
+Re-run on Wizarck/consumer-e#2 with cards already populated: 20 items inspected via `list_items` (response includes accented characters), 0 errors, body-refresh diff computed correctly.
+
 ## [0.8.0-rc4] — 2026-04-30 — mcp-validate pre-commit context + GH Project card body template
 
 Two friction fixes surfaced during consumer-e's slice 1 implementation:
