@@ -91,6 +91,9 @@ def _emit(event: str, severity: str = "info", summary: str = "", **attrs: Any) -
 
 CANONICAL_STATUS_OPTIONS = ["Todo", "Blocked", "In Progress", "Review", "Done"]
 
+# Visibility choices for `--visibility` (per release-management.md §5.1).
+VISIBILITY_CHOICES = ("private", "public", "keep")
+
 CUSTOM_FIELDS = [
     {
         "name": "Risk",
@@ -192,6 +195,77 @@ def lookup_project(owner: str, project_number: int) -> Project:
         f"project #{project_number} not found under owner {owner!r} "
         f"(checked both user and organization scopes)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Repo linking + visibility
+# ---------------------------------------------------------------------------
+
+
+def lookup_repo(owner: str, name: str) -> str:
+    """Return the GraphQL node id for ``<owner>/<name>``."""
+    query = """
+    query($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) { id }
+    }
+    """
+    data = _gh_graphql(query, owner=owner, name=name)
+    repo = data.get("repository")
+    if not repo:
+        raise RuntimeError(f"repo {owner!r}/{name!r} not found")
+    return repo["id"]
+
+
+def list_linked_repos(project_id: str) -> list[str]:
+    """Return the GraphQL node ids of repositories already linked to the project."""
+    query = """
+    query($id: ID!) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          repositories(first: 50) { nodes { id nameWithOwner } }
+        }
+      }
+    }
+    """
+    data = _gh_graphql(query, id=project_id)
+    nodes = (data.get("node") or {}).get("repositories", {}).get("nodes", [])
+    return [n["id"] for n in nodes]
+
+
+def link_project_to_repo(project_id: str, repo_id: str, *, dry_run: bool) -> bool:
+    """Link the project to the repo. Returns True if linked (False if already linked).
+
+    Idempotent: pre-checks `list_linked_repos` (a read-only query) and skips
+    if the link exists. Safe to call in dry-run mode — the read-only check
+    runs but the link mutation does not.
+    """
+    if repo_id in list_linked_repos(project_id):
+        return False
+    if dry_run:
+        return True
+    mutation = """
+    mutation($project_id: ID!, $repo_id: ID!) {
+      linkProjectV2ToRepository(input: {projectId: $project_id, repositoryId: $repo_id}) {
+        repository { id }
+      }
+    }
+    """
+    _gh_graphql(mutation, project_id=project_id, repo_id=repo_id)
+    return True
+
+
+def set_project_visibility(project_id: str, public: bool, *, dry_run: bool) -> None:
+    """Set the project's `public` flag (true → public on the web; false → private)."""
+    if dry_run:
+        return
+    mutation = """
+    mutation($project_id: ID!, $public: Boolean!) {
+      updateProjectV2(input: {projectId: $project_id, public: $public}) {
+        projectV2 { id public }
+      }
+    }
+    """
+    _gh_graphql(mutation, project_id=project_id, public=public)
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +643,8 @@ def run(
     project_number: int,
     slicing_file: Path | None,
     no_custom_fields: bool,
+    repo: str | None,
+    visibility: str,
     dry_run: bool,
 ) -> int:
     if not _gh_available():
@@ -581,6 +657,8 @@ def run(
         owner=owner,
         project_number=project_number,
         slicing_file=str(slicing_file) if slicing_file else None,
+        repo=repo,
+        visibility=visibility,
         dry_run=dry_run,
     )
 
@@ -591,6 +669,44 @@ def run(
         return 2
 
     print(f"→ Project: {proj.title} (#{proj.number}) under {proj.owner_login}")
+
+    # Link to repo if requested. Per release-management.md §5.3 — Projects v2
+    # live at user/org scope; the repo's Projects tab is just a link surface,
+    # so this step is what makes the project visible inside the repo.
+    if repo:
+        if "/" not in repo:
+            print(f"error: --repo must be 'owner/name' (got {repo!r})", file=sys.stderr)
+            return 2
+        repo_owner, repo_name = repo.split("/", 1)
+        try:
+            repo_id = lookup_repo(repo_owner, repo_name)
+        except RuntimeError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+        try:
+            linked_now = link_project_to_repo(proj.id, repo_id, dry_run=dry_run)
+        except RuntimeError as e:
+            print(f"error: failed to link project to repo: {e}", file=sys.stderr)
+            return 3
+        if linked_now:
+            _emit("bootstrap_gh_project.repo_linked", repo=repo, dry_run=dry_run)
+            print(f"→ Linked to repo {repo}")
+        else:
+            _emit("bootstrap_gh_project.repo_link_skipped", repo=repo)
+            print(f"→ Repo {repo} already linked")
+
+    # Set visibility if requested. "keep" leaves the existing setting alone.
+    if visibility != "keep":
+        if dry_run:
+            print(f"→ Visibility: would set to '{visibility}' (dry-run)")
+        else:
+            try:
+                set_project_visibility(proj.id, public=(visibility == "public"), dry_run=dry_run)
+                print(f"→ Visibility: set to '{visibility}'")
+                _emit("bootstrap_gh_project.visibility_set", visibility=visibility)
+            except RuntimeError as e:
+                print(f"error: failed to update visibility: {e}", file=sys.stderr)
+                return 3
 
     fields = list_fields(proj.id)
     status_field = next((f for f in fields if f.name == "Status"), None)
@@ -734,6 +850,26 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip creating the recommended Risk + P&L impact custom fields",
     )
     p.add_argument(
+        "--repo",
+        default=None,
+        metavar="owner/name",
+        help=(
+            "Link the project to this repo so it appears in the repo's Projects "
+            "tab (idempotent). Projects v2 live at user/org scope; the repo's "
+            "Projects tab is purely a link surface — this step is what makes the "
+            "project visible inside the repo."
+        ),
+    )
+    p.add_argument(
+        "--visibility",
+        choices=VISIBILITY_CHOICES,
+        default="keep",
+        help=(
+            "Project visibility on the web: 'private' (default for new projects), "
+            "'public', or 'keep' to leave whatever is already set (default: keep)"
+        ),
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="Print intended mutations without applying them",
@@ -746,6 +882,8 @@ def main(argv: list[str] | None = None) -> int:
             project_number=args.project_number,
             slicing_file=args.slicing_file,
             no_custom_fields=args.no_custom_fields,
+            repo=args.repo,
+            visibility=args.visibility,
             dry_run=args.dry_run,
         )
     except RuntimeError as e:

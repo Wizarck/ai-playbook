@@ -166,6 +166,14 @@ Additional fields (`MVP Milestone`, `Sprint`, etc.) are consumer-discretionary a
 
 The project board contains **one item per row** in `docs/openspec-slice.md`. Items are created at Gate C slicing time (or auto-synced by `scripts/issue_sync.py` when a `proposal.md` lands). Items are **not** created per-task — tasks live as the PR description checklist (per §3.2).
 
+### 5.4 Repo linking + visibility
+
+Because Projects v2 live at **user/org scope** (not repo scope), a freshly-created project does NOT appear in the repo's Projects tab until it is explicitly **linked** to the repo. Linking is a one-shot GraphQL mutation that adds the project to the repo's `projectsV2` collection. Without it, the project is reachable from `https://github.com/<owner>/projects/<number>` but invisible from `https://github.com/<owner>/<repo>/projects`.
+
+The `bootstrap_gh_project.py --repo <owner/name>` flag (per §7) handles the link idempotently. Re-runs are no-ops.
+
+Project **visibility** is independent: a project can be private (default) or public regardless of the visibility of the repos it is linked to. Set with `--visibility {private,public,keep}`. Public visibility is appropriate for community / OSS projects where contributors outside the org should see the roadmap; private is the default for closed-source work.
+
 ### 5.4 Initial Status assignment per slicing graph
 
 When `docs/openspec-slice.md` is approved at Gate C, the bootstrap script assigns initial Status:
@@ -211,21 +219,25 @@ This avoids the human-tracker-drift failure mode where Wave 2 slices stay `Block
 
 ## 7. Bootstrap automation
 
-A consumer project that adopts this contract for the first time runs **one** command to set up the project board with the correct schema:
+A consumer project that adopts this contract for the first time runs **one** command to set up the project board with the correct schema, link it to the repo, and set visibility:
 
 ```bash
 python .ai-playbook/scripts/bootstrap_gh_project.py \
     --owner <gh-user-or-org> \
-    --project-number <existing-project-id-or-new-name> \
+    --project-number <existing-project-id> \
+    --repo <gh-user-or-org>/<repo-name> \
+    --visibility private \
     --slicing-file docs/openspec-slice.md
 ```
 
 The script (per [`scripts/bootstrap_gh_project.py`](../scripts/bootstrap_gh_project.py)):
 
-- Looks up or creates the project under the given owner.
+- Looks up the project under the given owner. **Projects v2 always live at user/org scope, never at repo scope** — the repo's Projects tab is purely a link surface.
+- **Links the project to the repo** if `--repo <owner/name>` is passed (idempotent). Without this step, the project exists but does NOT appear in the repo's Projects tab; only the user/org Projects page lists it. Re-running on an already-linked repo is a no-op.
+- **Sets project visibility** if `--visibility {private,public,keep}` is passed: `private` (default for new projects), `public`, or `keep` to leave the existing setting alone. Default flag value is `keep` so re-runs do not surprise the operator with an unintended visibility change.
 - Adds the canonical Status field options (`Todo`, `Blocked`, `In Progress`, `Review`, `Done`) — idempotent (existing options preserved; missing ones added; names verified against §5.1; rename-divergence emits a warning that the human must resolve).
 - Adds the recommended custom fields (`Risk`, `P&L impact`) — idempotent, with `--no-custom-fields` to opt out.
-- Reads `docs/openspec-slice.md`, creates one project item per change row (or one GH Issue per change + adds the issue to the project, depending on `--issue-mode`).
+- Reads `docs/openspec-slice.md`, creates one draft project item per change row — idempotent (existing items detected by Title and skipped; items with unset Status get their initial Status applied as a recovery path).
 - Sets initial Status: Wave 0 first slice → `Todo`; rest → `Blocked`.
 
 Re-running the script after later edits to `docs/openspec-slice.md` adds new items / updates dependencies without dropping existing in-progress items. Removed-from-slicing items emit a warning (manual cleanup required to avoid losing review history).
