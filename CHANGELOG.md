@@ -2,6 +2,39 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.0-rc3] — 2026-04-30 — repo linking + visibility for bootstrap_gh_project
+
+Surfaced when consumer-e's GH Project #2 didn't appear in the repo's
+Projects tab after the initial bootstrap — Projects v2 always live at
+user/org scope and need an explicit link mutation to be visible from
+the repo page. v0.8.0-rc1's `bootstrap_gh_project.py` knew how to
+create+populate the project but not how to link it; that gap is now
+closed.
+
+### Added
+
+- **`scripts/bootstrap_gh_project.py` `--repo <owner/name>` flag** —
+  idempotent link of the project to a repo via GraphQL
+  `linkProjectV2ToRepository`. Read-only `list_linked_repos` precheck
+  skips re-linking if the link already exists.
+- **`scripts/bootstrap_gh_project.py` `--visibility {private,public,keep}`
+  flag** — sets project visibility on the web. Default is `keep` so
+  re-runs don't surprise the operator with an unintended visibility
+  change. New projects default to `private`; flip to `public` for
+  community / OSS work.
+- **`specs/release-management.md` §5.4** new subsection covering the
+  user/org-vs-repo scope distinction + visibility independence.
+
+### Validated against
+
+Wizarck/consumer-e#2 (already linked from the manual `gh project link`
+that surfaced the gap): dry-run reports "already linked" + skips the
+mutation, exit 0 — confirms idempotency.
+
+## [0.8.0-rc2] — 2026-04-30 — bootstrap_gh_project script bug fixes
+
+(see PR #8 for full details — unchanged)
+
 ## [0.8.0-rc1] — 2026-04-30 — release management contract
 
 Codifies the source-control + project-board side of the BMAD+OpenSpec hybrid flow. Until now the runbook said "implementation in `slice/<id>` branch" and Gate F said "implementation diff + tests pass" without normatively answering: **is each `tasks.md` checkbox a separate branch + PR, or do all tasks of a change ship in one PR?** The implicit answer (one branch per change, tasks as PR checklist) was correct but undocumented; that gap surfaced in `consumer-e` 2026-04-29 when slicing reached Gate E. v0.8.0-rc1 closes the gap.
