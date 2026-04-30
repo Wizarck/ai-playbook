@@ -2,6 +2,58 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.0-rc4] — 2026-04-30 — mcp-validate pre-commit context + GH Project card body template
+
+Two friction fixes surfaced during iguanatrader's slice 1 implementation:
+(a) `mcp-validate` pre-commit hook failed on missing env vars (live in
+SOPS-encrypted dotenv files, not sourced before `git commit`) and on
+eligia-core's stale personal layer; (b) GH Project cards rendered the
+scope note as a wall of text without back-references to the source
+artefacts in the repo (violates DRY — the truth is in `docs/openspec-
+slice.md`, the card should *link* to it).
+
+### Updated — mcp-validate (`scripts/mcp/validate.py`)
+
+- **Pre-commit auto-skip env-check**: when invoked with `PRE_COMMIT=1`
+  in env (set automatically by pre-commit framework), the env-required
+  check downgrades to a soft notice (logs how many env vars would have
+  fired). CI / explicit runs still hard-fail. Add `--skip-env-check`
+  for offline CI parity.
+- **Personal-layer fallback notice**: when the resolver falls back to
+  `~/Projects/eligia-core/mcp-servers.yaml` (or Windows equivalent),
+  emit a stderr notice so the dev sees the cross-project read happening.
+  Set `$AIPLAYBOOK_PERSONAL_MCP_FILE` or create `~/.config/mcp-servers.yaml`
+  to override.
+
+### Updated — bootstrap_gh_project (`scripts/bootstrap_gh_project.py`)
+
+- **Card body template** (`_render_item_body` helper) — three sections:
+  header (bounded context · deps · FRs/NFRs as one-liner), scope-note
+  paragraph from `docs/openspec-slice.md` verbatim, and a References
+  block with markdown links to slice plan row, proposal.md, ADRs, data
+  model, project structure, HITL gates log. Requires `--repo` for
+  absolute URLs; falls back to relative paths when omitted.
+- **Idempotent body refresh**: existing items whose body diverges from
+  the rendered template get auto-updated via the
+  `updateProjectV2DraftIssue` mutation. Per release-management.md §5.4:
+  the slicing artefact is the single source of truth — never edit the
+  card body manually; re-run bootstrap_gh_project to refresh.
+- **`SliceRow` dataclass** extended with `frs: str` (the FRs/NFRs
+  column from the table). `parse_slicing` now reads column index 3
+  for FRs.
+- **Read-only operations in dry-run**: `list_items` (and `list_linked_repos`
+  for repo-link) now run in dry-run mode so the diff report is accurate.
+  Mutations remain skipped.
+
+### Validated against
+
+- `mcp-validate` no longer fails iguanatrader's `pre-commit run --all-files`
+  on a fresh shell with no env vars sourced.
+- iguanatrader's Project #2: 20 cards body-refreshed; one example shows
+  bounded-context · deps · FRs header + scope note + 4-link References
+  block (slice plan row anchor + proposal + arch/data/structure docs +
+  HITL gates log).
+
 ## [0.8.0-rc3] — 2026-04-30 — repo linking + visibility for bootstrap_gh_project
 
 Surfaced when iguanatrader's GH Project #2 didn't appear in the repo's
