@@ -117,10 +117,18 @@ def _gh_pr_meta(pr: int, repo: str) -> dict[str, object]:
 def is_section_45_populated(body: str) -> bool:
     """Return True iff the PR body's §4.5 section satisfies the schema.
 
-    All three SCHEMA_MARKERS must be present and followed by non-stub
-    content on the same line. Markdown bold (``**Profile**:``,
-    ``Profile**:``) is normalised to plain ``Profile:`` before matching.
-    An empty body is unpopulated.
+    All three SCHEMA_MARKERS must be present in some form. The match is
+    permissive enough to handle:
+
+    * Markdown bold (``**Profile**:``).
+    * Parenthetical annotation between marker word and colon
+      (``**Self-review findings** (this branch):``).
+    * Findings list starting on the next non-blank line (markdown lists
+      where the marker line has only the colon).
+
+    The line's content after the colon (or the next non-blank line) must
+    be non-empty and must not contain a STUB_INDICATOR (``TODO``,
+    ``<placeholder>``, etc.).
     """
     if not body:
         return False
@@ -128,11 +136,17 @@ def is_section_45_populated(body: str) -> bool:
     # `**` characters carry no semantic load for the marker check.
     normalised = body.replace("**", "")
     for marker in SCHEMA_MARKERS:
-        idx = normalised.find(marker)
-        if idx == -1:
+        marker_word = marker.rstrip(":").strip()
+        # Permissive: marker word, optional whitespace, optional
+        # parenthetical annotation, optional whitespace, mandatory colon.
+        pattern = re.compile(
+            rf"{re.escape(marker_word)}\s*(?:\([^)]*\))?\s*:"
+        )
+        m = pattern.search(normalised)
+        if m is None:
             return False
         # Examine the rest of the line to filter stub content.
-        remainder_start = idx + len(marker)
+        remainder_start = m.end()
         eol = normalised.find("\n", remainder_start)
         line_remainder = (
             normalised[remainder_start:eol]
@@ -141,7 +155,27 @@ def is_section_45_populated(body: str) -> bool:
         )
         stripped = line_remainder.strip()
         if not stripped:
-            return False
+            # Allow content on the next non-blank line — handles markdown
+            # lists where findings start beneath the marker line. But the
+            # next non-blank line must NOT itself be another marker line
+            # (e.g. `Reviewer:` followed by blank then `Self-review
+            # findings: 1` — the Reviewer field is genuinely empty).
+            tail = normalised[remainder_start:]
+            for next_line in tail.split("\n")[1:]:
+                if next_line.strip():
+                    candidate_stripped = next_line.strip()
+                    is_other_marker = any(
+                        candidate_stripped.startswith(other.rstrip(":").strip())
+                        for other in SCHEMA_MARKERS
+                        if other.rstrip(":").strip() != marker_word
+                    )
+                    if is_other_marker:
+                        return False
+                    stripped = candidate_stripped
+                    line_remainder = next_line
+                    break
+            if not stripped:
+                return False
         if any(stub in line_remainder for stub in STUB_INDICATORS):
             return False
     return True

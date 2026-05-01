@@ -67,10 +67,49 @@ def test_section_populated_minimal_for_bump_pr() -> None:
 def test_section_unpopulated_when_marker_followed_by_blank() -> None:
     body = (
         "Profile: A\n"
-        "Reviewer: \n"  # empty value
+        "Reviewer:\n"  # empty value, no following non-blank line for this marker
+        "\n"
         "Self-review findings: 1 finding\n"
     )
     assert not psrc.is_section_45_populated(body)
+
+
+def test_section_populated_when_marker_has_parenthetical_qualifier() -> None:
+    """Regression for v0.9.0-rc1 dogfood bug.
+
+    The PR body that introduced this contract had the form
+    ``**Self-review findings** (this branch):`` with a parenthetical
+    qualifier between the marker word and the colon. The naive
+    ``find("Self-review findings:")`` substring check missed it,
+    causing L2 to (incorrectly) post a redundant checklist on a PR that
+    HAD §4.5 fully populated. Caught by dogfooding L2 against PR #25
+    before the rc1 tag.
+    """
+    body = (
+        "## AI-reviewer signoff (per release-management.md §4.5)\n"
+        "\n"
+        "**Profile**: A (active on this repo).\n"
+        "\n"
+        "**Reviewer**: self-review (Profile B fallback).\n"
+        "\n"
+        "**Self-review findings** (this branch):\n"
+        "\n"
+        "1. Real bug — fixed in commit `abc123`.\n"
+        "2. Doc gap — fixed in commit `def456`.\n"
+    )
+    assert psrc.is_section_45_populated(body)
+
+
+def test_section_populated_when_findings_on_next_line() -> None:
+    """Marker line ends with `:` and findings start on the next line."""
+    body = (
+        "Profile: A\n"
+        "Reviewer: CodeRabbit\n"
+        "Self-review findings:\n"
+        "  - first finding\n"
+        "  - second finding\n"
+    )
+    assert psrc.is_section_45_populated(body)
 
 
 # ---------------------------------------------------------------------------
