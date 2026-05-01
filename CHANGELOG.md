@@ -2,6 +2,21 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.9.0-rc2] — 2026-05-01 — rolls v0.8.7 forward into the v0.9.0 line
+
+Cut to recover from a tag-ordering miss: the v0.8.7 fix (`opsx_apply_companion` default-branch auto-detect, commit `8ea91e4`) landed on `main` 3m34s **AFTER** v0.9.0-rc1 was tagged + propagated. Consumers that merged the v0.9.0-rc1 bump PR (all 5) ended up with the **broken** companion that hardcodes `origin/main` — which fails on `master`-default repos (consumer-c-legacy, by design).
+
+rc2 is the v0.9.0-rc1 bundle PLUS the v0.8.7 fix folded in. Also adds the retroactive `v0.8.7` and `v0.8.8` tags (info-only — `v0.8.8` content was already in rc1's bundle; `v0.8.7` content is new in rc2).
+
+### Fixed (carried forward from v0.8.7)
+
+- **`scripts/opsx_apply_companion.py::_detect_default_branch()`** — reads `origin/HEAD` (e.g. `refs/remotes/origin/main`), falling back to a literal probe of `origin/main` then `origin/master` then any other ref present. Slice branches now rebase against the actual default branch instead of a hardcoded `main`. Critical for consumer-c-legacy (default branch = `master`).
+
+### Notes
+
+- All v0.9.0-rc1 features are preserved verbatim (L1 detection script, L2 workflow + checklist script, runbook, spec §4.5.1-3, bootstrap integration). See [v0.9.0-rc1] entry below.
+- Process gotcha: when a fix-PR merges to main between the tag-cut and the propagation-finish window, it falls between two semver releases. Mitigation idea for v0.9.x: a pre-tag check in `runbooks/release.md` Step 3 that diffs `git log origin/main..HEAD` and aborts if there are uncommitted-into-tag fixes. Filed as a follow-up; not blocking rc2.
+
 ## [0.9.0-rc1] — 2026-05-01 — CodeRabbit fallback (3-layer defense)
 
 Codifies the manual Profile-B fallback the worker AI applies when CodeRabbit is rate-limited or silent. Turns it into a 3-layer defense (L0 mechanical / L1 in-session AI / L2 GH Action safety net) with L1 ↔ L2 coordination via PR-body §4.5 regex check. See [`specs/v0.9.0-roadmap.md`](specs/v0.9.0-roadmap.md) for the design rationale (incl. 4 alternatives considered + tradeoff analysis).
