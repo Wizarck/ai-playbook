@@ -89,59 +89,12 @@ def test_load_consumers_rejects_wrong_schema(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# _edit_frontmatter_skills_source — surgical line-level rewrite
+# _edit_frontmatter_skills_source tests moved to tests/test_bumper.py in
+# v0.9.1 (followup #1) — the helper was extracted to scripts/_bumper.py as
+# `bump_agents_md_pin` so propagate_bump.py can also use it. The new tests
+# cover the same cases plus more (both inherits_from + skills_sources blocks
+# in one pass, comment + indentation preservation, missing-file handling).
 # ---------------------------------------------------------------------------
-
-
-def test_edit_frontmatter_rewrites_matching_entry(tmp_path: Path) -> None:
-    am = tmp_path / "AGENTS.md"
-    _write_agents_md(am, [
-        "Wizarck/ai-playbook@v0.3.0",
-        "Wizarck/eligia-skills@v0.1.0",
-    ])
-    changed, detail = psb._edit_frontmatter_skills_source(am, "ai-playbook", "v0.4.0")
-    assert changed is True
-    assert detail == "rewrote"
-    text = am.read_text(encoding="utf-8")
-    assert "Wizarck/ai-playbook@v0.4.0" in text
-    # Other source untouched.
-    assert "Wizarck/eligia-skills@v0.1.0" in text
-
-
-def test_edit_frontmatter_idempotent_when_at_target(tmp_path: Path) -> None:
-    am = tmp_path / "AGENTS.md"
-    _write_agents_md(am, ["Wizarck/ai-playbook@v0.4.0"])
-    before = am.read_text(encoding="utf-8")
-    changed, detail = psb._edit_frontmatter_skills_source(am, "ai-playbook", "v0.4.0")
-    assert changed is False
-    assert detail == "up-to-date"
-    assert am.read_text(encoding="utf-8") == before
-
-
-def test_edit_frontmatter_returns_not_found_when_source_absent(tmp_path: Path) -> None:
-    am = tmp_path / "AGENTS.md"
-    _write_agents_md(am, ["Wizarck/eligia-skills@v0.1.0"])
-    changed, detail = psb._edit_frontmatter_skills_source(am, "ai-playbook", "v0.4.0")
-    assert changed is False
-    assert detail == "not-found"
-
-
-def test_edit_frontmatter_handles_github_prefix(tmp_path: Path) -> None:
-    am = tmp_path / "AGENTS.md"
-    _write_agents_md(am, ["github.com/Wizarck/ai-playbook@v0.3.0"])
-    changed, detail = psb._edit_frontmatter_skills_source(am, "ai-playbook", "v0.4.0")
-    assert changed is True
-    assert detail == "rewrote"
-    text = am.read_text(encoding="utf-8")
-    assert "github.com/Wizarck/ai-playbook@v0.4.0" in text
-
-
-def test_edit_frontmatter_no_frontmatter_returns_no_frontmatter(tmp_path: Path) -> None:
-    am = tmp_path / "AGENTS.md"
-    am.write_text("just body\n", encoding="utf-8")
-    changed, detail = psb._edit_frontmatter_skills_source(am, "ai-playbook", "v0.4.0")
-    assert changed is False
-    assert detail == "no-frontmatter"
 
 
 # ---------------------------------------------------------------------------

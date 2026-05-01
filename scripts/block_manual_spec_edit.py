@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -92,7 +93,22 @@ def is_protected_path(path_str: str) -> bool:
 
 
 def read_commit_message(repo_root: Path) -> str | None:
-    """Resolve the staged commit message. Return None if unavailable."""
+    """Resolve the staged commit message(s). Return None if unavailable.
+
+    Resolution order (per v0.9.1 followup #3 — CI mode was previously broken):
+
+    1. ``$PRE_COMMIT_COMMIT_MSG_FILE`` (commit-msg stage; set locally by
+       pre-commit when the dev runs ``git commit``).
+    2. ``$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF`` (CI mode — set by
+       ``pre-commit run --from-ref <base> --to-ref <head>``). We collect
+       every commit message in that range and concatenate them so the
+       ``openspec-archive:`` marker is detected if it appears in ANY of
+       them. Without this branch, CI saw "commit message unavailable" on
+       every archive PR (iguanatrader PR #57 was the surfacing case) and
+       the hook fell through to the failure path.
+    3. ``<repo-root>/.git/COMMIT_EDITMSG`` (fallback for the bare
+       ``pre-commit`` stage and rare edge cases).
+    """
     env_path = os.environ.get("PRE_COMMIT_COMMIT_MSG_FILE")
     if env_path:
         p = Path(env_path)
@@ -101,6 +117,30 @@ def read_commit_message(repo_root: Path) -> str | None:
                 return p.read_text(encoding="utf-8")
             except OSError:
                 return None
+
+    from_ref = os.environ.get("PRE_COMMIT_FROM_REF")
+    to_ref = os.environ.get("PRE_COMMIT_TO_REF")
+    if from_ref and to_ref:
+        try:
+            r = subprocess.run(
+                [
+                    "git",
+                    "log",
+                    "--format=%B%x00",  # NUL-delimit messages so blank lines inside don't fool us
+                    f"{from_ref}..{to_ref}",
+                ],
+                cwd=str(repo_root),
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            if r.returncode == 0 and r.stdout:
+                return r.stdout
+
+        except (OSError, subprocess.SubprocessError):
+            pass
+
     editmsg = repo_root / ".git" / "COMMIT_EDITMSG"
     if editmsg.is_file():
         try:

@@ -81,6 +81,32 @@ Section header format:
 
 ### 3. Commit + tag
 
+#### Pre-tag chronology check (per v0.9.0 followup #2)
+
+Before tagging, verify the previous tag's propagation has FINISHED. Out-of-order
+tag pushes are the failure mode this guards against — pushing `v0.8.7` and
+`v0.9.0-rc2` close together saw v0.8.7's propagate workflow fire LAST, opening
+PRs that the supersede helper then used to close the newer rc2 PRs (recovery
+required deleting + re-pushing the rc2 tag).
+
+```bash
+# 1. Confirm the previous tag's propagate workflow is in `completed success`:
+gh run list --repo Wizarck/ai-playbook \
+    --workflow propagate-playbook-bump --limit 5
+
+# 2. Confirm `git log <prev-tag>..HEAD` is non-empty (you actually have changes):
+git log --oneline $(cat VERSION | awk '{print "v"$1}')..HEAD
+
+# 3. Only THEN proceed with tagging.
+```
+
+The `_bumper.supersede_open_bump_prs` helper is also semver-aware (per
+followup #2's code-side fix), so an out-of-order push won't silently corrupt
+the cascade. But the runbook check stays as the operational guard so devs
+don't rely on script correctness when tagging close together.
+
+#### Tag
+
 ```bash
 git add VERSION CHANGELOG.md
 git commit -m "release: vX.Y.Z — <one-liner>"
