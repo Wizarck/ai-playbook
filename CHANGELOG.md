@@ -2,6 +2,51 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.2] — 2026-05-01 — Auto-transition + dep-check scripts (workflow templates ride-along)
+
+Completes the v0.8.0 promised features. The
+`.github/workflows/project-status.yml.tmpl` and `dep-check.yml.tmpl`
+templates shipped in v0.8.0 now have their backing scripts.
+
+### Added
+
+- **`scripts/auto_transition_blocked_todo.py`** (per release-management.md §6.3):
+  walks the project board for items with Status=Blocked, looks up each
+  item's `Depends on` from `docs/openspec-slice.md`, and transitions to
+  Status=Todo when every dep has Status=Done. Idempotent. Reuses
+  `parse_slicing()` + GraphQL helpers from `bootstrap_gh_project.py` so
+  the slicing format and Status schema stay synchronized. Supports
+  `--dry-run` for safe preview.
+
+  CLI: `python -m scripts.auto_transition_blocked_todo --owner X --project-number N --slicing-file docs/openspec-slice.md`
+
+  Wired by `templates/new-project/.github/workflows/project-status.yml.tmpl`
+  on push to main. Smoke-tested on iguanatrader Project #2 (correctly
+  identifies 1 transitionable + 17 still-blocked-with-unmet-deps + 2
+  other-status items across the 20-slice plan).
+
+- **`scripts/check_slice_dependencies.py`** (per release-management.md §6.2):
+  hard enforcement of the dependency graph at PR merge time. Given a
+  change-id from `slice/<change-id>`, walks declared deps and FAILS
+  (exit 1) if any dep is not yet Status=Done. Outputs structured CI
+  annotations listing each dep's current status. PASS (exit 0) when all
+  deps are Done OR slice has no declared deps.
+
+  CLI: `python -m scripts.check_slice_dependencies --owner X --project-number N --slicing-file docs/openspec-slice.md --change-id <slice>`
+
+  Wired by `templates/new-project/.github/workflows/dep-check.yml.tmpl`
+  on PR open. OPT-IN: branch protection's required-status-checks must
+  include "Dependency check" for the workflow to actually block merge.
+
+### Migration
+
+Bump submodule v0.8.1 → v0.8.2. Consumers that copied the workflow
+templates from v0.8.0 (and saw graceful "script not found" warnings)
+will now get the actual transitions / checks.
+
+For Profile A consumers: add "Dependency check" to `--required-checks`
+on next bootstrap run if hard dep enforcement is desired (opt-in).
+
 ## [0.8.1] — 2026-05-01 — AI-reviewer feedback loop + bootstrap UX fixes
 
 Closes the gap surfaced when the v0.8.0 rollout itself admin-merged 5 PRs
