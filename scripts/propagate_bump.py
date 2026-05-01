@@ -50,11 +50,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Shared with bump_consumers.py — keeps the "what tag, what branch, what message"
 # vocabulary in one place. See scripts/_bumper.py.
-from scripts._bumper import bump_branch, commit_message, supersede_open_bump_prs  # noqa: E402
+from scripts._bumper import (  # noqa: E402
+    bump_agents_md_pin,
+    bump_branch,
+    commit_message,
+    supersede_open_bump_prs,
+)
 
 # Branch prefix for the playbook-bump stream. Must match
 # `_bumper.BUMP_BRANCH_TEMPLATE` (currently `chore/bump-playbook-{tag}`).
 SUPERSEDE_PREFIX = "chore/bump-playbook-"
+
+# Used to identify which AGENTS.md frontmatter items refer to the playbook
+# itself. Per v0.9.0 followup #1, both `inherits_from:` and `skills_sources:`
+# items pointing at this short repo name must be bumped in lockstep with the
+# submodule pointer.
+PLAYBOOK_REPO_NAME = "ai-playbook"
 
 
 @dataclass
@@ -205,7 +216,17 @@ def _propagate_one(
     current_parent_sha = _run(
         ["git", "rev-parse", f"HEAD:{submodule_path}"], cwd=root
     ).stdout.strip()
-    if current_parent_sha == target_sha:
+
+    # Per v0.9.0 followup #1: bump AGENTS.md frontmatter pins in the same
+    # commit so consumers without `skills_pins:` (e.g. livekit) don't drift
+    # to a stale `inherits_from:` value. The helper is a no-op when AGENTS.md
+    # is missing or already at-target. Both `inherits_from:` items (with the
+    # `github.com/` prefix) and `skills_sources:` items (without) match.
+    agents_md_changed, agents_md_detail = bump_agents_md_pin(
+        root / "AGENTS.md", PLAYBOOK_REPO_NAME, tag
+    )
+
+    if current_parent_sha == target_sha and not agents_md_changed:
         return PropagationResult(name, "up-to-date", f"already at {tag}")
 
     # Stage + commit.
@@ -215,7 +236,10 @@ def _propagate_one(
         cwd=root,
     )
     _run(["git", "checkout", "-b", head_branch], cwd=root)
-    _run(["git", "add", submodule_path], cwd=root)
+    if current_parent_sha != target_sha:
+        _run(["git", "add", submodule_path], cwd=root)
+    if agents_md_changed:
+        _run(["git", "add", "AGENTS.md"], cwd=root)
     commit_msg = commit_message(tag)
     _run(["git", "commit", "-m", commit_msg], cwd=root)
 
@@ -273,6 +297,7 @@ def _propagate_one(
                 root,
                 SUPERSEDE_PREFIX,
                 new_pr_number,
+                new_branch=head_branch,
                 new_pr_url=pr_url,
             )
             if closed:

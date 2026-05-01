@@ -2,6 +2,29 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.9.1] — 2026-05-01 — close v0.9.0 followups (#1 #2 #3)
+
+Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0 stable release. Each was a real production gap surfaced during the iguanatrader cascade dogfood. Now all three are fixed + covered by tests.
+
+### Fixed
+
+- **Followup #1 — `propagate_bump.py` now bumps `AGENTS.md inherits_from` for every consumer.** Previously only `propagate_skills_bump.py` rewrote frontmatter pins, and only for consumers with `skills_pins:` declared in `consumers.yaml`. livekit (no skills tracking) ended every cascade with stale `inherits_from:` and required a manual fix-PR each time. The `_edit_frontmatter_skills_source` helper has been moved to `scripts/_bumper.py::bump_agents_md_pin` and is now called by BOTH propagation scripts. The same regex matches `inherits_from:` items (with the `github.com/` prefix) and `skills_sources:` items (without) in one pass.
+- **Followup #2 — `_bumper.supersede_open_bump_prs()` is now semver-aware.** Previously it used "newer-PR-by-creation-time wins" — when multiple tags pushed close together (rc1 + rc2 cycle 2026-05-01), workflow scheduling determined order, not semver, and v0.8.7's PRs closed the newer v0.9.0-rc2 PRs (recovery required deleting + re-pushing the rc2 tag). The function now parses the head-branch's version (`chore/bump-(playbook|skills-*)-vX.Y.Z[-rc.N]`), compares via tuple key (stable releases sort above their rcs of the same series; older series sort below newer), and only closes an open PR whose parsed version is `<=` the new bump's. Backward-compatible: callers that omit the new `new_branch` argument fall back to chronological mode + log a warning.
+- **Followup #3 — `block_manual_spec_edit.py::read_commit_message()` now handles CI mode.** Previously it only read `$PRE_COMMIT_COMMIT_MSG_FILE` (commit-msg stage) and `.git/COMMIT_EDITMSG` (fallback) — but in CI's `pre-commit run --from-ref/--to-ref` mode neither is set, so every archive PR saw "commit message unavailable" and required `--admin` merge to bypass (iguanatrader PR #57 was the surfacing case). The function now ALSO runs `git log --format=%B%x00 $FROM..$TO` and concatenates every commit message in the range, so the `openspec-archive:` marker is detected if it appears in ANY commit on the branch.
+
+### Added (operational guard)
+
+- **`runbooks/release.md` Step 3** — pre-tag chronology check codified. Before tagging, verify the previous tag's `propagate-playbook-bump` workflow is `completed success` AND that `git log <prev-tag>..HEAD` is non-empty. The semver-aware supersede in `_bumper.py` is the code-side defence; this runbook step is the operational guard so devs don't rely on script correctness when tagging close together.
+
+### Tests
+
+- **`tests/test_bumper.py`** (new): 16 tests covering `bump_agents_md_pin` (rewrites both blocks; idempotent at-target; comments + indentation preserved; missing file / no-frontmatter detection) AND semver-aware supersede (out-of-order tag push doesn't close newer; v0.9.0 stable closes all prior rcs/series; backward-compat fallback when `new_branch` missing; unparseable open branches skipped) AND `_parse_branch_version` (rc < stable; rc number ordering; series ordering across major/minor/patch).
+- **`tests/test_block_manual_spec_edit.py`** (extended): 4 new tests covering CI mode (`PRE_COMMIT_FROM_REF/TO_REF` env vars are read; marker detected in any commit of the range; local stage takes precedence; legacy `.git/COMMIT_EDITMSG` fallback still works).
+
+### Migration
+
+- No consumer migration required. The `bump_agents_md_pin` helper is invoked from `propagate_bump.py` automatically on every future tag push; previously-stale `inherits_from:` lines will self-heal on the next bump.
+
 ## [0.9.0] — 2026-05-01 — CodeRabbit fallback STABLE — slice 3 dogfood validated end-to-end
 
 Promotes v0.9.0-rc1 (CodeRabbit fallback 3-layer defense) → stable after the validation milestone (`specs/v0.9.0-roadmap.md`) completed successfully on iguanatrader slice 3 (`persistence-tenant-enforcement`).
