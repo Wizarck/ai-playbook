@@ -2,9 +2,32 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [0.8.8] — 2026-05-01 — propagate-skills-bump ships submodule advance + skills mirror in one PR
+## [0.9.0-rc1] — 2026-05-01 — CodeRabbit fallback (3-layer defense)
 
-> Note: lands after #23 (v0.8.7). When this PR rebases on main post-merge, the v0.8.7 entry will be re-inserted above v0.8.6 by the merge.
+Codifies the manual Profile-B fallback the worker AI applies when CodeRabbit is rate-limited or silent. Turns it into a 3-layer defense (L0 mechanical / L1 in-session AI / L2 GH Action safety net) with L1 ↔ L2 coordination via PR-body §4.5 regex check. See [`specs/v0.9.0-roadmap.md`](specs/v0.9.0-roadmap.md) for the design rationale (incl. 4 alternatives considered + tradeoff analysis).
+
+### Added
+
+- **L1 — `scripts/check_coderabbit_status.py`** (~80 LOC): polls `gh pr view --comments` for CodeRabbit; classifies into `available` / `rate-limited` / `silent` / `error`. Returns JSON on stdout + exit codes (0/1/2/3). Pure stdlib + `gh` CLI; no API token.
+- **L1 — [`runbooks/coderabbit-fallback.md`](runbooks/coderabbit-fallback.md)**: structured guide for the worker AI when L1 fires. 7-category diff inspection (type / async / errors / security / edge cases / public API / spec compliance) + canonical §4.5 schema + 5 anti-patterns + reference run (iguanatrader PR #41).
+- **L2 — `scripts/post_self_review_checklist.py`** (~280 LOC): reads PR diff + body; if §4.5 is populated (3 markers + non-stub), exits silently and marks status check ✅; if empty/stubbed, posts a structured fallback checklist as a PR comment + marks status check ❌. Markdown bold (`**Profile**:`) is normalised to plain (`Profile:`) before matching.
+- **L2 — `templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: GH Action (`pull_request: [opened, synchronize]`). Sleeps 5 min, runs detection + checklist scripts. Skips dependabot/renovate/github-actions PRs. `secrets.GITHUB_TOKEN` only — no PAT.
+- **`scripts/bootstrap_gh_project.py`**: `apply_profile()` now copies the new workflow under both Profile A and Profile B (the L2 status check is informational unless added to required-checks manually). Helper: `write_coderabbit_fallback_workflow()`. Idempotent; "delete to refresh" semantics.
+- **Tests**: 46 new tests (20 for `check_coderabbit_status` + 26 for `post_self_review_checklist`) covering happy paths, error paths, edge cases. All green.
+
+### Changed
+
+- **`specs/release-management.md`**: 3 new subsections under §4.5 — §4.5.1 (L1 worker-AI in-session check, MUST after every PR push), §4.5.2 (L2 CI safety net + ai-self-review-required status check semantics), §4.5.3 (PR-body schema regex contract: 3 mandatory markers + STUB_INDICATORS exclusion list). All additive — existing §4.5 unchanged.
+- **`runbooks/release.md`** Step 7: replaces generic "wait for CodeRabbit" with explicit `check_coderabbit_status.py --pr ... --wait 300` invocation + Profile B fallback path; clarifies how L1 ↔ L2 interact on bump PRs. Step 8 mentions that bootstrap re-run now propagates the L2 workflow.
+- **`runbooks/onboard-new-project.md`** Step 11: adds `coderabbit-fallback.yml` to the manual `cp` list with note that `bootstrap_gh_project.py` copies it automatically (v0.9.0+).
+
+### Notes
+
+- **Status check `ai-self-review-required` is opt-in** by default — informational, not in required-checks. Profile A consumers add it manually if they want strict enforcement (avoids breaking in-flight PRs at v0.9.0 rollout).
+- **Validation plan**: validate L1 + L2 on `iguanatrader` slice 3 (`persistence-tenant-enforcement`) before tagging stable. If both layers behave clean → tag `v0.9.0` stable → cascade to all 5 consumers.
+- **Trade-offs documented in roadmap**: L1 blocks the AI session for ~5 min per PR (acceptable; evolve to background-poll if annoying); L2 generates a redundant comment if L1 was slow (mitigated by body-check just-before-post; small race window); 4 alternatives rejected (Ollama, only-L1, only-L2, GH Merge Queue).
+
+## [0.8.8] — 2026-05-01 — propagate-skills-bump ships submodule advance + skills mirror in one PR
 
 Surfaced 2026-05-01 in openTrattOS: `AGENTS.md` frontmatter said `Wizarck/ai-playbook@v0.8.6` but `.skills-sources/ai-playbook` submodule pointer was still at v0.7.1 (`8d5f68c`), and `skills/` tracked mirror was stale relative to the new tag's contents. Every consumer would have needed a manual `bootstrap.py --refresh-skills` after merging the bump PR — silent half-propagation.
 
