@@ -61,10 +61,22 @@ for _stream in (sys.stdout, sys.stderr):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Reuse the supersede helper. Per release-management.md §3.4, every new
+# `chore/bump-*` PR auto-closes prior open PRs on the same logical change-
+# stream. Identified by branch prefix (each source-repo has its own).
+from scripts._bumper import supersede_open_bump_prs  # noqa: E402
 
 SUPPORTED_SOURCES = ("ai-playbook", "eligia-skills")
 BUMP_BRANCH_TEMPLATE = "chore/bump-skills-{source}-{tag}"
 COMMIT_TEMPLATE = "chore(skills): bump {source} to {tag}"
+
+
+def supersede_prefix(source_repo: str) -> str:
+    """Branch prefix for the per-source supersede stream.
+
+    Example: source_repo="ai-playbook" -> "chore/bump-skills-ai-playbook-".
+    """
+    return f"chore/bump-skills-{source_repo}-"
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +366,30 @@ def _propagate_one(
             return PropagationResult(
                 name, "error", f"gh pr create failed: {(r.stderr or '').strip()[:200]}",
             )
+
+        # Supersede prior open `chore/bump-skills-<source>-*` PRs in this
+        # consumer (per release-management.md §3.4). Per-source prefix so
+        # ai-playbook bumps don't accidentally close eligia-skills bumps.
+        new_pr_number: int | None = None
+        if pr_url:
+            try:
+                new_pr_number = int(pr_url.rsplit("/", 1)[-1])
+            except ValueError:
+                new_pr_number = None
+        try:
+            closed = supersede_open_bump_prs(
+                root,
+                supersede_prefix(source_repo),
+                new_pr_number,
+                new_pr_url=pr_url,
+            )
+            if closed:
+                print(
+                    f"  superseded {len(closed)} prior open PR(s): {', '.join(closed)}",
+                    file=sys.stderr,
+                )
+        except Exception as exc:  # noqa: BLE001 — supersede is best-effort
+            print(f"[propagate_skills_bump] supersede failed for {name}: {exc}", file=sys.stderr)
 
     return PropagationResult(
         name, "pr-opened", f"{source_repo} → {tag}", pr_url,

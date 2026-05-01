@@ -1,6 +1,7 @@
 """Pre-commit hook: block manual edits to `openspec/specs/*.md`.
 
-Populated in T09. Supersedes the T11 stub.
+Populated in T09. Supersedes the T11 stub. Updated in v0.8.0 to detect
+file-modification (vs file-existence) — see "Bug history" below.
 
 The OpenSpec workflow mandates that `openspec/specs/*.md` is updated only via
 `openspec archive` of an approved change. Direct edits create drift between
@@ -12,16 +13,31 @@ CLI
 
 Behaviour
 ---------
-- For each `<changed-file>`: if the path matches `openspec/specs/**/*.md`,
+- For each `<changed-file>`: if the path matches `openspec/specs/**/*.md`
+  AND was actually modified by the staged change (per `git diff --cached`
+  or `git diff HEAD~1 HEAD`, depending on context — see _modified_files),
   the commit is BLOCKED unless the staged commit message contains the
   marker `openspec-archive:`.
 - The commit message is resolved in this order:
     1. `$PRE_COMMIT_COMMIT_MSG_FILE` env var (set by pre-commit's
        `commit-msg` stage).
-    2. `<repo-root>/.git/COMMIT_EDITMSG` (fallback for `pre-commit` stage).
+    2. `$PRE_COMMIT_TO_REF` and `$PRE_COMMIT_FROM_REF` env vars (set by
+       pre-commit's `--from-ref/--to-ref` mode, e.g. CI on PRs).
+    3. `<repo-root>/.git/COMMIT_EDITMSG` (fallback for `pre-commit` stage).
 - If neither exists AND a protected file was staged, the commit is blocked.
 - Files outside `openspec/specs/*.md` are ignored (exit 0).
 - `--force-with-reason="<text>"`: allowed; logs override and exits 0.
+
+Bug history
+-----------
+- v0.8.0-rc6 and earlier: the script considered a file "edited" if its
+  PATH matched `openspec/specs/*.md`, regardless of whether the staged
+  change actually modified it. Combined with `pre-commit run --all-files`
+  in CI, this re-flagged every existing spec file on every PR — even when
+  the PR didn't touch openspec/specs/ at all. PRs failed for `commit
+  message unavailable` (HEAD has no archive marker because HEAD isn't an
+  archive commit; the SPEC files came from an earlier merge). Fixed in
+  v0.8.0 by intersecting the input list with the actual diff.
 
 Exit codes
 ----------
@@ -102,6 +118,63 @@ def find_repo_root(start: Path) -> Path:
     return start
 
 
+def _modified_files(repo_root: Path) -> set[str] | None:
+    """Return the set of files actually modified in the staged change, or None
+    if we cannot determine (e.g. no git history / no staged changes).
+
+    Resolution order, matching pre-commit's invocation modes:
+
+    1. ``$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF`` (set in `--from-ref/--to-ref`
+       mode, e.g. CI on PRs running `pre-commit run --from-ref origin/main
+       --to-ref HEAD`). The diff between those refs is the "real" PR diff.
+    2. ``git diff --cached`` (staged changes; default for `pre-commit run`
+       at commit time).
+    3. ``git diff HEAD~1 HEAD`` (fallback for push-event CI without --from-ref).
+
+    Returns paths relative to repo root. Pre-commit passes file arguments
+    using forward slashes, so we normalize to forward slashes.
+    """
+    import subprocess
+
+    def _run_diff(args: list[str]) -> set[str] | None:
+        try:
+            result = subprocess.run(
+                args,
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except FileNotFoundError:
+            return None
+        if result.returncode != 0:
+            return None
+        files = {ln.strip() for ln in result.stdout.splitlines() if ln.strip()}
+        return files or None
+
+    from_ref = os.environ.get("PRE_COMMIT_FROM_REF")
+    to_ref = os.environ.get("PRE_COMMIT_TO_REF")
+    if from_ref and to_ref:
+        files = _run_diff(
+            ["git", "diff", "--name-only", f"{from_ref}..{to_ref}"]
+        )
+        if files is not None:
+            return files
+
+    # Staged-mode (commit time): git diff --cached.
+    files = _run_diff(["git", "diff", "--cached", "--name-only"])
+    if files is not None:
+        return files
+
+    # Push-event CI fallback.
+    files = _run_diff(["git", "diff", "--name-only", "HEAD~1", "HEAD"])
+    if files is not None:
+        return files
+
+    return None  # Cannot determine — caller decides whether to fail open or closed.
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="block_manual_spec_edit",
@@ -120,9 +193,31 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = find_repo_root(Path.cwd())
 
-    protected = [f for f in args.files if is_protected_path(f)]
-    if not protected:
+    candidates = [f for f in args.files if is_protected_path(f)]
+    if not candidates:
         return 0
+
+    # Filter candidates to those ACTUALLY modified by the staged change.
+    # Pre-commit may pass us files at protected paths that exist on the
+    # current branch but were NOT touched by this commit (most common when
+    # CI runs `pre-commit run --all-files` and the spec files were added
+    # by a previous archive commit on main). The bug we fix here:
+    # pre-v0.8.0 the script blocked every PR that touched ANY file as
+    # long as `openspec/specs/*.md` existed, because it conflated
+    # "file at protected path exists" with "file modified by this PR".
+    modified = _modified_files(repo_root)
+    if modified is not None:
+        # Normalize: pre-commit passes argv with forward slashes; git diff
+        # --name-only also uses forward slashes. So direct membership.
+        protected = [f for f in candidates if f.replace("\\", "/") in modified]
+        if not protected:
+            # All candidate files are at protected paths but not in the
+            # diff — nothing to enforce on, exit 0.
+            return 0
+    else:
+        # Could not determine the diff — fall back to old (conservative)
+        # behaviour: treat every input file as modified.
+        protected = candidates
 
     commit_msg = read_commit_message(repo_root)
     if commit_msg and ARCHIVE_MARKER in commit_msg:

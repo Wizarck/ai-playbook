@@ -50,7 +50,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Shared with bump_consumers.py — keeps the "what tag, what branch, what message"
 # vocabulary in one place. See scripts/_bumper.py.
-from scripts._bumper import bump_branch, commit_message  # noqa: E402
+from scripts._bumper import bump_branch, commit_message, supersede_open_bump_prs  # noqa: E402
+
+# Branch prefix for the playbook-bump stream. Must match
+# `_bumper.BUMP_BRANCH_TEMPLATE` (currently `chore/bump-playbook-{tag}`).
+SUPERSEDE_PREFIX = "chore/bump-playbook-"
 
 
 @dataclass
@@ -252,6 +256,32 @@ def _propagate_one(
             return PropagationResult(
                 name, "error", f"gh pr create failed: {(r.stderr or '').strip()[:200]}"
             )
+
+        # Supersede any prior open `chore/bump-playbook-*` PRs in this
+        # consumer (per release-management.md §3.4). Best-effort: any
+        # individual close failure is silently swallowed and the new PR
+        # still wins. Extracted to _bumper.supersede_open_bump_prs so
+        # propagate_skills_bump.py can share the logic.
+        new_pr_number: int | None = None
+        if pr_url:
+            try:
+                new_pr_number = int(pr_url.rsplit("/", 1)[-1])
+            except ValueError:
+                new_pr_number = None
+        try:
+            closed = supersede_open_bump_prs(
+                root,
+                SUPERSEDE_PREFIX,
+                new_pr_number,
+                new_pr_url=pr_url,
+            )
+            if closed:
+                print(
+                    f"  superseded {len(closed)} prior open PR(s): {', '.join(closed)}",
+                    file=sys.stderr,
+                )
+        except Exception as exc:  # noqa: BLE001 — supersede is best-effort
+            print(f"[propagate_bump] supersede failed for {name}: {exc}", file=sys.stderr)
 
     return PropagationResult(
         name, "pr-opened", f"{current_parent_sha[:8]} → {target_sha[:8]} ({tag})", pr_url
