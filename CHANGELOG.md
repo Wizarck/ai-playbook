@@ -2,6 +2,41 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.4] — 2026-05-01 — Runbooks updated for v0.8.x release-management
+
+Documentation patch — no functional changes. Brings the runbooks
+constellation in lockstep with the v0.8.0–v0.8.3 functional changes
+(Profile A/B, AI-reviewer feedback loop, supersede, /opsx:apply
+companion, date refresh, auto-transition + dep-check scripts).
+
+### Updated
+
+- **`runbooks/release.md` v1.1.0**: adds rc-first mode for breaking
+  releases; adds Step 7 "AI-reviewer signoff per consumer" and Step 8
+  "post-merge bootstrap re-run with `--profile auto`"; adds Quick-
+  reference flow diagram for the post-v0.8.x release sequence;
+  documents supersede behavior in Step 6.
+
+- **`runbooks/onboard-new-project.md` v1.1.0**: adds Profile A/B
+  decision matrix as a "decisión previa"; adds Step 7 "Bootstrap GH
+  Project + Profile A/B enforcement"; adds Step 8 "Install CodeRabbit
+  GH App" (Profile A only); adds Step 9 "Configure consumer-d_GOD_MODE
+  secret" for private-submodule CI; adds Step 11 "Copy auto-transition
+  + dep-check workflow templates"; refreshes cross-references with new
+  scripts + templates.
+
+- **`runbooks/propagate-bump-troubleshooting.md` v1.1.0**: adds
+  "Expected behaviors (v0.8.0+)" section explaining supersede +
+  date refresh as features (not bugs); adds Pattern F "supersede
+  helper failure" with manual-cleanup fix; adds Pattern G "pre-v0.8.3
+  stale updated: date" as historical context (fixed in v0.8.3).
+  Updates diagnosis flow to include the new patterns.
+
+### Migration
+
+Bump submodule v0.8.3 → v0.8.4 to pull the runbook updates locally.
+No code change required.
+
 ## [0.8.3] — 2026-05-01 — /opsx:apply companion + skills-bump date refresh
 
 Closes the last two pending follow-ups from the v0.8.0 release-management

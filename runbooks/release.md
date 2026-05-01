@@ -1,7 +1,7 @@
 # runbook: release.md — cut a new ai-playbook version
 
 > **Audience**: the AI (Claude / future session) or a human maintainer.
-> **Status**: v1.0.0. Executed every time the playbook tags a new semver.
+> **Status**: v1.1.0 (updated 2026-05-01 for v0.8.x — adds rc-first mode for breaking releases, AI-reviewer signoff per consumer, post-merge bootstrap re-run).
 > **Prereqs**: write access to `Wizarck/ai-playbook`; a PAT with
 > `contents:write` + `pull-requests:write` on every consumer in
 > [`consumers.yaml`](../consumers.yaml) (set as the
@@ -27,6 +27,26 @@ verify nothing downstream broke.
 | Docs, typo fixes, stub closures | patch (`0.2.0 → 0.2.1`) |
 | New scripts/specs additive; no breaking schema | minor (`0.2.0 → 0.3.0`) |
 | Breaking schema (AGENTS.md frontmatter), removed script, renamed env var, changed verdict rubric | major (`0.x → 1.0.0`) — requires RFC first per [specs/rollout-strategy.md](../specs/rollout-strategy.md) |
+
+### Rc-first mode (recommended for substantial releases)
+
+When a release touches multiple specs / scripts / templates (e.g. v0.8.0
+shipped Profile A/B + Branch+SHA + supersede + spec-edit fix in one go),
+use the rc → stable sequence:
+
+1. Tag `vX.Y.Z-rc1` first → propagate fires → consumer bump PRs land.
+2. Validate against ONE consumer (typically consumer-e): merge bumps,
+   run `bootstrap_gh_project.py --profile auto`, exercise the change.
+3. If issues found: fix → tag `rc2`. Each rc cleanly supersedes the
+   previous (per [release-management.md §3.4](../specs/release-management.md));
+   stale rc PRs in consumers auto-close.
+4. When stable: tag `vX.Y.Z` (no suffix). Same propagate cycle, last set
+   of supersedes closes any remaining rc PRs.
+
+Rationale: each rc validates 1 consumer; stable cascades to all 5 once
+clean. Avoids the rc1→rc6 dogfooding pile-up that motivated supersede in
+the first place — but ALSO catches surprises on a single consumer before
+hitting them on 5.
 
 ## Steps
 
@@ -92,24 +112,72 @@ The run fires automatically on `push: tags: v*.*.*`. Expected outcome:
 ### 6. Verify PRs on each consumer
 
 ```bash
-for repo in Wizarck/consumer-c-legacy Wizarck/consumer-d; do
+for repo in Wizarck/consumer-c-legacy Wizarck/consumer-d Wizarck/consumer-e Wizarck/consumer-b Wizarck/livekit; do
   echo "=== $repo ==="
   gh pr list --repo "$repo" --state open --head "chore/bump-playbook-vX.Y.Z" \
     --json url,title --jq '.[] | "\(.title) → \(.url)"'
 done
 ```
 
-Each consumer should have exactly one `chore(playbook): bump .ai-playbook to vX.Y.Z` PR. If a consumer is missing:
+Each consumer should have exactly one `chore(playbook): bump .ai-playbook to vX.Y.Z` PR (and one `chore/bump-skills-ai-playbook-vX.Y.Z` for consumers with `skills_sources` referencing the playbook). If a consumer is missing:
 - Check its status in [`consumers.yaml`](../consumers.yaml) (paused?).
 - Check whether it has a `.ai-playbook/` submodule at all (script skips consumers without one).
-- Re-dispatch: `gh workflow run propagate-playbook-bump --repo Wizarck/ai-playbook --ref main` (does not re-trigger because Action key is `push: tags`; instead delete+re-push the tag, see troubleshooting).
+- Re-dispatch: delete + re-push the tag (see [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md)).
 
-### 7. Notify maintainers
+**v0.8.0+ supersede behavior**: if any consumer had open `chore/bump-playbook-v*` PRs from prior releases, they auto-close with comment "Auto-closed: superseded by #N". Verify by listing `--state closed --limit 8 --search "head:chore/bump-playbook"` per consumer.
+
+### 7. AI-reviewer signoff + per-consumer merge (per release-management.md §4.5)
+
+For each consumer's bump PR, BEFORE merging:
+
+1. Wait for CodeRabbit (Profile A) or run self-review (Profile B) per [release-management.md §4.5](../specs/release-management.md). Bump PRs are mechanical (submodule SHA + AGENTS.md version+date) so signoff is usually trivial — but populate the "AI-reviewer signoff" subsection in the PR body anyway. Audit trail matters more than depth on bumps.
+2. If CodeRabbit hits the rate-limit (29min wait observed during multi-bump series), document the rate-limit + apply Profile B fallback (self-review). Per §4.5, the rate-limit is NOT exoneration — the audit trail must record what happened.
+3. Squash-merge.
+
+### 8. Post-merge: re-run consumer bootstrap (idempotent)
+
+Once the bump PR merges, optionally re-run [`bootstrap_gh_project.py`](../scripts/bootstrap_gh_project.py) on the consumer to pick up new release-management features:
+
+```bash
+cd <consumer-checkout> && git pull && git submodule update --init --recursive .ai-playbook
+python -m scripts.bootstrap_gh_project \
+    --owner Wizarck --project-number <N> --repo Wizarck/<repo> \
+    --profile auto
+```
+
+Idempotent: only applies what's missing. The script:
+- Adds new Status options / custom fields / trace fields if absent.
+- Re-applies repo settings (auto-merge on, squash-only, delete-branch-on-merge).
+- For Profile A: applies branch protection (UNION semantics — preserves existing project-specific required checks per [release-management.md §gotcha #12 fix in v0.8.1](../specs/release-management.md#41-mandatory-ci-for-slice-branch-prs)).
+- For Profile B: emits notice that branch protection unavailable on GH Free private; skips.
+
+### 9. Notify maintainers
 
 The Action auto-emits `warn` notifications per PR via
 [`scripts/notify.py`](../scripts/notify.py) (JSONL + SMTP fan-out).
 Dashboard bell at `https://consumer-d-dashboard.consumer-bfood.com/api/notifications`
 surfaces them. No manual step needed.
+
+## Quick reference: post-v0.8.x release flow
+
+For a release that touches multiple specs/scripts:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 1. Bump VERSION + CHANGELOG + commit + push to main         │
+│ 2. Tag vX.Y.Z-rc1 → push tag                                 │
+│    → propagate-{playbook,skills}-bump.yml fires              │
+│    → bump PRs land in 5 consumers                            │
+│    → supersede closes any prior open bump PRs                │
+│ 3. Validate against ONE consumer (consumer-e by default)  │
+│    → §4.5 AI-reviewer signoff → merge bumps                  │
+│    → re-run bootstrap_gh_project.py --profile auto           │
+│    → exercise the new feature                                │
+│ 4. If issues: fix → tag rc2 → loop step 2                    │
+│ 5. When clean: tag vX.Y.Z (stable) → cascade to all 5        │
+│    → §4.5 + post-merge bootstrap per consumer                │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ## Rollback
 
