@@ -65,6 +65,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # `chore/bump-*` PR auto-closes prior open PRs on the same logical change-
 # stream. Identified by branch prefix (each source-repo has its own).
 from scripts._bumper import supersede_open_bump_prs  # noqa: E402
+from scripts._skills_materialiser import materialise_skills  # noqa: E402
 
 SUPPORTED_SOURCES = ("ai-playbook", "consumer-d-skills")
 BUMP_BRANCH_TEMPLATE = "chore/bump-skills-{source}-{tag}"
@@ -343,7 +344,31 @@ def _propagate_one(
             name, "skipped", f"AGENTS.md edit unsupported: {detail}",
         )
 
-    # Stage + commit.
+    # Advance submodule + tracked skills/ mirror to match the new tag.
+    #
+    # Without this, AGENTS.md frontmatter says the new tag but the
+    # `.skills-sources/<source>/` submodule pointer + tracked `skills/`
+    # mirror stay at the old tag. The propagation is half-baked: every
+    # consumer would need a manual `bootstrap.py --refresh-skills` after
+    # merging the bump PR. Surfaced 2026-05-01 in consumer-c-legacy — AGENTS.md
+    # said `Wizarck/ai-playbook@v0.8.6` but `.skills-sources/ai-playbook`
+    # was still pinned to v0.7.1. Fix: run the materialiser now so the bot
+    # ships the fully-propagated state in one PR.
+    mat_result = materialise_skills(root, dry_run=False)
+    if mat_result.errors:
+        return PropagationResult(
+            name,
+            "error",
+            f"skills materialiser failed: {'; '.join(mat_result.errors)[:200]}",
+        )
+
+    # Stage + commit. Includes:
+    #   - AGENTS.md (frontmatter skills_sources tag bump)
+    #   - .gitmodules (only if a brand-new submodule was added)
+    #   - .skills-sources/<source>/ (submodule pointer advance)
+    #   - skills/ (tracked materialised mirror diffs from upstream tag)
+    # The .claude/skills/ + .gemini/skills/ mirrors are gitignored and
+    # regenerate on the consumer's machine via SessionStart hooks.
     _run(["git", "config", "user.name", "ai-playbook-bot"], cwd=root)
     _run(
         ["git", "config", "user.email", "23051550+Wizarck@users.noreply.github.com"],
@@ -351,6 +376,12 @@ def _propagate_one(
     )
     _run(["git", "checkout", "-b", head_branch], cwd=root)
     _run(["git", "add", "AGENTS.md"], cwd=root)
+    # `.gitmodules` may not exist (first-ever bump on a fresh consumer);
+    # `.skills-sources` and `skills` may have no diff if the upstream tag
+    # didn't change those paths. `check=False` covers all of these.
+    _run(["git", "add", ".gitmodules"], cwd=root, check=False)
+    _run(["git", "add", ".skills-sources"], cwd=root, check=False)
+    _run(["git", "add", "skills"], cwd=root, check=False)
     msg = commit_message(source_repo, tag)
     _run(["git", "commit", "-m", msg], cwd=root)
 
@@ -359,12 +390,16 @@ def _propagate_one(
     pr_url = None
     if open_pr:
         body = (
-            f"Automated bump of `skills_sources` entry **{source_repo}** to "
-            f"**{tag}** in `AGENTS.md` frontmatter.\n\n"
+            f"Automated bump of `{source_repo}` skills source to **{tag}**.\n\n"
             f"Opened by `scripts/propagate_skills_bump.py` on tag push of "
-            f"`{source_repo}` per RFC-0001.\n\n"
-            f"Run `python .ai-playbook/scripts/bootstrap.py --refresh-skills` "
-            f"after merge to regenerate the per-LLM mirrors.\n\n"
+            f"`{source_repo}` per RFC-0001. This commit ships the fully-"
+            f"propagated state in one go:\n\n"
+            f"- `AGENTS.md` frontmatter `skills_sources` entry updated to `{tag}`\n"
+            f"- `.skills-sources/{source_repo}/` submodule pointer advanced to `{tag}`\n"
+            f"- `skills/` tracked mirror regenerated from the new tag's contents\n\n"
+            f"The per-LLM mirrors at `.claude/skills/` and `.gemini/skills/` "
+            f"are gitignored and regenerate locally on each consumer machine "
+            f"via the SessionStart hook — no post-merge action required.\n\n"
             f"See [{source_repo} CHANGELOG.md]"
             f"(https://github.com/Wizarck/{source_repo}/blob/{tag}/CHANGELOG.md) "
             f"for what this tag includes."

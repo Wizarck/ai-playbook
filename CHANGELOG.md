@@ -2,6 +2,30 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.8] — 2026-05-01 — propagate-skills-bump ships submodule advance + skills mirror in one PR
+
+> Note: lands after #23 (v0.8.7). When this PR rebases on main post-merge, the v0.8.7 entry will be re-inserted above v0.8.6 by the merge.
+
+Surfaced 2026-05-01 in consumer-c-legacy: `AGENTS.md` frontmatter said `Wizarck/ai-playbook@v0.8.6` but `.skills-sources/ai-playbook` submodule pointer was still at v0.7.1 (`8d5f68c`), and `skills/` tracked mirror was stale relative to the new tag's contents. Every consumer would have needed a manual `bootstrap.py --refresh-skills` after merging the bump PR — silent half-propagation.
+
+### Fixed
+
+- **`scripts/propagate_skills_bump.py::_propagate_one()`** — after editing `AGENTS.md` frontmatter (the existing v0.8.x behaviour), the script now also runs `materialise_skills()` from `_skills_materialiser.py` to:
+  1. Advance the `.skills-sources/<source>/` submodule pointer to the new tag's SHA.
+  2. Regenerate the tracked `skills/` mirror with the new tag's contents.
+  3. Regenerate the `.claude/skills/` and `.gemini/skills/` mirrors locally (gitignored — not committed; consumer machines regenerate them on the SessionStart hook).
+
+  The bump commit now stages `AGENTS.md` + `.gitmodules` (when first-ever submodule add) + `.skills-sources/<source>/` + `skills/`. Single PR ships fully-propagated state. Consumers no longer need `bootstrap.py --refresh-skills` after merge.
+
+  PR description updated to reflect the new contract: lists the three concrete artefacts the commit ships (frontmatter, submodule pointer, tracked skills mirror) and the gitignored mirrors that regenerate on SessionStart.
+
+### Migration
+
+Bump submodule (previous → v0.8.8). Verified end-to-end against consumer-c-legacy:
+- Pre-fix state: AGENTS.md@v0.8.6 + submodule@v0.7.1 (drift).
+- `materialise_skills(consumer-c-legacy-m1)` → 123 skills materialised from 2 sources, 2 mirrors regenerated, submodule advanced 8d5f68c → cd31441 (v0.8.6), no errors.
+- Post-fix state: AGENTS.md@v0.8.6 + submodule@v0.8.6 + skills/* tracked mirror regenerated.
+
 ## [0.8.6] — 2026-05-01 — DESIGN.md format spec + Google design.md tier 1 adoption
 
 Extends `specs/ux-track.md` con tier 1 adoptions de [google-labs-code/design.md](https://github.com/google-labs-code/design.md) (Apache-2.0, alpha, 10.5k stars). DESIGN.md becomes hybrid format: machine-readable YAML frontmatter tokens + human-readable markdown rationale.
