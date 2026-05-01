@@ -44,12 +44,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC
 from pathlib import Path
 
 import yaml
@@ -65,7 +63,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Reuse the supersede helper. Per release-management.md §3.4, every new
 # `chore/bump-*` PR auto-closes prior open PRs on the same logical change-
 # stream. Identified by branch prefix (each source-repo has its own).
-from scripts._bumper import supersede_open_bump_prs  # noqa: E402
+from scripts._bumper import bump_agents_md_pin, supersede_open_bump_prs  # noqa: E402
 from scripts._skills_materialiser import materialise_skills  # noqa: E402
 
 SUPPORTED_SOURCES = ("ai-playbook", "consumer-d-skills")
@@ -184,98 +182,12 @@ def _clone_consumer(name: str, repo: str, workdir: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# AGENTS.md frontmatter editor
+# AGENTS.md frontmatter editor — moved to scripts/_bumper.bump_agents_md_pin
+# in v0.9.1 (followup #1) so propagate_bump.py can also rewrite frontmatter
+# pins (previously only this script did, which skipped consumers without
+# `skills_pins:` and left their `inherits_from:` stale — e.g. livekit at
+# v0.9.0-rc2 after the v0.9.0 cascade).
 # ---------------------------------------------------------------------------
-
-
-_AT_REF_RE = re.compile(
-    r"(?P<prefix>(?:github\.com/)?[A-Za-z0-9._-]+/)(?P<repo>[A-Za-z0-9._-]+)@(?P<tag>[A-Za-z0-9._+-]+)"
-)
-
-
-def _edit_frontmatter_skills_source(
-    agents_md: Path,
-    source_repo: str,
-    new_tag: str,
-) -> tuple[bool, str]:
-    """Rewrite the `skills_sources` line whose ref matches `source_repo`.
-
-    Returns `(changed, detail)`. `changed=False, detail="up-to-date"` when the
-    pin already matches `new_tag`. `changed=False, detail="not-found"` when the
-    file has no entry for that source repo.
-
-    Surgical line-level edit (not a full YAML re-serialise) so we preserve
-    comments, ordering, and quoting style in AGENTS.md. The file is small
-    enough that a regex line-walk is reliable.
-    """
-    if not agents_md.is_file():
-        return False, "agents-md-missing"
-    text = agents_md.read_text(encoding="utf-8")
-    lines = text.split("\n")
-    if not lines or lines[0].strip() != "---":
-        return False, "no-frontmatter"
-    end = None
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            end = i
-            break
-    if end is None:
-        return False, "no-frontmatter"
-
-    changed = False
-    already_at_target = False
-    updated_line_idx: int | None = None
-    for i in range(1, end):
-        ln = lines[i]
-        # Track `updated:` line index so we can refresh it when bumping.
-        # Per gotcha (consumer-e/docs/gotchas.md, surfaced 2026-05-01):
-        # propagate_skills_bump previously rewrote skills_sources but not
-        # `updated:`, leaving AGENTS.md frontmatter with stale dates after
-        # automated bumps. Now we refresh in lockstep.
-        if re.match(r"^\s*updated\s*:", ln) and updated_line_idx is None:
-            updated_line_idx = i
-            continue
-        # Match a YAML list item like "  - Wizarck/ai-playbook@v0.3.0"
-        # (also tolerates "github.com/" prefix).
-        m = re.match(
-            r"(?P<indent>\s*-\s*)(?P<ref>(?:github\.com/)?(?P<owner>[A-Za-z0-9._-]+)/"
-            r"(?P<repo>[A-Za-z0-9._-]+)@(?P<tag>[A-Za-z0-9._+-]+))(?P<rest>\s*(?:#.*)?)?$",
-            ln,
-        )
-        if not m:
-            continue
-        if m.group("repo") != source_repo:
-            continue
-        current_tag = m.group("tag")
-        if current_tag == new_tag:
-            already_at_target = True
-            continue
-        new_ref = re.sub(
-            rf"@{re.escape(current_tag)}\b",
-            f"@{new_tag}",
-            m.group("ref"),
-            count=1,
-        )
-        lines[i] = f"{m.group('indent')}{new_ref}{m.group('rest') or ''}"
-        changed = True
-
-    # If we rewrote a skills_sources line, also refresh `updated:` to today.
-    if changed and updated_line_idx is not None:
-        from datetime import datetime
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
-        # Preserve key + indentation; replace value only. Tolerates quoted
-        # values ("YYYY-MM-DD") and unquoted (YYYY-MM-DD).
-        old_line = lines[updated_line_idx]
-        m_upd = re.match(r"^(\s*updated\s*:\s*)(['\"]?)([^'\"#\n]+?)(['\"]?\s*(?:#.*)?)$", old_line)
-        if m_upd:
-            lines[updated_line_idx] = f"{m_upd.group(1)}{m_upd.group(2)}{today}{m_upd.group(4)}"
-
-    if changed:
-        agents_md.write_text("\n".join(lines), encoding="utf-8", newline="\n")
-        return True, "rewrote"
-    if already_at_target:
-        return False, "up-to-date"
-    return False, "not-found"
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +243,7 @@ def _propagate_one(
     if existing:
         return PropagationResult(name, "pr-exists", f"PR already open: {existing}", existing)
 
-    changed, detail = _edit_frontmatter_skills_source(agents_md, source_repo, tag)
+    changed, detail = bump_agents_md_pin(agents_md, source_repo, tag)
     if not changed:
         if detail == "up-to-date":
             return PropagationResult(name, "up-to-date", f"already at {tag}")
@@ -437,6 +349,7 @@ def _propagate_one(
                 root,
                 supersede_prefix(source_repo),
                 new_pr_number,
+                new_branch=head_branch,
                 new_pr_url=pr_url,
             )
             if closed:
