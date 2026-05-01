@@ -1,0 +1,68 @@
+# dep-check.yml — hard enforcement of the dependency graph at PR merge time.
+#
+# Per release-management.md §6.2: a PR for slice X cannot merge until every
+# change-ID in X's `Depends on` column has Status: Done on the project
+# board. Two enforcement modes:
+#
+# - SOFT (default): the PR description's "Dependency check" section
+#   declares the deps; reviewer manually verifies (per §3.2 PR body).
+# - HARD (this workflow, OPT-IN): CI parses docs/openspec-slice.md, walks
+#   the dep graph, fails the workflow if any dep is Blocked / In Progress
+#   / Review (i.e. not yet on main).
+#
+# Setup:
+# 1. Copy this template to <consumer>/.github/workflows/dep-check.yml.
+# 2. Set repo secret `PROJECT_AUTOMATION_TOKEN` (same PAT as
+#    project-status.yml).
+# 3. Add this workflow's check `Dependency check` to branch protection's
+#    required status checks (Profile A) so it actually blocks merge.
+#
+# Skips for:
+# - PRs whose head branch doesn't match `slice/*` (chore/, docs/, fix/...).
+# - PRs whose slice has no declared dependencies.
+
+name: dep-check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  dep-check:
+    name: Dependency check
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'slice/')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install pyyaml
+      - name: Walk dependency graph
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          BRANCH_NAME: ${{ github.head_ref }}
+          PYTHONPATH: ${{ github.workspace }}/.ai-playbook
+        run: |
+          if [ ! -f .ai-playbook/scripts/check_slice_dependencies.py ]; then
+            echo "::warning::Playbook check_slice_dependencies.py not found at .ai-playbook/scripts/. Skipping. Bump playbook to v0.8.0+ to enable."
+            exit 0
+          fi
+          # Extract the change-id from `slice/<change-id>`.
+          CHANGE_ID="${BRANCH_NAME#slice/}"
+          echo "Checking dependencies for slice: $CHANGE_ID"
+          python .ai-playbook/scripts/check_slice_dependencies.py \
+            --owner "$PROJECT_OWNER" \
+            --project-number "$PROJECT_NUMBER" \
+            --slicing-file docs/openspec-slice.md \
+            --change-id "$CHANGE_ID"
