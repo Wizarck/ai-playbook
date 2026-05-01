@@ -2,17 +2,32 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## Unreleased — accumulating for v0.9.0-rc4 / stable
+## [0.9.0] — 2026-05-01 — CodeRabbit fallback STABLE — slice 3 dogfood validated end-to-end
 
-### Added
+Promotes v0.9.0-rc1 (CodeRabbit fallback 3-layer defense) → stable after the validation milestone (`specs/v0.9.0-roadmap.md`) completed successfully on consumer-e slice 3 (`persistence-tenant-enforcement`).
 
-- **`specs/release-management.md` §6.6 Intra-slice parallelism**: orthogonal to wave-level (§6.4). Codifies how a main agent spawns subagents inside one slice when the slice covers multiple disjoint bounded contexts. Pre-conditions (write-path ownership in `tasks.md`, migration-number pre-allocation, shared-file reservation), spawn pattern (`Agent isolation: "worktree"` with ephemeral side-branches `slice/<id>--<group>`), recombination via cherry-pick, anti-patterns (cross-ownership edits, public-branch pushes), and the cost-benefit threshold (~30 min of parallelisable work).
+### Validation evidence (consumer-e cascade 2026-05-01)
+
+- **PR #52** (`coderabbit-fallback-l2-setup`): bootstrap dogfood. Submodule + L2 workflow installed via `runbooks/onboard-new-project.md` Step 11. CodeRabbit was rate-limited at the moment of PR open (the EXACT scenario the L2 design exists for). L2 fired at 5m11s, classified `rate-limited`, posted the structured checklist as a PR comment when §4.5 was empty/stubbed, and turned `ai-self-review-required` ✅ after the PR body was updated with the 3 schema markers (`Profile:`, `Reviewer:`, `Self-review findings:`). Squash-merged into `main`.
+- **PR #55** (`slice/persistence-tenant-enforcement`): L1 in-session §4.5 populated by claude-code-action; CodeRabbit reviewed without rate-limit; L2 skipped silently (status check ✅). 56 tasks / 30 new tests / 95% coverage on `persistence/*` / 154 passed combined / mypy strict clean / pre-commit clean.
+- **PR #56** (`chore/ux-scaffolding-draft`): L1 in-session §4.5 populated; CodeRabbit reviewed; L2 skipped silently. Squash-merged.
+
+The 3-layer architecture worked exactly as designed: L0 (CodeRabbit primary) handled the bulk; L1 (worker self-review) covered every PR; L2 (CI safety net) caught the rate-limit case on PR #52 without false positives on the others.
+
+### Changed (since v0.9.0-rc3)
+
+- **`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: add `token: ${{ secrets.consumer-d_GOD_MODE }}` to `actions/checkout@v4` step. Required when the consumer pins `.ai-playbook` (and optionally `.skills-sources/ai-playbook`) as submodules of the PRIVATE `Wizarck/ai-playbook` repo. The default `GITHUB_TOKEN` scope is consumer-repo only; cross-repo submodule clone needs `Contents:R` on the playbook + skills repos. Mirrors `ci.yml`. Caught during PR #52 dogfood; consumer-e's runtime workflow was patched in-PR. Per gotchas #7. Followup tracked from v0.9.0-rc1 closed.
+
+### Added (since v0.9.0-rc3)
+
+- **`specs/release-management.md` §6.6 Intra-slice parallelism** (originally landed under "Unreleased" between rc3 and stable): orthogonal to wave-level (§6.4). Codifies how a main agent spawns subagents inside one slice when the slice covers multiple disjoint bounded contexts. Pre-conditions (write-path ownership in `tasks.md`, migration-number pre-allocation, shared-file reservation), spawn pattern (`Agent isolation: "worktree"` with ephemeral side-branches `slice/<id>--<group>`), recombination via cherry-pick, anti-patterns (cross-ownership edits, public-branch pushes), and the cost-benefit threshold (~30 min of parallelisable work).
 - **`specs/runbook-bmad-openspec.md` §3.8**: brief pointer to §6.6, distinguishing intra-slice from wave-level parallelism.
 
-### Notes
+### Open followups (carried into v0.9.x)
 
-- Doc-only addition; no script changes. Tag deferred — folds into the next rc or stable.
-- Motivated by consumer-c-legacy M1 implementation slice (`module-1-ingredients-implementation`) covering IAM, Ingredients, Suppliers, UoM, and shared in one OpenSpec change — exactly the shape where the pattern earns its keep.
+- **`scripts/propagate_bump.py`**: doesn't bump `AGENTS.md` `inherits_from` field on consumers. Manual fix in livekit PR #36 surfaced this. Filed in `specs/v0.9.0-roadmap.md`.
+- **`scripts/_bumper.py` supersede logic**: uses tag-push chronology, not semver order. Out-of-order tag push superseded newer PRs with older ones during the v0.9.0-rc1/rc2 cycle. Filed in `specs/v0.9.0-roadmap.md`.
+- **`/opsx:apply` skill**: doesn't enforce tasks.md checkbox-update discipline. Slice 3 implementation merged with 0/55 boxes checked despite being feature-complete (verified by tests + coverage). To file as a v0.9.x followup.
 
 ## [0.9.0-rc3] — 2026-05-01 — bare-repo + per-branch worktree layout (default for new consumers)
 
