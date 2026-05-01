@@ -49,6 +49,27 @@ Bump submodule (previous → v0.8.8). Verified end-to-end against consumer-c-leg
 - `materialise_skills(consumer-c-legacy-m1)` → 123 skills materialised from 2 sources, 2 mirrors regenerated, submodule advanced 8d5f68c → cd31441 (v0.8.6), no errors.
 - Post-fix state: AGENTS.md@v0.8.6 + submodule@v0.8.6 + skills/* tracked mirror regenerated.
 
+## [0.8.7] — 2026-05-01 — opsx_apply_companion supports `master` default branch
+
+Surfaced when consumer-c-legacy (`master` default branch) ran the companion before its first M1 slice commit and got `git rev-parse origin/main` exit 128.
+
+### Fixed
+
+- **`scripts/opsx_apply_companion.py`** — auto-detects the remote's default branch instead of hardcoding `origin/main`. Order of resolution:
+  1. Read `git symbolic-ref refs/remotes/origin/HEAD` (the modern git canonical pointer; e.g. `refs/remotes/origin/main` or `refs/remotes/origin/master`).
+  2. Fallback probe: try `origin/main` first, then `origin/master` via `git rev-parse --verify --quiet`. First hit wins.
+  3. If neither resolves, exit 2 with a remediation hint (`git remote set-head origin --auto` or `--default-branch <name>`).
+
+  Also: new `--default-branch <name>` CLI flag for explicit override (fresh clones with no `origin/HEAD`, repos targeting a non-canonical default like `develop`).
+
+  Backwards-compatible: `main`-default repos see no behaviour change. `master`-default repos work without flags. The `Base SHA` field on the project board now records the SHA of whichever default the repo actually uses.
+
+### Migration
+
+Bump submodule v0.8.6 → v0.8.7. Verified against:
+- consumer-c-legacy (`master` default) — runs cleanly, captures Base SHA from `origin/master`.
+- ai-playbook (`main` default) — backwards-compatible.
+
 ## [0.8.6] — 2026-05-01 — DESIGN.md format spec + Google design.md tier 1 adoption
 
 Extends `specs/ux-track.md` con tier 1 adoptions de [google-labs-code/design.md](https://github.com/google-labs-code/design.md) (Apache-2.0, alpha, 10.5k stars). DESIGN.md becomes hybrid format: machine-readable YAML frontmatter tokens + human-readable markdown rationale.
