@@ -983,6 +983,52 @@ def write_coderabbit_template(repo_root: Path, *, dry_run: bool) -> None:
     _emit("bootstrap_gh_project.coderabbit_yaml_written", path=str(target))
 
 
+def write_coderabbit_fallback_workflow(repo_root: Path, *, dry_run: bool) -> None:
+    """Copy the coderabbit-fallback.yml workflow to .github/workflows/.
+
+    L2 of the v0.9.0 fallback contract (per release-management.md §4.5.2).
+    Idempotent: skips if the destination file already exists (a consumer
+    may have local edits we shouldn't overwrite). To force a refresh,
+    delete the destination file and re-run.
+    """
+    target = repo_root / ".github" / "workflows" / "coderabbit-fallback.yml"
+    if target.exists():
+        print(
+            f"→ coderabbit-fallback workflow: already present at "
+            f"{target.relative_to(repo_root)} (skipping; delete to refresh)"
+        )
+        return
+    template = (
+        repo_root
+        / ".ai-playbook"
+        / "templates"
+        / "new-project"
+        / ".github"
+        / "workflows"
+        / "coderabbit-fallback.yml.tmpl"
+    )
+    if not template.is_file():
+        print(
+            f"  ⚠ coderabbit-fallback workflow template not found at {template} "
+            "(bump playbook to v0.9.0+ to enable; skipping)",
+            file=sys.stderr,
+        )
+        return
+    if dry_run:
+        print(
+            f"→ coderabbit-fallback workflow: would copy {template.name} → "
+            f"{target.relative_to(repo_root)} (dry-run)"
+        )
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    print(
+        f"→ coderabbit-fallback workflow: wrote "
+        f"{target.relative_to(repo_root)} from playbook template"
+    )
+    _emit("bootstrap_gh_project.coderabbit_fallback_workflow_written", path=str(target))
+
+
 def ensure_trace_fields(
     project_id: str,
     fields_now: list[FieldInfo],
@@ -1048,6 +1094,11 @@ def apply_profile(
             "  ℹ Profile B: branch protection unavailable on GH Free private. "
             "AI must respect AGENTS.md §4 hard rules + advisory CI by convention."
         )
+    # v0.9.0 L2 safety net — applies to BOTH profiles. Profile B benefits
+    # too because the workflow runs without branch-protection (the status
+    # check is informational unless the consumer adds it to required-checks
+    # manually, which is opt-in regardless of profile).
+    write_coderabbit_fallback_workflow(repo_root, dry_run=dry_run)
 
 
 # ---------------------------------------------------------------------------
