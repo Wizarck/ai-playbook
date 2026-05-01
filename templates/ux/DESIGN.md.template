@@ -1,4 +1,5 @@
 ---
+# Process metadata (ai-playbook ux-track.md §11)
 title: {{PROJECT_NAME}} Design System
 status: canonical
 last-updated: {{YYYY-MM-DD}}
@@ -9,6 +10,79 @@ related:
   - docs/architecture-decisions.md
   - docs/prd-{{MODULE}}.md
   - docs/personas-jtbd.md
+
+# Machine-readable design tokens per ai-playbook ux-track.md §11.2 + Google design.md schema
+# Color discipline: OKLCH-canonical en CSS runtime; hex computed equivalents aquí en YAML
+# para tooling compatibility (Google CLI lint, DTCG export, Tailwind theme). See §11.7 dual rep.
+version: alpha
+name: {{PROJECT_NAME}}
+description: <one-paragraph mission>
+colors:
+  # All hex values are computed equivalents of OKLCH source-of-truth (see CSS variables in §2 prose)
+  bg: "#......"           # OKLCH oklch(... ... ...) — page surface
+  surface: "#......"      # OKLCH oklch(... ... ...) — cards, panels
+  ink: "#......"          # OKLCH oklch(... ... ...) — body text
+  mute: "#......"         # OKLCH oklch(... ... ...) — secondary text
+  border: "#......"       # OKLCH oklch(... ... ...) — 1px borders
+  accent: "#......"       # OKLCH oklch(... ... ...) — primary CTA, focus
+  accent-fg: "#......"    # OKLCH oklch(... ... ...) — text on accent
+  success: "#......"      # OKLCH oklch(... ... ...) — semantic only
+  destructive: "#......"  # OKLCH oklch(... ... ...) — error / regulatory
+typography:
+  display:
+    fontFamily: <stack>
+    fontSize: <Dimension>
+    fontWeight: <number>
+    lineHeight: <Dimension | number>
+    letterSpacing: <Dimension>
+  headline-lg:
+    fontFamily: <stack>
+    fontSize: <Dimension>
+    fontWeight: <number>
+    lineHeight: <Dimension | number>
+  body-md:
+    fontFamily: <stack>
+    fontSize: <Dimension>
+    fontWeight: <number>
+    lineHeight: <Dimension | number>
+  body-sm:
+    fontFamily: <stack>
+    fontSize: <Dimension>
+    fontWeight: <number>
+    lineHeight: <Dimension | number>
+  mono-md:
+    fontFamily: <mono stack>
+    fontSize: <Dimension>
+    fontWeight: <number>
+    lineHeight: <Dimension | number>
+spacing:
+  unit: 8px
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+rounded:
+  sm: <Dimension>
+  md: <Dimension>
+  lg: <Dimension>
+  full: 9999px
+components:
+  # Component variants pattern per ai-playbook ux-track.md §11.5 + Google design.md
+  # name + name-state keys; variant entries declare only properties that change
+  button-primary:
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.accent-fg}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.sm}"
+    padding: "10px 20px"
+  button-primary-hover:
+    backgroundColor: "{colors.accent-hover}"
+  button-primary-disabled:
+    backgroundColor: "{colors.mute}"
+    textColor: "{colors.ink}"
+  # Add more components per project domain — minimum:
+  # card-default, card-hover, modal, pill-{info,warn,error,success}
 ---
 
 # {{PROJECT_NAME}} Design System
