@@ -1,8 +1,9 @@
 # release-management.md
 
-> **Status**: v1.1.0 (new in v0.8.0). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, and the **visibility-driven enforcement profile** (public-OSS vs private-solo). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
+> **Status**: v1.2.0 (new in v0.8.1). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, the **visibility-driven enforcement profile** (public-OSS vs private-solo), and the **AI-reviewer feedback loop** (CodeRabbit / claude-code-action). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
 >
 > **Changelog**:
+> - **v1.2.0** (2026-05-01): added §4.5 (AI-reviewer feedback loop) — worker AI MUST read + respond to AI-reviewer comments (CodeRabbit on Profile A, claude-code-action when Phase 3 lands) before requesting Gate F. Closes the gap surfaced when the v0.8.0 rollout itself admin-merged 5 PRs without checking CodeRabbit's feedback (rate limit was hit; no real comments missed, but the FLOW was the failure mode).
 > - **v1.1.0** (2026-05-01): added §5.5 (trace fields Branch + Base SHA), §5.6 (visibility-driven profile A/B), §4.4 (pre-commit diff mode in CI), §6.5 (pre-flight rebase before slice start), §3.4 (bump-bot supersede expectation). `bootstrap_gh_project.py` gains `--profile {auto,public,private}`.
 > - **v1.0.0** (2026-04-29): initial spec — branch model, PR shape, CI gates, project board schema, dependency-driven merge order, bootstrap automation.
 
@@ -102,12 +103,17 @@ The PR body is structured (parsable by automation) and contains exactly:
 ## Test plan
 <how the reviewer can manually verify, beyond CI>
 
+## AI-reviewer signoff
+- **Reviewer**: <CodeRabbit | claude-code-action | self-review (Profile B)>
+- **Status**: <X actionable / Y addressed / Z rejected with reason / W deferred to follow-up>
+- **Notes**: <free-form: link to deferred items, rejected-with-reason justifications, etc.>
+
 ## References
 - Slice plan: docs/openspec-slice.md row <N>
 - Gate E approval: docs/hitl-gates-log.md (date)
 ```
 
-The "Acceptance criteria" section is the live progress tracker. The PR cannot move to "Review" until every checkbox is ticked AND CI is green (see §4).
+The "Acceptance criteria" section is the live progress tracker. The PR cannot move to "Review" until every checkbox is ticked AND CI is green (see §4). The "AI-reviewer signoff" section is the live AI-review record, populated per §4.5 — the human reviewer (Gate F) reads this section first to know what's already been triaged.
 
 ### 3.3 Linked tracker ticket
 
@@ -168,6 +174,39 @@ Consumer projects' CI pre-commit step MUST invoke the hooks against the diff bet
 `--all-files` mode re-flags every legacy issue in `main` on every PR (trailing whitespace, missing trailing newlines on files added before the hook config, etc.) — false positives the PR didn't introduce. It also breaks any hook that decides "is this commit modifying file X?" by inspecting the path rather than the diff (e.g. `block-manual-spec-edit` flags every existing `openspec/specs/*.md` even when the PR doesn't touch any).
 
 The diff-based invocation only checks files this PR actually changes. Hooks that ALSO need to be diff-aware (i.e. decide on the modified set of files, not the existing set) are listed in the `block_manual_spec_edit.py` reference implementation as of v0.8.0.
+
+### 4.5 AI-reviewer feedback loop (worker AI must read + respond before Gate F)
+
+When a Profile A repo opens a PR, an **AI reviewer** (CodeRabbit by default; claude-code-action when Phase 3 lands) leaves comments. These comments are not optional reading — the worker AI that opened the PR MUST integrate them into the loop:
+
+1. **Wait for the AI-reviewer signal** — after pushing the final task commit on `slice/<change-id>`, poll for the reviewer's "review completed" status check (CodeRabbit posts it as `CodeRabbit / Review`; claude-code-action as `claude-review`). Allow up to 5 minutes per push (free tier rate limits the reviewer; high-frequency commits within a 5-minute window are batched into one review).
+2. **Read the comments** — `gh pr view <N> --comments` lists summary + inline comments. The worker AI MUST inspect the structured "Actionable comments" section (CodeRabbit) or the equivalent in claude-code-action.
+3. **Triage each comment** — for every comment:
+   - **Address** — push a fix commit to the slice branch. The fix commit message MUST reference the comment ID or quote the relevant snippet so the audit trail is reconstructible.
+   - **Reject with reason** — reply `@coderabbitai resolve` (or equivalent) with a one-line rationale. Acceptable reasons: (a) the suggested change conflicts with a project hard rule (cite AGENTS.md §X); (b) the suggestion is out of slice scope (cite slice's `proposal.md` "Out of scope"); (c) the suggestion is a false positive on a workaround the slice deliberately ships (cite the corresponding gotcha entry).
+   - **Defer to follow-up** — open a tracking item on the project board with a brief note + reply `@coderabbitai resolve — tracked as #N`.
+4. **Re-poll until clean** — push fixes triggers a new AI-reviewer pass (typically 30-90s). Repeat steps 2-3 until either:
+   - All actionable comments are addressed or rejected with reason, AND
+   - No new comments appear after a stabilising push.
+5. **Only then request Gate F** — the PR description's "AI-reviewer signoff" subsection (added to §3.2 below) carries the final reviewer status + a one-line note ("CodeRabbit: 0 actionable / 3 addressed / 1 rejected: out-of-scope") before the human reviewer is pinged.
+
+The contract is **strict** on Profile A repos because the AI reviewer IS the second pair of eyes that branch protection assumes. Skipping it (e.g. via `--admin` merge, or hand-waving the "pass" status before reading the comments) breaks the gate's invariant.
+
+#### Failure mode this prevents
+
+The v0.8.0 release itself admin-merged 5 PRs without inspecting CodeRabbit's output, justifying it as "rate-limited, no real comments to read." That justification is **conditional**, not exonerating:
+
+- The rate limit was hit because the playbook fired 6 successive bumps in 60 seconds. Normal slice work doesn't hit rate limits — those PRs DO get real reviews.
+- The audit trail of admin-merged PRs has no record of the worker AI ever reading the CodeRabbit summary, so a future reader cannot verify whether comments existed or were ignored.
+- The AGENTS.md §4 hard rules + branch protection + AI reviewer form a defense-in-depth: dropping any one layer (especially the AI reviewer) reduces it to single-line defense (the human reviewer alone).
+
+#### Profile B (private repos without CodeRabbit)
+
+Until claude-code-action lands in Phase 3, Profile B repos have no AI reviewer. The contract degrades to: the worker AI MUST self-review the diff before requesting Gate F (run `gh pr diff <N>` and emit a structured self-review covering correctness, scope, security, idempotency). Self-review is logged in the PR description's "Self-review" subsection. Gate F humans can override but the audit trail must show it happened.
+
+#### `bootstrap_gh_project.py` does NOT auto-merge
+
+The `apply_profile` helper (per §5.6) sets `allow_auto_merge=true` at the repo level, which exposes the per-PR "Enable auto-merge" button. The worker AI MUST NOT click it before §4.5 is satisfied. Auto-merge is a CONVENIENCE for clean PRs after Gate F approval, not a bypass for the feedback loop.
 
 ---
 
@@ -417,6 +456,8 @@ For Arturo's current consumer constellation (May 2026):
 - **Skipping pre-flight rebase**: forbidden per §6.5. AI must rebase before first commit on the slice branch.
 - **Bump-bot stacking PRs**: forbidden per §3.4. Each new bump auto-closes prior open PRs on the same logical change-stream.
 - **Manual edits to `openspec/specs/*.md`**: forbidden — must come via `openspec archive`. The `block-manual-spec-edit` pre-commit hook enforces this; CI invocation must use diff-mode (§4.4) so the hook only checks files actually modified by the PR.
+- **Skipping AI-reviewer triage** (Profile A) or **self-review** (Profile B): forbidden per §4.5. The "AI-reviewer signoff" subsection in the PR body is the audit trail. Admin-merging without populating it skips the second pair of eyes that branch protection assumes — branch protection alone is single-line defense.
+- **Clicking "Enable auto-merge" before §4.5 is satisfied**: forbidden. Auto-merge is convenience for clean PRs after Gate F, not a bypass for the AI-review feedback loop.
 
 ---
 

@@ -793,6 +793,51 @@ def detect_repo_visibility(repo: str) -> str:
     return visibility
 
 
+def detect_default_branch(repo: str) -> str:
+    """Return the repo's default branch name (e.g. 'main', 'master').
+
+    Per gotcha #13 (consumer-e/docs/gotchas.md): hardcoding 'main' breaks
+    consumers on legacy 'master' defaults (consumer-c-legacy). This helper queries
+    `gh repo view` for `defaultBranchRef.name` instead.
+    """
+    result = _gh(["repo", "view", repo, "--json", "defaultBranchRef"])
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"could not parse `gh repo view` output: {e}") from e
+    ref = (data.get("defaultBranchRef") or {}).get("name")
+    if not ref:
+        raise RuntimeError(f"could not determine default branch for {repo}")
+    return ref
+
+
+def fetch_existing_required_checks(repo: str, branch: str) -> list[str]:
+    """Return the list of required status check names currently set on the
+    branch's protection. Returns [] if no protection exists.
+
+    Used to UNION the user-provided `--required-checks` with what's already
+    set, so re-running bootstrap doesn't silently drop project-specific
+    checks (gotcha #12 in consumer-e/docs/gotchas.md).
+    """
+    proc = subprocess.run(
+        ["gh", "api", f"repos/{repo}/branches/{branch}/protection"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if proc.returncode != 0:
+        # No protection yet — return [] so caller treats user-provided list as authoritative.
+        return []
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return []
+    rsc = data.get("required_status_checks") or {}
+    contexts = rsc.get("contexts") or []
+    return [c for c in contexts if isinstance(c, str)]
+
+
 def resolve_profile(profile: str, repo: str | None) -> str:
     """Resolve --profile flag to 'public' or 'private'. Raises if --profile auto without --repo."""
     if profile in ("public", "private"):
@@ -832,16 +877,41 @@ def apply_branch_protection(
     repo: str,
     required_checks: list[str],
     *,
+    branch: str | None = None,
     dry_run: bool,
 ) -> bool:
-    """PUT classic branch protection on `main`. Profile A only.
+    """PUT classic branch protection on the repo's default branch. Profile A only.
 
     Returns True if applied, False if skipped (e.g. 403 on private free).
+
+    Two v0.8.1 fixes vs v0.8.0:
+    - `branch` defaults to the repo's actual default branch (auto-detected
+      via `gh repo view`), not hardcoded `main`. Fixes gotcha #13 for
+      consumers on legacy `master`.
+    - `required_checks` is UNIONED with whatever the existing protection
+      already declares, instead of replacing. Fixes gotcha #12 — re-running
+      bootstrap with `--required-checks` listing only universal checks no
+      longer drops project-specific checks (AGPL boundary, LICENSE
+      checksums, lighthouse-perf, etc.).
     """
+    if branch is None:
+        branch = detect_default_branch(repo)
+
+    # Union with existing checks (per §gotcha #12).
+    existing = fetch_existing_required_checks(repo, branch)
+    union = list(dict.fromkeys([*required_checks, *existing]))  # preserve order, de-dup
+    added = sorted(set(union) - set(existing))
+    if added:
+        print(f"  + adding {len(added)} new required check(s): {', '.join(added)}")
+    if existing and len(existing) > len(required_checks):
+        kept = sorted(set(existing) - set(required_checks))
+        if kept:
+            print(f"  + keeping {len(kept)} existing required check(s): {', '.join(kept)}")
+
     payload = {
         "required_status_checks": {
             "strict": True,
-            "contexts": required_checks,
+            "contexts": union,
         },
         "enforce_admins": False,
         "required_pull_request_reviews": {
@@ -858,14 +928,14 @@ def apply_branch_protection(
         "allow_fork_syncing": True,
     }
     if dry_run:
-        print(f"→ Branch protection: would PUT on {repo}/main with {len(required_checks)} required checks (dry-run)")
+        print(f"→ Branch protection: would PUT on {repo}/{branch} with {len(union)} required checks (dry-run)")
         return True
 
     # gh api PUT with body via --input -
     body = json.dumps(payload)
     try:
         proc = subprocess.run(
-            ["gh", "api", "-X", "PUT", f"repos/{repo}/branches/main/protection", "--input", "-"],
+            ["gh", "api", "-X", "PUT", f"repos/{repo}/branches/{branch}/protection", "--input", "-"],
             input=body,
             capture_output=True,
             text=True,
@@ -885,8 +955,8 @@ def apply_branch_protection(
             _emit("bootstrap_gh_project.branch_protection_unavailable", repo=repo)
             return False
         raise RuntimeError(f"branch protection PUT failed: {stderr.strip()}")
-    print(f"→ Branch protection: applied on {repo}/main with {len(required_checks)} required checks")
-    _emit("bootstrap_gh_project.branch_protection_applied", repo=repo, checks=len(required_checks))
+    print(f"→ Branch protection: applied on {repo}/{branch} with {len(union)} required checks")
+    _emit("bootstrap_gh_project.branch_protection_applied", repo=repo, branch=branch, checks=len(union))
     return True
 
 
