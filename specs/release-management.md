@@ -367,14 +367,29 @@ When a parallel-wave slice MUST touch a shared file, it coordinates via:
 
 Before the AI begins implementing a slice (i.e. before the first task commit on `slice/<change-id>`), it MUST:
 
-1. `git fetch origin main`
-2. `git rev-parse --short main` → record as the slice's `Base SHA` on the project board (per §5.5).
-3. If the worktree branch was created BEFORE this fetch, run `git rebase origin/main`. If conflicts arise, abort and notify the human reviewer (do NOT auto-resolve — slice scope drift is a slicing failure per §2.2's anti-pattern).
-4. Begin implementation; commits land on `slice/<change-id>` cleanly above `origin/main`.
+1. `git fetch origin`
+2. `git rev-parse --short origin/main` → record as the slice's `Base SHA` on the project board (per §5.5).
+3. If currently on `slice/<change-id>`: `git rebase origin/main`. Conflicts → abort the rebase and notify the human reviewer (do NOT auto-resolve — slice scope drift is a slicing failure per §2.2's anti-pattern).
+4. Set the project board's `Branch` field to `slice/<change-id>` (per §5.5).
+5. Begin implementation; commits land on `slice/<change-id>` cleanly above `origin/main`.
 
-This ensures every slice's PR opens against an up-to-date `main`, eliminating the "PR cannot merge: 1 commit behind main" friction at Gate F time. It also makes the `Base SHA` recorded on the project board meaningful for diagnostics (per §5.5).
+This ensures every slice's PR opens against an up-to-date `main`, eliminating the "PR cannot merge: N commits behind main" friction at Gate F time. It also makes the `Base SHA` recorded on the project board meaningful for diagnostics (per §5.5).
 
-The `/opsx:apply` skill in `skills/openspec-apply-change/` carries this as Step 0 of its workflow as of v0.8.0.
+#### Reference implementation: `scripts/opsx_apply_companion.py` (v0.8.3+)
+
+The openspec-CLI-generated `openspec-apply-change` skill lives upstream and cannot embed §6.5 logic directly. Instead, the playbook ships a companion script that the worker AI invokes BEFORE implementation work begins:
+
+```bash
+python .ai-playbook/scripts/opsx_apply_companion.py \
+    --change-id <slice-name> \
+    --owner <gh-user-or-org> \
+    --project-number <N> \
+    --repo <owner/name>
+```
+
+The companion verifies a clean working tree, fetches origin, captures the base SHA, rebases the slice branch (if currently on it), and sets the `Branch` + `Base SHA` text fields on the matching project item via GraphQL. Idempotent. Exits non-zero on rebase conflicts so the worker AI knows to pause and notify the human.
+
+The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `release-management.md` at session start; this section directs the AI to invoke the companion as Step 0 of `/opsx:apply` work. The AI MUST run the companion AND get exit-code 0 BEFORE making the first task commit.
 
 ---
 
