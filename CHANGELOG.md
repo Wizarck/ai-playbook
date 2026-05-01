@@ -2,6 +2,62 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.6] — 2026-05-01 — DESIGN.md format spec + Google design.md tier 1 adoption
+
+Extends `specs/ux-track.md` con tier 1 adoptions de [google-labs-code/design.md](https://github.com/google-labs-code/design.md) (Apache-2.0, alpha, 10.5k stars). DESIGN.md becomes hybrid format: machine-readable YAML frontmatter tokens + human-readable markdown rationale.
+
+### Added
+
+- **`specs/ux-track.md` §11 — DESIGN.md format spec** (NEW section, 175 lines). Subsections:
+  - §11.1 Hybrid format (YAML frontmatter + Markdown body)
+  - §11.2 Token schema (colors, typography, rounded, spacing, components)
+  - §11.3 Token reference syntax `{path.to.token}`
+  - §11.4 8 canonical sections + ai-playbook extensions (Iconography preserved as unknown section per defensive parsing)
+  - §11.5 Component variants pattern (`name-state` keys: `button-primary` + `button-primary-hover`)
+  - §11.6 Consumer behavior table for unknown content (defensive parsing)
+  - §11.7 Dual color representation (OKLCH canonical en CSS runtime + hex computed equivalents en YAML for tooling)
+  - §11.8 Tooling integration (Google CLI `lint`/`diff`/`export` opcional + future ai-playbook custom validator path)
+  - §11.9 Reference to source format
+
+- **`templates/ux/DESIGN.md.template`** updated con YAML frontmatter machine-readable tokens schema (colors with hex computed equivalents + OKLCH derivation comments, typography roles, spacing, rounded, components con variants pattern).
+
+### Changed
+
+- **`specs/ux-track.md` §10 OKLCH-canonical rule** — added "Dual representation" paragraph cross-referencing §11.7. The CSS surfaces declare OKLCH canonical; YAML frontmatter declares hex computed equivalents. OKLCH remains source-of-truth; hex is one-way derivation snapshot. Tooling consumers MUST NOT round-trip hex → OKLCH.
+
+- **`specs/ux-track.md` §11..§19 renumbered to §12..§20** (per-journey docs format → §12, Components catalogue → §13, ...). Internal §-references updated atomically.
+
+### Pilot validated
+
+`consumer-d/docs/ux/DESIGN.md` (Z.2 Phase 2 consumer-d dashboard, palette D Things 3 Night, variant D Structured timeline). Format verified production-ready: YAML schema consumido por agentes, OKLCH canonical en CSS runtime, hex equivalents en YAML, Iconography section preservada como ai-playbook extension sin breaking Google CLI tooling.
+
+### Compatibility
+
+ai-playbook keeps unique value:
+- OKLCH-canonical color discipline (perceptual luminance > Google's hex-only sRGB)
+- Visual-first 3-step (inspiration → palette → variants per §3)
+- 5 creative engines starter set (§5.1)
+- Per-journey `jN.md` + companion mocks (§12)
+- Phase A scrub + Phase B consolidation (§9)
+- Anti-pattern hand-coded mocks (§16)
+- Audit head-comment WCAG verification block (§6.2)
+- Storybook-style components catalogue (§13)
+
+Adopted from Google (5 deltas):
+- YAML frontmatter machine-readable tokens
+- Token reference syntax `{path.to.token}`
+- Component variants pattern (`name-state` keys)
+- 8-section canonical order alignment
+- Consumer behavior defensive parsing table
+
+### Migration
+
+Bump submodule v0.8.5 → v0.8.6. No code change required for consumer
+projects; pilot consumer (`consumer-d`) already shipped a DESIGN.md in
+the new format (commit ee41792). Other UI-consumer projects can adopt
+the format incrementally — old DESIGN.md files without YAML frontmatter
+remain valid (defensive parsing per §11.6).
+
 ## [0.8.5] — 2026-05-01 — INDEX + AGENTS.md template updates for v0.8.x
 
 Documentation patch — no functional changes. Continues the v0.8.4 docs
