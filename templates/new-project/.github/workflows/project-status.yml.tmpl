@@ -1,0 +1,66 @@
+# project-status.yml — auto-transition `Blocked → Todo` on dependency merge.
+#
+# Per release-management.md §6.3: when a slice merges to main (Status: Done),
+# downstream slices whose entire `Depends on` set is now Done auto-transition
+# from Blocked to Todo. Without this workflow, Wave 2+ slices stay Blocked
+# long after Wave 1 merged ("human-tracker-drift").
+#
+# Setup:
+# 1. Copy this template to <consumer>/.github/workflows/project-status.yml.
+# 2. Set repo secret `PROJECT_AUTOMATION_TOKEN` — a fine-grained PAT with
+#    Project: read+write on the consumer's project board.
+# 3. Set repo variables:
+#    - PROJECT_OWNER: GH user/org login (e.g. "Wizarck")
+#    - PROJECT_NUMBER: numeric project ID (e.g. "2")
+#
+# How it fires: on every merge to main (push event). Reads
+# docs/openspec-slice.md to get the dependency graph, then walks the project
+# board to find Blocked items whose dependencies are all Done.
+#
+# Idempotent: re-running on an already-transitioned board is a no-op.
+
+name: project-status
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-status-${{ github.ref }}
+  cancel-in-progress: false  # don't cancel — we want every merge processed
+
+jobs:
+  transition:
+    name: Auto-transition Blocked → Todo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install pyyaml
+      - name: Run auto-transition
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          # PYTHONPATH so playbook scripts can import (per gotcha #9 in
+          # consumer-e). Skips if .ai-playbook submodule is absent.
+          PYTHONPATH: ${{ github.workspace }}/.ai-playbook
+        run: |
+          if [ ! -f .ai-playbook/scripts/auto_transition_blocked_todo.py ]; then
+            echo "::warning::Playbook auto_transition_blocked_todo.py not found at .ai-playbook/scripts/. Skipping. Bump playbook to v0.8.0+ to enable."
+            exit 0
+          fi
+          python .ai-playbook/scripts/auto_transition_blocked_todo.py \
+            --owner "$PROJECT_OWNER" \
+            --project-number "$PROJECT_NUMBER" \
+            --slicing-file docs/openspec-slice.md

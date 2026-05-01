@@ -1,0 +1,78 @@
+# CodeRabbit configuration — Profile A (Public OSS) consumers.
+# Reference: https://docs.coderabbit.ai/configure-coderabbit
+#
+# This template is copied to <consumer>/.coderabbit.yaml by
+# bootstrap_gh_project.py when --profile resolves to "public" (per
+# release-management.md §5.6). Customize per-project after bootstrap.
+#
+# CodeRabbit is free for public OSS repos (unlimited PRs). It comments
+# on every PR with a high-level summary + inline nits. Treat its review
+# as advisory, not authoritative — the human Gate F (per
+# release-management.md §4.3) is still the merge prerequisite.
+
+language: en-US
+early_access: false
+reviews:
+  profile: chill  # alternatives: 'assertive' for stricter, 'standard' default
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+  # Skip vendored / generated content. CodeRabbit charges no token cost
+  # on public OSS, but reviewing thousands of skill / playbook files
+  # dilutes signal in the diff summary and adds noise inline.
+  path_filters:
+    - "!.ai-playbook/**"
+    - "!.skills-sources/**"
+    - "!.claude/skills/**"
+    - "!.gemini/**"
+    - "!skills/**"
+    - "!**/poetry.lock"
+    - "!**/pnpm-lock.yaml"
+    - "!**/package-lock.json"
+    - "!**/yarn.lock"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+    - "!**/__pycache__/**"
+    - "!**/.venv/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+  path_instructions:
+    - path: "openspec/specs/**/*.md"
+      instructions: |
+        These specs are promoted automatically by `npx openspec archive`
+        from `openspec/changes/<change-id>/specs/`. Direct hand-edits are
+        blocked by the `block-manual-spec-edit` pre-commit hook. If you
+        see a diff here without an `openspec-archive:<change-id>` trailer
+        in the commit message, flag it as a workflow violation.
+    - path: "openspec/changes/**/*.md"
+      instructions: |
+        Each `openspec/changes/<change-id>/` directory is the workspace
+        for one in-flight slice. Verify `proposal.md`, `design.md`,
+        `tasks.md`, and `specs/<capability>/spec.md` are coherent —
+        proposal "What Changes" should map 1:1 to spec capabilities and
+        design decisions.
+    - path: "docs/adr/ADR-*.md"
+      instructions: |
+        ADRs follow the project template: Context / Decision /
+        Consequences / Alternatives Considered. Status field MUST be
+        one of: proposed, accepted, deprecated, superseded by ADR-NNN.
+        Filename pattern: `ADR-NNN-YYYY-MM-DD-kebab-title.md` where NNN
+        is monotonic.
+    - path: "openspec/changes/*/tasks.md"
+      instructions: |
+        Tasks must be atomic (one verb per task) and CHECKABLE (a
+        reviewer can verify done/not-done). Flag tasks that are vague
+        ("improve X") or untestable.
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        Verify required permissions are minimal (principle of least
+        privilege). Any PAT used (e.g. for cross-repo private submodule
+        clone) should only be applied where the default GITHUB_TOKEN
+        cannot reach. Document the use in a code comment.
+chat:
+  auto_reply: true
