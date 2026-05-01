@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_SUBMODULE_PATH = ".ai-playbook"
@@ -198,7 +198,7 @@ def bump_agents_md_pin(
         changed = True
 
     if changed and updated_line_idx is not None:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         m_upd = _UPDATED_VALUE_RE.match(lines[updated_line_idx])
         if m_upd:
             lines[updated_line_idx] = (

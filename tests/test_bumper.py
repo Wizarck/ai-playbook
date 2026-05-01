@@ -20,14 +20,15 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts import _bumper
+
+from scripts import _bumper  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +63,7 @@ project: livekit
     out = p.read_text(encoding="utf-8")
     assert "github.com/Wizarck/ai-playbook@v0.9.1" in out
     assert "v0.9.0-rc2" not in out
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     assert f"updated: {today}" in out
 
 
