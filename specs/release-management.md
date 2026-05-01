@@ -1,6 +1,10 @@
 # release-management.md
 
-> **Status**: v1.0.0. New in ai-playbook v0.8.0-rc1. Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, and dependency-driven merge order. Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
+> **Status**: v1.1.0 (new in v0.8.0). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, and the **visibility-driven enforcement profile** (public-OSS vs private-solo). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
+>
+> **Changelog**:
+> - **v1.1.0** (2026-05-01): added §5.5 (trace fields Branch + Base SHA), §5.6 (visibility-driven profile A/B), §4.4 (pre-commit diff mode in CI), §6.5 (pre-flight rebase before slice start), §3.4 (bump-bot supersede expectation). `bootstrap_gh_project.py` gains `--profile {auto,public,private}`.
+> - **v1.0.0** (2026-04-29): initial spec — branch model, PR shape, CI gates, project board schema, dependency-driven merge order, bootstrap automation.
 
 ## 1. Why this spec
 
@@ -109,6 +113,19 @@ The "Acceptance criteria" section is the live progress tracker. The PR cannot mo
 
 Per [issue-tracking.md](issue-tracking.md) §2.2, the change's `proposal.md` carries `tracker_id: PROJ-N` (Jira) or `tracker_issue: N` (GH). The PR body MUST reference it via `Closes #N` (GH) or `PROJ-N:` prefix in the title (Jira). This drives automatic ticket transitions on merge.
 
+### 3.4 Bump-bot supersede expectation
+
+Auto-generated PRs (e.g. `chore/bump-playbook-v<tag>`, `chore/bump-skills-ai-playbook-v<tag>`, dependabot, renovate) MUST close any prior open PR on the same logical change-stream when a newer one opens. A "logical change-stream" is identified by the branch-name prefix:
+
+- `chore/bump-playbook-v*` — playbook submodule bumps
+- `chore/bump-skills-ai-playbook-v*` — skills-side playbook bumps
+- `chore/bump-skills-eligia-skills-v*` — eligia-skills bumps
+- Future bot streams: declare prefix in `.github/workflows/<bot>.yml`
+
+The opening workflow finds previous open PRs whose head branch shares the same prefix, closes them with a `superseded by #<N>` comment, and deletes the source branch. This prevents the pile-up pattern observed during ai-playbook v0.8.0-rc1→rc6 dogfooding (10 stacked bump PRs, each pairwise-conflicting on the same submodule SHA, none individually mergeable).
+
+The `propagate-{playbook,skills}-bump.yml` templates in `templates/new-project/.github/workflows/` ship this logic as of v0.8.0.
+
 ---
 
 ## 4. CI gates
@@ -132,6 +149,25 @@ The PR's Project Status field stays `In Progress` until CI passes on the latest 
 ### 4.3 Status transition: Review → Done requires Gate F + squash-merge
 
 `Review → Done` happens automatically on squash-merge to `main`. Gate F (human approval per [runbook-bmad-openspec.md](runbook-bmad-openspec.md) §5) is the **prerequisite** for the merge itself, not a separate field transition.
+
+### 4.4 Pre-commit must run on the PR diff in CI, not `--all-files`
+
+Consumer projects' CI pre-commit step MUST invoke the hooks against the diff between the PR's base ref and HEAD, not against the entire repository. Concretely:
+
+```yaml
+- name: Run pre-commit
+  run: |
+    if [ -n "$GITHUB_BASE_REF" ]; then
+      git fetch origin "$GITHUB_BASE_REF" --depth=1
+      pre-commit run --from-ref "origin/$GITHUB_BASE_REF" --to-ref HEAD --show-diff-on-failure
+    else
+      pre-commit run --from-ref HEAD~1 --to-ref HEAD --show-diff-on-failure
+    fi
+```
+
+`--all-files` mode re-flags every legacy issue in `main` on every PR (trailing whitespace, missing trailing newlines on files added before the hook config, etc.) — false positives the PR didn't introduce. It also breaks any hook that decides "is this commit modifying file X?" by inspecting the path rather than the diff (e.g. `block-manual-spec-edit` flags every existing `openspec/specs/*.md` even when the PR doesn't touch any).
+
+The diff-based invocation only checks files this PR actually changes. Hooks that ALSO need to be diff-aware (i.e. decide on the modified set of files, not the existing set) are listed in the `block_manual_spec_edit.py` reference implementation as of v0.8.0.
 
 ---
 
@@ -174,7 +210,70 @@ The `bootstrap_gh_project.py --repo <owner/name>` flag (per §7) handles the lin
 
 Project **visibility** is independent: a project can be private (default) or public regardless of the visibility of the repos it is linked to. Set with `--visibility {private,public,keep}`. Public visibility is appropriate for community / OSS projects where contributors outside the org should see the roadmap; private is the default for closed-source work.
 
-### 5.4 Initial Status assignment per slicing graph
+### 5.5 Trace fields: `Branch` + `Base SHA` (mandatory, text)
+
+In addition to the canonical Status + recommended Risk/P&L fields, every consumer project's GitHub Project board MUST carry two text fields populated by the worker AI when a slice transitions `Todo → In Progress`:
+
+| Field | Value | Populated when |
+|---|---|---|
+| `Branch` | `slice/<change-id>` (the literal branch name) | `/opsx:apply <change-id>` creates the worktree branch. |
+| `Base SHA` | Short SHA of `main` HEAD at the moment the branch was forked (e.g. `e4c6e75`) | Same step: `git rev-parse --short HEAD` after `git checkout -b slice/<id> main`. |
+
+These fields are not just metadata — they enable **two diagnostic queries** that have no other source of truth:
+
+1. **"Is this slice's branch stale relative to main?"** — fetch the project board's `Base SHA` for the slice, compare to current `main` HEAD, count commits-behind. Deciding whether a pre-flight rebase is needed (per §6.5) becomes a one-shot lookup instead of a repo clone.
+2. **"What version of `main` did the AI fork from?"** — for post-mortems, when a slice ships a regression that didn't exist at fork time, the `Base SHA` tells you the exact `main` snapshot the AI saw. Without it, you reconstruct from PR creation timestamps + git reflog (lossy, slow).
+
+The fields are populated by the worker AI's `/opsx:apply` skill (per §6.5). The `bootstrap_gh_project.py` script adds the fields idempotently as part of project schema setup; existing projects get them on the next bootstrap run.
+
+### 5.6 Visibility-driven enforcement profile
+
+Branch protection rules + merge queue + CodeRabbit GH App are **gated on repo visibility + GH plan**:
+
+| Feature | GH Free public | GH Free private | GH Pro / Team / Ent. private |
+|---|---|---|---|
+| Branch protection (classic) | ✅ | ❌ | ✅ |
+| Repository rulesets | ✅ | ❌ | ✅ |
+| Merge queue | ✅ | ❌ | ✅ (Team+) |
+| CodeRabbit GH App (free tier) | ✅ unlimited | ❌ (paid only) | ❌ (paid only) |
+| Auto-merge per-PR | ✅ | ✅ (vestigial without checks) | ✅ |
+| GH Actions secrets | ✅ | ✅ | ✅ |
+| Project boards (org/user-scoped v2) | ✅ | ✅ | ✅ |
+
+Consumer projects therefore split into two **profiles**:
+
+#### Profile A — Public OSS (full enforcement)
+
+Applies when `gh repo view <repo> --json visibility` returns `"PUBLIC"`. The bootstrap script applies:
+
+- Classic branch protection on `main`: required status checks (the consumer's CI matrix), 1 required review, dismiss-stale-reviews on new commits, strict (branch-up-to-date), conversation-resolution required, force-push blocked, branch-deletion blocked.
+- Repo settings: auto-merge enabled, squash-only (`allow_merge_commit=false`, `allow_rebase_merge=false`, per §3.1's atomicity invariant), `delete_branch_on_merge=true`.
+- `.coderabbit.yaml` template at repo root (CodeRabbit auto-installs on the next PR; the user must approve the GH App once via marketplace install).
+- Project board with full schema (Status + Risk + P&L + Branch + Base SHA per §§5.1, 5.2, 5.5).
+- Merge queue: deferred until the consumer enters its first parallel wave (queue is most useful when 2+ slices target main concurrently). Activate via `gh ruleset` once Wave 2 begins.
+
+#### Profile B — Private Solo (convention-based)
+
+Applies when `gh repo view <repo> --json visibility` returns `"PRIVATE"` AND the user is on GH Free. No branch protection enforcement is possible at the API level — `gh api repos/.../branches/main/protection` returns 403. The bootstrap script applies what is available:
+
+- Repo settings: auto-merge enabled (vestigial — no required checks to satisfy, so functionally equivalent to a manual squash-merge), squash-only, `delete_branch_on_merge=true`.
+- CI workflows: same matrix as Profile A, but **advisory only** — a red CI doesn't block merge mechanically; the AI MUST refuse to merge a PR whose CI is red, by `AGENTS.md` §4 hard rule (project-level).
+- Project board: same full schema (consistency across the consumer constellation).
+- CodeRabbit: skipped (paid for private repos in 2026). Two alternatives:
+  1. Self-review — the AI reads the diff before requesting human Gate F.
+  2. (Phase 3 follow-up) `claude-code-action` GitHub Action runs Claude on every PR with project-aware prompting from `AGENTS.md` + `release-management.md`. Pay-per-token; lower bound ~$0.01/PR.
+
+Upgrading from Profile B → Profile A on the same repo is a one-line `gh repo edit --visibility public` followed by re-running `bootstrap_gh_project.py --profile auto` (which detects the new visibility and adds the missing rules).
+
+#### Profile selection
+
+`bootstrap_gh_project.py --profile {auto,public,private}`:
+
+- `auto` (default) — query `gh repo view --json visibility` and dispatch to public/private path. Recommended for first-time bootstrap.
+- `public` — apply Profile A even if the repo currently reads as private (intent: about to flip visibility; idempotent so it's safe to run before the flip).
+- `private` — apply Profile B even if public (rarely useful; mostly for testing).
+
+### 5.7 Initial Status assignment per slicing graph
 
 When `docs/openspec-slice.md` is approved at Gate C, the bootstrap script assigns initial Status:
 
@@ -215,11 +314,34 @@ When a slice merges to `main` (`Done`), downstream slices whose entire `Depends 
 
 This avoids the human-tracker-drift failure mode where Wave 2 slices stay `Blocked` long after Wave 1 merged.
 
+### 6.4 Anti-collision contract (parallel waves)
+
+Wave N (N ≥ 1) slices that run in parallel MUST declare in `docs/openspec-slice.md` "Anti-collision contract" the **shared files** they touch (`Makefile`, `.pre-commit-config.yaml`, `pyproject.toml`, `apps/api/src/main.py`, etc.). The contract is enforced socially (reviewer rejects if violated) and structurally (each slice owns its own `Makefile.includes`, `apps/<bounded-context>/`, `migrations/000N_<slice>.py`, etc., declared in the slice's proposal).
+
+When a parallel-wave slice MUST touch a shared file, it coordinates via:
+
+1. **Sequential serialization within the wave** — re-categorise the slice into a later wave that runs after the conflict-prone neighbour merges.
+2. **Ownership split** — the shared file is split into N per-slice fragments (e.g. `Makefile` becomes `Makefile` + `apps/api/Makefile.includes` + `apps/web/Makefile.includes` + ...), each slice owns its fragment.
+3. **HITL coordination** — for files where neither (1) nor (2) is possible (e.g. `.gitignore`), the affected slices add a HITL gate at design-review time documenting the touch.
+
+### 6.5 Pre-flight rebase before slice start
+
+Before the AI begins implementing a slice (i.e. before the first task commit on `slice/<change-id>`), it MUST:
+
+1. `git fetch origin main`
+2. `git rev-parse --short main` → record as the slice's `Base SHA` on the project board (per §5.5).
+3. If the worktree branch was created BEFORE this fetch, run `git rebase origin/main`. If conflicts arise, abort and notify the human reviewer (do NOT auto-resolve — slice scope drift is a slicing failure per §2.2's anti-pattern).
+4. Begin implementation; commits land on `slice/<change-id>` cleanly above `origin/main`.
+
+This ensures every slice's PR opens against an up-to-date `main`, eliminating the "PR cannot merge: 1 commit behind main" friction at Gate F time. It also makes the `Base SHA` recorded on the project board meaningful for diagnostics (per §5.5).
+
+The `/opsx:apply` skill in `skills/openspec-apply-change/` carries this as Step 0 of its workflow as of v0.8.0.
+
 ---
 
 ## 7. Bootstrap automation
 
-A consumer project that adopts this contract for the first time runs **one** command to set up the project board with the correct schema, link it to the repo, and set visibility:
+A consumer project that adopts this contract for the first time runs **one** command to set up the project board with the correct schema, link it to the repo, set visibility, and apply the right enforcement profile:
 
 ```bash
 python .ai-playbook/scripts/bootstrap_gh_project.py \
@@ -227,8 +349,14 @@ python .ai-playbook/scripts/bootstrap_gh_project.py \
     --project-number <existing-project-id> \
     --repo <gh-user-or-org>/<repo-name> \
     --visibility private \
+    --profile auto \
     --slicing-file docs/openspec-slice.md
 ```
+
+`--profile {auto,public,private}` controls which enforcement profile to apply (per §5.6):
+- `auto` — query `gh repo view` and apply Profile A (public) or Profile B (private) based on visibility. Default; recommended.
+- `public` — apply Profile A regardless (use when about to flip visibility public; idempotent).
+- `private` — apply Profile B regardless.
 
 The script (per [`scripts/bootstrap_gh_project.py`](../scripts/bootstrap_gh_project.py)):
 
@@ -237,6 +365,10 @@ The script (per [`scripts/bootstrap_gh_project.py`](../scripts/bootstrap_gh_proj
 - **Sets project visibility** if `--visibility {private,public,keep}` is passed: `private` (default for new projects), `public`, or `keep` to leave the existing setting alone. Default flag value is `keep` so re-runs do not surprise the operator with an unintended visibility change.
 - Adds the canonical Status field options (`Todo`, `Blocked`, `In Progress`, `Review`, `Done`) — idempotent (existing options preserved; missing ones added; names verified against §5.1; rename-divergence emits a warning that the human must resolve).
 - Adds the recommended custom fields (`Risk`, `P&L impact`) — idempotent, with `--no-custom-fields` to opt out.
+- Adds the trace fields (`Branch`, `Base SHA` per §5.5) — idempotent.
+- Applies the visibility profile (per §5.6):
+  - **Profile A (public)**: PUTs branch protection on `main` (required checks from `--required-checks` flag, 1 review, strict, conv-resolution, force-push blocked); PATCHes repo settings (`allow_auto_merge=true`, `allow_squash_merge=true`, others false, `delete_branch_on_merge=true`); writes `.coderabbit.yaml` from template if absent.
+  - **Profile B (private)**: PATCHes repo settings same as Profile A; emits a `⚠ Profile B: branch protection unavailable on GH Free private — relying on convention + advisory CI.` notice; skips `.coderabbit.yaml`.
 - Reads `docs/openspec-slice.md`, creates one draft project item per change row — idempotent (existing items detected by Title and skipped; items with unset Status get their initial Status applied as a recovery path).
 - Sets initial Status: Wave 0 first slice → `Todo`; rest → `Blocked`.
 
@@ -246,14 +378,31 @@ Re-running the script after later edits to `docs/openspec-slice.md` adds new ite
 
 ## 8. Migration for existing consumers
 
-Existing consumer projects on ai-playbook v0.7.x that adopt this contract follow:
+Existing consumer projects on ai-playbook v0.7.x → v0.8.0 follow:
 
-1. **Audit**: list current project board fields. If Status options diverge from §5.1, plan a rename pass (one PR per consumer, since Status field rename can break external bookmarks).
-2. **Run bootstrap**: `python .ai-playbook/scripts/bootstrap_gh_project.py --owner <user> --project-number <existing> --no-create-items` (no-create-items mode aligns just the schema, not the items).
-3. **Update consumer's `AGENTS.md`**: add `release_management: .ai-playbook/specs/release-management.md` to the inherited specs list (or the project's `inherits_from` reference, depending on the consumer's `AGENTS.md` shape).
-4. **Bump submodule pointer** to v0.8.0-rc1 (or the eventual v0.8.0 stable).
+1. **Audit visibility**: `gh repo view <owner>/<repo> --json visibility`. Decide Profile A (make public) or Profile B (keep private). Document the decision in the consumer's `docs/hitl-gates-log.md`.
+2. **Audit project board**: list current Status options. If they diverge from §5.1, plan a rename pass (one PR per consumer, since Status field rename can break external bookmarks).
+3. **Run bootstrap**: `python .ai-playbook/scripts/bootstrap_gh_project.py --owner <user> --project-number <existing> --profile auto --no-create-items` (no-create-items mode aligns just the schema, not the items).
+4. **Update consumer's `AGENTS.md`**: add `release_management: .ai-playbook/specs/release-management.md` to the inherited specs list. If on v0.7.x, also bump `inherits_from` to `@v0.8.0`.
+5. **Update consumer's `.github/workflows/ci.yml`**: switch the pre-commit step to diff-mode invocation per §4.4. The template at `templates/new-project/.github/workflows/ci.yml.tmpl` ships the canonical form.
+6. **Bump submodule pointer** to v0.8.0 (the propagate-bump bot opens the PR automatically per §3.4 once the playbook tag lands).
 
 Consumer projects on v0.8.0+ inherit this spec automatically; new consumers bootstrapped via `scripts/bootstrap.py` get the AGENTS.md template that already references it.
+
+### 8.1 Migration matrix (v0.7.x → v0.8.0)
+
+For Arturo's current consumer constellation (May 2026):
+
+| Project | Visibility | Profile | Migration owner | Notes |
+|---|---|---|---|---|
+| `iguanatrader` | PUBLIC | A | partial migration in v0.8.0-rc6→stable | Already on v0.8.0-rc6; first dogfood. Re-run bootstrap with `--profile auto` after stable. |
+| `openTrattOS` | PUBLIC | A | full migration | OSS BOH project; description already reads "Open Source". |
+| `eligia-skills` | PUBLIC (flipped 2026-05-01) | A | full migration | Skills are commodity; no IP concern. |
+| `eligia-core` | PRIVATE | B | full migration | Personal infra; contains private endpoints. Stays private. |
+| `eligia-rag` | PRIVATE | B | full migration | Personal data over RAG. Stays private. |
+| `livekit` | PRIVATE | B | full migration | Personal voice AI for Palafito. Stays private. |
+| `palafito-b2b` | PRIVATE | B | full migration | B2B business code. Stays private. |
+| `ai-playbook` | PRIVATE | B (self-host) | self | The playbook eats its own dogfood; private until v1.0.0 stable. |
 
 ---
 
@@ -264,6 +413,10 @@ Consumer projects on v0.8.0+ inherit this spec automatically; new consumers boot
 - **Closing the change ticket without merge**: `Done` Status is reserved for actually-merged-to-main work. Items archived without merge land in `Cancelled` (custom Status option that consumer may add AFTER `Done`).
 - **Cross-PR rebase chains**: do NOT branch slice 5 off slice 4's branch. Each slice branches off `main` (after its dependencies have merged). Cross-PR chains turn into rebase nightmares + force-pushes that reviewers cannot follow.
 - **Reusing a slice/<id> branch after merge**: slice branches are deleted post-squash-merge. If new work is needed for the same change, that is a re-slice (new change-id, new branch).
+- **Pre-commit `--all-files` in CI**: forbidden per §4.4. Always invoke with `--from-ref/--to-ref` against the PR's base ref.
+- **Skipping pre-flight rebase**: forbidden per §6.5. AI must rebase before first commit on the slice branch.
+- **Bump-bot stacking PRs**: forbidden per §3.4. Each new bump auto-closes prior open PRs on the same logical change-stream.
+- **Manual edits to `openspec/specs/*.md`**: forbidden — must come via `openspec archive`. The `block-manual-spec-edit` pre-commit hook enforces this; CI invocation must use diff-mode (§4.4) so the hook only checks files actually modified by the PR.
 
 ---
 
@@ -275,3 +428,7 @@ Consumer projects on v0.8.0+ inherit this spec automatically; new consumers boot
 - [verdict-contract.md](verdict-contract.md) — `❓ CLARIFICATION NEEDED` triggers Status `Blocked`.
 - [agentic-failures.md](agentic-failures.md) — `goal_drift` if a worker creates a per-task branch.
 - [break-glass.md](break-glass.md) — Gate F can be overridden with `--force-with-reason` in genuine emergencies; CI green and dependency-merged are NEVER overridable (red CI = real signal; missing dep = wrong order).
+- [`templates/new-project/.coderabbit.yaml.tmpl`](../templates/new-project/.coderabbit.yaml.tmpl) — CodeRabbit config template applied in Profile A.
+- [`templates/new-project/.github/workflows/project-status.yml.tmpl`](../templates/new-project/.github/workflows/project-status.yml.tmpl) — auto-transition `Blocked → Todo` workflow (§6.3).
+- [`templates/new-project/.github/workflows/dep-check.yml.tmpl`](../templates/new-project/.github/workflows/dep-check.yml.tmpl) — optional hard dependency enforcement (§6.2).
+- [`templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl`](../templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl) — bump-bot with supersede logic (§3.4).
