@@ -151,6 +151,32 @@ The source-control side of OpenSpec implementation is normatively defined in [re
 
 Project board schema (Status options + custom fields) is canonical per [release-management.md](release-management.md) §5; consumer projects bootstrap their board with `python .ai-playbook/scripts/bootstrap_gh_project.py` before `/opsx:propose` runs (see §7 of that spec).
 
+### 3.7 On-disk layout for concurrent slices
+
+When a module ships in waves of 5–10 concurrent OpenSpec changes (the consumer-c-legacy Module 2 cohort, for example), single-working-tree workflow saturates: one local checkout cannot service multiple in-flight slices without context-switching cost (stash thrash, dependency reinstalls per branch swap, build-cache contamination).
+
+The canonical layout for that case is **bare repo + per-branch worktrees** per [git-worktree-bare-layout.md](git-worktree-bare-layout.md). Each OpenSpec change-id becomes a peer subdirectory of the project root, sharing one `.bare/` git database:
+
+```
+<project-root>/
+├── .bare/                       # single shared git database
+├── .git                         # pointer file
+├── master/                      # default-branch worktree
+└── <change-id>/                 # one worktree per slice in flight
+```
+
+Use [scripts/wt_add.py](../scripts/wt_add.py) for the daily flow:
+
+```bash
+cd <project-root>/.bare
+python /c/Projects/ai-playbook/scripts/wt_add.py <change-id>
+# creates <project-root>/<change-id>/ on branch slice/<change-id>
+```
+
+The worktree directory name **equals** the OpenSpec change-id (the same folder name under `openspec/changes/<id>/`); this satisfies traceability principle 7 from the global CLAUDE.md by making cwd self-documenting. `wt_add.py` enforces the match unless `--no-slice-check` is passed (analogous to `/opsx:propose --no-slice`).
+
+Greenfield consumer projects adopt this layout from day one via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §1. Existing consumers on the legacy single-tree layout keep working — migration is opt-in per §3 of that runbook.
+
 ## 4 Retro cadence
 
 Post-archive retro is mandatory; weekly and monthly retros cover accumulation.
