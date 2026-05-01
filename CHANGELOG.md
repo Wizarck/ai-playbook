@@ -2,6 +2,76 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.0-rc7] — 2026-05-01 — Profile A/B + Branch+SHA + supersede + spec-edit fix
+
+Substantial release-management upgrade surfaced through consumer-e slice 1
+dogfooding (2026-04-29 → 2026-05-01). Codifies the visibility-driven
+enforcement model so consumer projects pick the right setup automatically,
+adds trace fields for slice-branch diagnostics, and fixes two upstream bugs
+that made every consumer PR fail.
+
+### Added
+
+- **`specs/release-management.md` v1.1.0** (PR #13):
+  - §3.4 Bump-bot supersede expectation: each new `chore/bump-*` PR auto-
+    closes prior open PRs on the same change-stream.
+  - §4.4 Pre-commit MUST run on the PR diff in CI (`--from-ref/--to-ref`),
+    not `--all-files`. Stops legacy-file false-positives.
+  - §5.5 Trace fields `Branch` + `Base SHA` on every consumer's project board.
+  - §5.6 Visibility-driven enforcement profile (A: Public OSS, B: Private Solo).
+  - §6.5 Pre-flight rebase before slice start.
+  - §8.1 Migration matrix for Arturo's 8-consumer constellation (May 2026).
+- **`scripts/bootstrap_gh_project.py` `--profile {auto,public,private}`** (PR #14):
+  - Detects repo visibility and applies branch protection + auto-merge
+    + .coderabbit.yaml (Profile A) or repo settings only (Profile B).
+  - New `--required-checks` flag for required CI status check names.
+  - Adds `Branch` + `Base SHA` TEXT fields to project schema (idempotent).
+  - New helpers: `detect_repo_visibility`, `apply_branch_protection`,
+    `apply_repo_settings`, `write_coderabbit_template`, `ensure_trace_fields`.
+- **Templates** (PR #15):
+  - `templates/new-project/.coderabbit.yaml.tmpl` — Profile A copy target.
+  - `templates/new-project/.github/workflows/project-status.yml.tmpl` — auto-
+    transitions Blocked → Todo on dependency merge (§6.3).
+  - `templates/new-project/.github/workflows/dep-check.yml.tmpl` — opt-in
+    hard dep-graph enforcement at PR merge time (§6.2).
+
+### Fixed
+
+- **`scripts/_bumper.py`** (PR #16): added `supersede_open_bump_prs()` helper
+  closing any open PR whose head branch starts with the given prefix when a
+  newer bump PR opens. Wired into both `propagate_bump.py` (prefix
+  `chore/bump-playbook-`) and `propagate_skills_bump.py` (per-source prefix
+  `chore/bump-skills-<source>-`). Prevents the rc1→rc6 pile-up of 10 stacked
+  pairwise-conflicting PRs observed in consumer-e.
+- **`scripts/block_manual_spec_edit.py`** (PR #16): hook now intersects
+  input candidates with the actual diff (`git diff --cached` /
+  `--from-ref/--to-ref` / `HEAD~1..HEAD`) before applying the archive-marker
+  check. Fixes false-positive that broke every consumer PR running pre-commit
+  with `--all-files` after openspec/specs/ files existed in main.
+
+### Validated against
+
+- consumer-e (Profile A, public): branch protection + auto-merge applied
+  manually 2026-04-30; trace fields added to Project #2 manually 2026-05-01.
+  PRs #22 (slice 1) + #23 (CodeRabbit config) shipped through new flow.
+- Migration matrix (§8.1) reflects audit results: ai-playbook + 4 consumers
+  stay private (Profile B); consumer-e + consumer-c-legacy + consumer-d-skills go
+  public (Profile A).
+
+### Migration
+
+Consumers on rc6 → rc7: bump submodule pointer (auto-PR opens via
+propagate-bump on this tag). After merge, run:
+
+```bash
+python .ai-playbook/scripts/bootstrap_gh_project.py \
+    --owner Wizarck --project-number <N> \
+    --repo Wizarck/<repo> \
+    --profile auto
+```
+
+Idempotent — only applies what's missing.
+
 ## [0.8.0-rc6] — 2026-04-30 — agents-md-v1 schema accepts pre-release semver suffix
 
 Hot fix surfaced when bumping consumer-e's `inherits_from` pin to
