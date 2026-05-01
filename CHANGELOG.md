@@ -2,6 +2,53 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.1] — 2026-05-01 — AI-reviewer feedback loop + bootstrap UX fixes
+
+Closes the gap surfaced when the v0.8.0 rollout itself admin-merged 5 PRs
+without checking CodeRabbit's feedback. The flow ASSUMED the AI reviewer
+was a defense layer; the SPEC didn't enforce that the worker AI read its
+output. v0.8.0 was rate-limited so no real comments were missed in
+practice, but the audit trail had no record of comments being read at all.
+v0.8.1 codifies the contract.
+
+### Added
+
+- **`specs/release-management.md` v1.2.0**:
+  - **§4.5 AI-reviewer feedback loop**: worker AI MUST poll for the
+    reviewer's "review completed" check, read `gh pr view <N> --comments`,
+    triage every actionable comment (address / reject with reason / defer
+    to follow-up), re-poll until clean, AND populate the new
+    "AI-reviewer signoff" subsection in the PR body before requesting
+    Gate F. Profile B repos (no AI reviewer) degrade to self-review with
+    structured logging.
+  - **§3.2 PR body template**: new `## AI-reviewer signoff` subsection.
+  - **§9 anti-patterns**: 2 new — skipping AI-reviewer triage, clicking
+    auto-merge before §4.5 satisfied.
+
+### Fixed
+
+- **`scripts/bootstrap_gh_project.py`**:
+  - **gotcha #13**: `apply_branch_protection()` now auto-detects the
+    repo's default branch via `detect_default_branch()` (queries
+    `gh repo view --json defaultBranchRef`). No longer hardcodes `main`.
+    openTrattOS (default `master`) and other legacy consumers now work.
+  - **gotcha #12**: `apply_branch_protection()` now UNIONS `required_checks`
+    with the existing protection's contexts via
+    `fetch_existing_required_checks()`. Re-running bootstrap no longer
+    silently drops project-specific checks (AGPL boundary, LICENSE
+    checksums, etc.). New informational output: `+ adding N new check(s)`
+    and `+ keeping M existing check(s)`.
+
+### Migration
+
+Consumers on v0.8.0 → v0.8.1: bump submodule pointer (auto-PR via
+propagate-bump). After merge, optionally re-run bootstrap to pick up the
+default-branch detection (no-op on consumers already on `main`).
+
+For Profile A consumers that lost project-specific checks during a v0.8.0
+bootstrap re-run, rerun with the FULL list to add them back; v0.8.1's
+UNION semantics will preserve them on subsequent calls.
+
 ## [0.8.0] — 2026-05-01 — Profile A/B + Branch+SHA + supersede + spec-edit fix (stable)
 
 Promotes v0.8.0-rc7 to stable after validation against iguanatrader. The
