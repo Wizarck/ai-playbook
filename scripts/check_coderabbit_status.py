@@ -59,7 +59,7 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Force UTF-8 stdio.
@@ -84,9 +84,14 @@ def _gh_pr_comments(pr: int, repo: str) -> list[dict[str, object]]:
     """Return the list of comments on the PR (via `gh pr view --json`)."""
     proc = subprocess.run(
         [
-            "gh", "pr", "view", str(pr),
-            "--repo", repo,
-            "--json", "comments",
+            "gh",
+            "pr",
+            "view",
+            str(pr),
+            "--repo",
+            repo,
+            "--json",
+            "comments",
         ],
         capture_output=True,
         text=True,
@@ -107,9 +112,14 @@ def _gh_pr_meta(pr: int, repo: str) -> dict[str, object]:
     """Return PR open-time metadata (createdAt, headRefName)."""
     proc = subprocess.run(
         [
-            "gh", "pr", "view", str(pr),
-            "--repo", repo,
-            "--json", "createdAt,headRefName,number",
+            "gh",
+            "pr",
+            "view",
+            str(pr),
+            "--repo",
+            repo,
+            "--json",
+            "createdAt,headRefName,number",
         ],
         capture_output=True,
         text=True,
@@ -160,7 +170,7 @@ def _seconds_since(iso: str) -> int:
         dt = datetime.fromisoformat(iso)
     except ValueError:
         return -1
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return int((now - dt).total_seconds())
 
 
@@ -173,7 +183,10 @@ def run(
     output_json: bool,
 ) -> int:
     if not _gh_available():
-        print("error: gh CLI not authenticated; run `gh auth login` first", file=sys.stderr)
+        print(
+            "error: gh CLI not authenticated; run `gh auth login` first",
+            file=sys.stderr,
+        )
         if output_json:
             _emit_result(status="error", excerpt=None, since_open=-1, n_checked=0)
         return 2
@@ -262,7 +275,7 @@ def _emit_result(
         "since_open_seconds": since_open,
         "last_comment_excerpt": excerpt,
         "comments_checked": n_checked,
-        "polled_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "polled_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
     }
     print(json.dumps(payload, ensure_ascii=False))
 

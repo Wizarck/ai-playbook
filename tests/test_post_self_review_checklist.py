@@ -28,11 +28,7 @@ def test_section_unpopulated_when_only_some_markers() -> None:
 
 
 def test_section_unpopulated_when_marker_value_is_stub() -> None:
-    body = (
-        "Profile: A\n"
-        "Reviewer: CodeRabbit\n"
-        "Self-review findings: TODO\n"
-    )
+    body = "Profile: A\n" "Reviewer: CodeRabbit\n" "Self-review findings: TODO\n"
     assert not psrc.is_section_45_populated(body)
 
 
@@ -214,7 +210,9 @@ diff --git a/x.py b/x.py
 
 def test_render_checklist_includes_diff_signals() -> None:
     signals = psrc.analyse_diff(_SAMPLE_DIFF)
-    body = psrc.render_checklist(pr=1, repo="x/y", signals=signals, reason="rate-limited")
+    body = psrc.render_checklist(
+        pr=1, repo="x/y", signals=signals, reason="rate-limited"
+    )
     assert "Self-review checklist" in body
     assert "Files changed" in body
     assert "MessageBus" in body or "Event" in body
@@ -393,7 +391,9 @@ def test_run_dry_run_does_not_post(
     # Catch ONLY the side-effect helpers (gh pr comment + check API).
     # Telemetry (_emit) may call git/gh internally — that's fine.
     def fail_post(*a: Any, **kw: Any) -> None:
-        raise AssertionError("_gh_pr_comment must not be called via subprocess in dry-run")
+        raise AssertionError(
+            "_gh_pr_comment must not be called via subprocess in dry-run"
+        )
 
     def fail_check(*a: Any, **kw: Any) -> None:
         raise AssertionError("_set_status_check must not call gh api in dry-run")

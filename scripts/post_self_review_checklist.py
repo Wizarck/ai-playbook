@@ -99,9 +99,14 @@ def _gh_pr_diff(pr: int, repo: str) -> str:
 def _gh_pr_meta(pr: int, repo: str) -> dict[str, object]:
     proc = subprocess.run(
         [
-            "gh", "pr", "view", str(pr),
-            "--repo", repo,
-            "--json", "headRefOid,number,title",
+            "gh",
+            "pr",
+            "view",
+            str(pr),
+            "--repo",
+            repo,
+            "--json",
+            "headRefOid,number,title",
         ],
         capture_output=True,
         text=True,
@@ -139,9 +144,7 @@ def is_section_45_populated(body: str) -> bool:
         marker_word = marker.rstrip(":").strip()
         # Permissive: marker word, optional whitespace, optional
         # parenthetical annotation, optional whitespace, mandatory colon.
-        pattern = re.compile(
-            rf"{re.escape(marker_word)}\s*(?:\([^)]*\))?\s*:"
-        )
+        pattern = re.compile(rf"{re.escape(marker_word)}\s*(?:\([^)]*\))?\s*:")
         m = pattern.search(normalised)
         if m is None:
             return False
@@ -259,12 +262,20 @@ def render_checklist(
     if signals["new_functions"]:
         lines.append(
             f"- **New functions**: `{', '.join(signals['new_functions'][:10])}`"
-            + (f" (+{len(signals['new_functions']) - 10} more)" if len(signals["new_functions"]) > 10 else "")
+            + (
+                f" (+{len(signals['new_functions']) - 10} more)"
+                if len(signals["new_functions"]) > 10
+                else ""
+            )
         )
     if signals["new_async"]:
         lines.append(
             f"- **New async functions**: `{', '.join(signals['new_async'][:10])}`"
-            + (f" (+{len(signals['new_async']) - 10} more)" if len(signals["new_async"]) > 10 else "")
+            + (
+                f" (+{len(signals['new_async']) - 10} more)"
+                if len(signals["new_async"]) > 10
+                else ""
+            )
         )
     if signals["new_raises"]:
         lines.append(f"- **New raise sites**: {len(signals['new_raises'])}")
@@ -279,25 +290,53 @@ def render_checklist(
         "**Empty checks suggest the AI didn't actually look.**"
     )
     lines.append("")
-    lines.append("- [ ] **Type safety** — new `# type: ignore` justified? `Any` masking concrete types? mypy --strict clean?")
-    lines.append("- [ ] **Async + concurrency** — new async exceptions handled? `asyncio.create_task` cancellation handled? worker tasks logging failures?")
-    lines.append("- [ ] **Error handling** — error paths include remediation hints? broad `except` justified? appropriate `IguanaError` subclass?")
-    lines.append("- [ ] **Security** — input validation? regex anchored? no logging of secrets? new deps without known CVEs?")
-    lines.append("- [ ] **Edge cases** — empty inputs / max-size / concurrent / time / numeric — all handled?")
-    lines.append("- [ ] **Public API + docs** — new symbols in `__all__`? docstrings present? coverage ≥80%?")
-    lines.append("- [ ] **Spec / runbook compliance** — boundary checks pass? scripts follow canonical layout? conventional commits?")
+    lines.append(
+        "- [ ] **Type safety** — new `# type: ignore` justified? "
+        "`Any` masking concrete types? mypy --strict clean?"
+    )
+    lines.append(
+        "- [ ] **Async + concurrency** — new async exceptions handled? "
+        "`asyncio.create_task` cancellation handled? worker tasks logging failures?"
+    )
+    lines.append(
+        "- [ ] **Error handling** — error paths include remediation hints? "
+        "broad `except` justified? appropriate `IguanaError` subclass?"
+    )
+    lines.append(
+        "- [ ] **Security** — input validation? regex anchored? "
+        "no logging of secrets? new deps without known CVEs?"
+    )
+    lines.append(
+        "- [ ] **Edge cases** — empty inputs / max-size / concurrent / "
+        "time / numeric — all handled?"
+    )
+    lines.append(
+        "- [ ] **Public API + docs** — new symbols in `__all__`? "
+        "docstrings present? coverage ≥80%?"
+    )
+    lines.append(
+        "- [ ] **Spec / runbook compliance** — boundary checks pass? "
+        "scripts follow canonical layout? conventional commits?"
+    )
     lines.append("")
     lines.append("### How to make this check turn ✅")
     lines.append("")
-    lines.append("Edit the PR body so the **AI-reviewer signoff** section contains all three markers from `release-management.md` §4.5.3:")
+    lines.append(
+        "Edit the PR body so the **AI-reviewer signoff** section contains all three "
+        "markers from `release-management.md` §4.5.3:"
+    )
     lines.append("")
     lines.append("```")
     lines.append("Profile: A | B")
     lines.append("Reviewer: <CodeRabbit | claude-code-action | self-review>")
-    lines.append("Self-review findings: <list of findings, or 'none' for trivial diffs>")
+    lines.append(
+        "Self-review findings: <list of findings, or 'none' for trivial diffs>"
+    )
     lines.append("```")
     lines.append("")
-    lines.append("Once committed, the next push will re-run this workflow + the status check turns ✅.")
+    lines.append(
+        "Once committed, the next push will re-run this workflow + the status check turns ✅."
+    )
     return "\n".join(lines)
 
 
@@ -334,15 +373,23 @@ def _set_status_check(
         return
     proc = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{repo}/check-runs",
-            "--method", "POST",
-            "-f", f"name={STATUS_CHECK_NAME}",
-            "-f", f"head_sha={sha}",
-            "-f", f"status=completed",
-            "-f", f"conclusion={state}",
-            "-f", f"output[title]={STATUS_CHECK_NAME}",
-            "-f", f"output[summary]={description}",
+            "--method",
+            "POST",
+            "-f",
+            f"name={STATUS_CHECK_NAME}",
+            "-f",
+            f"head_sha={sha}",
+            "-f",
+            "status=completed",
+            "-f",
+            f"conclusion={state}",
+            "-f",
+            f"output[title]={STATUS_CHECK_NAME}",
+            "-f",
+            f"output[summary]={description}",
         ],
         capture_output=True,
         text=True,
@@ -365,7 +412,10 @@ def run(
     dry_run: bool,
 ) -> int:
     if not _gh_available():
-        print("error: gh CLI not authenticated; run `gh auth login` first", file=sys.stderr)
+        print(
+            "error: gh CLI not authenticated; run `gh auth login` first",
+            file=sys.stderr,
+        )
         return 2
 
     _emit("post_self_review_checklist.start", pr=pr, repo=repo, dry_run=dry_run)

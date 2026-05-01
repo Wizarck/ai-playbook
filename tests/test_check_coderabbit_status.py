@@ -139,12 +139,12 @@ def test_run_returns_0_when_available(
     monkeypatch.setattr(
         ccs,
         "_gh_pr_comments",
-        lambda pr, repo: [_comment(ccs.CODERABBIT_LOGIN, "## Summary by CodeRabbit\nlgtm")],
+        lambda pr, repo: [
+            _comment(ccs.CODERABBIT_LOGIN, "## Summary by CodeRabbit\nlgtm")
+        ],
     )
 
-    rc = ccs.run(
-        pr=1, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True
-    )
+    rc = ccs.run(pr=1, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True)
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "available"
@@ -169,9 +169,7 @@ def test_run_returns_1_when_rate_limited(
         lambda pr, repo: [_comment(ccs.CODERABBIT_LOGIN, "## Rate limit exceeded\n")],
     )
 
-    rc = ccs.run(
-        pr=1, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True
-    )
+    rc = ccs.run(pr=1, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True)
     assert rc == 1
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "rate-limited"
@@ -189,9 +187,7 @@ def test_run_returns_1_when_silent_after_wait(
     )
     monkeypatch.setattr(ccs, "_gh_pr_comments", lambda pr, repo: [])
     # Don't actually sleep during the test — wait_seconds=0 short-circuits.
-    rc = ccs.run(
-        pr=1, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True
-    )
+    rc = ccs.run(pr=1, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True)
     assert rc == 1
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "silent"
@@ -218,7 +214,9 @@ def test_run_returns_2_when_pr_not_found(
         raise RuntimeError("gh pr view failed (exit 1): no such PR")
 
     monkeypatch.setattr(ccs, "_gh_pr_meta", boom)
-    rc = ccs.run(pr=99999, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True)
+    rc = ccs.run(
+        pr=99999, repo="x/y", wait_seconds=0, poll_interval=1, output_json=True
+    )
     assert rc == 2
 
 
