@@ -51,13 +51,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Reuse the parser + GraphQL helpers from bootstrap_gh_project so the
 # slicing-file format and Status-field schema stay in lockstep.
 from scripts.bootstrap_gh_project import (  # noqa: E402
+    _emit,
+    _gh_available,
     list_fields,
     list_items,
     lookup_project,
     parse_slicing,
     set_item_status,
-    _emit,
-    _gh_available,
 )
 
 
