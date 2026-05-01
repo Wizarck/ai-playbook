@@ -1,0 +1,115 @@
+# coderabbit-fallback.yml — L2 safety net of the v0.9.0 fallback contract.
+#
+# Per release-management.md §4.5.2: when a PR opens and CodeRabbit doesn't
+# review within 5 minutes (rate-limited or silent) AND the PR body's §4.5
+# section is empty/stubbed, this workflow posts a structured fallback
+# checklist as a PR comment + marks the status check
+# `ai-self-review-required` as failing.
+#
+# This is the SAFETY NET: the worker AI's L1 in-session self-review (per
+# `runbooks/coderabbit-fallback.md`) is the primary path. If L1 ran, the
+# §4.5 section is populated, this workflow skips silently and marks the
+# status check ✅. The check is invisible noise when L1 worked.
+#
+# Setup:
+# 1. Copy this template to <consumer>/.github/workflows/coderabbit-fallback.yml.
+# 2. Bump the playbook submodule to v0.9.0+ so the scripts exist.
+# 3. (Optional) Add `ai-self-review-required` to the branch protection's
+#    required-checks list to ENFORCE the contract. Default: informational.
+#
+# How it fires: on `pull_request: [opened, synchronize]`. Sleeps 5 minutes
+# (CodeRabbit's typical response window) then runs the detection +
+# checklist scripts. The 5-minute sleep is the cost; we accept it as the
+# tradeoff for catching missing self-reviews early.
+
+name: coderabbit-fallback
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    # Skip Dependabot / bot pushes that don't need a review fallback.
+    # If your bot account creates non-trivial PRs, remove this filter.
+
+permissions:
+  contents: read
+  pull-requests: write       # post comments
+  checks: write              # set the ai-self-review-required check
+  statuses: write            # alternate status API
+
+concurrency:
+  # Cancel any prior run for the same PR — the latest synchronize event wins.
+  group: coderabbit-fallback-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fallback:
+    name: CodeRabbit fallback (L2)
+    runs-on: ubuntu-latest
+
+    # Skip the fallback for PRs authored by automation — bump-bot,
+    # dependabot, renovate. Those PRs go through the manual L1 check on
+    # merge per `release.md` Step 7.
+    if: |
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'renovate[bot]' &&
+      github.event.pull_request.user.login != 'github-actions[bot]'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Wait for CodeRabbit (5 min window)
+        run: sleep 300
+
+      - name: Detect CodeRabbit status
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PYTHONPATH so the playbook script can import its own helpers
+          # (mirrors the project-status.yml pattern + gotcha #9).
+          PYTHONPATH: ${{ github.workspace }}/.ai-playbook
+        run: |
+          if [ ! -f .ai-playbook/scripts/check_coderabbit_status.py ]; then
+            echo "::warning::Playbook check_coderabbit_status.py not found. Bump playbook to v0.9.0+ to enable the L2 fallback. Skipping."
+            echo "status=missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Wait=0 here — we already slept 5 min above; this is just an
+          # instant classification of comments seen so far.
+          python .ai-playbook/scripts/check_coderabbit_status.py \
+            --pr "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --wait 0 \
+            --poll-interval 1 \
+            > /tmp/coderabbit_status.json || true
+          STATUS=$(python -c "import json; d=json.load(open('/tmp/coderabbit_status.json')); print(d.get('status','error'))")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "Detected CodeRabbit status: $STATUS"
+
+      - name: Skip if CodeRabbit reviewed
+        if: steps.detect.outputs.status == 'available'
+        run: echo "CodeRabbit already reviewed; nothing to do."
+
+      - name: Skip if scripts unavailable
+        if: steps.detect.outputs.status == 'missing'
+        run: echo "Playbook scripts not present; cannot run fallback."
+
+      - name: Post checklist (or skip silently if §4.5 populated)
+        if: |
+          steps.detect.outputs.status == 'rate-limited' ||
+          steps.detect.outputs.status == 'silent' ||
+          steps.detect.outputs.status == 'error'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: ${{ github.workspace }}/.ai-playbook
+        run: |
+          python .ai-playbook/scripts/post_self_review_checklist.py \
+            --pr "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --head-sha "${{ github.event.pull_request.head.sha }}"
