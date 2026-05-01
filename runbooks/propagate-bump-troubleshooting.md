@@ -1,10 +1,8 @@
 # runbook: propagate-bump-troubleshooting.md
 
 > **Audience**: the AI or a human debugging a failed
-> `propagate-playbook-bump.yml` run.
-> **Status**: v1.0.0. Populated from the first 4 runs on 2026-04-24 —
-> 3 real failures, 1 success. Add a section here every time a new
-> failure mode surfaces.
+> `propagate-playbook-bump.yml` (or `propagate-skills-bump.yml`) run.
+> **Status**: v1.1.0 (2026-05-01 — adds Pattern E supersede + Pattern F skills-bump date refresh + post-v0.8.0 expected behaviors).
 
 ## Quick diagnosis flow
 
@@ -20,9 +18,33 @@ gh run view <run-id> --log-failed  →  which step?
         │        ├── "could not read Username"  → Pattern B (submodule auth)
         │        ├── "clone failed: Repository not found" → Pattern C (token scope)
         │        ├── "gh pr create ... already exists"    → idempotent OK (treated as pr-exists)
+        │        ├── "supersede failed for <consumer>"    → Pattern F (post-v0.8.0)
+        │        ├── "AGENTS.md updated: date is stale"   → Pattern G (pre-v0.8.3, fixed)
         │        └── "fatal: Authentication failed"       → Pattern D (PAT expired)
         └── Any other → examine env block + stderr tail
 ```
+
+## Expected behaviors (v0.8.0+)
+
+Before debugging, confirm what you're seeing isn't expected behavior:
+
+### Supersede auto-closes prior bump PRs (v0.8.0+)
+
+Each new `chore/bump-{playbook,skills}-vX.Y.Z` PR auto-closes ALL prior open PRs on the same change-stream (per [release-management.md §3.4](../specs/release-management.md)). If you see "PR #N closed: Auto-closed: superseded by #M" on consumer side, that's **correct behavior** — the propagate workflow ran `supersede_open_bump_prs()` after opening the new PR.
+
+To verify supersede ran: list closed PRs in a consumer with the bump prefix:
+
+```bash
+gh pr list --repo Wizarck/<consumer> --state closed --limit 8 \
+    --search "head:chore/bump-playbook" \
+    --json number,headRefName,closedAt --jq '.[]'
+```
+
+If you see a tight cluster (timestamps within ~30s of the propagate workflow run), supersede worked.
+
+### AGENTS.md `updated:` date refreshed (v0.8.3+)
+
+`propagate-skills-bump.yml` rewrites BOTH `skills_sources` AND `updated:` lines in lockstep. If you see `updated: <today>` in the bump PR's diff, that's correct. If you see `updated: <stale-date>`, you're on a pre-v0.8.3 playbook — bump the consumer's submodule pin to v0.8.3+ and the next bump cycle will refresh.
 
 ## Pattern A — setuptools flat-layout discovery
 
@@ -177,9 +199,61 @@ Once the push succeeds, normal `git push origin main` should work again
 for that session. Investigate the proxy if this pattern persists — file
 under Arturo's personal ops.
 
+## Pattern F — supersede helper failure (post-v0.8.0)
+
+**Symptom**
+
+```
+[propagate_bump] supersede failed for <consumer>: <error>
+```
+
+(Or, in `propagate_skills_bump.py`: `[propagate_skills_bump] supersede failed for <consumer>: ...`)
+
+**Root cause**
+
+After the new bump PR opens, `supersede_open_bump_prs()` (in `scripts/_bumper.py`) lists the consumer's open PRs and tries to close any with the matching `chore/bump-*` prefix (excluding the new one). It is **best-effort** — wrapped in a try/except so any individual close failure doesn't abort the propagate run. The most common failure modes:
+
+- **The PAT lacks `pull-requests: write` scope on the consumer.** Verify `PLAYBOOK_PROPAGATION_TOKEN` per [rotate-secrets.md](rotate-secrets.md).
+- **Race condition with another auto-close mechanism** (e.g. dependabot also closing the same PR). Check the consumer's PR for closure events near the timestamp.
+- **API rate limit**. Look for HTTP 429 in the stderr.
+
+**Fix**
+
+The supersede failure is non-fatal: the new bump PR still opens, and the stale PRs can be closed manually:
+
+```bash
+for pr_num in <list of stale PR numbers>; do
+  gh pr close $pr_num -R Wizarck/<consumer> \
+    --comment "Superseded by #<new-pr> (manual cleanup after supersede helper failed)" \
+    --delete-branch
+done
+```
+
+If supersede fails consistently across multiple runs, file a bug — the helper might need broader try/except coverage in `_bumper.py`.
+
+## Pattern G — pre-v0.8.3 stale `updated:` date (fixed in v0.8.3)
+
+**Symptom (historical)**
+
+A consumer's bump PR for skills (`chore/bump-skills-ai-playbook-vX.Y.Z`) modifies `AGENTS.md` to update `skills_sources` line, but leaves `updated: YYYY-MM-DD` at the prior (stale) date.
+
+**Root cause**
+
+`_edit_frontmatter_skills_source()` in `scripts/propagate_skills_bump.py` only rewrote `skills_sources` lines — not `updated:`. Each automated bump left the date drift behind. Surfaced 2026-05-01 in iguanatrader PR #32 (rc7 bump) where AGENTS.md kept `updated: 2026-04-30` after a 2026-05-01 bump.
+
+**Fix**
+
+Bump consumer's `.ai-playbook` submodule pin to **v0.8.3 or later**. The fix tracks `updated:` index in the same regex pass and refreshes via `datetime.now(timezone.utc).strftime("%Y-%m-%d")` when any `skills_sources` line gets rewritten. Test in v0.8.3 release: confirmed end-to-end on iguanatrader PR #33 (`updated: 2026-04-30 → 2026-05-01`).
+
+If you see this on a consumer pinned to v0.8.0–v0.8.2: just merge the bump (the date staleness is cosmetic, not functional). The next bump cycle on v0.8.3+ will catch up.
+
 ## Cross-references
 
 - [release.md](release.md) — the happy-path flow.
 - [rotate-secrets.md](rotate-secrets.md) — PAT + SMTP rotation.
-- [scripts/propagate_bump.py](../scripts/propagate_bump.py) — the CI script itself.
-- [.github/workflows/propagate-playbook-bump.yml](../.github/workflows/propagate-playbook-bump.yml) — the workflow.
+- [scripts/propagate_bump.py](../scripts/propagate_bump.py) — playbook bump CI script.
+- [scripts/propagate_skills_bump.py](../scripts/propagate_skills_bump.py) — skills bump CI script.
+- [scripts/_bumper.py](../scripts/_bumper.py) — `supersede_open_bump_prs()` shared helper.
+- [.github/workflows/propagate-playbook-bump.yml](../.github/workflows/propagate-playbook-bump.yml) — playbook bump workflow.
+- [.github/workflows/propagate-skills-bump.yml](../.github/workflows/propagate-skills-bump.yml) — skills bump workflow.
+- [specs/release-management.md §3.4](../specs/release-management.md) — supersede contract.
