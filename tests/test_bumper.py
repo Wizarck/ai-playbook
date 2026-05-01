@@ -28,7 +28,7 @@ import pytest
 
 # Force-import the module fresh; same pattern as test_propagate_bump.py.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts import _bumper
+from scripts import _bumper  # noqa: I001, E402
 
 
 # ---------------------------------------------------------------------------
