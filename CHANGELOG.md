@@ -2,6 +2,18 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## Unreleased — accumulating for v0.9.0-rc4 / stable
+
+### Added
+
+- **`specs/release-management.md` §6.6 Intra-slice parallelism**: orthogonal to wave-level (§6.4). Codifies how a main agent spawns subagents inside one slice when the slice covers multiple disjoint bounded contexts. Pre-conditions (write-path ownership in `tasks.md`, migration-number pre-allocation, shared-file reservation), spawn pattern (`Agent isolation: "worktree"` with ephemeral side-branches `slice/<id>--<group>`), recombination via cherry-pick, anti-patterns (cross-ownership edits, public-branch pushes), and the cost-benefit threshold (~30 min of parallelisable work).
+- **`specs/runbook-bmad-openspec.md` §3.8**: brief pointer to §6.6, distinguishing intra-slice from wave-level parallelism.
+
+### Notes
+
+- Doc-only addition; no script changes. Tag deferred — folds into the next rc or stable.
+- Motivated by openTrattOS M1 implementation slice (`module-1-ingredients-implementation`) covering IAM, Ingredients, Suppliers, UoM, and shared in one OpenSpec change — exactly the shape where the pattern earns its keep.
+
 ## [0.9.0-rc3] — 2026-05-01 — bare-repo + per-branch worktree layout (default for new consumers)
 
 Codifies the directory layout senior-developer practice (Cugerone, Medeski, ChristopherA) recommends for projects that ship in waves of 5–10 concurrent OpenSpec slices. The implicit pre-v0.9.0 default (single working tree at `<repo>/`) saturated in openTrattOS Module 2 (11 concurrent changes); the new layout makes every change-id a peer subdirectory under one parent, sharing one `.bare/` git database.
