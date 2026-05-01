@@ -50,11 +50,11 @@ for _stream in (sys.stdout, sys.stderr):
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.bootstrap_gh_project import (  # noqa: E402
+    _emit,
+    _gh_available,
     list_items,
     lookup_project,
     parse_slicing,
-    _emit,
-    _gh_available,
 )
 
 

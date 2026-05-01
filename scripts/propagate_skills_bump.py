@@ -49,6 +49,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import UTC
 from pathlib import Path
 
 import yaml
@@ -260,8 +261,8 @@ def _edit_frontmatter_skills_source(
 
     # If we rewrote a skills_sources line, also refresh `updated:` to today.
     if changed and updated_line_idx is not None:
-        from datetime import datetime, timezone
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        from datetime import datetime
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         # Preserve key + indentation; replace value only. Tolerates quoted
         # values ("YYYY-MM-DD") and unquoted (YYYY-MM-DD).
         old_line = lines[updated_line_idx]
