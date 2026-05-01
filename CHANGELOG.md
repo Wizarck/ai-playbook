@@ -2,6 +2,39 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.5] — 2026-05-01 — INDEX + AGENTS.md template updates for v0.8.x
+
+Documentation patch — no functional changes. Continues the v0.8.4 docs
+sweep with two additional surfaces.
+
+### Updated
+
+- **`specs/INDEX.md`**: `release-management.md` entry bumped from v1.0.0
+  description to v1.2.0 description. Now lists the §3.4 supersede,
+  §4.4 pre-commit diff mode, §4.5 AI-reviewer feedback loop, §5.5
+  trace fields (Branch + Base SHA), §5.6 Profile A/B, §6.5 pre-flight
+  rebase additions explicitly so consumer projects browsing the INDEX
+  see them at-a-glance.
+
+- **`templates/new-project/AGENTS.md.tmpl`**: 
+  - Bootstrap directive (§0) now requires reading `release-management.md`
+    at session start in addition to `dispatcher-chain.md`. Calls out the
+    critical sections (§4.5, §5.6, §6.5).
+  - Capability map (§5) gains 4 new entries: `opsx_apply_companion.py`
+    (pre-flight), `bootstrap_gh_project.py --profile auto`,
+    `auto_transition_blocked_todo.py`, `check_slice_dependencies.py`.
+
+### Migration
+
+Bump submodule v0.8.4 → v0.8.5. Existing consumers' AGENTS.md files are
+NOT auto-rewritten (they are project-owned), but the spec contract in
+release-management.md §0 is what the AI loads at session start anyway.
+New consumers onboarded via `bootstrap.py` get the updated template.
+
+To retroactively add the bootstrap directive + capability entries to
+existing consumers' AGENTS.md, copy the relevant sections from
+`templates/new-project/AGENTS.md.tmpl` v0.8.5 manually.
+
 ## [0.8.4] — 2026-05-01 — Runbooks updated for v0.8.x release-management
 
 Documentation patch — no functional changes. Brings the runbooks

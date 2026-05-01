@@ -18,9 +18,10 @@ capabilities_map: true
 Before responding to ANY task:
 
 1. Read `.ai-playbook/specs/dispatcher-chain.md` — universal norms inherited from the pinned playbook tag.
-2. Consult `.claude/injected-context.md` — populated by the SessionStart hook from `hindsight.recall(query="{{PROJECT_NAME}} <topic>")` against bank `{{PROJECT_BANK}}`. If absent or showing `DEGRADED_CONTEXT`, announce + proceed without prior recall.
-3. Check `openspec/changes/*/` for active work on the topic. If a change is live, extend it — don't start parallel work.
-4. Only then respond.
+2. Read `.ai-playbook/specs/release-management.md` — branch model, PR shape, CI gates. Critical sections: **§4.5 AI-reviewer feedback loop** (must read CodeRabbit / claude-code-action comments before Gate F), **§5.6 Profile A/B** (visibility-driven enforcement), **§6.5 pre-flight rebase** (run `opsx_apply_companion.py` before first task commit).
+3. Consult `.claude/injected-context.md` — populated by the SessionStart hook from `hindsight.recall(query="{{PROJECT_NAME}} <topic>")` against bank `{{PROJECT_BANK}}`. If absent or showing `DEGRADED_CONTEXT`, announce + proceed without prior recall.
+4. Check `openspec/changes/*/` for active work on the topic. If a change is live, extend it — don't start parallel work.
+5. Only then respond.
 
 ## 1 Project identity
 
@@ -53,8 +54,12 @@ Before responding to ANY task:
 | Recall prior decisions | `python .ai-playbook/scripts/inject_context.py --bank-id {{PROJECT_BANK}}` (auto-fired by SessionStart hook) | playbook |
 | Retain a lesson / decision / gotcha | `python .ai-playbook/scripts/retain_memory.py --bank {{PROJECT_BANK}} --kind <kind> --content "..." --why "..."` | playbook |
 | OpenSpec ops | `/opsx:propose | apply | archive | explore` | `.claude/commands/` |
+| Pre-flight before `/opsx:apply` (Branch+SHA capture + rebase, per release-management.md §6.5) | `python .ai-playbook/scripts/opsx_apply_companion.py --change-id <slice> --owner Wizarck --project-number <N> --repo Wizarck/{{PROJECT_NAME}}` | playbook |
 | Validate OpenSpec change | `python .ai-playbook/scripts/openspec_validate.py` | playbook |
 | Validate this AGENTS.md | `python .ai-playbook/scripts/schema_validate.py AGENTS.md` | playbook |
+| Bootstrap / re-bootstrap GH Project board (Profile A/B) | `python .ai-playbook/scripts/bootstrap_gh_project.py --owner Wizarck --project-number <N> --repo Wizarck/{{PROJECT_NAME}} --profile auto` | playbook |
+| Auto-transition Blocked → Todo on dep merge | `python .ai-playbook/scripts/auto_transition_blocked_todo.py --owner Wizarck --project-number <N>` (also wired via `.github/workflows/project-status.yml`) | playbook |
+| Hard dep-graph check at PR merge time | `python .ai-playbook/scripts/check_slice_dependencies.py --owner Wizarck --project-number <N> --change-id <slice>` (also wired via `.github/workflows/dep-check.yml`) | playbook |
 | Render MCP configs | `python .ai-playbook/scripts/mcp/render.py --project {{PROJECT_NAME}}` | playbook |
 | Secrets scan | `python .ai-playbook/scripts/secrets_scan.py` | playbook |
 | Check for legacy↔v1 mcp-servers drift | `python .ai-playbook/scripts/check_mcp_drift.py` | playbook |
