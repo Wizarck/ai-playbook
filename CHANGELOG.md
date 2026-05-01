@@ -2,6 +2,30 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.9.0-rc3] — 2026-05-01 — bare-repo + per-branch worktree layout (default for new consumers)
+
+Codifies the directory layout senior-developer practice (Cugerone, Medeski, ChristopherA) recommends for projects that ship in waves of 5–10 concurrent OpenSpec slices. The implicit pre-v0.9.0 default (single working tree at `<repo>/`) saturated in openTrattOS Module 2 (11 concurrent changes); the new layout makes every change-id a peer subdirectory under one parent, sharing one `.bare/` git database.
+
+Existing consumers on the legacy single-tree layout keep working — migration is opt-in via the new runbook §3.
+
+### Added
+
+- **[`specs/git-worktree-bare-layout.md`](specs/git-worktree-bare-layout.md)** (v1.0.0): the layout contract — directory shape, naming rules (worktree dir == OpenSpec change-id), invariants I1–I5, rationale (bare+per-branch vs sibling-suffix vs centralised pool), tooling pointers, registry compatibility. Cross-references `dispatcher-chain.md` and `release-management.md`.
+- **[`runbooks/git-worktree-bare-setup.md`](runbooks/git-worktree-bare-setup.md)** (v1.0.0): operational runbook covering 4 scenarios — §1 greenfield bootstrap, §2 onboard existing repo, §3 migrate from legacy single-tree, §4 daily flow (add/remove worktrees). §3.5 documents the Windows cwd-lock workaround (rename a project root locked by an open editor session).
+- **[`scripts/wt_add.py`](scripts/wt_add.py)** (~280 LOC): one-command worktree creation. Auto-detects default branch via `origin/HEAD`; refuses change-ids without a matching `openspec/changes/<id>/` folder unless `--no-slice-check`; initialises submodules in the new worktree by default. Dry-run mode.
+
+### Changed
+
+- **`specs/runbook-bmad-openspec.md`**: new §3.7 "On-disk layout for concurrent slices" cross-references the new spec + runbook + script. §3.6 (branch + PR + merge contract) unchanged — the layout sits **under** the existing 1 branch = 1 change = 1 PR rule.
+- **`runbooks/INDEX.md`**: new row pointing at `git-worktree-bare-setup.md`.
+- **`specs/INDEX.md`**: regenerated to include `git-worktree-bare-layout.md`.
+
+### Notes
+
+- Migration from legacy is **not breaking**: the `path` entry in `~/.ai-playbook/projects.yaml` is unchanged (the dispatcher resolution treats it as parent-of-cwd, so cwd in `<repo>/master/` still resolves through the same registry entry as cwd in `<repo>/` did).
+- First real-world migration: openTrattOS, 2026-05-01. Lessons folded back into the runbook §3.5 (Windows cwd-lock workaround) and §3.6 (`git worktree repair` as the recovery step after the rename).
+- The naming rule "worktree dir == openspec change-id" is enforced by `wt_add.py` but **not** retroactively imposed: openTrattOS still has `m1-ingredients/` while its change-id is `module-1-ingredients-implementation`. This mismatch is cosmetic and will be cleaned up after the slice merges. Future slices use exact names.
+
 ## [0.9.0-rc2] — 2026-05-01 — rolls v0.8.7 forward into the v0.9.0 line
 
 Cut to recover from a tag-ordering miss: the v0.8.7 fix (`opsx_apply_companion` default-branch auto-detect, commit `8ea91e4`) landed on `main` 3m34s **AFTER** v0.9.0-rc1 was tagged + propagated. Consumers that merged the v0.9.0-rc1 bump PR (all 5) ended up with the **broken** companion that hardcodes `origin/main` — which fails on `master`-default repos (openTrattOS, by design).
