@@ -215,7 +215,7 @@ def test_parse_branch_version_orders_series() -> None:
         _bumper._parse_branch_version("chore/bump-playbook-v0.10.0"),
     ]
     assert all(k is not None for k in keys)
-    for a, b in zip(keys, keys[1:], strict=True):
+    for a, b in zip(keys, keys[1:], strict=False):
         assert a is not None and b is not None
         assert a < b
 
