@@ -222,8 +222,17 @@ def _edit_frontmatter_skills_source(
 
     changed = False
     already_at_target = False
+    updated_line_idx: int | None = None
     for i in range(1, end):
         ln = lines[i]
+        # Track `updated:` line index so we can refresh it when bumping.
+        # Per gotcha (iguanatrader/docs/gotchas.md, surfaced 2026-05-01):
+        # propagate_skills_bump previously rewrote skills_sources but not
+        # `updated:`, leaving AGENTS.md frontmatter with stale dates after
+        # automated bumps. Now we refresh in lockstep.
+        if re.match(r"^\s*updated\s*:", ln) and updated_line_idx is None:
+            updated_line_idx = i
+            continue
         # Match a YAML list item like "  - Wizarck/ai-playbook@v0.3.0"
         # (also tolerates "github.com/" prefix).
         m = re.match(
@@ -247,6 +256,17 @@ def _edit_frontmatter_skills_source(
         )
         lines[i] = f"{m.group('indent')}{new_ref}{m.group('rest') or ''}"
         changed = True
+
+    # If we rewrote a skills_sources line, also refresh `updated:` to today.
+    if changed and updated_line_idx is not None:
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # Preserve key + indentation; replace value only. Tolerates quoted
+        # values ("YYYY-MM-DD") and unquoted (YYYY-MM-DD).
+        old_line = lines[updated_line_idx]
+        m_upd = re.match(r"^(\s*updated\s*:\s*)(['\"]?)([^'\"#\n]+?)(['\"]?\s*(?:#.*)?)$", old_line)
+        if m_upd:
+            lines[updated_line_idx] = f"{m_upd.group(1)}{m_upd.group(2)}{today}{m_upd.group(4)}"
 
     if changed:
         agents_md.write_text("\n".join(lines), encoding="utf-8", newline="\n")
