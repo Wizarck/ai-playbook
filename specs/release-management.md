@@ -440,6 +440,54 @@ The companion verifies a clean working tree, fetches origin, captures the base S
 
 The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `release-management.md` at session start; this section directs the AI to invoke the companion as Step 0 of `/opsx:apply` work. The AI MUST run the companion AND get exit-code 0 BEFORE making the first task commit.
 
+### 6.6 Intra-slice parallelism (multiple subagents inside one slice)
+
+§6.4 codifies parallelism **across** slices (Wave-N concurrency). This subsection codifies the orthogonal axis: parallelism **inside** a single slice, when the slice's `tasks.md` has independent task groups (typically one per bounded context inside one OpenSpec change).
+
+**When it applies.** The slice contains ≥2 task groups with disjoint write-paths. The canonical example is a slice that scaffolds N bounded contexts in one shot (e.g. `module-1-ingredients-implementation` covering `iam/`, `ingredients/`, `suppliers/`, `cost/`, `shared/uom/` — 5 disjoint roots under `apps/api/src/`). Sequential implementation works fine; intra-slice parallelism just shortens wall-clock.
+
+**When it does NOT apply.** Single-bounded-context slices, slices with TDD-tight ordering (e.g. interface → impl → consumer), slices small enough that spawning + coordination overhead exceeds the savings (rule of thumb: <3 task groups, or any group <10 tasks).
+
+**Pre-conditions** (before spawning subagents):
+
+1. `tasks.md` declares per-task-group **write-path ownership** in a header block, e.g.:
+
+   ```markdown
+   ## §2 IAM domain
+   - **Owns**: `apps/api/src/iam/**`, `apps/api/src/migrations/0001-0004_*.ts`
+   - **Reads**: `apps/api/src/data-source.ts` (no edits), `apps/api/src/app.module.ts` (registers via §8)
+   - **Migration sequence numbers reserved**: 0001-0004
+   ```
+
+2. The main agent (the one orchestrating the slice) cross-checks ownership: no two groups own the same path; migration sequence numbers are non-overlapping; shared files (`app.module.ts`, `package.json`, `data-source.ts`, top-level `tsconfig`, etc.) are NOT owned by any subagent — they are touched serially by the main agent in a recombination step.
+
+3. Migration sequence numbers are **pre-allocated** (not chosen by subagents) to avoid collisions in `apps/api/src/migrations/` numbering.
+
+**Spawn pattern.** Use the `Agent` tool with `isolation: "worktree"` per group. Each subagent gets:
+
+- A separate temporary worktree (off the same `slice/<change-id>` branch is impossible — git refuses two worktrees on the same branch — so the main agent creates one ephemeral branch per subagent: `slice/<change-id>--<group-id>`, branched from the slice base SHA).
+- A scoped prompt: "Own these paths, don't touch the rest. Commit only to your branch. When done, return your branch name + commit SHA."
+- The list of read-only paths it may consult.
+
+**Recombination.** Subagents do NOT push their branches to `origin`. The main agent:
+
+1. Awaits all subagents' completion.
+2. Cherry-picks each subagent's commits onto `slice/<change-id>` in order of dependency (data-source.ts updates last).
+3. Updates the shared files (`app.module.ts` registers the new modules; `package.json` aggregates new deps).
+4. Runs the slice's full test suite. Conflicts → abort recombination, fall back to sequential implementation, file as a slicing-too-coarse failure for next retro.
+5. Pushes `slice/<change-id>` once with the full bundle.
+
+**Anti-patterns** (each is a `goal_drift` per [agentic-failures.md](agentic-failures.md)):
+
+- A subagent edits a file outside its declared write-paths.
+- A subagent pushes to a public branch (`origin/slice/...` or `origin/feat/...`) instead of returning a local branch SHA.
+- The main agent skips the cross-check and spawns with overlapping ownership.
+- Migration numbers chosen by subagents instead of pre-allocated.
+
+**Hard limit.** This pattern caps at the number of disjoint bounded contexts the slice covers. Most slices have 1–2; modules-as-foundation slices have 3–5; nothing in the playbook spawns >6 subagents inside one slice (above that, the slice is mis-sliced — see §2.2 of [runbook-bmad-openspec.md](runbook-bmad-openspec.md)).
+
+**Coordination cost vs. wall-clock saving.** The recombination step + the cross-check overhead is ~10–15 min. Below ~30 min of parallelisable work, sequential is faster. The pattern earns its keep on slices like `module-1-ingredients-implementation` (95+ tasks across 5 groups, ~4–6 hours sequential → ~1.5 hours parallel + 15 min recombination).
+
 ---
 
 ## 7. Bootstrap automation

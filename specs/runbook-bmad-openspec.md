@@ -177,6 +177,12 @@ The worktree directory name **equals** the OpenSpec change-id (the same folder n
 
 Greenfield consumer projects adopt this layout from day one via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §1. Existing consumers on the legacy single-tree layout keep working — migration is opt-in per §3 of that runbook.
 
+### 3.8 Intra-slice parallelism (orthogonal to wave-level)
+
+When a single slice covers multiple disjoint bounded contexts (e.g. M1 implementation slices that scaffold IAM + Ingredients + Suppliers + UoM in one OpenSpec change), the main agent MAY spawn subagents in parallel — one per bounded context — provided every group declares write-path ownership in `tasks.md` and shared files are reserved for serial recombination by the main agent. The full contract is in [release-management.md](release-management.md) §6.6.
+
+This is **orthogonal** to the wave-level parallelism of §6.4 (which is about multiple slices in flight at the same wave, each on its own branch + worktree). Intra-slice parallelism happens **inside** one slice's branch, with subagents using ephemeral side-branches that the main agent recombines via cherry-pick before the slice's first push.
+
 ## 4 Retro cadence
 
 Post-archive retro is mandatory; weekly and monthly retros cover accumulation.
