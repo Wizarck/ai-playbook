@@ -2,6 +2,28 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.8.0] — 2026-05-01 — Profile A/B + Branch+SHA + supersede + spec-edit fix (stable)
+
+Promotes v0.8.0-rc7 to stable after validation against iguanatrader. The
+supersede logic was demonstrated **end-to-end in production**: when the rc7
+propagate-bump fired against 5 consumers, 30+ stale `chore/bump-playbook-*`
+PRs (v0.7.0 through rc6, accumulated across 6 prior tag pushes in 4 of the
+5 consumers) were auto-closed within a 60-second window — exactly the
+pile-up failure mode the supersede helper was designed to prevent.
+
+This stable promotion contains zero functional changes vs rc7. See the
+rc7 entry below for the full feature list. The rc7 → stable validation
+matrix:
+
+- iguanatrader (Profile A, public): bumped, both bump PRs CI green incl.
+  CodeRabbit review, merged via `--admin`. `bootstrap_gh_project.py
+  --profile auto` ran idempotently — 0 schema additions (everything was
+  already manually applied 2026-04-30→05-01), Profile A re-applied.
+- 4 other consumers received clean rc7 bump PRs with all prior PRs
+  superseded: openTrattOS (closed 8 stale PRs), eligia-core (closed 8),
+  palafito-b2b (closed 8), livekit (closed 8). Net: 32 PRs auto-closed,
+  4 fresh PRs opened.
+
 ## [0.8.0-rc7] — 2026-05-01 — Profile A/B + Branch+SHA + supersede + spec-edit fix
 
 Substantial release-management upgrade surfaced through iguanatrader slice 1
