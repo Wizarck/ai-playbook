@@ -95,6 +95,90 @@ def commit_bump(
         raise BumperError(f"git commit failed in {consumer_root}: {exc.stderr.strip()}") from exc
 
 
+def supersede_open_bump_prs(
+    consumer_root: Path,
+    branch_prefix: str,
+    new_pr_number: int | None,
+    *,
+    new_pr_url: str | None = None,
+) -> list[str]:
+    """Close any open PR whose head branch starts with `branch_prefix`,
+    EXCLUDING the freshly-opened ``new_pr_number``.
+
+    Per release-management.md §3.4: each new ``chore/bump-*`` PR auto-
+    closes prior open PRs on the same logical change-stream. Prevents
+    the pile-up pattern observed during ai-playbook v0.8.0-rc1→rc6
+    dogfooding (10 stacked, pairwise-conflicting bump PRs).
+
+    Returns list of closed PR numbers (as strings). Idempotent — safe
+    to call even when no older PRs exist.
+
+    Args:
+        consumer_root: path to the consumer's working tree (cwd for `gh`).
+        branch_prefix: e.g. "chore/bump-playbook-" or
+                        "chore/bump-skills-ai-playbook-".
+        new_pr_number: the PR just opened. PRs with this number are
+                       excluded from the close list. If None (e.g. PR
+                       creation failed or was skipped), all matching PRs
+                       are considered for closure.
+        new_pr_url: optional, embedded in the supersede comment so the
+                    closed PR points at its successor.
+    """
+    import json as _json  # local import: this helper is the only place
+
+    list_cmd = [
+        "gh", "pr", "list",
+        "--state", "open",
+        "--json", "number,headRefName,url",
+        "--limit", "100",
+    ]
+    try:
+        r = _run(list_cmd, cwd=consumer_root)
+    except subprocess.CalledProcessError as exc:
+        raise BumperError(
+            f"gh pr list failed in {consumer_root}: {exc.stderr.strip()}"
+        ) from exc
+
+    try:
+        prs = _json.loads(r.stdout or "[]")
+    except _json.JSONDecodeError as exc:
+        raise BumperError(f"could not parse gh pr list output: {exc}") from exc
+
+    to_close = [
+        pr for pr in prs
+        if pr.get("headRefName", "").startswith(branch_prefix)
+        and pr.get("number") != new_pr_number
+    ]
+    if not to_close:
+        return []
+
+    successor_ref = (
+        f" by #{new_pr_number}" if new_pr_number else ""
+    ) + (f" ({new_pr_url})" if new_pr_url else "")
+    comment = (
+        f"Auto-closed: superseded{successor_ref}. "
+        "Each new bump PR closes prior open PRs on the same logical "
+        "change-stream per ai-playbook release-management.md §3.4."
+    )
+
+    closed: list[str] = []
+    for pr in to_close:
+        num = str(pr["number"])
+        try:
+            _run(
+                ["gh", "pr", "close", num, "--comment", comment, "--delete-branch"],
+                cwd=consumer_root,
+                check=False,
+            )
+            closed.append(num)
+        except subprocess.CalledProcessError:
+            # Best-effort; continue closing the rest. The user can clean
+            # up manually if any individual close fails.
+            continue
+
+    return closed
+
+
 def bump_branch(tag: str) -> str:
     """Canonical branch name for a propagation PR."""
     return BUMP_BRANCH_TEMPLATE.format(tag=tag)
