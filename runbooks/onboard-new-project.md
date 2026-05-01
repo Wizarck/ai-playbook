@@ -229,7 +229,7 @@ claude  # o lo que uses para arrancar Claude Code
 
 Después de ~30-60 segundos (cold recall) debería aparecer `.claude/injected-context.md` con resultados del bank `<project-name>`. Es normal que esté vacío en la primera ejecución (el bank se crea lazy).
 
-### 11. (Opcional, v0.8.x) Copia los workflow templates de auto-transition + dep-check
+### 11. (Opcional, v0.8.x+) Copia los workflow templates de auto-transition + dep-check + coderabbit-fallback
 
 Si el consumer va a usar el slicing graph activamente (Wave 0 sequential + Wave N parallel), copia los workflows que automatizan el board:
 
@@ -238,14 +238,18 @@ cp .ai-playbook/templates/new-project/.github/workflows/project-status.yml.tmpl 
    .github/workflows/project-status.yml
 cp .ai-playbook/templates/new-project/.github/workflows/dep-check.yml.tmpl \
    .github/workflows/dep-check.yml
+cp .ai-playbook/templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl \
+   .github/workflows/coderabbit-fallback.yml   # v0.9.0+ — L2 safety net
 ```
 
 Configura los secrets/variables que requieren:
-- Secret `PROJECT_AUTOMATION_TOKEN`: PAT con Project read+write.
+- Secret `PROJECT_AUTOMATION_TOKEN`: PAT con Project read+write (para `project-status.yml` + `dep-check.yml`).
 - Variable `PROJECT_OWNER`: `Wizarck`.
 - Variable `PROJECT_NUMBER`: `<N>` del paso 7.
 
-`project-status.yml` auto-transiciona items de Blocked → Todo cuando sus deps están Done (per [release-management.md §6.3](../specs/release-management.md)). `dep-check.yml` (opt-in hard gate) bloquea PR de slice X si las deps no están Done aún.
+`project-status.yml` auto-transiciona items de Blocked → Todo cuando sus deps están Done (per [release-management.md §6.3](../specs/release-management.md)). `dep-check.yml` (opt-in hard gate) bloquea PR de slice X si las deps no están Done aún. `coderabbit-fallback.yml` (v0.9.0+) postea un self-review checklist en PRs cuando CodeRabbit no está disponible Y el PR body no tiene §4.5 poblado (per [release-management.md §4.5.2](../specs/release-management.md)). Solo usa `secrets.GITHUB_TOKEN` (no requiere PAT).
+
+**Nota**: `bootstrap_gh_project.py --profile auto` (v0.9.0+) copia `coderabbit-fallback.yml` automáticamente; estos `cp` manuales son para consumers que no quieren correr el bootstrap script.
 
 ## Manual override del SOPS path
 

@@ -228,7 +228,22 @@ def test_propagate_happy_path_opens_pr(tmp_path: Path) -> None:
             return _completed(stdout="https://gh/pr/new\n")
         return _completed()
 
-    with patch.object(psb, "_run", fake_run):
+    # v0.8.8+ — `materialise_skills` runs `git submodule add` against
+    # github.com which requires auth; CI runners don't have GH credentials
+    # for the dummy repo URLs the test passes (Wizarck/delta etc.). Mock
+    # to a no-op that returns an object with the `.errors` attribute the
+    # caller checks. Coverage of `materialise_skills` itself lives in
+    # tests/test_skills_materialiser.py.
+    class _FakeMatResult:
+        errors: list[str] = []
+
+    def fake_materialise(*a, **kw):
+        return _FakeMatResult()
+
+    with (
+        patch.object(psb, "_run", fake_run),
+        patch.object(psb, "materialise_skills", fake_materialise),
+    ):
         result = psb._propagate_one(
             consumer, source_repo="ai-playbook", tag="v0.4.0",
             workdir=workdir, open_pr=True,

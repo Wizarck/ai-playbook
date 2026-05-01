@@ -204,6 +204,55 @@ The v0.8.0 release itself admin-merged 5 PRs without inspecting CodeRabbit's out
 
 Until claude-code-action lands in Phase 3, Profile B repos have no AI reviewer. The contract degrades to: the worker AI MUST self-review the diff before requesting Gate F (run `gh pr diff <N>` and emit a structured self-review covering correctness, scope, security, idempotency). Self-review is logged in the PR description's "Self-review" subsection. Gate F humans can override but the audit trail must show it happened.
 
+### 4.5.1 L1 — Worker-AI in-session check (mandatory after every PR push)
+
+Introduced in v0.9.0. After **every** `gh pr create` or commit-push that updates a PR, the worker AI MUST invoke:
+
+```
+python -m scripts.check_coderabbit_status \
+    --pr <N> --repo <owner/name> --wait 300
+```
+
+Behavior by exit code:
+
+| Exit code | Status | Worker AI action |
+|---|---|---|
+| `0` | `available` | Resume the §4.5 normal loop (read comments, address, re-poll). |
+| `1` | `rate-limited` or `silent` | **Apply Profile B fallback inline using [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md)**. Populate the PR-body §4.5 section per the schema in §4.5.3 below. Do NOT declare the PR ready for Gate F until §4.5 is populated. |
+| `2` | setup error (gh unavailable, PR / repo not found) | Fix the setup error and retry. The PR is not ready for Gate F until L1 succeeds. |
+| `3` | unrecoverable (gh / network failure during polling) | Treat as `rate-limited` — apply Profile B fallback. Note the gh failure in the §4.5 audit trail. |
+
+The worker AI MUST NOT skip L1 because the diff is "obviously trivial". Bump PRs (submodule SHA + AGENTS.md version refresh) still get an L1 self-review — short, but present (see [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md) "bump PR" example).
+
+### 4.5.2 L2 — CI safety net (auto-posts checklist when L1 didn't run)
+
+Introduced in v0.9.0. The workflow [`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`](../templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl) (propagated via `bootstrap_gh_project.py --profile auto`) fires on `pull_request: [opened, synchronize]`:
+
+1. Sleeps 5 minutes (CodeRabbit's typical response window).
+2. Runs `scripts/check_coderabbit_status.py --pr <N> --repo <R> --wait 0` (instant check; no further polling).
+3. **If status is `available`** → workflow exits 0; no comment posted; status check `ai-self-review-required` set to `success`.
+4. **If status is `rate-limited` or `silent`** → workflow runs `scripts/post_self_review_checklist.py`:
+   - Reads `gh pr diff` + `gh pr view --json body`.
+   - Checks the PR body for §4.5 schema markers (per §4.5.3 below).
+   - **If §4.5 is populated** (markers present + non-stub) → status check set to `success`; no comment posted (L1 already ran in-session; L2 is silent).
+   - **If §4.5 is empty / stubbed** → posts a structured fallback checklist as a PR comment + sets status check to `failure` (visible in branch-protection settings, but NOT in the required-checks list by default — Profile A consumers can opt in to enforcement).
+
+This makes L2 a **silent safety net**: invisible when L1 ran successfully, present otherwise.
+
+The status check `ai-self-review-required` is intentionally **not added to required-checks** by default. Consumers who want strict enforcement add it manually to their branch protection's `required_status_checks.contexts` list. Without enforcement, the check is informational — an audit-trail breadcrumb visible in the PR's "Checks" tab.
+
+### 4.5.3 PR-body §4.5 schema (regex-validated by L2)
+
+The "AI-reviewer signoff" subsection in the PR body MUST contain the following three markers (case-sensitive substring match) for L2 to consider it populated:
+
+1. `Profile: A` or `Profile: B` (the AI-reviewer profile).
+2. `Reviewer:` followed by any non-empty content (CodeRabbit, claude-code-action, or "self-review" with a reason).
+3. `Self-review findings:` followed by any non-empty content (a finding list, OR the literal "none" / "no findings" if the diff was trivial).
+
+If any marker is missing or stubbed (e.g. `Self-review findings: TODO`, or `<placeholder>` brackets), L2 considers §4.5 unpopulated and posts the checklist.
+
+The full canonical structure is documented in [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md) §4. Bump PRs (submodule SHA + AGENTS.md version) MAY use the shorter form documented in that runbook's examples — markers still required, but the findings list can be `none` with a one-sentence justification.
+
 #### `bootstrap_gh_project.py` does NOT auto-merge
 
 The `apply_profile` helper (per §5.6) sets `allow_auto_merge=true` at the repo level, which exposes the per-PR "Enable auto-merge" button. The worker AI MUST NOT click it before §4.5 is satisfied. Auto-merge is a CONVENIENCE for clean PRs after Gate F approval, not a bypass for the feedback loop.

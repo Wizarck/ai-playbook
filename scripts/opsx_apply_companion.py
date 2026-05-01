@@ -57,7 +57,6 @@ Exit codes
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -72,13 +71,13 @@ for _stream in (sys.stdout, sys.stderr):
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.bootstrap_gh_project import (  # noqa: E402
-    list_fields,
-    list_items,
-    lookup_project,
     _emit,
     _gh_available,
     _gh_graphql,
     ensure_trace_fields,
+    list_fields,
+    list_items,
+    lookup_project,
 )
 
 
@@ -203,7 +202,7 @@ def run(
     # 3. Capture base SHA.
     if dry_run:
         base_sha = "<dry-run>"
-        print(f"→ would: capture base SHA from origin/main (dry-run)")
+        print("→ would: capture base SHA from origin/main (dry-run)")
     else:
         base_sha = _capture_base_sha()
         print(f"→ Base SHA = {base_sha} (origin/main HEAD)")

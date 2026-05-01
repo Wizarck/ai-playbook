@@ -130,8 +130,13 @@ Each consumer should have exactly one `chore(playbook): bump .ai-playbook to vX.
 
 For each consumer's bump PR, BEFORE merging:
 
-1. Wait for CodeRabbit (Profile A) or run self-review (Profile B) per [release-management.md §4.5](../specs/release-management.md). Bump PRs are mechanical (submodule SHA + AGENTS.md version+date) so signoff is usually trivial — but populate the "AI-reviewer signoff" subsection in the PR body anyway. Audit trail matters more than depth on bumps.
-2. If CodeRabbit hits the rate-limit (29min wait observed during multi-bump series), document the rate-limit + apply Profile B fallback (self-review). Per §4.5, the rate-limit is NOT exoneration — the audit trail must record what happened.
+1. **Run the L1 detection script** (added in v0.9.0):
+   ```bash
+   python -m scripts.check_coderabbit_status \
+       --pr <N> --repo Wizarck/<repo> --wait 300
+   ```
+   Exit 0 → CodeRabbit reviewed; address comments per §4.5. Exit 1 → rate-limited or silent; apply Profile B fallback per [`runbooks/coderabbit-fallback.md`](coderabbit-fallback.md). Bump PRs are mechanical so the self-review section is short ("Self-review findings: none, mechanical bump diff only.") but MUST be populated for the audit trail.
+2. If CodeRabbit was rate-limited (typical during multi-bump series), the L2 workflow (`coderabbit-fallback.yml`) on the consumer auto-fires after 5 minutes and posts a checklist if §4.5 is empty. L1's whole point is to have §4.5 populated BEFORE L2 fires, so L2 stays silent. This is the v0.9.0 contract.
 3. Squash-merge.
 
 ### 8. Post-merge: re-run consumer bootstrap (idempotent)
@@ -150,6 +155,7 @@ Idempotent: only applies what's missing. The script:
 - Re-applies repo settings (auto-merge on, squash-only, delete-branch-on-merge).
 - For Profile A: applies branch protection (UNION semantics — preserves existing project-specific required checks per [release-management.md §gotcha #12 fix in v0.8.1](../specs/release-management.md#41-mandatory-ci-for-slice-branch-prs)).
 - For Profile B: emits notice that branch protection unavailable on GH Free private; skips.
+- (v0.9.0+) **Copies `coderabbit-fallback.yml` workflow** to `<consumer>/.github/workflows/` if absent. The L2 safety net workflow (per release-management.md §4.5.2) is now propagated automatically. Skips if the file exists (consumer may have local edits — delete + re-run to refresh).
 
 ### 9. Notify maintainers
 
