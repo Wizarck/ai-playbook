@@ -94,6 +94,9 @@ CANONICAL_STATUS_OPTIONS = ["Todo", "Blocked", "In Progress", "Review", "Done"]
 # Visibility choices for `--visibility` (per release-management.md §5.1).
 VISIBILITY_CHOICES = ("private", "public", "keep")
 
+# Profile choices for `--profile` (per release-management.md §5.6).
+PROFILE_CHOICES = ("auto", "public", "private")
+
 CUSTOM_FIELDS = [
     {
         "name": "Risk",
@@ -103,6 +106,25 @@ CUSTOM_FIELDS = [
         "name": "P&L impact",
         "options": ["None", "Low", "Medium", "High"],
     },
+]
+
+# Trace fields populated by the worker AI when a slice transitions
+# Todo → In Progress (per release-management.md §5.5). TEXT type so the AI
+# can write `slice/<change-id>` and `<short-sha>` directly.
+TRACE_FIELDS = [
+    {"name": "Branch", "data_type": "TEXT"},
+    {"name": "Base SHA", "data_type": "TEXT"},
+]
+
+# Default required status checks for Profile A branch protection. Consumer
+# can override via `--required-checks "Lint,Type check,..."`. The names must
+# match the GH Actions job `name:` exactly (with surrounding parens, etc.).
+DEFAULT_REQUIRED_CHECKS = [
+    "Lint (ruff + black --check)",
+    "Type check (mypy --strict)",
+    "Test (pytest)",
+    "Secrets scan (gitleaks)",
+    "Pre-commit hooks",
 ]
 
 
@@ -753,6 +775,216 @@ def set_item_status(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Profile A/B: visibility-driven enforcement (release-management.md §5.6)
+# ---------------------------------------------------------------------------
+
+
+def detect_repo_visibility(repo: str) -> str:
+    """Return 'PUBLIC' or 'PRIVATE' for the repo. Raises RuntimeError on lookup failure."""
+    result = _gh(["repo", "view", repo, "--json", "visibility"])
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"could not parse `gh repo view` output: {e}") from e
+    visibility = data.get("visibility", "").upper()
+    if visibility not in ("PUBLIC", "PRIVATE"):
+        raise RuntimeError(f"unexpected visibility {visibility!r} for {repo}")
+    return visibility
+
+
+def resolve_profile(profile: str, repo: str | None) -> str:
+    """Resolve --profile flag to 'public' or 'private'. Raises if --profile auto without --repo."""
+    if profile in ("public", "private"):
+        return profile
+    if profile == "auto":
+        if not repo:
+            raise RuntimeError("--profile auto requires --repo to detect visibility")
+        vis = detect_repo_visibility(repo)
+        return "public" if vis == "PUBLIC" else "private"
+    raise RuntimeError(f"invalid --profile {profile!r}")
+
+
+def apply_repo_settings(repo: str, *, dry_run: bool) -> None:
+    """PATCH repo-level settings: auto-merge on, squash-only, delete-branch-on-merge.
+
+    Applied for BOTH profiles (Profile A enforces; Profile B sets the gesture).
+    Per release-management.md §5.6.
+    """
+    if dry_run:
+        print(f"→ Repo settings: would PATCH (auto-merge=on, squash-only, delete-branch-on-merge) on {repo} (dry-run)")
+        return
+    _gh([
+        "api",
+        "-X", "PATCH",
+        f"repos/{repo}",
+        "-F", "allow_auto_merge=true",
+        "-F", "delete_branch_on_merge=true",
+        "-F", "allow_squash_merge=true",
+        "-F", "allow_merge_commit=false",
+        "-F", "allow_rebase_merge=false",
+    ])
+    print(f"→ Repo settings: applied (auto-merge=on, squash-only, delete-branch-on-merge) on {repo}")
+    _emit("bootstrap_gh_project.repo_settings_applied", repo=repo)
+
+
+def apply_branch_protection(
+    repo: str,
+    required_checks: list[str],
+    *,
+    dry_run: bool,
+) -> bool:
+    """PUT classic branch protection on `main`. Profile A only.
+
+    Returns True if applied, False if skipped (e.g. 403 on private free).
+    """
+    payload = {
+        "required_status_checks": {
+            "strict": True,
+            "contexts": required_checks,
+        },
+        "enforce_admins": False,
+        "required_pull_request_reviews": {
+            "dismiss_stale_reviews": True,
+            "require_code_owner_reviews": False,
+            "required_approving_review_count": 1,
+            "require_last_push_approval": False,
+        },
+        "restrictions": None,
+        "allow_force_pushes": False,
+        "allow_deletions": False,
+        "required_conversation_resolution": True,
+        "lock_branch": False,
+        "allow_fork_syncing": True,
+    }
+    if dry_run:
+        print(f"→ Branch protection: would PUT on {repo}/main with {len(required_checks)} required checks (dry-run)")
+        return True
+
+    # gh api PUT with body via --input -
+    body = json.dumps(payload)
+    try:
+        proc = subprocess.run(
+            ["gh", "api", "-X", "PUT", f"repos/{repo}/branches/main/protection", "--input", "-"],
+            input=body,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(f"gh CLI not found: {e}") from e
+    if proc.returncode != 0:
+        # Profile B repos (private free) return 403 here; surface as non-fatal.
+        stderr = proc.stderr or ""
+        if "403" in stderr or "Upgrade to GitHub Pro" in stderr:
+            print(
+                f"  ⚠ Branch protection unavailable on {repo} (likely GH Free private). "
+                "Falling back to Profile B (convention-based).",
+                file=sys.stderr,
+            )
+            _emit("bootstrap_gh_project.branch_protection_unavailable", repo=repo)
+            return False
+        raise RuntimeError(f"branch protection PUT failed: {stderr.strip()}")
+    print(f"→ Branch protection: applied on {repo}/main with {len(required_checks)} required checks")
+    _emit("bootstrap_gh_project.branch_protection_applied", repo=repo, checks=len(required_checks))
+    return True
+
+
+def write_coderabbit_template(repo_root: Path, *, dry_run: bool) -> None:
+    """Copy the .coderabbit.yaml template from playbook templates/ to repo root.
+
+    Profile A only. Skips if file already exists or template not found.
+    """
+    target = repo_root / ".coderabbit.yaml"
+    if target.exists():
+        print(f"→ CodeRabbit config: already present at {target.relative_to(repo_root)} (skipping)")
+        return
+    # Template lives at <playbook>/templates/new-project/.coderabbit.yaml.tmpl.
+    # The playbook is expected at <repo_root>/.ai-playbook (submodule).
+    template = repo_root / ".ai-playbook" / "templates" / "new-project" / ".coderabbit.yaml.tmpl"
+    if not template.is_file():
+        print(f"  ⚠ CodeRabbit template not found at {template} (PR C ships it; skipping)", file=sys.stderr)
+        return
+    if dry_run:
+        print(f"→ CodeRabbit config: would copy {template.name} → .coderabbit.yaml (dry-run)")
+        return
+    target.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    print("→ CodeRabbit config: wrote .coderabbit.yaml from playbook template")
+    _emit("bootstrap_gh_project.coderabbit_yaml_written", path=str(target))
+
+
+def ensure_trace_fields(
+    project_id: str,
+    fields_now: list[FieldInfo],
+    *,
+    dry_run: bool,
+) -> int:
+    """Create the Branch + Base SHA TEXT fields if absent (per §5.5).
+
+    Returns the count of fields created. Idempotent.
+    """
+    existing_names = {f.name for f in fields_now}
+    created = 0
+    for spec in TRACE_FIELDS:
+        if spec["name"] in existing_names:
+            _emit("bootstrap_gh_project.trace_field_skipped", field=spec["name"])
+            continue
+        if dry_run:
+            _emit("bootstrap_gh_project.trace_field_added", field=spec["name"], dry_run=True)
+            created += 1
+            continue
+        mutation = """
+        mutation($project_id: ID!, $name: String!, $data_type: ProjectV2CustomFieldType!) {
+          createProjectV2Field(input: {
+            projectId: $project_id,
+            dataType: $data_type,
+            name: $name
+          }) {
+            projectV2Field { ... on ProjectV2Field { id name dataType } }
+          }
+        }
+        """
+        _gh_graphql(
+            mutation,
+            project_id=project_id,
+            name=spec["name"],
+            data_type=spec["data_type"],
+        )
+        created += 1
+        _emit("bootstrap_gh_project.trace_field_added", field=spec["name"])
+    return created
+
+
+def apply_profile(
+    profile: str,
+    *,
+    repo: str | None,
+    required_checks: list[str],
+    repo_root: Path,
+    dry_run: bool,
+) -> None:
+    """Dispatch to Profile A (public) or Profile B (private) per §5.6."""
+    if not repo:
+        print("  ⚠ --profile skipped: no --repo given (profile applies to repo settings, not project)", file=sys.stderr)
+        return
+    print(f"→ Applying Profile {'A' if profile == 'public' else 'B'} ({profile}) to {repo}")
+    apply_repo_settings(repo, dry_run=dry_run)
+    if profile == "public":
+        applied = apply_branch_protection(repo, required_checks, dry_run=dry_run)
+        if applied:
+            write_coderabbit_template(repo_root, dry_run=dry_run)
+    else:
+        print(
+            "  ℹ Profile B: branch protection unavailable on GH Free private. "
+            "AI must respect AGENTS.md §4 hard rules + advisory CI by convention."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Main orchestration
+# ---------------------------------------------------------------------------
+
+
 def run(
     *,
     owner: str,
@@ -761,6 +993,8 @@ def run(
     no_custom_fields: bool,
     repo: str | None,
     visibility: str,
+    profile: str,
+    required_checks: list[str],
     dry_run: bool,
 ) -> int:
     if not _gh_available():
@@ -856,6 +1090,26 @@ def run(
     if not no_custom_fields:
         custom_added = ensure_custom_fields(proj.id, fields_now, dry_run=dry_run)
         print(f"→ Custom fields: {custom_added} added (Risk, P&L impact)")
+
+    # Trace fields (Branch + Base SHA) — always added per release-management.md §5.5.
+    fields_now = list_fields(proj.id) if not dry_run else fields_now
+    trace_added = ensure_trace_fields(proj.id, fields_now, dry_run=dry_run)
+    print(f"→ Trace fields: {trace_added} added (Branch, Base SHA)")
+
+    # Apply Profile A or B (per §5.6) — repo-side: branch protection, repo
+    # settings, .coderabbit.yaml. Only relevant when --repo is given.
+    try:
+        resolved_profile = resolve_profile(profile, repo)
+    except RuntimeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    apply_profile(
+        resolved_profile,
+        repo=repo,
+        required_checks=required_checks,
+        repo_root=Path.cwd(),
+        dry_run=dry_run,
+    )
 
     items_added = 0
     items_skipped = 0
@@ -1000,11 +1254,33 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     p.add_argument(
+        "--profile",
+        choices=PROFILE_CHOICES,
+        default="auto",
+        help=(
+            "Visibility-driven enforcement profile (per release-management.md §5.6): "
+            "'auto' detects from --repo visibility, 'public' forces Profile A "
+            "(branch protection + auto-merge + CodeRabbit), 'private' forces "
+            "Profile B (auto-merge + advisory CI only). Default: auto."
+        ),
+    )
+    p.add_argument(
+        "--required-checks",
+        default=",".join(DEFAULT_REQUIRED_CHECKS),
+        help=(
+            "Comma-separated list of required status check names for Profile A "
+            "branch protection. Names must match GH Actions job `name:` exactly. "
+            f"Default: {','.join(DEFAULT_REQUIRED_CHECKS)}"
+        ),
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="Print intended mutations without applying them",
     )
     args = p.parse_args(argv)
+
+    required_checks = [c.strip() for c in args.required_checks.split(",") if c.strip()]
 
     try:
         return run(
@@ -1014,6 +1290,8 @@ def main(argv: list[str] | None = None) -> int:
             no_custom_fields=args.no_custom_fields,
             repo=args.repo,
             visibility=args.visibility,
+            profile=args.profile,
+            required_checks=required_checks,
             dry_run=args.dry_run,
         )
     except RuntimeError as e:
