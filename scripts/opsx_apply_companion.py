@@ -4,10 +4,13 @@ Per release-management.md §6.5: before the AI begins implementing a slice
 (i.e. before the first task commit on `slice/<change-id>`), it MUST:
 
 1. `git fetch origin`
-2. Record `git rev-parse --short origin/main` as the slice's `Base SHA`
-   on the project board (per §5.5).
-3. If on the slice branch: `git rebase origin/main`. Conflicts → abort,
-   notify human reviewer (do NOT auto-resolve).
+2. Record `git rev-parse --short origin/<default>` as the slice's
+   `Base SHA` on the project board (per §5.5). The default branch is
+   auto-detected from `origin/HEAD` (`main` for new repos, `master`
+   for legacy repos). Override with `--default-branch <name>` if the
+   detection fails (e.g. fresh clones where origin/HEAD is unset).
+3. If on the slice branch: `git rebase origin/<default>`. Conflicts →
+   abort, notify human reviewer (do NOT auto-resolve).
 4. Set the project board's `Branch` field to `slice/<change-id>`.
 
 This script implements that contract as a **companion** to the openspec-CLI-
@@ -32,11 +35,11 @@ Behaviour
   staged-but-uncommitted, or untracked tracked files).
 - Fetches origin (no submodules — those are owned by the consumer's bump
   workflows, not slice work).
-- Captures `Base SHA` = short SHA of `origin/main` post-fetch.
-- If currently on `slice/<change-id>`: rebases against `origin/main`.
+- Captures `Base SHA` = short SHA of `origin/<default-branch>` post-fetch.
+- If currently on `slice/<change-id>`: rebases against `origin/<default-branch>`.
   - On conflict: aborts the rebase, prints a human-readable error, exits
     1. The human reviewer is the safety net (do NOT auto-resolve).
-  - No-op if already on top of origin/main.
+  - No-op if already on top of origin/<default-branch>.
 - If currently on a different branch: skips the rebase step, just records
   fields. (The AI may have invoked this BEFORE creating the slice branch;
   that's allowed — fields will be re-set if the AI invokes again post-
@@ -112,25 +115,60 @@ def _fetch_origin() -> None:
     _git(["fetch", "origin", "--quiet"], capture=False)
 
 
-def _capture_base_sha() -> str:
-    """Short SHA of `origin/main` HEAD (post-fetch)."""
-    r = _git(["rev-parse", "--short", "origin/main"])
+def _detect_default_branch() -> str:
+    """Detect the remote's default branch (`main` or `master`).
+
+    Reads `origin/HEAD`, e.g. `refs/remotes/origin/main` → `main`.
+    Falls back to a literal probe: tries `origin/main`, then
+    `origin/master`. Raises if neither resolves.
+    """
+    # Preferred: origin/HEAD points at the symbolic remote default.
+    r = _git(
+        ["symbolic-ref", "refs/remotes/origin/HEAD"],
+        check=False,
+        capture=True,
+    )
+    if r.returncode == 0:
+        ref = r.stdout.strip()  # e.g. refs/remotes/origin/main
+        prefix = "refs/remotes/origin/"
+        if ref.startswith(prefix):
+            return ref[len(prefix):]
+    # Fallback: probe the two common defaults.
+    for candidate in ("main", "master"):
+        rr = _git(
+            ["rev-parse", "--verify", "--quiet", f"origin/{candidate}"],
+            check=False,
+            capture=True,
+        )
+        if rr.returncode == 0:
+            return candidate
+    raise RuntimeError(
+        "could not detect remote default branch. Neither origin/HEAD nor "
+        "origin/main nor origin/master resolves. Pass --default-branch "
+        "<name> explicitly, or run `git remote set-head origin --auto`."
+    )
+
+
+def _capture_base_sha(default_branch: str) -> str:
+    """Short SHA of `origin/<default_branch>` HEAD (post-fetch)."""
+    r = _git(["rev-parse", "--short", f"origin/{default_branch}"])
     return r.stdout.strip()
 
 
-def _rebase_onto_main(slice_branch: str) -> None:
-    """Rebase the slice branch on top of origin/main. Aborts on conflict."""
-    print(f"→ git rebase origin/main (on {slice_branch})")
-    r = _git(["rebase", "origin/main"], check=False, capture=True)
+def _rebase_onto_default(slice_branch: str, default_branch: str) -> None:
+    """Rebase the slice branch on top of origin/<default>. Aborts on conflict."""
+    target = f"origin/{default_branch}"
+    print(f"→ git rebase {target} (on {slice_branch})")
+    r = _git(["rebase", target], check=False, capture=True)
     if r.returncode == 0:
         print("  rebase clean (no-op or fast-forward applied)")
         return
     # Abort the rebase to leave the workspace in a clean state.
     _git(["rebase", "--abort"], check=False, capture=True)
     raise RuntimeError(
-        f"rebase of {slice_branch} onto origin/main has conflicts. "
+        f"rebase of {slice_branch} onto {target} has conflicts. "
         "Aborted. Resolve manually:\n"
-        f"  git rebase origin/main\n"
+        f"  git rebase {target}\n"
         "  # resolve conflicts, git rebase --continue\n"
         "  # OR: git rebase --abort if you want to give up\n"
         "Per release-management.md §6.5: AI must NOT auto-resolve. "
@@ -172,6 +210,7 @@ def run(
     project_number: int,
     repo: str | None,
     dry_run: bool,
+    default_branch: str | None = None,
 ) -> int:
     if not _gh_available():
         print("error: gh CLI not authenticated; run `gh auth login` first", file=sys.stderr)
@@ -184,6 +223,7 @@ def run(
         project_number=project_number,
         repo=repo,
         dry_run=dry_run,
+        default_branch=default_branch,
     )
 
     # 1. Verify clean tree.
@@ -199,23 +239,37 @@ def run(
     else:
         _fetch_origin()
 
+    # 2b. Resolve default branch (auto-detect unless overridden).
+    if dry_run and default_branch is None:
+        resolved_default = "<auto>"
+    elif default_branch is not None:
+        resolved_default = default_branch
+        print(f"→ default branch = {resolved_default} (override via --default-branch)")
+    else:
+        try:
+            resolved_default = _detect_default_branch()
+        except RuntimeError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+        print(f"→ default branch = {resolved_default} (auto-detected from origin/HEAD)")
+
     # 3. Capture base SHA.
     if dry_run:
         base_sha = "<dry-run>"
-        print("→ would: capture base SHA from origin/main (dry-run)")
+        print(f"→ would: capture base SHA from origin/{resolved_default} (dry-run)")
     else:
-        base_sha = _capture_base_sha()
-        print(f"→ Base SHA = {base_sha} (origin/main HEAD)")
+        base_sha = _capture_base_sha(resolved_default)
+        print(f"→ Base SHA = {base_sha} (origin/{resolved_default} HEAD)")
 
     # 4. Rebase if on slice branch.
     expected_branch = f"slice/{change_id}"
     current = _current_branch()
     if current == expected_branch:
         if dry_run:
-            print(f"→ would: git rebase origin/main on {current} (dry-run)")
+            print(f"→ would: git rebase origin/{resolved_default} on {current} (dry-run)")
         else:
             try:
-                _rebase_onto_main(current)
+                _rebase_onto_default(current, resolved_default)
             except RuntimeError as e:
                 print(f"error: {e}", file=sys.stderr)
                 return 1
@@ -307,6 +361,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Consumer repo (informational; not strictly required)",
     )
     p.add_argument(
+        "--default-branch",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Override the auto-detected default branch (e.g. 'main', 'master'). "
+            "Default: auto-detect from origin/HEAD, falling back to a probe of "
+            "origin/main then origin/master. Pass this when origin/HEAD is "
+            "unset (fresh clones with no remote default) or when targeting a "
+            "non-canonical branch (e.g. 'develop')."
+        ),
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="Print intended steps without applying them",
@@ -320,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
             project_number=args.project_number,
             repo=args.repo,
             dry_run=args.dry_run,
+            default_branch=args.default_branch,
         )
     except RuntimeError as e:
         print(f"error: {e}", file=sys.stderr)
