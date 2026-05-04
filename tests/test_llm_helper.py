@@ -289,6 +289,26 @@ def test_scan_excludes_telemetry_tracers(tmp_path: Path) -> None:
     assert findings == []
 
 
+def test_scan_excludes_submodule_directories(tmp_path: Path) -> None:
+    """Consumers vendor the playbook at .ai-playbook/ — drift in submodule code
+    is upstream-owned and must not appear in the consumer's drift report.
+    """
+    for submodule in (".ai-playbook", ".skills-sources"):
+        (tmp_path / submodule / "scripts").mkdir(parents=True)
+        (tmp_path / submodule / "scripts" / "vendored.py").write_text(
+            "import anthropic\nclient = anthropic.Anthropic()\n",
+            encoding="utf-8",
+        )
+    # Consumer-owned code with the same shape MUST still be flagged.
+    (tmp_path / "consumer.py").write_text(
+        "import anthropic\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert len(findings) == 1
+    assert findings[0].path.endswith("consumer.py")
+
+
 def test_scan_inline_allow_comment_whitelists_line(tmp_path: Path) -> None:
     (tmp_path / "annotated.py").write_text(
         "import anthropic  # llm-routing-allow: bootstrap script, runs once\n",

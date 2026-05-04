@@ -5,13 +5,17 @@ Two-layer defence per `specs/agentic-failures.md` §2.3:
   Layer 1 — regex for well-known injection templates. Fires synchronously,
              no network calls, always runs.
   Layer 2 — LLM-as-judge (Haiku). Optional; runs only when
-             `ANTHROPIC_API_KEY_INJECTION` is set AND the `anthropic` package
-             is installed AND the caller did not pass `--layer 1`. Treated as
-             a best-effort classifier — gracefully degrades to layer-1-only.
+             `ANTHROPIC_API_KEY_INJECTION` is set AND the LiteLLM proxy is
+             reachable AND the caller did not pass `--layer 1`. Treated as a
+             best-effort classifier — gracefully degrades to layer-1-only.
 
-Per-consumer key isolation: Layer 2 reads `ANTHROPIC_API_KEY_INJECTION`
-(NOT the generic `ANTHROPIC_API_KEY`) so injection-filter spend stays
-separate from other consumers. Configure via SOPS-encrypted secrets.env.
+Per-consumer key isolation: Layer 2 routes via the LiteLLM proxy
+(`scripts/_llm.call(task_class="safety_judge", consumer="INJECTION", ...)`)
+which resolves the actual provider key (`ANTHROPIC_API_KEY_JUDGE` per
+`configs/litellm-router.yaml`) at the proxy. The opt-in switch
+`ANTHROPIC_API_KEY_INJECTION` is preserved as a "do we have a budget for
+this?" gate — when unset, layer-2 is skipped. Configure via
+SOPS-encrypted secrets.env.
 
 CLI
 ---
@@ -173,41 +177,34 @@ def _run_layer2(text: str) -> tuple[str, str]:
     """Return (verdict, reason).
 
     verdict ∈ {"safe", "injection", "skipped", "error"}.
+
+    Routes via the canonical LiteLLM helper (`scripts/_llm.call`). The opt-in
+    gate `ANTHROPIC_API_KEY_INJECTION` is preserved as a budget switch — when
+    unset, layer-2 is skipped without ever touching the proxy.
     """
     # Skip conditions (graceful degradation):
-    api_key = os.environ.get("ANTHROPIC_API_KEY_INJECTION")
-    if not api_key:
+    if not os.environ.get("ANTHROPIC_API_KEY_INJECTION"):
         return "skipped", "ANTHROPIC_API_KEY_INJECTION not set"
     try:
-        import anthropic  # type: ignore[import-not-found]
+        from scripts._llm import LLMRoutingError
+        from scripts._llm import call as _llm_call
     except ImportError:
-        return "skipped", "anthropic package not installed"
+        return "skipped", "scripts._llm helper not importable"
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=256,
+        resp = _llm_call(
+            "safety_judge",
+            text,
             system=_LAYER2_SYSTEM,
-            messages=[{"role": "user", "content": text}],
+            max_tokens=256,
+            consumer="INJECTION",
         )
-    except Exception as exc:  # noqa: BLE001 — any SDK error is "skip gracefully"
+    except LLMRoutingError as exc:
+        return "skipped", f"LiteLLM proxy unreachable: {exc}"
+    except Exception as exc:  # noqa: BLE001 — any unexpected error is "skip gracefully"
         return "error", f"layer-2 call failed: {exc}"
 
-    # Extract text content from the response. SDK returns `content` as a list of
-    # blocks; block.text is the string. Real SDK shape may vary — stay defensive.
-    raw: str = ""
-    try:
-        content = getattr(resp, "content", None) or []
-        if content:
-            block = content[0]
-            raw = getattr(block, "text", "") or str(block)
-        else:
-            raw = str(resp)
-    except Exception:  # noqa: BLE001
-        raw = str(resp)
-
-    raw = raw.strip()
+    raw = (resp.text or "").strip()
 
     # Fail-safe parse: malformed JSON ⇒ treat as injection.
     try:

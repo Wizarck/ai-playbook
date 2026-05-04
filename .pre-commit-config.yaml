@@ -59,3 +59,14 @@ repos:
         language: system
         pass_filenames: false
         files: ^(skills|\.claude/skills|\.gemini/skills)/
+
+      - id: verify-llm-routing
+        name: verify-llm-routing (Change C drift detector — direct-SDK callers)
+        entry: python -m scripts.verify_llm_routing
+        language: system
+        pass_filenames: false
+        # Warn-only initially per D3.5 — exit 0 even on findings. Promote to
+        # strict (exit 2) by setting AIPLAYBOOK_LLM_ROUTING_STRICT=1 or by
+        # appending `--strict` to the entry above, after 30 days of green
+        # builds (target: 2026-06-05).
+        always_run: true
