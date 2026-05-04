@@ -350,7 +350,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"   call sites detected: {result.verifier_findings_count}")
     for note in result.plan.notes:
         print(f"   - {note}")
-    print(f"\n   PR body draft (use --emit-pr-body to print only the body):")
+    print("\n   PR body draft (use --emit-pr-body to print only the body):")
     print("\n".join(f"     {line}" for line in result.pr_body.splitlines()[:6]))
     print("     ...")
 

@@ -15,10 +15,14 @@ Detection rules:
 
 | Pattern | Where it's banned | Where it's allowed |
 |---|---|---|
-| `from anthropic import` / `import anthropic` | anywhere outside the helper | `scripts/_llm.py`, `lib/telemetry/anthropic_tracer.py` |
-| `from openai import` / `import openai` | anywhere outside the helper | `scripts/_llm.py` |
-| `from google.generativeai import` / `import google.generativeai` | anywhere outside the helper | `scripts/_llm.py`, `lib/telemetry/gemini_tracer.py` |
-| `os.environ.get("ANTHROPIC_API_KEY"` / `os.getenv("ANTHROPIC_API_KEY"` | anywhere outside helpers | `scripts/_llm.py` |
+| `from anthropic import` / `import anthropic` | anywhere outside the helper
+  | `scripts/_llm.py`, `lib/telemetry/anthropic_tracer.py` |
+| `from openai import` / `import openai` | anywhere outside the helper
+  | `scripts/_llm.py` |
+| `from google.generativeai import` / `import google.generativeai`
+  | anywhere outside the helper | `scripts/_llm.py`, `lib/telemetry/gemini_tracer.py` |
+| `os.environ.get("ANTHROPIC_API_KEY"` / `os.getenv("ANTHROPIC_API_KEY"`
+  | anywhere outside helpers | `scripts/_llm.py` |
 
 Excluded paths (built-in):
 
@@ -45,7 +49,6 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-
 
 # ---------------------------------------------------------------------------
 # Detection rules

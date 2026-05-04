@@ -33,9 +33,7 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
-import _llm  # noqa: E402
 from _llm import LLMRoutingError, call  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -72,7 +70,7 @@ class _MockHttpxClient:
         self._status = status_code
         self._raise = raise_on_post
 
-    def __enter__(self) -> "_MockHttpxClient":
+    def __enter__(self) -> _MockHttpxClient:
         return self
 
     def __exit__(self, *_args: object) -> None:
@@ -307,7 +305,6 @@ def test_scan_returns_findings_sorted_by_path_then_line(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     findings = verify_llm_routing.scan(tmp_path)
-    paths_lines = [(f.path.endswith("a.py"), f.line_no) for f in findings]
     # a.py:1 first, then b.py:1, b.py:2
     assert len(findings) == 3
     assert findings[0].path.endswith("a.py")

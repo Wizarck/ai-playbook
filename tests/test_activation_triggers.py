@@ -25,7 +25,6 @@ from scripts import lifecycle_check as lc
 from scripts import simulate_incident_response as sim_ir
 from scripts import simulate_model_migration as sim_mm
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
