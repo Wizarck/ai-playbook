@@ -1,0 +1,189 @@
+# check-tasks-checkboxes.yml
+#
+# CI gate (soft, warn-only): when a PR touches `openspec/changes/<id>/` files,
+# scan tasks.md and surface any `- [ ]` unchecked boxes as a sticky PR comment.
+#
+# Implements Followup #4 Option 2 from specs/v0.9.0-roadmap.md (filed
+# 2026-05-01 after consumer-e slice 3 / PR #57 merged with 0/55 boxes
+# ticked despite being feature-complete).
+#
+# Companion to scripts/auto_tick_tasks.py + templates/git-hooks/prepare-commit-msg
+# (Option 1 — auto-tick at commit time). Together: hook ticks during
+# implementation, this workflow catches anything the hook missed at PR-open time.
+#
+# Soft enforcement: comments are informational. The workflow does NOT fail the
+# PR check (Followup #4 §Recommended path: ship 1+2; defer Option 3
+# `openspec archive --strict` until soft mechanisms are insufficient).
+
+name: check-tasks-checkboxes
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'openspec/changes/**'
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Find affected change-id (from branch name)
+        id: change
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -e
+          # Extract change-id from `<type>/<change-id>` branch name.
+          if [[ "$BRANCH" =~ ^(feat|fix|chore|docs|refactor|test|release)/(.+)$ ]]; then
+            CHANGE_ID="${BASH_REMATCH[2]}"
+          else
+            CHANGE_ID=""
+          fi
+
+          # Fallback: scan PR diff for openspec/changes/<id>/tasks.md paths.
+          if [ -z "$CHANGE_ID" ] || [ ! -d "openspec/changes/$CHANGE_ID" ]; then
+            # Look for tasks.md paths in the diff
+            CANDIDATES=$(find openspec/changes -mindepth 2 -maxdepth 2 -name "tasks.md" -type f | head -5 || true)
+            if [ -n "$CANDIDATES" ]; then
+              # Pick the most recently modified one
+              CHANGE_ID=$(ls -t openspec/changes/*/tasks.md 2>/dev/null | head -1 | awk -F'/' '{print $3}' || true)
+            fi
+          fi
+
+          echo "change_id=$CHANGE_ID" >> "$GITHUB_OUTPUT"
+          echo "Affected change-id: $CHANGE_ID"
+
+      - name: Scan tasks.md for unticked boxes
+        id: scan
+        if: steps.change.outputs.change_id != ''
+        env:
+          CHANGE_ID: ${{ steps.change.outputs.change_id }}
+        run: |
+          set -e
+          TASKS_FILE="openspec/changes/$CHANGE_ID/tasks.md"
+          if [ ! -f "$TASKS_FILE" ]; then
+            echo "no_tasks_file=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          TOTAL=$(grep -cE '^\s*-\s*\[[ xX]\]' "$TASKS_FILE" || echo 0)
+          UNCHECKED=$(grep -cE '^\s*-\s*\[ \]' "$TASKS_FILE" || echo 0)
+          CHECKED=$((TOTAL - UNCHECKED))
+
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "unchecked=$UNCHECKED" >> "$GITHUB_OUTPUT"
+          echo "checked=$CHECKED" >> "$GITHUB_OUTPUT"
+
+          # Capture first 10 unchecked task descriptions for the comment.
+          grep -nE '^\s*-\s*\[ \]' "$TASKS_FILE" | head -10 \
+            | sed 's/^/    /' > /tmp/unchecked-preview.txt || true
+          {
+            echo 'preview<<EOF_PREVIEW'
+            cat /tmp/unchecked-preview.txt 2>/dev/null || true
+            echo 'EOF_PREVIEW'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR with status
+        if: steps.change.outputs.change_id != ''
+        uses: actions/github-script@v7
+        env:
+          CHANGE_ID: ${{ steps.change.outputs.change_id }}
+          TOTAL: ${{ steps.scan.outputs.total }}
+          UNCHECKED: ${{ steps.scan.outputs.unchecked }}
+          CHECKED: ${{ steps.scan.outputs.checked }}
+          NO_TASKS_FILE: ${{ steps.scan.outputs.no_tasks_file }}
+          PREVIEW: ${{ steps.scan.outputs.preview }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const changeId = process.env.CHANGE_ID;
+            const total = parseInt(process.env.TOTAL || '0', 10);
+            const unchecked = parseInt(process.env.UNCHECKED || '0', 10);
+            const checked = parseInt(process.env.CHECKED || '0', 10);
+            const noFile = process.env.NO_TASKS_FILE === 'true';
+            const preview = process.env.PREVIEW || '';
+
+            const STICKY_HEADER = '### 📋 check-tasks-checkboxes';
+            let body;
+
+            if (noFile) {
+              body = [
+                STICKY_HEADER,
+                '',
+                `🟡 OpenSpec change \`${changeId}\` has no \`tasks.md\` — skipping checkbox scan.`,
+                '',
+                'If this change should track tasks, create `openspec/changes/' + changeId + '/tasks.md` per [runbook-bmad-openspec.md §4](../blob/main/specs/runbook-bmad-openspec.md).',
+              ].join('\n');
+            } else if (total === 0) {
+              body = [
+                STICKY_HEADER,
+                '',
+                `🟡 \`openspec/changes/${changeId}/tasks.md\` exists but has no \`- [ ]\` / \`- [x]\` checkboxes — nothing to track.`,
+              ].join('\n');
+            } else if (unchecked === 0) {
+              body = [
+                STICKY_HEADER,
+                '',
+                `✅ All ${total} tasks ticked in \`openspec/changes/${changeId}/tasks.md\`.`,
+                '',
+                'Ready for `openspec archive` post-merge.',
+              ].join('\n');
+            } else {
+              const pct = Math.round((checked / total) * 100);
+              body = [
+                STICKY_HEADER,
+                '',
+                `⚠️ \`openspec/changes/${changeId}/tasks.md\`: **${checked}/${total} (${pct}%) ticked, ${unchecked} unchecked**.`,
+                '',
+                'This is a **soft check** — it does not block the PR. But:',
+                '- `openspec archive` will warn that the change is incomplete.',
+                '- Retro analysis won\'t reflect actual progress.',
+                '- The `--yes` override on archive risks becoming habit.',
+                '',
+                '**Why automation can\'t catch all of it**: the auto-tick git hook (Followup #4 OPT 1) parses conventional-commit subjects (`feat: groups 1-3`, `chore: §2.1 + §2.2`) but only ticks boxes whose enclosing group / section / task ID matches. Free-form prose subjects produce zero matches. Tick the rest manually before merge.',
+                '',
+                '<details><summary>First 10 unchecked items</summary>',
+                '',
+                '```',
+                preview.trim() || '(preview unavailable)',
+                '```',
+                '',
+                '</details>',
+                '',
+                '_Spec_: [Followup #4](../blob/main/specs/v0.9.0-roadmap.md). _Hook_: [`templates/git-hooks/prepare-commit-msg`](../blob/main/templates/git-hooks/prepare-commit-msg). _Script_: [`scripts/auto_tick_tasks.py`](../blob/main/scripts/auto_tick_tasks.py).',
+              ].join('\n');
+            }
+
+            // Sticky-comment pattern: find prior comment, update; else create.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(
+              (c) => c.user.type === 'Bot' && c.body && c.body.startsWith(STICKY_HEADER)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

@@ -67,6 +67,18 @@ SUPERSEDE_PREFIX = "chore/bump-playbook-"
 # submodule pointer.
 PLAYBOOK_REPO_NAME = "ai-playbook"
 
+# Per specs/bootstrap-directive.md v1.2.0 (added 2026-05-05): every consumer's
+# AGENTS.md §2 Dispatcher index MUST contain a row pointing to
+# .ai-playbook/docs/development-flow.md. The migration runs as part of the
+# v0.9.3+ bump PR (this is "Opción 1" from the consumer-side migration plan
+# in development-flow.md §3.3). Idempotent — already-present link → no-op.
+DEV_FLOW_CROSS_REF_ROW = (
+    "| **How to make a change in this project (canonical entry point)** "
+    "| [.ai-playbook/docs/development-flow.md]"
+    "(.ai-playbook/docs/development-flow.md) |"
+)
+DEV_FLOW_LINK_LITERAL = "development-flow.md"
+
 
 @dataclass
 class PropagationResult:
@@ -138,6 +150,78 @@ def _clone_consumer(name: str, repo: str, token: str, workdir: Path) -> Path:
     dest = workdir / name
     _run(["git", "clone", "--quiet", "--recurse-submodules", url, str(dest)])
     return dest
+
+
+def ensure_dev_flow_cross_ref(agents_md_path: Path) -> tuple[bool, str]:
+    """Insert the development-flow.md cross-ref row in AGENTS.md §2 if absent.
+
+    Per specs/bootstrap-directive.md v1.2.0. Idempotent — if the literal
+    "development-flow.md" already appears anywhere in the body, return
+    (False, "already-present") without modifying the file.
+
+    Returns (changed, detail). `detail` is a one-line human-readable
+    description for the PR body / propagation log.
+    """
+    if not agents_md_path.is_file():
+        return False, "AGENTS.md absent"
+
+    text = agents_md_path.read_text(encoding="utf-8")
+
+    # Idempotent short-circuit.
+    if DEV_FLOW_LINK_LITERAL in text:
+        return False, "already-present"
+
+    lines = text.splitlines(keepends=False)
+    inserted = False
+    out: list[str] = []
+
+    # Find the §2 Dispatcher index section + its table separator row.
+    # Pattern: a heading line containing "Dispatcher index" (any header level)
+    # followed eventually by a table whose 2nd row is `|---|---|...|`. We
+    # insert the new row IMMEDIATELY AFTER the separator (= as the first
+    # data row of the table).
+    in_section = False
+    for line in lines:
+        out.append(line)
+        if not in_section:
+            # Section detection — accept "## 2 Dispatcher index", "## 2.
+            # Dispatcher index", "## Dispatcher index", "### Dispatcher index"
+            # etc., case-insensitive.
+            if line.lstrip().startswith("#") and "dispatcher index" in line.lower():
+                in_section = True
+            continue
+
+        if inserted:
+            continue
+
+        # Inside §2 — look for the table separator (`|---|---|...|`).
+        stripped = line.strip()
+        if (
+            stripped.startswith("|")
+            and stripped.endswith("|")
+            and set(stripped.replace("|", "").replace("-", "").replace(":", "").strip()) <= {" "}
+            and "-" in stripped
+        ):
+            out.append(DEV_FLOW_CROSS_REF_ROW)
+            inserted = True
+            continue
+
+        # Bail out if we hit the next heading without finding a table —
+        # consumer's §2 is non-canonical; do not insert blindly.
+        if line.lstrip().startswith("#") and "dispatcher index" not in line.lower():
+            break
+
+    if not inserted:
+        return False, (
+            "§2 Dispatcher index has no table separator (`|---|---|`); "
+            "manual insert needed"
+        )
+
+    new_text = "\n".join(out)
+    if text.endswith("\n") and not new_text.endswith("\n"):
+        new_text += "\n"
+    agents_md_path.write_text(new_text, encoding="utf-8")
+    return True, "inserted as first row of §2 Dispatcher index"
 
 
 def _update_submodule_to_tag(consumer_root: Path, submodule_path: str, tag: str) -> str:
@@ -226,7 +310,20 @@ def _propagate_one(
         root / "AGENTS.md", PLAYBOOK_REPO_NAME, tag
     )
 
-    if current_parent_sha == target_sha and not agents_md_changed:
+    # Per specs/bootstrap-directive.md v1.2.0: ensure consumer's AGENTS.md
+    # §2 Dispatcher index has a row pointing to docs/development-flow.md.
+    # Migration "Opción 1" — runs in the same commit as the version bump so
+    # the cross-ref lands across all consumers in one rollout pass.
+    # Idempotent (no-op if already present).
+    cross_ref_changed, cross_ref_detail = ensure_dev_flow_cross_ref(
+        root / "AGENTS.md"
+    )
+
+    if (
+        current_parent_sha == target_sha
+        and not agents_md_changed
+        and not cross_ref_changed
+    ):
         return PropagationResult(name, "up-to-date", f"already at {tag}")
 
     # Stage + commit.
@@ -238,7 +335,7 @@ def _propagate_one(
     _run(["git", "checkout", "-b", head_branch], cwd=root)
     if current_parent_sha != target_sha:
         _run(["git", "add", submodule_path], cwd=root)
-    if agents_md_changed:
+    if agents_md_changed or cross_ref_changed:
         _run(["git", "add", "AGENTS.md"], cwd=root)
     commit_msg = commit_message(tag)
     _run(["git", "commit", "-m", commit_msg], cwd=root)
@@ -247,11 +344,17 @@ def _propagate_one(
 
     pr_url = None
     if open_pr:
+        cross_ref_line = (
+            f"\n- AGENTS.md §2 Dispatcher index: {cross_ref_detail}"
+            if cross_ref_changed
+            else ""
+        )
         body = (
             f"Automated bump of `.ai-playbook/` submodule to **{tag}**.\n\n"
             f"Opened by `scripts/propagate_bump.py` on tag push.\n\n"
             f"- Previous submodule commit: `{current_parent_sha[:8]}`\n"
-            f"- New submodule commit: `{target_sha[:8]}` (tag `{tag}`)\n\n"
+            f"- New submodule commit: `{target_sha[:8]}` (tag `{tag}`)"
+            f"{cross_ref_line}\n\n"
             f"Review the submodule diff at `.ai-playbook/` and merge when ready.\n\n"
             f"See [ai-playbook CHANGELOG.md]"
             f"(https://github.com/Wizarck/ai-playbook/blob/{tag}/CHANGELOG.md) "
