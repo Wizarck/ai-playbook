@@ -19,6 +19,9 @@ This script wraps ``git worktree add`` with the playbook conventions:
   ``--base-branch``).
 - Submodules initialised in the new worktree by default (skip with
   ``--no-submodules``).
+- Ecosystem deps installed by default (npm / pnpm / yarn / poetry / uv,
+  detected from lockfile / manifest; skip with ``--no-install``). Failure is
+  non-fatal — a warning is printed and the worktree stays usable.
 - Refuses to create a worktree whose ``<change-id>`` does not match an
   existing ``openspec/changes/<id>/`` folder (skip with ``--no-slice-check``,
   analogous to ``/opsx:propose --no-slice``).
@@ -209,6 +212,47 @@ def init_submodules(ctx: WorktreeContext, dry_run: bool) -> None:
     print(f"✅ Initialised submodules in {ctx.worktree_dir}")
 
 
+def install_dependencies(ctx: WorktreeContext, dry_run: bool) -> None:
+    """Install ecosystem deps (Node / Python / Rust) so subagents skip cold start.
+
+    Detection is cheap: presence of the lockfile / manifest decides what to run.
+    Multiple ecosystems can fire (a polyglot repo with package.json AND
+    pyproject.toml will install both). Failure is non-fatal — we print a
+    warning and continue so the worktree itself stays usable.
+    """
+    plans: list[tuple[str, list[str]]] = []
+    if (ctx.worktree_dir / "package-lock.json").is_file():
+        plans.append(("npm", ["npm", "install"]))
+    elif (ctx.worktree_dir / "pnpm-lock.yaml").is_file():
+        plans.append(("pnpm", ["pnpm", "install"]))
+    elif (ctx.worktree_dir / "yarn.lock").is_file():
+        plans.append(("yarn", ["yarn", "install"]))
+    elif (ctx.worktree_dir / "package.json").is_file():
+        plans.append(("npm", ["npm", "install"]))
+
+    if (ctx.worktree_dir / "poetry.lock").is_file():
+        plans.append(("poetry", ["poetry", "install"]))
+    elif (ctx.worktree_dir / "pyproject.toml").is_file() and (ctx.worktree_dir / "uv.lock").is_file():
+        plans.append(("uv", ["uv", "sync"]))
+
+    if not plans:
+        return
+
+    for label, cmd in plans:
+        if dry_run:
+            print(f"[dry-run] would run ({label}): {' '.join(cmd)}  (cwd={ctx.worktree_dir})")
+            continue
+        print(f"… Installing dependencies via {label} (this may take a minute)…")
+        result = _run(cmd, cwd=ctx.worktree_dir, check=False)
+        if result.returncode == 0:
+            print(f"✅ {label} install complete in {ctx.worktree_dir}")
+        else:
+            print(
+                f"⚠️  {label} install failed (exit {result.returncode}); continuing.\n"
+                f"    Re-run manually: cd {ctx.worktree_dir} && {' '.join(cmd)}"
+            )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Add a git worktree for an OpenSpec change (bare layout).",
@@ -241,6 +285,11 @@ def main() -> int:
         "--no-submodules",
         action="store_true",
         help="Skip submodule init in the new worktree.",
+    )
+    parser.add_argument(
+        "--no-install",
+        action="store_true",
+        help="Skip ecosystem dep install (npm / pnpm / yarn / poetry / uv) in the new worktree.",
     )
     parser.add_argument(
         "--dry-run",
@@ -280,6 +329,8 @@ def main() -> int:
     add_worktree(ctx, dry_run=args.dry_run)
     if not args.no_submodules:
         init_submodules(ctx, dry_run=args.dry_run)
+    if not args.no_install:
+        install_dependencies(ctx, dry_run=args.dry_run)
 
     if args.dry_run:
         print("[dry-run] no changes made.")
