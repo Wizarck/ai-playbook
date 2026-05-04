@@ -70,7 +70,12 @@ jobs:
               echo "verdict=exempt-revert" >> "$GITHUB_OUTPUT"
               exit 0
               ;;
-            feat/v[0-9]*|chore/release/v[0-9]*)
+            release/v[0-9]*|feat/v[0-9]*|chore/release/v[0-9]*)
+              # Release-prep branches: `release/vX.Y.Z[-rcN]`,
+              # `feat/vX.Y.Z-...` (legacy), or `chore/release/vX.Y.Z`. The
+              # version segment contains dots which would fail the kebab-case
+              # change-id regex below — exemption is required for the canonical
+              # release-cut flow per runbooks/release.md §3.
               echo "Exempt: release-prep branch."
               echo "verdict=exempt-release-prep" >> "$GITHUB_OUTPUT"
               exit 0
