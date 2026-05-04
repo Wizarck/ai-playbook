@@ -1,0 +1,205 @@
+# litellm-router.yaml — task-class → model routing matrix
+#
+# Per OpenSpec change `add-litellm-enforcement` (Phase 5 P5.4) and
+# `specs/model-routing.md` v2.0.0. This is the canonical mapping consumed
+# by the LiteLLM proxy at startup. Every LLM call from `_llm.call(task_class, ...)`
+# resolves through this file.
+#
+# Coexistence with `consumer-d/configs/litellm/litellm_config.yaml`:
+#   - That file declares per-consumer aliases (Hermes, RAG, Hindsight) for
+#     budget isolation.
+#   - This file declares the TASK-CLASS routing matrix (triage, daily_dev,
+#     etc.) and the fallback chains.
+#   - The proxy reads BOTH (merged at start time): consumer aliases for the
+#     `model_list:` block, task-class router for the `router_settings:` block.
+#
+# Change the matrix here — NOT in code.
+
+router_settings:
+  routing_strategy: simple-shuffle
+  num_retries: 0   # the helper handles fallback explicitly via this YAML
+
+# ---------------------------------------------------------------------------
+# Task-class deployments
+# ---------------------------------------------------------------------------
+#
+# Each `model_name` is a task class. The first `litellm_params.model` entry
+# is the primary; the remaining `fallbacks` form the chain in declaration order.
+# The helper (_llm.py) reads `ai_playbook.task_class` from the request metadata
+# and routes accordingly.
+
+model_list:
+  # ---------- L (low) tier -----------------------------------------------
+
+  - model_name: triage
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+      fallbacks:
+        - gemini/gemini-2.5-flash
+        - openrouter/meta-llama/llama-4-70b
+        - ollama/gpt-oss-20b
+      metadata:
+        task_class: triage
+        cost_tier: L
+        latency_tier: L
+
+  - model_name: safety_judge
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY_JUDGE
+      fallbacks:
+        - gemini/gemini-2.5-flash
+        - openrouter/meta-llama/llama-4-70b
+      metadata:
+        task_class: safety_judge
+        cost_tier: L
+        latency_tier: L
+
+  - model_name: conversational_agent
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY_HERMES
+      fallbacks:
+        - gemini/gemini-2.5-flash
+        - openrouter/meta-llama/llama-4-70b
+      metadata:
+        task_class: conversational_agent
+        cost_tier: L
+        latency_tier: L
+
+  # ---------- M (medium) tier --------------------------------------------
+
+  - model_name: daily_dev
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY_EXECUTOR
+      fallbacks:
+        - gemini/gemini-2.5-pro
+        - anthropic/claude-haiku-4-5   # tagged DEGRADED_QUALITY at depth 2
+      metadata:
+        task_class: daily_dev
+        cost_tier: M
+        latency_tier: M
+
+  - model_name: code_review_blind
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+      fallbacks:
+        - gemini/gemini-2.5-pro
+        - anthropic/claude-haiku-4-5
+      metadata:
+        task_class: code_review_blind
+        cost_tier: M
+        latency_tier: M
+
+  - model_name: code_review_edge
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+      fallbacks:
+        - gemini/gemini-2.5-pro-thinking
+        - anthropic/claude-sonnet-4-6
+      metadata:
+        task_class: code_review_edge
+        cost_tier: M
+        latency_tier: M
+
+  - model_name: code_review_acceptance
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+      fallbacks:
+        - gemini/gemini-2.5-pro
+        - anthropic/claude-opus-4-7   # upgrade-on-fallback; logs cost anomaly
+      metadata:
+        task_class: code_review_acceptance
+        cost_tier: M
+        latency_tier: M
+
+  - model_name: doc_writing_edit
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+      fallbacks:
+        - gemini/gemini-2.5-pro
+        - anthropic/claude-haiku-4-5
+      metadata:
+        task_class: doc_writing_edit
+        cost_tier: M
+        latency_tier: M
+
+  # ---------- H (high) tier ----------------------------------------------
+
+  - model_name: architecture_proposal
+    litellm_params:
+      model: anthropic/claude-opus-4-7
+      api_key: os.environ/ANTHROPIC_API_KEY_ADVISOR
+      fallbacks:
+        - gemini/gemini-2.5-pro-thinking
+        - anthropic/claude-sonnet-4-6   # FLOOR — below this, block per spec §3
+      metadata:
+        task_class: architecture_proposal
+        cost_tier: H
+        latency_tier: H
+
+  - model_name: retrospective
+    litellm_params:
+      model: anthropic/claude-opus-4-7
+      api_key: os.environ/ANTHROPIC_API_KEY_WORKFLOWS
+      fallbacks:
+        - gemini/gemini-2.5-pro-thinking
+        # NO further fallback — better to queue than to produce sub-tier output
+      metadata:
+        task_class: retrospective
+        cost_tier: H
+        latency_tier: H
+
+  - model_name: doc_writing_draft
+    litellm_params:
+      model: anthropic/claude-opus-4-7
+      api_key: os.environ/ANTHROPIC_API_KEY
+      fallbacks:
+        - gemini/gemini-2.5-pro
+        - anthropic/claude-sonnet-4-6
+      metadata:
+        task_class: doc_writing_draft
+        cost_tier: H
+        latency_tier: M
+
+  # ---------- Embeddings (LiteLLM-internal) -------------------------------
+
+  - model_name: embeddings_rerank
+    litellm_params:
+      model: openai/text-embedding-3-small
+      api_key: os.environ/OPENAI_API_KEY
+      # LiteLLM handles its own provider-internal fallback for embeddings
+    metadata:
+      task_class: embeddings_rerank
+      cost_tier: L
+      latency_tier: L
+
+# ---------------------------------------------------------------------------
+# Per-consumer virtual key budgets
+# ---------------------------------------------------------------------------
+#
+# Convention: <PROVIDER>_API_KEY_<CONSUMER> (per `specs/env-vars.md` §Consumer keys).
+# LiteLLM enforces per-virtual-key monthly budgets — set generous initial caps;
+# tune after the first month of cost data.
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL  # optional; only needed for budget persistence
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  json_logs: true
+  callbacks:
+    - lib.telemetry.litellm_callbacks.SpanAttrCallback   # emits gen_ai.* attrs
+
+# Budget enforcement (D3.7 in the proposal):
+# Budgets are configured per-virtual-key via the LiteLLM admin API at runtime,
+# not in this YAML. Use `scripts/litellm_budgets.sh` to set them — that script
+# is authoritative for the current cap per consumer.
