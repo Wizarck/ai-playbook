@@ -442,6 +442,8 @@ The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `releas
 
 ### 6.6 Intra-slice parallelism (multiple subagents inside one slice)
 
+> **Skill**: invoke `/openspec-apply-parallel <change-id>` to follow this contract step-by-step. The skill at [`skills/openspec-apply-parallel/SKILL.md`](../skills/openspec-apply-parallel/SKILL.md) packages the gating questions, ownership cross-check, spawn matrix, recombination flow, and anti-patterns from this section into a guided workflow. Falls back to `/opsx:apply` (sequential) when the gating questions don't pass.
+
 §6.4 codifies parallelism **across** slices (Wave-N concurrency). This subsection codifies the orthogonal axis: parallelism **inside** a single slice, when the slice's `tasks.md` has independent task groups (typically one per bounded context inside one OpenSpec change).
 
 **When it applies.** The slice contains ≥2 task groups with disjoint write-paths. The canonical example is a slice that scaffolds N bounded contexts in one shot (e.g. `module-1-ingredients-implementation` covering `iam/`, `ingredients/`, `suppliers/`, `cost/`, `shared/uom/` — 5 disjoint roots under `apps/api/src/`). Sequential implementation works fine; intra-slice parallelism just shortens wall-clock.
