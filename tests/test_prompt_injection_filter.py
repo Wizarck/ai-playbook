@@ -1,20 +1,23 @@
 """Tests for scripts/prompt_injection_filter.py (T10).
 
-Never hits the real Anthropic API — `anthropic.Anthropic()` is patched at the
+Never hits the real LiteLLM proxy — `scripts._llm.call` is monkeypatched at the
 module level. Tests cover layer 1 regex coverage, layer 2 graceful degradation,
 break-glass semantics, and the JSON verdict envelope shape.
+
+Migration note (2026-05-05): layer-2 was migrated from direct `anthropic` SDK
+to the canonical `scripts._llm.call("safety_judge", ...)` helper per Change C
+(`add-litellm-enforcement` follow-up).
 """
 from __future__ import annotations
 
 import io
 import json
-import sys
-import types
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
+import scripts._llm as _llm_mod
 from scripts.prompt_injection_filter import (
     InjectionVerdict,
     filter_text,
@@ -26,44 +29,41 @@ from scripts.prompt_injection_filter import (
 # ---------------------------------------------------------------------------
 
 
-class _FakeBlock:
+class _FakeLLMResponse:
+    """Mimic the public surface of `scripts._llm.LLMResponse`."""
+
     def __init__(self, text: str) -> None:
         self.text = text
+        self.task_class = "safety_judge"
+        self.model_actual = "fake-haiku"
+        self.fallback_depth = 0
+        self.consumer = "INJECTION"
+        self.usage: dict[str, int] = {}
+        self.raw: dict[str, object] = {}
 
 
-class _FakeResponse:
-    def __init__(self, text: str) -> None:
-        self.content = [_FakeBlock(text)]
-
-
-def _install_fake_anthropic(
+def _install_fake_llm_call(
     monkeypatch: pytest.MonkeyPatch,
     response_text: str,
 ) -> mock.MagicMock:
-    """Install a fake `anthropic` module whose `Anthropic().messages.create` returns `response_text`."""
-    fake_client = mock.MagicMock()
-    fake_client.messages.create.return_value = _FakeResponse(response_text)
+    """Patch `scripts._llm.call` to return a canned response.
 
-    fake_anthropic = types.ModuleType("anthropic")
-    fake_anthropic.Anthropic = mock.MagicMock(return_value=fake_client)  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic)
+    The lazy `from scripts._llm import call as _llm_call` inside `_run_layer2`
+    re-executes on every call, so patching the module attribute is sufficient.
+    """
+    fake_call = mock.MagicMock(return_value=_FakeLLMResponse(response_text))
+    monkeypatch.setattr(_llm_mod, "call", fake_call)
     monkeypatch.setenv("ANTHROPIC_API_KEY_INJECTION", "test-key")
-    return fake_client
+    return fake_call
 
 
-def _remove_anthropic(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make `import anthropic` raise ImportError."""
-    import builtins
+def _simulate_proxy_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make `scripts._llm.call` raise `LLMRoutingError` (proxy down)."""
+    def _raise(*_a: object, **_kw: object) -> None:
+        raise _llm_mod.LLMRoutingError("LiteLLM proxy unreachable (test simulation)")
 
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
-        if name == "anthropic":
-            raise ImportError("anthropic not installed in tests")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    monkeypatch.delitem(sys.modules, "anthropic", raising=False)
+    monkeypatch.setattr(_llm_mod, "call", _raise)
+    monkeypatch.setenv("ANTHROPIC_API_KEY_INJECTION", "test-key")
 
 
 # ---------------------------------------------------------------------------
@@ -113,14 +113,14 @@ def test_layer1_clean_text_is_safe(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Layer 2 — mocked anthropic
+# Layer 2 — mocked _llm.call (LiteLLM proxy)
 # ---------------------------------------------------------------------------
 
 
 def test_layer2_injection_response_triggers_s1(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_anthropic(
+    _install_fake_llm_call(
         monkeypatch,
         '{"verdict": "injection", "reason": "tries to override system prompt"}',
     )
@@ -132,7 +132,7 @@ def test_layer2_injection_response_triggers_s1(
 
 
 def test_layer2_safe_response_passes(monkeypatch: pytest.MonkeyPatch) -> None:
-    _install_fake_anthropic(
+    _install_fake_llm_call(
         monkeypatch,
         '{"verdict": "safe", "reason": "benign"}',
     )
@@ -150,27 +150,41 @@ def test_layer2_skipped_when_no_api_key(
     assert v.verdict == "safe"
 
 
-def test_layer2_skipped_when_anthropic_missing(
+def test_layer2_skipped_when_proxy_unreachable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("ANTHROPIC_API_KEY_INJECTION", "test-key")
-    _remove_anthropic(monkeypatch)
+    _simulate_proxy_unreachable(monkeypatch)
     v = filter_text("clean", layer="2")
     assert v.layer2_verdict == "skipped"
-    assert "anthropic package not installed" in v.detail
+    assert "LiteLLM proxy unreachable" in v.detail
+
+
+def test_layer2_routes_via_safety_judge_with_injection_consumer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Drift guard: layer-2 must use task_class='safety_judge' + consumer='INJECTION'."""
+    fake_call = _install_fake_llm_call(
+        monkeypatch, '{"verdict": "safe", "reason": "benign"}',
+    )
+    filter_text("some content", layer="2")
+    assert fake_call.call_count == 1
+    args, kwargs = fake_call.call_args
+    assert args[0] == "safety_judge"
+    assert kwargs.get("consumer") == "INJECTION"
+    assert kwargs.get("max_tokens") == 256
 
 
 def test_layer2_malformed_json_is_fail_safe_injection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_anthropic(monkeypatch, "not-json at all")
+    _install_fake_llm_call(monkeypatch, "not-json at all")
     v = filter_text("ambiguous", layer="2")
     assert v.verdict == "injection"
     assert v.layer2_verdict == "injection"
 
 
 def test_both_layer_safe_is_safe(monkeypatch: pytest.MonkeyPatch) -> None:
-    _install_fake_anthropic(monkeypatch, '{"verdict": "safe", "reason": "benign"}')
+    _install_fake_llm_call(monkeypatch, '{"verdict": "safe", "reason": "benign"}')
     v = filter_text("hello world", layer="both")
     assert v.verdict == "safe"
     assert v.layer1_match is False
@@ -218,7 +232,7 @@ def test_force_with_reason_honoured_on_layer2_only(
     tmp_path: Path,
 ) -> None:
     # Layer 1 silent, layer 2 returns "injection".
-    _install_fake_anthropic(
+    _install_fake_llm_call(
         monkeypatch, '{"verdict": "injection", "reason": "classifier fired"}',
     )
     monkeypatch.chdir(tmp_path)
@@ -242,7 +256,7 @@ def test_force_with_reason_short_reason_rejected(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    _install_fake_anthropic(
+    _install_fake_llm_call(
         monkeypatch, '{"verdict": "injection", "reason": "flagged"}',
     )
     monkeypatch.chdir(tmp_path)

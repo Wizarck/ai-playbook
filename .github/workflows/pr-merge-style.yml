@@ -85,7 +85,7 @@ jobs:
             REASON="$TYPES distinct conventional-commit types ($COMMITS commits) — semantically multi-intent. Merge-commit preserves authorial steps for future audit (D2.1)."
           elif [ "$COMMITS" -ge 2 ] && [ "$TYPES" -eq 1 ]; then
             REC="SQUASH"
-            REASON="$COMMITS commits but all same type — single-intent variant (typo fixes, lint cleanup, "address review feedback ×N"). Squash collapses noise."
+            REASON="$COMMITS commits but all same type — single-intent variant (typo fixes, lint cleanup, address-review-feedback iterations). Squash collapses noise."
           else
             REC="MERGE-COMMIT"
             REASON="Tie / ambiguous metrics — defaulting to merge-commit (D2.1). Maintainer override always available."

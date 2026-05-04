@@ -50,6 +50,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# Force UTF-8 stdio — Windows cp1252 cannot encode the ✓ sigil.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except (AttributeError, OSError):
+        pass
+
 # ---------------------------------------------------------------------------
 # Detection rules
 # ---------------------------------------------------------------------------
@@ -107,6 +114,12 @@ _BUILTIN_EXCLUSIONS: tuple[str, ...] = (
     "rfcs/",
     # The drift detector itself names the rules — false positive on its own source.
     "scripts/verify_llm_routing.py",
+    # Submodules — consumers vendor the playbook at `.ai-playbook/` and the
+    # skills mirror at `.skills-sources/`. Their contents are upstream-owned;
+    # consumers cannot fix findings inside them. The drift detector should
+    # only surface drift in consumer-owned code.
+    ".ai-playbook/",
+    ".skills-sources/",
 )
 
 
