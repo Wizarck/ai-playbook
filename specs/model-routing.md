@@ -1,8 +1,10 @@
 # model-routing.md
 
-> **Status**: v1.0.0.
+> **Status**: v2.0.0 — added `safety_judge` and `conversational_agent` task classes; runtime enforcement wired via [`scripts/_llm.py`](../scripts/_llm.py) + [`configs/litellm-router.yaml`](../configs/litellm-router.yaml) by OpenSpec change [`add-litellm-enforcement`](../../openspec/changes/add-litellm-enforcement/proposal.md) (Phase 5 P5.4) on 2026-05-01.
 
-The routing matrix below is the canonical taxonomy every playbook consumer uses to pick a model for a given task class. It is **LLM-agnostic at the spec layer**: the primary and fallback columns name specific model IDs as of 2026-04, but the task classes and the fallback semantics are intended to outlive any specific generation of models. When a new family ships, bump IDs in the table; do not reshape the taxonomy lightly.
+The routing matrix below is the canonical taxonomy every playbook consumer uses to pick a model for a given task class. It is **LLM-agnostic at the spec layer**: the primary and fallback columns name specific model IDs as of 2026-05, but the task classes and the fallback semantics are intended to outlive any specific generation of models. When a new family ships, bump IDs in the table; do not reshape the taxonomy lightly.
+
+**Runtime enforcement (v2.0.0)**: every LLM call MUST go through `scripts/_llm.py` → LiteLLM proxy. The proxy reads `configs/litellm-router.yaml` for the matrix. Direct provider-SDK calls outside the helper are caught by `scripts/verify_llm_routing.py` (pre-commit, warn-only initially per D3.5).
 
 Providers addressed here:
 
@@ -30,6 +32,8 @@ Latency tiers refer to **time-to-first-token for interactive tasks**, or **total
 | Doc writing (playbook specs, runbooks) | `claude-opus-4-7` for initial drafts, `claude-sonnet-4-6` for edits | `gemini-2.5-pro` → `claude-sonnet-4-6` | Dispatch-file architecture demands dense, cross-referenced prose. Opus for the first pass amortizes better than multiple Sonnet revisions. | H (draft) / M (edit) | M |
 | Embeddings / rerank | LiteLLM-routed (see `eligia-core` LiteLLM config) | Provider-internal; LiteLLM handles its own fallback set | The router emits `gen_ai.request.model="litellm"` and the concrete embedding model as a span attribute. Consumers should not hard-code an embedding model in their code paths. | L | L |
 | LLM-as-judge (prompt injection filter, PII screen, etc.) | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | Judges should be small, fast, and boring. Avoid Opus-tier judges — they invent nuance where none exists, hurt latency, and balloon cost. | L | L |
+| **`safety_judge`** (NEW v2.0.0) — concrete task_class for the prompt-injection filter and similar boundary judges | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | Concretises the "LLM-as-judge" row above with a stable identifier callers can pass to `_llm.call(task_class="safety_judge", ...)`. Same Haiku tier; budget-isolated via `ANTHROPIC_API_KEY_JUDGE`. | L | L |
+| **`conversational_agent`** (NEW v2.0.0) — Hermes user-facing turn handling | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | High-volume, low-stakes-per-call. Hermes handles many short messages; Haiku is the right floor. Budget-isolated via `ANTHROPIC_API_KEY_HERMES`. Multi-turn coherence is acceptable at this tier; for analytical work Hermes routes through the existing `daily_dev`/`architecture_proposal` paths. | L | L |
 
 ### Cost/latency tier rationale (one sentence each)
 

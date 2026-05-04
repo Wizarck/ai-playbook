@@ -120,8 +120,29 @@ See `specs/skills-registry.md` for scope semantics and the degraded-mode path.
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `ANTHROPIC_API_KEY` | `ANTHROPIC_` | Anthropic API key (SOPS-decrypted). | yes (if the playbook calls Anthropic) | unset | Anthropic SDK at call-time |
+| `ANTHROPIC_API_KEY` | `ANTHROPIC_` | Anthropic API key (SOPS-decrypted). Default unrouted key — used only by `_llm.py` when no per-consumer key is set. | yes (if the playbook calls Anthropic) | unset | LiteLLM proxy at call-time via `scripts/_llm.py` |
 | `ANTHROPIC_CACHE_TOKENS_MIN` | *(alias)* | See `AIPLAYBOOK_*` table row. | no | see alias row | alias of canonical var |
+
+### Per-consumer virtual keys (Phase 5 P5.4 — `add-litellm-enforcement`)
+
+Convention: `<PROVIDER>_API_KEY_<CONSUMER>`. LiteLLM treats each as a separate virtual key with its own monthly USD budget so a runaway agent cannot drain budget across consumers. See `configs/litellm-router.yaml` for which consumer each task class uses.
+
+| Var | Consumer | Used by task classes | Default monthly budget (USD) |
+|---|---|---|---|
+| `ANTHROPIC_API_KEY_ADVISOR` | `ADVISOR` | `architecture_proposal` | 50 |
+| `ANTHROPIC_API_KEY_EXECUTOR` | `EXECUTOR` | `daily_dev` | 200 |
+| `ANTHROPIC_API_KEY_HERMES` | `HERMES` | `conversational_agent` | 30 |
+| `ANTHROPIC_API_KEY_JUDGE` | `JUDGE` | `safety_judge` | 10 |
+| `ANTHROPIC_API_KEY_WORKFLOWS` | `WORKFLOWS` | `retrospective` | 30 |
+| `ANTHROPIC_API_KEY_HINDSIGHT` | `HINDSIGHT` | (embeddings via LiteLLM internal) | 5 |
+| `ANTHROPIC_API_KEY_RAG` | `RAG` | (RAG-side reranks) | 5 |
+| `OPENROUTER_API_KEY_<CONSUMER>` | (same matrix) | OpenRouter fallbacks | tune after first month |
+| `OPENAI_API_KEY` | (shared) | `embeddings_rerank` | 20 |
+| `LITELLM_MASTER_KEY` | n/a | proxy admin auth — NOT a virtual key | n/a |
+
+Defaults are starting points; tune via `scripts/litellm_budgets.sh` after the first month of cost data. Budgets are **not** declared in `litellm-router.yaml` — they are runtime state of the LiteLLM admin API.
+
+When a per-consumer key is missing for a task class, `_llm.py` falls back to the unrouted `ANTHROPIC_API_KEY` (and surfaces a warning event to `events.jsonl`). Missing the unrouted key as well makes `_llm.call(...)` raise `LLMRoutingError`.
 
 ---
 
