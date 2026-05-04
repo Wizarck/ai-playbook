@@ -1,6 +1,6 @@
 # bootstrap-directive.md
 
-> **Status**: v1.1.0. Aligned with the SessionStart hook reality (2026-04-25).
+> **Status**: v1.2.0. v1.1.0 aligned with SessionStart hook reality (2026-04-25). v1.2.0 adds the development-flow.md cross-reference requirement (2026-05-05) — warn-only initially, promotes to strict per [docs/development-flow.md](../docs/development-flow.md) §5 industrialisation pattern.
 
 ## Purpose
 
@@ -70,6 +70,41 @@ The directive block is canonical; the `<project>` placeholder in step 2's query 
 
 Projects MAY append project-specific pre-conditions (e.g. "also read `docs/prd.md`") **after** step 3, never before; the universal steps always run first.
 
+## Development-flow cross-reference (added v1.2.0)
+
+Every consumer's `AGENTS.md` §2 Dispatcher index MUST contain a row pointing to [`docs/development-flow.md`](../docs/development-flow.md) — the LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?".
+
+Canonical row format (insert as the FIRST row of §2 in every consumer's AGENTS.md):
+
+```markdown
+| **How to make a change in this project (canonical entry point)** | [.ai-playbook/docs/development-flow.md](.ai-playbook/docs/development-flow.md) |
+```
+
+### Enforcement (phased rollout — Change C pattern)
+
+- **v0.9.3 → v0.10.x (warn-only window)**: `scripts/schema_validate.py` emits a warning to stderr if the literal `development-flow.md` text is missing from the AGENTS.md body. Exit code remains 0 — pre-commit / CI does not break.
+- **v0.10.x onwards (strict)**: same gate flips to error. Pre-commit / CI fails until consumer adds the row. Override available via `--force-with-reason="<text>"` per [break-glass.md](break-glass.md).
+- **Promotion criterion**: 30 days of green builds across all consumers in `consumers.yaml` AND ≥4 of 5 consumers have the row in their AGENTS.md (verified by a one-off audit script).
+
+### Migration
+
+Existing consumers (eligia-core, openTrattOS, palafito-b2b, iguanatrader, livekit) receive the row automatically as part of their next playbook-bump PR — `scripts/propagate_bump.py` is extended to insert the row in §2 if absent (idempotent; no-op if already present). See [docs/development-flow.md](../docs/development-flow.md) §3.3.
+
+New consumers bootstrapped via `scripts/bootstrap.py` after v0.9.3 inherit the row from `templates/new-project/AGENTS.md.tmpl` automatically.
+
+### CLI flag
+
+```bash
+# Default (warn-only):
+python -m scripts.schema_validate AGENTS.md
+
+# Strict mode (post-promotion):
+python -m scripts.schema_validate AGENTS.md --strict-dev-flow-cross-ref
+
+# Override:
+python -m scripts.schema_validate AGENTS.md --force-with-reason="bootstrapping legacy repo, migration in next PR"
+```
+
 ## See also
 
 - [dispatcher-chain.md](dispatcher-chain.md) — where the directive sits in the 3-level chain.
@@ -78,3 +113,4 @@ Projects MAY append project-specific pre-conditions (e.g. "also read `docs/prd.m
 - [degradation-modes.md](degradation-modes.md) — what happens when step 2's data source fails.
 - [mcp-servers-schema.md](mcp-servers-schema.md) — where Hindsight credentials live.
 - [../docs/session-start-hook.md](../docs/session-start-hook.md) — the wiring in `.claude/settings.json`.
+- [../docs/development-flow.md](../docs/development-flow.md) — canonical dev-flow doc (cross-ref subject).

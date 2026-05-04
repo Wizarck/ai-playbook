@@ -1,0 +1,164 @@
+# pr-merge-style.yml
+#
+# CI advisor (informational, soft enforcement): post a sticky PR comment
+# recommending squash vs merge-commit based on commit count + diff size.
+#
+# Implements specs/merge-policy.md §3 advisor workflow. Default policy
+# is merge-commit (per D2.1); squash is reserved for trivial single-intent
+# PRs (D2.2).
+#
+# This workflow is **never** a hard gate — the maintainer always has final
+# decision per D2.3. The advisor's purpose is to surface the policy in the
+# review surface so the choice is conscious, not default.
+
+name: pr-merge-style
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history to count commits + diff vs base
+
+      - name: Compute metrics
+        id: metrics
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -e
+          # Commit count on the PR branch (only commits NOT on base).
+          COMMIT_COUNT=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
+
+          # Diff size in lines (added + deleted), excluding common auto-generated
+          # paths to avoid lockfile noise dominating the metric.
+          EXCLUDE_PATTERN=':(exclude)*.lock :(exclude)*lockfile :(exclude)package-lock.json :(exclude)pnpm-lock.yaml :(exclude)yarn.lock :(exclude)poetry.lock :(exclude)Cargo.lock :(exclude)go.sum'
+          # shellcheck disable=SC2086
+          DIFF_LINES=$(git diff --shortstat "$BASE_SHA..$HEAD_SHA" -- $EXCLUDE_PATTERN \
+            | grep -oE '[0-9]+ insertions?|[0-9]+ deletions?' \
+            | grep -oE '[0-9]+' \
+            | awk '{s+=$1} END {print s+0}')
+
+          # Distinct conventional-commit types in the branch (heuristic for
+          # "single intent" vs "multi-intent").
+          DISTINCT_TYPES=$(git log "$BASE_SHA..$HEAD_SHA" --pretty=%s \
+            | grep -oE '^[a-z]+(\([^)]*\))?(!)?:' \
+            | sed -E 's/\(.*\)//; s/!//; s/://' \
+            | sort -u | wc -l)
+
+          echo "commit_count=$COMMIT_COUNT" >> "$GITHUB_OUTPUT"
+          echo "diff_lines=$DIFF_LINES" >> "$GITHUB_OUTPUT"
+          echo "distinct_types=$DISTINCT_TYPES" >> "$GITHUB_OUTPUT"
+          echo "Metrics: $COMMIT_COUNT commit(s), $DIFF_LINES diff lines, $DISTINCT_TYPES distinct conventional-commit type(s)."
+
+      - name: Classify recommendation
+        id: classify
+        env:
+          COMMITS: ${{ steps.metrics.outputs.commit_count }}
+          DIFF: ${{ steps.metrics.outputs.diff_lines }}
+          TYPES: ${{ steps.metrics.outputs.distinct_types }}
+        run: |
+          set -e
+          # Decision rules per specs/merge-policy.md §2:
+          #   1 commit AND <50 lines      → SQUASH (trivial single intent)
+          #   ≥2 commits with ≥2 types    → MERGE-COMMIT (multi-intent)
+          #   ≥2 commits, all same type   → SQUASH (single intent in steps)
+          #   tie / ambiguous             → MERGE-COMMIT (safer default)
+          REC=""
+          REASON=""
+
+          if [ "$COMMITS" -le 1 ] && [ "$DIFF" -lt 50 ]; then
+            REC="SQUASH"
+            REASON="Single commit AND <50 lines diff = trivial single intent. Squash collapses to one merge-commit on main, keeping history flat."
+          elif [ "$TYPES" -ge 2 ]; then
+            REC="MERGE-COMMIT"
+            REASON="$TYPES distinct conventional-commit types ($COMMITS commits) — semantically multi-intent. Merge-commit preserves authorial steps for future audit (D2.1)."
+          elif [ "$COMMITS" -ge 2 ] && [ "$TYPES" -eq 1 ]; then
+            REC="SQUASH"
+            REASON="$COMMITS commits but all same type — single-intent variant (typo fixes, lint cleanup, "address review feedback ×N"). Squash collapses noise."
+          else
+            REC="MERGE-COMMIT"
+            REASON="Tie / ambiguous metrics — defaulting to merge-commit (D2.1). Maintainer override always available."
+          fi
+
+          echo "recommendation=$REC" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+
+      - name: Post or update sticky comment
+        uses: actions/github-script@v7
+        env:
+          REC: ${{ steps.classify.outputs.recommendation }}
+          REASON: ${{ steps.classify.outputs.reason }}
+          COMMITS: ${{ steps.metrics.outputs.commit_count }}
+          DIFF: ${{ steps.metrics.outputs.diff_lines }}
+          TYPES: ${{ steps.metrics.outputs.distinct_types }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const rec = process.env.REC;
+            const reason = process.env.REASON;
+            const commits = process.env.COMMITS;
+            const diff = process.env.DIFF;
+            const types = process.env.TYPES;
+
+            const STICKY_HEADER = '### 🪧 pr-merge-style advisor';
+            const icon = rec === 'SQUASH' ? '🟦' : '🟩';
+
+            const body = [
+              STICKY_HEADER,
+              '',
+              `${icon} **Recommended merge style: \`${rec}\`**`,
+              '',
+              '| Metric | Value |',
+              '|---|---|',
+              `| Commits | ${commits} |`,
+              `| Diff lines (added+deleted, excl. lockfiles) | ${diff} |`,
+              `| Distinct conventional-commit types | ${types} |`,
+              '',
+              `**Why**: ${reason}`,
+              '',
+              '_This is informational — the maintainer ultimately decides per [`specs/merge-policy.md`](../blob/main/specs/merge-policy.md) §2 / D2.3. The advisor surfaces the policy at review time so the choice is conscious, not default._',
+              '',
+              '<details><summary>Decision rules (specs/merge-policy.md §2)</summary>',
+              '',
+              '- 1 commit AND <50 lines → **SQUASH** (trivial single intent)',
+              '- ≥2 commits with ≥2 distinct conv-commit types → **MERGE-COMMIT** (multi-intent)',
+              '- ≥2 commits all same type (e.g. typo fixes ×3) → **SQUASH** (single intent in steps)',
+              '- Tie / ambiguous → **MERGE-COMMIT** (safer default per D2.1)',
+              '',
+              '</details>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(
+              (c) => c.user.type === 'Bot' && c.body && c.body.startsWith(STICKY_HEADER)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

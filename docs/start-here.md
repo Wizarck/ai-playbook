@@ -60,6 +60,7 @@ If any of these fail, the error carries a `FIX:` line per [../specs/error-messag
 
 | Your situation | Read this first |
 |---|---|
+| **I want to make a change in this (or any) playbook-consuming project** | **[development-flow.md](development-flow.md)** — canonical end-to-end flow (LLM-agnostic) |
 | I want the full walkthrough | [quickstart.md](quickstart.md) (25–40 min) |
 | I'm contributing to a spec in this repo | [../AGENTS.md](../AGENTS.md) + [contributing.md](contributing.md) |
 | I'm onboarding a new consumer project | [bootstrap-new-project.md](bootstrap-new-project.md) + [quickstart.md](quickstart.md) |

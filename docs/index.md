@@ -4,9 +4,10 @@
 
 === "Start here"
 
-    New to the playbook? Read the 60-second orientation.
+    New to the playbook? Read these in order:
 
-    - [start-here.md](start-here.md) — dispatcher chain, first 5 commands, where-to-go-next table.
+    - [development-flow.md](development-flow.md) — **LLM-agnostic canonical entry point**: how to make a change in any playbook-consuming project. Read first.
+    - [start-here.md](start-here.md) — 60-second orientation: dispatcher chain, first 5 commands, where-to-go-next table.
 
 === "Onboarding"
 
