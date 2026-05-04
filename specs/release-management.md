@@ -1,11 +1,25 @@
 # release-management.md
 
-> **Status**: v1.2.0 (new in v0.8.1). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, the **visibility-driven enforcement profile** (public-OSS vs private-solo), and the **AI-reviewer feedback loop** (CodeRabbit / claude-code-action). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
+> **Status**: v1.3.0 (new in v0.9.3). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, the **visibility-driven enforcement profile** (public-OSS vs private-solo), and the **AI-reviewer feedback loop** (CodeRabbit / claude-code-action). Companion to [`docs/development-flow.md`](../docs/development-flow.md) (the LLM-agnostic canonical entry point — read that first). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
 >
 > **Changelog**:
+> - **v1.3.0** (2026-05-05): added §0 (entry-point pointer to [`docs/development-flow.md`](../docs/development-flow.md)) so readers landing here know this spec covers source-control / PR / CI specifically — the canonical end-to-end flow lives in development-flow.md.
 > - **v1.2.0** (2026-05-01): added §4.5 (AI-reviewer feedback loop) — worker AI MUST read + respond to AI-reviewer comments (CodeRabbit on Profile A, claude-code-action when Phase 3 lands) before requesting Gate F. Closes the gap surfaced when the v0.8.0 rollout itself admin-merged 5 PRs without checking CodeRabbit's feedback (rate limit was hit; no real comments missed, but the FLOW was the failure mode).
 > - **v1.1.0** (2026-05-01): added §5.5 (trace fields Branch + Base SHA), §5.6 (visibility-driven profile A/B), §4.4 (pre-commit diff mode in CI), §6.5 (pre-flight rebase before slice start), §3.4 (bump-bot supersede expectation). `bootstrap_gh_project.py` gains `--profile {auto,public,private}`.
 > - **v1.0.0** (2026-04-29): initial spec — branch model, PR shape, CI gates, project board schema, dependency-driven merge order, bootstrap automation.
+
+## 0. Where to start (entry-point pointer)
+
+**If this is your first time landing here, read [`docs/development-flow.md`](../docs/development-flow.md) FIRST.** That doc is the **LLM-agnostic canonical entry point** for "how do I make a change in any playbook-consuming project?" — covering the 4-level hierarchy (Roadmap → OpenSpec change → Branch → Commits → PR → Main → Tag → Consumers), the 3 axes of parallelism (Wave-N / Intra-slice / Worktrees), and the lifecycle from "I want to change something" to "consumers are on the new version".
+
+This spec (`release-management.md`) covers **the source-control + review + CI surface** specifically:
+- §2 branch model (`<type>/<change-id>`)
+- §3 release-cut process (semver + propagation)
+- §4 PR shape, CI gates, AI-reviewer feedback loop (§4.5)
+- §5 GH Project board schema + visibility-driven profile (§5.6)
+- §6 dependency-driven merge order (§6.4 Wave-N) + intra-slice parallelism (§6.6) + pre-flight rebase (§6.5)
+
+The skill `/dev-flow start | ship` (per [`skills/dev-flow/SKILL.md`](../skills/dev-flow/SKILL.md)) operationalises this entire spec as runnable commands. Use the skill if you want the playbook to drive the flow; read this spec if you need to understand or modify any specific gate or contract.
 
 ## 1. Why this spec
 
