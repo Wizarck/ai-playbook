@@ -57,12 +57,11 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -162,7 +161,7 @@ def _events_path() -> Path:
 def _emit_event(name: str, attrs: dict[str, Any]) -> None:
     """Append a `gen_ai.*` event to events.jsonl. Best-effort, never raises."""
     row = {
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "event": name,
         **attrs,
     }
@@ -286,7 +285,7 @@ def call(
             "severity": "error",
         })
         raise LLMRoutingError(
-            f"LiteLLM returned a malformed response: missing choices[0].message.content"
+            "LiteLLM returned a malformed response: missing choices[0].message.content"
         ) from e
 
     model_actual = body.get("model", "unknown")
@@ -339,7 +338,7 @@ def _main() -> None:
         )
     except LLMRoutingError as e:
         print(f"ERROR: {e}", flush=True)
-        raise SystemExit(2)
+        raise SystemExit(2) from e
 
     print(f"--- model_actual: {resp.model_actual} (fallback_depth={resp.fallback_depth}) ---")
     print(f"--- usage: {resp.usage} ---")

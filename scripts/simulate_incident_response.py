@@ -183,7 +183,7 @@ def simulate(
     notes = [
         f"detection: {scenario.detection_signal}",
         f"immediate-action: {scenario.immediate_action}",
-        f"escalation: solo (Arturo) — family-of-3 path inactive",
+        "escalation: solo (Arturo) — family-of-3 path inactive",
         f"artefact-required: {scenario.artefact}",
     ]
     if not runbook_resolves:
