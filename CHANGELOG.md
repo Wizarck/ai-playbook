@@ -2,6 +2,62 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.9.3] — 2026-05-05 — dev-flow industrialization + Phase 5 P5.4/P5.6/P5.7
+
+Major milestone release codifying the canonical task↔PR↔release pattern as the standard for any agent (Claude Code / Cursor / Antigravity / Gemini CLI / OpenCode) and human collaborating across modules. Closes the "where do I start?" gap with a single LLM-agnostic canonical entry point + CI gates that enforce the pattern + a skill orchestrator that runs it end-to-end. Also lands the Phase 5 bring-forward work (LiteLLM enforcement, IR + model-migration specs) deferred since v0.2.0.
+
+### Added
+
+#### Dev-flow industrialization (PRs #33, #34)
+
+- **`docs/development-flow.md`** (new) — single LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?". 4-level hierarchy + 3 axes of parallelism (Wave-N / Intra-slice / Worktrees) + lifecycle + LLM-agnostic pointer table + industrialisation surface + 8 anti-patterns. Decisions D1.1–D1.5.
+- **`specs/merge-policy.md`** (new) — squash vs merge-commit decision rules (D2.1–D2.4). Default merge-commit; squash bounded to trivial single-intent PRs.
+- **`specs/conflict-resolution-policy.md`** (new) — 4-tier conflict taxonomy + 5-line escalation threshold + Wave-N coordinator role + intra-slice partitioning gate (D3.1–D3.6).
+- **`skills/dev-flow/SKILL.md`** (new) — orchestrator skill: `/dev-flow start <description>` scaffolds OpenSpec change + branch + worktree (when ≥3 concurrent) + auto-tick git hook; `/dev-flow ship` validates + pushes + opens PR + monitors CI. Decisions D1.1–D1.6 + 3 anti-patterns.
+- **LLM-agnostic pointers wired** from `templates/new-project/AGENTS.md.tmpl` §2 (every NEW consumer inherits) + `runbooks/INDEX.md` + `docs/index.md` + `docs/start-here.md` + playbook root `AGENTS.md`. NOT in `~/.claude/CLAUDE.md` per LLM-agnostic principle (per repo `README.md`: "CLI-specific routers are thin pointers").
+- **`specs/release-management.md`** v1.2.0 → v1.3.0 — new §0 entry-point pointer to `development-flow.md`; scopes what release-management.md adds beyond it.
+
+#### CI gates + git hook (Followup #4 closed)
+
+- **`.github/workflows/branch-name-validator.yml`** (new) — enforces `<type>/<change-id>` branch names (types: feat/fix/chore/docs/refactor/test/release) + verifies `openspec/changes/<change-id>/` exists. Sticky PR comments on violation. Hard gate. Exempts dependabot, GitHub-auto-revert, release-prep, and `chore/*` branches.
+- **`.github/workflows/check-tasks-checkboxes.yml`** (new, Followup #4 OPT 2) — soft enforcement: scans `tasks.md` of the affected change-id, posts sticky PR comment with checked/total/pct + first 10 unchecked items.
+- **`scripts/auto_tick_tasks.py`** + **`templates/git-hooks/prepare-commit-msg`** (new, Followup #4 OPT 1) — git hook auto-ticks `- [ ]` boxes from conventional-commit subjects (`groups N-M`, `§N.M`, `tasks N,M,O`). Idempotent. Depth-aware scope tracking. Soft contract: never blocks commits.
+- **`.github/workflows/pr-merge-style.yml`** (new) — advisor recommending squash vs merge-commit per `merge-policy.md` decision rules. Soft (informational comment).
+
+#### Schema cross-ref enforcement (warn-only window)
+
+- **`specs/bootstrap-directive.md`** v1.1.0 → v1.2.0 — adds Development-flow cross-ref requirement: every consumer's AGENTS.md §2 Dispatcher index MUST contain a row pointing to `.ai-playbook/docs/development-flow.md`. Phased rollout (Change C pattern): warn-only initially → strict after 30d green builds.
+- **`scripts/schema_validate.py`** extended — body-level check for `development-flow.md` link. `--strict-dev-flow-cross-ref` flag promotes warn → error.
+- **`scripts/propagate_bump.py`** extended — `ensure_dev_flow_cross_ref()` inserts the row in each consumer's AGENTS.md §2 in the same bump PR as the version bump. Idempotent. Already-present → no-op. (= **Opción 1 migration** from `development-flow.md` §3.3.)
+
+#### Phase 5 bring-forward (PRs #31, #32)
+
+- **PR #32** — `scripts/wt_add.py` post-create install (npm/pnpm/poetry/uv detection, lockfile-based, failure non-fatal); `.gitignore` ignore `notifications.jsonl` + `hindsight-queue.jsonl` (runtime logs).
+- **PR #31** — Phase 5 P5.4: `configs/litellm-router.yaml` (11 task classes); `scripts/_llm.py` (canonical helper, `LITELLM_BASE_URL` proxy); `scripts/verify_llm_routing.py` (drift detector, warn-only initially per D3.5); `specs/model-routing.md` v2.0.0 + per-consumer virtual keys section in `env-vars.md`. Phase 5 P5.6+P5.7: `specs/incident-response.md` stub → v1.0.0 (8 S1–S4 scenarios + on-call ladder + 7-day post-mortem detector + comm templates + 4 stub recovery runbooks); `docs/model-migration.md` stub → v1.0.0 (trigger taxonomy + 6-step playbook + canary thresholds); 2 lifecycle_check detectors (`first_paying_client_detected`, `model_retirement_detected`); 2 dry-run simulators; `configs/anthropic-retirement-list.yaml`; new 🟠 wired-pending-trigger symbol in `enforcement-status.md`.
+
+### Tests
+
+- **`tests/test_dev_flow_industrialization.py`** (new): 31 tests across 5 classes — auto_tick_tasks parser + tick logic + CLI + schema_validate cross-ref warn-only/strict + propagate_bump cross-ref insertion.
+- **`tests/test_llm_helper.py`** (new, PR #31): 16 tests for `_llm.call` + `verify_llm_routing.scan`.
+- **`tests/test_activation_triggers.py`** (new, PR #31): 23 tests for the 2 lifecycle detectors + 2 simulators.
+- **Full suite**: 763 passed, 2 skipped (integration tests requiring `AIPLAYBOOK_E2E=1`) — zero regression.
+
+### Migration
+
+- **New consumers** bootstrapped via `scripts/bootstrap.py` after v0.9.3 inherit the cross-ref row from the updated `AGENTS.md.tmpl`.
+- **Existing consumers** (consumer-d, consumer-c-legacy, consumer-b, consumer-e, livekit) receive the cross-ref row automatically as part of the v0.9.3 bump PR opened by `propagate-playbook-bump.yml` — idempotent insertion via `propagate_bump.py::ensure_dev_flow_cross_ref()`.
+- **Auto-tick git hook** is per-developer per-checkout (git does not version `.git/hooks/`). Manual install:
+  ```
+  cp .ai-playbook/templates/git-hooks/prepare-commit-msg .git/hooks/
+  chmod +x .git/hooks/prepare-commit-msg
+  ```
+  OR invoke `/dev-flow start <description>` which installs it automatically.
+
+### Notes
+
+- Pending follow-ups (separate PRs after v0.9.3): migrate historical call sites (`lib/advisor.py`, `prompt_injection_filter.py:182`, Hermes adapter) to `_llm.call`; wire `verify_llm_routing.py` into pre-commit; archive 2 OpenSpec changes from PR #31 in consumer-d (`add-litellm-enforcement`, `complete-ir-and-model-migration-specs`).
+- Dev-flow `--strict-dev-flow-cross-ref` flag stays default-off for the v0.9.3 → v0.10.x window; flip to default-on after 30 days green + ≥4/5 consumers migrated.
+
 ## [0.9.2] — 2026-05-01 — `openspec-apply-parallel` skill + filed followup #4
 
 Patch release that ships a guided skill for the §6.6 intra-slice parallelism contract and files a fourth followup for tracking.
@@ -246,7 +302,7 @@ sweep with two additional surfaces.
   rebase additions explicitly so consumer projects browsing the INDEX
   see them at-a-glance.
 
-- **`templates/new-project/AGENTS.md.tmpl`**: 
+- **`templates/new-project/AGENTS.md.tmpl`**:
   - Bootstrap directive (§0) now requires reading `release-management.md`
     at session start in addition to `dispatcher-chain.md`. Calls out the
     critical sections (§4.5, §5.6, §6.5).
