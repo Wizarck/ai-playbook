@@ -38,3 +38,14 @@ repos:
         entry: python .ai-playbook/scripts/block_manual_spec_edit.py
         language: system
         files: ^openspec/specs/.*\.md$
+
+      - id: verify-llm-routing
+        name: Verify LLM routing (Change C drift detector — direct-SDK callers)
+        entry: python .ai-playbook/scripts/verify_llm_routing.py
+        language: system
+        pass_filenames: false
+        # Warn-only initially per ai-playbook D3.5; promote to --strict after
+        # 30 days of green builds. Migrate offending callers to
+        # `.ai-playbook.scripts._llm.call(task_class, ...)` — see
+        # `.ai-playbook/specs/model-routing.md` §1 for the task-class taxonomy.
+        always_run: true
