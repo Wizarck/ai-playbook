@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# templates/git-hooks/prepare-commit-msg
+#
+# Auto-tick `tasks.md` checkboxes from the conventional-commit subject.
+# Implements Followup #4 Option 1 from specs/v0.9.0-roadmap.md.
+#
+# Installation
+# ------------
+# Each consumer of the playbook installs this hook into their local
+# `.git/hooks/prepare-commit-msg` (or .git/hooks shared via core.hooksPath).
+#
+# Manual install (one-shot):
+#     cp .ai-playbook/templates/git-hooks/prepare-commit-msg .git/hooks/
+#     chmod +x .git/hooks/prepare-commit-msg
+#
+# The hook is local to each developer's checkout — git does not version
+# .git/hooks/. To distribute to a team, configure `core.hooksPath` to a
+# committed directory and copy this file there.
+#
+# Runtime
+# -------
+# Git invokes this hook with three positional args:
+#   $1 = path to commit-msg file
+#   $2 = source of the commit (message, template, merge, squash, commit)
+#   $3 = SHA of the commit being amended (only on amend)
+#
+# We only run during normal commits + commit -e + amend (skip on merge /
+# squash to avoid mangling auto-generated subjects).
+
+set -e
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="${2:-}"
+
+# Skip merge / squash / template — we only want to act on real authored commits.
+case "$COMMIT_SOURCE" in
+    merge|squash|template)
+        exit 0
+        ;;
+esac
+
+# Resolve playbook root (consumer has it as .ai-playbook submodule; the
+# playbook itself has scripts/ at repo root).
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+PLAYBOOK_ROOT=""
+if [ -d "$REPO_ROOT/.ai-playbook/scripts" ]; then
+    PLAYBOOK_ROOT="$REPO_ROOT/.ai-playbook"
+elif [ -f "$REPO_ROOT/scripts/auto_tick_tasks.py" ]; then
+    PLAYBOOK_ROOT="$REPO_ROOT"
+fi
+
+if [ -z "$PLAYBOOK_ROOT" ]; then
+    # No playbook available — skip silently. Hook never blocks commits.
+    exit 0
+fi
+
+# Run the auto-tick script. Failures are non-fatal (we never block the commit).
+python "$PLAYBOOK_ROOT/scripts/auto_tick_tasks.py" "$COMMIT_MSG_FILE" --quiet || true
+
+exit 0
