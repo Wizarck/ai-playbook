@@ -28,11 +28,14 @@ Any agent editing this repo MUST:
 
 | Topic | Pointer |
 |---|---|
+| **How to make any change (canonical entry point)** | [docs/development-flow.md](docs/development-flow.md) |
 | Inheritance model | [specs/dispatcher-chain.md](specs/dispatcher-chain.md) |
 | Projects registry (path resolution) | [specs/projects-registry.md](specs/projects-registry.md) |
 | AGENTS.md schema | [specs/agents-md-v1.schema.json](specs/agents-md-v1.schema.json) |
 | Taxonomy (agent/tool/skill/hook/…) | [specs/taxonomy.md](specs/taxonomy.md) |
 | Verdict + severity contract | [specs/verdict-contract.md](specs/verdict-contract.md) |
+| Merge style decision rules | [specs/merge-policy.md](specs/merge-policy.md) |
+| Conflict resolution between parallel PRs | [specs/conflict-resolution-policy.md](specs/conflict-resolution-policy.md) |
 | Degradation modes | [specs/degradation-modes.md](specs/degradation-modes.md) |
 | Agentic failure catalog | [specs/agentic-failures.md](specs/agentic-failures.md) |
 | Model routing matrix | [specs/model-routing.md](specs/model-routing.md) |
