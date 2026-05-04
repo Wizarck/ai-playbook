@@ -2,6 +2,23 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.9.2] — 2026-05-01 — `openspec-apply-parallel` skill + filed followup #4
+
+Patch release that ships a guided skill for the §6.6 intra-slice parallelism contract and files a fourth followup for tracking.
+
+### Added
+
+- **`skills/openspec-apply-parallel/SKILL.md`** — guided skill that wraps `specs/release-management.md` §6.6 (intra-slice parallelism). Encodes the gating questions (multi-group? disjoint write-paths? >30 min? pre-allocated migration numbers?), the ownership cross-check, the spawn matrix, the parallel-spawn pattern (single-message multi-Agent calls with `isolation: "worktree"`), the cherry-pick recombination order, and the anti-patterns. Falls back to `/opsx:apply` (sequential) when the gates don't pass. Architectural note: the skill is **declarative** — there is no Python orchestration script. The agent reads the skill + invokes the existing `Agent` tool primitives (worktree mode, gh CLI, git CLI). This matches the state-of-the-art "agent-as-orchestrator" pattern (Anthropic Agent SDK, OpenAI Swarm, LangGraph supervisor); a Python orchestration script would have been an anti-pattern that encloses the LLM's judgment in fixed control flow.
+- **`specs/release-management.md` §6.6 cross-reference** — the section now opens with a pointer at the new skill, so an agent reading the spec discovers the operational entry point immediately.
+
+### Filed (open)
+
+- **Followup 4** in `specs/v0.9.0-roadmap.md` — `/opsx:apply` skill doesn't enforce `tasks.md` checkbox-update discipline. Surfaced by consumer-e slice 3 archive (merged with 0/55 tasks ticked despite being feature-complete). Three fix options outlined: (1) conventional-commit scope → checkbox auto-tick via `prepare-commit-msg` hook, (2) PR-open warning workflow, (3) `openspec archive --strict` mode. Recommended: ship 1 + 2 in a future v0.9.x patch; defer 3.
+
+### Notes
+
+- This is a doc + skill release. No script changes; no test additions. Cascade behaviour identical to v0.9.1 (auto-bump AGENTS.md `inherits_from` for all 5 consumers via `bump_agents_md_pin`).
+
 ## [0.9.1] — 2026-05-01 — close v0.9.0 followups (#1 #2 #3)
 
 Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0 stable release. Each was a real production gap surfaced during the consumer-e cascade dogfood. Now all three are fixed + covered by tests.
