@@ -114,6 +114,12 @@ _BUILTIN_EXCLUSIONS: tuple[str, ...] = (
     "rfcs/",
     # The drift detector itself names the rules — false positive on its own source.
     "scripts/verify_llm_routing.py",
+    # Submodules — consumers vendor the playbook at `.ai-playbook/` and the
+    # skills mirror at `.skills-sources/`. Their contents are upstream-owned;
+    # consumers cannot fix findings inside them. The drift detector should
+    # only surface drift in consumer-owned code.
+    ".ai-playbook/",
+    ".skills-sources/",
 )
 
 
