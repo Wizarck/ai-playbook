@@ -50,6 +50,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# Force UTF-8 stdio — Windows cp1252 cannot encode the ✓ sigil.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except (AttributeError, OSError):
+        pass
+
 # ---------------------------------------------------------------------------
 # Detection rules
 # ---------------------------------------------------------------------------

@@ -2,6 +2,21 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [Unreleased]
+
+### Changed
+
+- **`scripts/prompt_injection_filter.py`** layer-2 migrated from direct `anthropic` SDK to `scripts._llm.call("safety_judge", consumer="INJECTION", ...)` per Change C P5.4 follow-up. The opt-in env var `ANTHROPIC_API_KEY_INJECTION` is preserved as a budget gate; actual provider key resolution now happens at the LiteLLM proxy via the `safety_judge` task class. Drift detector confirms 0 in-tree direct-SDK callers remain.
+- **`scripts/verify_llm_routing.py`** — added Windows-safe UTF-8 stdio reconfigure so the success sigil (`✓`) prints under cp1252.
+
+### Added
+
+- **`.pre-commit-config.yaml`** + **`templates/new-project/.pre-commit-config.yaml.tmpl`** — wire `verify_llm_routing` as a `local` hook (warn-only initially per D3.5; strict-mode promotion target 2026-06-05 after 30 green-build days). New consumers inherit the hook on bootstrap; existing consumers can opt in by adding the block to their own `.pre-commit-config.yaml`.
+
+### Notes
+
+- Closes 2/3 deferred items from v0.9.3 follow-up note. Remaining: `eligia-core/lib/advisor.py` migration (separate consumer PR, manual 2-call paths to `_llm.call`; native Anthropic advisor-tool beta retains an inline-allow comment since LiteLLM cannot tunnel the `advisor_20260301` tool block). The "Hermes adapter" deferred item is a no-op — no Python adapter exists in-tree (Hermes is a separate container that already consumes the LiteLLM proxy directly via OpenAI-compatible API).
+
 ## [0.9.3] — 2026-05-05 — dev-flow industrialization + Phase 5 P5.4/P5.6/P5.7
 
 Major milestone release codifying the canonical task↔PR↔release pattern as the standard for any agent (Claude Code / Cursor / Antigravity / Gemini CLI / OpenCode) and human collaborating across modules. Closes the "where do I start?" gap with a single LLM-agnostic canonical entry point + CI gates that enforce the pattern + a skill orchestrator that runs it end-to-end. Also lands the Phase 5 bring-forward work (LiteLLM enforcement, IR + model-migration specs) deferred since v0.2.0.
