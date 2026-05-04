@@ -69,6 +69,11 @@ SCHEMA_RELPATH = Path("specs") / "agents-md-v1.schema.json"
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+# Dev-flow cross-ref check (per specs/bootstrap-directive.md v1.2.0).
+# AGENTS.md body MUST contain a link to development-flow.md somewhere.
+# Warn-only initially; promote to strict after 30d via --strict-dev-flow-cross-ref.
+DEV_FLOW_CROSS_REF_RE = re.compile(r"development-flow\.md")
+
 MONTHS = {
     m: i
     for i, m in enumerate(
@@ -459,8 +464,24 @@ def validate_frontmatter(
     return errors
 
 
+def check_dev_flow_cross_ref(body: str) -> bool:
+    """Return True if the AGENTS.md body references development-flow.md.
+
+    Body is the post-frontmatter content; a single occurrence anywhere is
+    sufficient (consumers SHOULD put it as the first row of §2 Dispatcher
+    index, but the check is permissive — link presence is the contract).
+
+    Per specs/bootstrap-directive.md v1.2.0.
+    """
+    return bool(DEV_FLOW_CROSS_REF_RE.search(body))
+
+
 def validate_one(
-    file_path: Path, *, schema: dict[str, Any], autofix: bool
+    file_path: Path,
+    *,
+    schema: dict[str, Any],
+    autofix: bool,
+    strict_dev_flow_cross_ref: bool = False,
 ) -> int:
     """Validate a single file. Returns exit code for this file."""
     if not file_path.is_file():
@@ -505,8 +526,23 @@ def validate_one(
         return 1
 
     errors = validate_frontmatter(fm.data, schema)
-    if not errors:
+
+    # Dev-flow cross-ref check (specs/bootstrap-directive.md v1.2.0).
+    # Always evaluated; warn-only by default, error when --strict-dev-flow-cross-ref.
+    cross_ref_ok = check_dev_flow_cross_ref(fm.body)
+    cross_ref_failed = not cross_ref_ok
+
+    if not errors and not (strict_dev_flow_cross_ref and cross_ref_failed):
         print(f"✅ {_format_path(file_path)} frontmatter valid (agents-md/v1).")
+        if cross_ref_failed:
+            # Warn-only path: print to stderr but exit 0.
+            print(
+                f"⚠️  {_format_path(file_path)} body lacks a link to "
+                f"development-flow.md (specs/bootstrap-directive.md v1.2.0). "
+                f"Add it to §2 Dispatcher index. Will become an error in a "
+                f"future version (currently warn-only).",
+                file=sys.stderr,
+            )
         return 0
 
     for err in errors:
@@ -516,6 +552,25 @@ def validate_one(
             fix=(
                 "see specs/agents-md-v1.schema.json for the contract; "
                 "`--autofix` repairs the common cases."
+            ),
+            override_invocation=(
+                f"python -m scripts.schema_validate {file_path} "
+                f"--force-with-reason=\"<>=10 char reason\""
+            ),
+        )
+
+    if strict_dev_flow_cross_ref and cross_ref_failed:
+        emit_error(
+            why=(
+                "AGENTS.md §2 Dispatcher index lacks the canonical "
+                "development-flow.md cross-reference"
+            ),
+            where=f"{_format_path(file_path)}",
+            fix=(
+                "add the row `| **How to make a change in this project (canonical "
+                "entry point)** | [.ai-playbook/docs/development-flow.md]"
+                "(.ai-playbook/docs/development-flow.md) |` to §2 Dispatcher "
+                "index. See specs/bootstrap-directive.md v1.2.0."
             ),
             override_invocation=(
                 f"python -m scripts.schema_validate {file_path} "
@@ -549,6 +604,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Apply migration-guide.md WILL list fixes in-place.",
     )
+    parser.add_argument(
+        "--strict-dev-flow-cross-ref",
+        action="store_true",
+        help=(
+            "Promote the development-flow.md cross-ref check from warn-only "
+            "to error. Defaults to off during the v0.9.3+ rollout window; "
+            "flip on after 30 days of green builds (per "
+            "specs/bootstrap-directive.md v1.2.0)."
+        ),
+    )
     add_break_glass_flag(parser)
     args = parser.parse_args(argv)
 
@@ -558,7 +623,12 @@ def main(argv: list[str] | None = None) -> int:
 
     overall: int = 0
     for p in paths:
-        rc = validate_one(p, schema=schema, autofix=args.autofix)
+        rc = validate_one(
+            p,
+            schema=schema,
+            autofix=args.autofix,
+            strict_dev_flow_cross_ref=args.strict_dev_flow_cross_ref,
+        )
         if rc != 0:
             overall = rc
 
