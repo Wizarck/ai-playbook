@@ -1,0 +1,43 @@
+# anthropic-retirement-list.yaml
+#
+# Curated list of LLM provider model retirements. Drives the
+# `model_retirement_detected` check in scripts/lifecycle_check.py
+# (see specs/lifecycle-check.md and docs/model-migration.md).
+#
+# Update protocol:
+#   1. Provider sends a deprecation announcement (email to API account, blog
+#      post, or status page).
+#   2. Open a 1-line PR adding an entry below.
+#   3. Detector picks up the new entry on next monthly run; emits warn
+#      notification when retirement_date - now <= 90 days.
+#
+# This file is curated by humans (D4.3 in docs/model-migration.md). No
+# automated scraping. Cadence is ~2x per year per provider.
+#
+# Schema (one entry per retiring model):
+#
+# - model_id: <provider model id, e.g. claude-haiku-4-5>
+#   provider: <anthropic | openai | google | other>
+#   announced_date: <YYYY-MM-DD when the deprecation was first announced>
+#   retirement_date: <YYYY-MM-DD when the model returns 4xx for new requests>
+#   successor: <provider model id of the recommended replacement>
+#   deprecation_url: <link to the official deprecation notice>
+#   notes: <optional free text, e.g. "Sonnet 4.6 is end-of-life; existing
+#           customers grandfathered until 2026-12-31">
+#
+# When the retirement happens, MOVE the entry to retired/ at the bottom of
+# this file (do not delete; history is useful for post-mortems and audits).
+
+retirements:
+  # Currently empty. v1.0.0 ships pending the first real retirement. The
+  # entry below is COMMENTED OUT — it serves as a schema example only.
+  #
+  # - model_id: claude-haiku-4-5
+  #   provider: anthropic
+  #   announced_date: 2026-09-01
+  #   retirement_date: 2026-12-01
+  #   successor: claude-haiku-5-0
+  #   deprecation_url: https://docs.anthropic.com/en/docs/about-claude/model-deprecations
+  #   notes: example only — no real retirement announced as of 2026-05-01.
+
+retired: []
