@@ -6,6 +6,8 @@ Operational runbooks — AI-executable procedures for recurring ops. Specs
 define the contract; runbooks describe the sequence of commands a
 maintainer (human or AI) runs to execute it.
 
+> **Where to start (any change)**: read [`docs/development-flow.md`](../docs/development-flow.md) FIRST. It's the LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?" and points outward to the right runbook / spec for each step.
+
 All runbooks follow the same shape:
 
 - Purpose + prereqs in the header.
