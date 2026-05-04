@@ -33,3 +33,7 @@ build/
 projects.yaml
 .ai-playbook/
 overrides.log
+
+# Runtime notifications (append-only, per-consumer; should never enter the repo)
+notifications.jsonl
+hindsight-queue.jsonl
