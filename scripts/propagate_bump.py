@@ -181,7 +181,7 @@ def ensure_dev_flow_cross_ref(agents_md_path: Path) -> tuple[bool, str]:
     # insert the new row IMMEDIATELY AFTER the separator (= as the first
     # data row of the table).
     in_section = False
-    for i, line in enumerate(lines):
+    for line in lines:
         out.append(line)
         if not in_section:
             # Section detection — accept "## 2 Dispatcher index", "## 2.
