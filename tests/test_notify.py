@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import smtplib
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -308,6 +309,156 @@ def test_email_failure_does_not_raise(
     lines = _read_lines(jsonl_path)
     # Envelope still written despite SMTP failure.
     assert any(line["event"] == "demo.boom" for line in lines)
+
+
+# ---------------------------------------------------------------------------
+# Durable queue transport (Phase 5 Change B — `add-durable-notification-queue`)
+# ---------------------------------------------------------------------------
+
+
+def _install_fake_queue(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    raise_on_enqueue: bool = False,
+) -> list[tuple[dict, str, str]]:
+    """Inject a fake ``notifications.queue`` module that records enqueue calls.
+
+    Returns the list that captures ``(envelope, channel, severity)`` tuples.
+    """
+    captured: list[tuple[dict, str, str]] = []
+
+    fake_queue_pkg = type(sys)("notifications")
+    fake_queue_mod = type(sys)("notifications.queue")
+
+    def _fake_enqueue(envelope, channel, severity, **_kw):  # noqa: ANN001
+        if raise_on_enqueue:
+            raise RuntimeError("simulated DB lock")
+        captured.append((envelope, channel, severity))
+        return len(captured)
+
+    fake_queue_mod.enqueue = _fake_enqueue  # type: ignore[attr-defined]
+    fake_queue_pkg.queue = fake_queue_mod  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "notifications", fake_queue_pkg)
+    monkeypatch.setitem(sys.modules, "notifications.queue", fake_queue_mod)
+    return captured
+
+
+def test_warn_routes_through_queue_when_enabled_skips_smtp(
+    jsonl_path: Path,
+    smtp_enabled: type[_FakeSMTP],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ELIGIA_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    captured = _install_fake_queue(monkeypatch)
+
+    notify_mod.notify(event="demo.queue", severity="warn", summary="via-queue")
+
+    # Enqueued via Telegram per severity → channel mapping.
+    assert len(captured) == 1
+    envelope, channel, severity = captured[0]
+    assert channel == "telegram"
+    assert severity == "warn"
+    assert envelope["event"] == "demo.queue"
+    assert envelope["severity"] == "warn"
+    # SMTP must NOT be invoked when the queue claims the message.
+    assert smtp_enabled.instances == []
+
+
+def test_error_routes_through_queue_when_enabled(
+    jsonl_path: Path,
+    smtp_enabled: type[_FakeSMTP],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ELIGIA_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    captured = _install_fake_queue(monkeypatch)
+
+    notify_mod.notify(event="demo.err", severity="error", summary="boom")
+
+    assert len(captured) == 1
+    assert captured[0][1] == "telegram"
+    assert captured[0][2] == "error"
+    assert smtp_enabled.instances == []
+
+
+def test_queue_disabled_falls_through_to_smtp(
+    jsonl_path: Path,
+    smtp_enabled: type[_FakeSMTP],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default (no env var) keeps the legacy SMTP behaviour."""
+    monkeypatch.delenv("ELIGIA_NOTIFICATIONS_QUEUE_ENABLED", raising=False)
+    captured = _install_fake_queue(monkeypatch)
+
+    notify_mod.notify(event="demo.legacy", severity="warn", summary="smtp")
+
+    # Queue not consulted; SMTP fired.
+    assert captured == []
+    assert len(smtp_enabled.instances) == 1
+    assert len(smtp_enabled.instances[0].sent) == 1
+
+
+def test_queue_package_missing_falls_through_to_smtp(
+    jsonl_path: Path,
+    smtp_enabled: type[_FakeSMTP],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Env var set but the consumer-side package is absent (e.g. a non-eligia
+    consumer with the env var inadvertently exported) — must NOT crash; falls
+    through to SMTP."""
+    monkeypatch.setenv("ELIGIA_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    # Ensure neither real nor fake `notifications` module is importable.
+    monkeypatch.delitem(sys.modules, "notifications", raising=False)
+    monkeypatch.delitem(sys.modules, "notifications.queue", raising=False)
+
+    import builtins
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        if name == "notifications" or name.startswith("notifications."):
+            raise ImportError("notifications package not vendored on this consumer")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    notify_mod.notify(event="demo.no-pkg", severity="warn", summary="x")
+
+    # SMTP fired since the queue path was unavailable.
+    assert len(smtp_enabled.instances) == 1
+
+
+def test_queue_enqueue_failure_falls_back_to_smtp(
+    jsonl_path: Path,
+    smtp_enabled: type[_FakeSMTP],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """If enqueue raises (DB lock, disk full), the helper logs + falls back
+    to SMTP — never re-raises."""
+    monkeypatch.setenv("ELIGIA_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    _install_fake_queue(monkeypatch, raise_on_enqueue=True)
+
+    notify_mod.notify(event="demo.dblock", severity="error", summary="locked")
+
+    err = capsys.readouterr().err
+    assert "queue enqueue failed" in err
+    assert "queue-error:RuntimeError" in err
+    # SMTP fallback fired.
+    assert len(smtp_enabled.instances) == 1
+
+
+def test_queue_does_not_route_info_severity(
+    jsonl_path: Path,
+    smtp_enabled: type[_FakeSMTP],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per D2.5: info-level bypasses the queue entirely."""
+    monkeypatch.setenv("ELIGIA_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    captured = _install_fake_queue(monkeypatch)
+
+    notify_mod.notify(event="demo.info", severity="info", summary="ignore-me")
+
+    assert captured == []  # info doesn't reach the queue path
+    assert smtp_enabled.instances == []  # SMTP also doesn't fire for info
 
 
 # ---------------------------------------------------------------------------
