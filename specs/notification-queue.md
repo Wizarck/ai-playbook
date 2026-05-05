@@ -1,11 +1,40 @@
 # notification-queue.md
 
-> **Status**: v1.0.0.
+> **Status**: v1.0.0 (durable queue layer added 2026-05-05 by consumer-d
+> OpenSpec change `add-durable-notification-queue` — Phase 5 P5.3).
 
-Contract for the JSONL notification queue + email transport used by every
-zero-touch playbook automation. This spec realises the *shape* of a
-notification envelope; [notification-policy.md](notification-policy.md)
-realises the *policy* (per-event severity matrix, channels).
+Contract for the JSONL notification queue + email transport + durable
+SQLite-backed retry queue used by every zero-touch playbook automation. This
+spec realises the *shape* of a notification envelope and the *transports*
+that ship it; [notification-policy.md](notification-policy.md) realises the
+*policy* (per-event severity matrix, channels).
+
+### Layer overview
+
+```
+notify(event, severity, summary, ...)
+   │
+   ├─► §3 JSONL append  (always; source-of-truth audit)
+   │
+   ├─► severity ∈ {warn, error}:
+   │     ┌──────────────────────────────────────────────────┐
+   │     │ §8 Durable queue   (when consumer opts in via    │
+   │     │   consumer-d_NOTIFICATIONS_QUEUE_ENABLED=1 AND        │
+   │     │   `notifications.queue` package importable —     │
+   │     │   consumer-d only at v1)                         │
+   │     │   → SQLite enqueue → worker → Telegram/WhatsApp  │
+   │     └──────────────────────────────────────────────────┘
+   │     ┌──────────────────────────────────────────────────┐
+   │     │ §6 SMTP fallback  (queue disabled OR             │
+   │     │   not vendored — consumer-b, consumer-c-legacy,      │
+   │     │   consumer-e, livekit, dev laptops)            │
+   │     └──────────────────────────────────────────────────┘
+   │
+   └─► severity ∈ {silent, info}: JSONL only.
+```
+
+The two §6 / §8 paths are mutually exclusive per emission — when the queue
+claims a row, SMTP is skipped to avoid double delivery.
 
 ---
 
@@ -143,7 +172,140 @@ Owned by Subagent B (consumer-d). Contract the dashboard implements:
 Subagent B is responsible for authentication, CORS, and the UI. This repo owns
 the file-format guarantees.
 
-## 8. Retention
+## 8. Durable queue layer (Phase 5 Change B — opt-in, consumer-d)
+
+The JSONL+SMTP layers above guarantee audit but NOT delivery: if Telegram is
+down for 30 s during a `request_approval` emission, the user never sees the
+message and the workflow's poll loop times out without ever asking the human.
+Phase 5 Change B (`add-durable-notification-queue`) closes this gap with a
+SQLite-backed retry layer that wraps the channel adapters and replays failed
+sends until they land or the TTL expires.
+
+### Activation
+
+Two AND-gated conditions:
+
+1. `consumer-d_NOTIFICATIONS_QUEUE_ENABLED=1` is set in the consumer's environment
+   (default: unset → legacy SMTP path).
+2. The consumer-side Python package `notifications.queue` is importable.
+   Today this means **only consumer-d** at v1 — the queue lives at
+   `langgraph-aiops/notifications/` in that repo and is wired into
+   `langgraph-aiops/watchdogs.py::run_continuous` as an `asyncio.Task`
+   sibling to the watchdog loop.
+
+When either condition is missing, `notify()` falls through to the legacy
+SMTP path (§6) without raising. Other consumers (consumer-b, consumer-c-legacy,
+consumer-e, livekit) are unaffected by this change.
+
+### Storage
+
+SQLite at `~/.consumer-d/state/notifications-queue.db` (host-writer pattern;
+overridable via `consumer-d_NOTIFICATIONS_DB`). Schema (full DDL in
+`scripts/db/migrations/notifications-queue-001.sql`):
+
+```sql
+CREATE TABLE pending (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  envelope_json TEXT NOT NULL,    -- the §2 envelope shape verbatim
+  channel TEXT NOT NULL,           -- "telegram" | "whatsapp" | "dashboard"
+  severity TEXT NOT NULL,          -- "info" | "warn" | "error"
+  created_at TIMESTAMP NOT NULL,
+  next_retry_at TIMESTAMP NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  delivered_at TIMESTAMP,
+  dropped_at TIMESTAMP,
+  ttl_seconds INTEGER NOT NULL DEFAULT 86400  -- 24h default
+);
+CREATE INDEX idx_pending_due ON pending (next_retry_at)
+    WHERE delivered_at IS NULL AND dropped_at IS NULL;
+```
+
+The `envelope_json` field stores the §2 shape verbatim — no field flattening,
+no schema drift between queue rows and the JSONL audit log.
+
+### Worker
+
+A single `asyncio.Task` (no multi-worker — D2.2). Polling cycle every 10 s:
+
+1. `SELECT * FROM pending WHERE delivered_at IS NULL AND dropped_at IS NULL
+   AND next_retry_at <= NOW() ORDER BY id LIMIT 50`.
+2. For each row: dispatch to `channels.<channel>.send_envelope(envelope)`.
+3. On success: `UPDATE pending SET delivered_at = NOW() WHERE id = ?`;
+   emit `notification.delivered` (severity `silent`) to `events.jsonl`.
+4. On failure: bump `attempt_count`, store `last_error`, recompute
+   `next_retry_at` per the backoff schedule below; emit
+   `notification.retry_scheduled` (severity `silent`).
+5. If a row exceeds `ttl_seconds` past `created_at`, set `dropped_at = NOW()`
+   and emit `notification.dropped` (severity `error`, includes the full
+   envelope + `last_error`).
+
+Disable the worker (e.g. for unit tests of just the watchdog) via
+`consumer-d_NOTIFICATIONS_WORKER_DISABLED=1`.
+
+### Backoff schedule
+
+Explicit, no improvisation:
+
+| Attempt | Wait before retry |
+|---|---|
+| 1 | 30 s |
+| 2 | 2 min |
+| 3 | 10 min |
+| 4 | 1 h |
+| 5 | 6 h |
+| 6+ | parked far in the future; `drop_expired()` reclaims at TTL boundary |
+
+Cumulative wait through attempts 1-5 ≈ 7 h 42 min — comfortably inside the
+24 h default TTL, so each row gets at least 5 delivery attempts before drop.
+
+### Channel routing
+
+Per `notification-policy.md` §3.1 + Change B proposal:
+
+- `silent` → JSONL only. Not enqueued.
+- `info` → JSONL only (D2.5 — queue cost > delivery value at this severity).
+  Not enqueued.
+- `warn` → JSONL + queue → channel adapter (Telegram for Arturo at v1).
+- `error` → JSONL + queue → channel adapter (Telegram + future PagerDuty).
+
+`notify.py` selects the channel via `_QUEUE_CHANNEL_BY_SEVERITY` (default
+`telegram` for warn/error). To target multiple channels, fan out at
+the emitter — the queue does NOT auto-broadcast a single envelope to N
+channels.
+
+### MCP outbox tool
+
+`langgraph-aiops/consumer-d_ops/tools.py::recent_undelivered_notifications(limit=10)`
+exposes the pending rows as an MCP tool — used by the dashboard "outbox"
+widget and by Hermes to answer "did anything fail to deliver?". Returns
+`channel`, `severity`, `attempt_count`, `next_retry_at`, `last_error`, and a
+trimmed `summary` for each pending envelope.
+
+### Observability
+
+Every queue state transition emits a `gen_ai.notification.<verb>` event to
+`events.jsonl`:
+
+| Event | Severity | When |
+|---|---|---|
+| `notification.enqueued` | `silent` | row inserted |
+| `notification.delivered` | `silent` | row marked delivered |
+| `notification.retry_scheduled` | `silent` | row marked failed; backoff reset |
+| `notification.dropped` | `error` | row exceeded TTL; envelope included |
+
+`scripts/cost_report.py` and the consumer-d dashboard already aggregate
+`events.jsonl` — no new metrics infrastructure required.
+
+### Restart survival
+
+Container/process restart (`docker compose restart consumer-d-aiops`,
+`systemctl restart`) MUST NOT lose pending rows. Validated by a unit test
+that reimports `notifications.queue` after enqueue and verifies the row is
+still readable from the SQLite file (host-writer pattern guarantees the file
+outlives the container).
+
+## 9. Retention
 
 - JSONL file retained **180 days rolling**. Rotated weekly by the dashboard
   host (or `lifecycle_check.py --rotate-notifications` when invoked).
@@ -151,7 +313,7 @@ the file-format guarantees.
 - Aggregated counts per severity per week are emitted as
   `lifecycle_check.notifications_rollup` events.
 
-## 9. Cross-references
+## 10. Cross-references
 
 - [notification-policy.md](notification-policy.md) — severity matrix, per-event
   policy.

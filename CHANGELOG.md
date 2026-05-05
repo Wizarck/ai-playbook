@@ -6,16 +6,21 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ### Changed
 
+- **`scripts/notify.py`** — warn/error path now prefers the consumer-side durable queue (Phase 5 Change B `add-durable-notification-queue`) when `consumer-d_NOTIFICATIONS_QUEUE_ENABLED=1` AND a `notifications.queue` package is importable; falls through to the legacy synchronous SMTP path otherwise. The two transports are mutually exclusive per emission. Other consumers (consumer-b, consumer-c-legacy, consumer-e, livekit) continue with SMTP unchanged.
 - **`scripts/prompt_injection_filter.py`** layer-2 migrated from direct `anthropic` SDK to `scripts._llm.call("safety_judge", consumer="INJECTION", ...)` per Change C P5.4 follow-up. The opt-in env var `ANTHROPIC_API_KEY_INJECTION` is preserved as a budget gate; actual provider key resolution now happens at the LiteLLM proxy via the `safety_judge` task class. Drift detector confirms 0 in-tree direct-SDK callers remain.
 - **`scripts/verify_llm_routing.py`** — added Windows-safe UTF-8 stdio reconfigure so the success sigil (`✓`) prints under cp1252.
+- **`specs/notification-queue.md`** — extended with §8 Durable queue layer (Phase 5 Change B): activation gate, SQLite schema, async worker model, backoff schedule, channel routing, MCP outbox tool, observability events, restart-survival contract. The legacy JSONL+SMTP layers (§3-§7) are unchanged.
+- **`specs/enforcement-status.md`** — `notification-queue.md` row flipped 🟡 partial → ✅ wired with the Change B activation details.
 
 ### Added
 
 - **`.pre-commit-config.yaml`** + **`templates/new-project/.pre-commit-config.yaml.tmpl`** — wire `verify_llm_routing` as a `local` hook (warn-only initially per D3.5; strict-mode promotion target 2026-06-05 after 30 green-build days). New consumers inherit the hook on bootstrap; existing consumers can opt in by adding the block to their own `.pre-commit-config.yaml`.
+- **6 new tests in `tests/test_notify.py`** (durable queue path): warn-routes-via-queue + skips-SMTP; error-routes-via-queue; queue-disabled-falls-through; queue-package-missing-falls-through; enqueue-failure-falls-back; info-bypasses-queue. Total: 30 tests in test_notify.py (was 24).
 
 ### Notes
 
-- Closes 2/3 deferred items from v0.9.3 follow-up note. Remaining: `consumer-d/lib/advisor.py` migration (separate consumer PR, manual 2-call paths to `_llm.call`; native Anthropic advisor-tool beta retains an inline-allow comment since LiteLLM cannot tunnel the `advisor_20260301` tool block). The "Hermes adapter" deferred item is a no-op — no Python adapter exists in-tree (Hermes is a separate container that already consumes the LiteLLM proxy directly via OpenAI-compatible API).
+- Closes 2/3 deferred items from v0.9.3 follow-up note (Change C). Remaining: `consumer-d/lib/advisor.py` migration (separate consumer PR, manual 2-call paths to `_llm.call`; native Anthropic advisor-tool beta retains an inline-allow comment since LiteLLM cannot tunnel the `advisor_20260301` tool block). The "Hermes adapter" deferred item is a no-op — no Python adapter exists in-tree (Hermes is a separate container that already consumes the LiteLLM proxy directly via OpenAI-compatible API).
+- The Change B wiring lands as a chore-level upstream PR because the contract change is consumer-driven (the OpenSpec proposal lives in consumer-d under `openspec/changes/add-durable-notification-queue/`); the upstream playbook absorbs the integration as documented mechanical follow-up.
 
 ## [0.9.3] — 2026-05-05 — dev-flow industrialization + Phase 5 P5.4/P5.6/P5.7
 

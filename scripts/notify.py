@@ -12,9 +12,14 @@ Zero-touch contract
 - ``info`` → JSONL + (later) dashboard SSE. Rate-limited to 5/min per
   ``event``+``actor``; excess is coalesced into a single ``notification.burst``
   summary.
-- ``warn`` / ``error`` → JSONL + optional email when SMTP env vars are set AND
-  severity meets ``AIPLAYBOOK_NOTIFICATIONS_EMAIL_MIN_SEVERITY`` (default
-  ``warn``).
+- ``warn`` / ``error`` → JSONL + (a) durable queue (when
+  ``consumer-d_NOTIFICATIONS_QUEUE_ENABLED=1`` AND a consumer-side
+  ``notifications.queue`` package is importable — Phase 5 Change B); OR
+  (b) synchronous SMTP email when the queue is disabled / unavailable AND
+  SMTP env vars are set AND severity meets
+  ``AIPLAYBOOK_NOTIFICATIONS_EMAIL_MIN_SEVERITY`` (default ``warn``).
+  When the queue path activates the SMTP path is skipped — the queue's
+  worker handles delivery via Telegram/WhatsApp.
 - Dedup window: the same ``event`` + ``summary`` + ``trace_id`` emitted twice
   within 60s is written once (the second emission returns silently).
 
@@ -294,6 +299,52 @@ def _send_email(
 
 
 # ---------------------------------------------------------------------------
+# Durable queue transport (Phase 5 Change B — `add-durable-notification-queue`)
+# ---------------------------------------------------------------------------
+#
+# The durable queue lives in the consumer (consumer-d) under
+# `langgraph-aiops/notifications/`. When it's importable AND
+# `consumer-d_NOTIFICATIONS_QUEUE_ENABLED=1`, warn/error notifications are
+# enqueued to a SQLite-backed retry layer instead of fired through SMTP
+# synchronously. Other consumers (consumer-b, consumer-c-legacy, consumer-e,
+# livekit) that lack the queue package fall through to SMTP unchanged.
+
+# Default channel per severity per `notification-policy.md` §3.1 + Change B
+# proposal §"notification-policy.md respect": warn/error → telegram in v1.
+_QUEUE_CHANNEL_BY_SEVERITY: dict[str, str] = {
+    "warn": "telegram",
+    "error": "telegram",
+}
+
+
+def _try_enqueue(*, envelope: dict[str, Any], severity: str) -> tuple[bool, str]:
+    """Best-effort enqueue to the consumer's durable queue.
+
+    Returns ``(enqueued, reason)``:
+        - ``(True, "ok")`` when the row landed in the queue (worker will
+          dispatch on its next 10s poll). Caller MUST skip SMTP in this case.
+        - ``(False, "<reason>")`` otherwise — caller falls through to the
+          legacy SMTP path. Reasons are stable for tests:
+          ``"queue-disabled"`` (env var not set),
+          ``"queue-package-missing"`` (consumer does not vendor the package),
+          ``"queue-error:<exc-class>"`` (enqueue raised — never re-raised).
+    """
+    if os.environ.get("consumer-d_NOTIFICATIONS_QUEUE_ENABLED", "").strip() != "1":
+        return False, "queue-disabled"
+    try:
+        from notifications import queue as _queue  # type: ignore
+    except ImportError:
+        return False, "queue-package-missing"
+
+    channel = _QUEUE_CHANNEL_BY_SEVERITY.get(severity, "telegram")
+    try:
+        _queue.enqueue(envelope, channel=channel, severity=severity)
+        return True, "ok"
+    except Exception as exc:  # noqa: BLE001 — never raise from the notify helper
+        return False, f"queue-error:{exc.__class__.__name__}"
+
+
+# ---------------------------------------------------------------------------
 # JSONL append
 # ---------------------------------------------------------------------------
 
@@ -403,19 +454,35 @@ def notify(
             print(f"notify: JSONL append failed: {reason}", file=sys.stderr)
             _append_failure_breadcrumb(path, reason)
 
-        # Email transport (warn/error only by default).
+        # warn / error transport: prefer durable queue (Change B) when
+        # available; fall through to synchronous SMTP otherwise.
         if sev in ("warn", "error"):
-            sent_ok, sent_reason = _send_email(
-                event=event, severity=sev, summary=summary, detail=detail,
-                attrs=attrs_final, actor=actor_resolved, ts=ts_iso,
-            )
-            if not sent_ok and sent_reason not in (
-                "smtp-disabled", "disabled-by-env",
-            ) and not sent_reason.startswith("below-threshold"):
-                print(
-                    f"notify: email transport failure: {sent_reason}",
-                    file=sys.stderr,
+            enqueued, queue_reason = _try_enqueue(envelope=envelope, severity=sev)
+            if enqueued:
+                # Worker will dispatch via Telegram/WhatsApp on next poll.
+                # SMTP path skipped — the queue is the canonical retryable
+                # transport; double-sending would duplicate alerts.
+                pass
+            else:
+                if queue_reason.startswith("queue-error"):
+                    # Enqueue itself failed (DB locked, etc.) — log; SMTP
+                    # fallback below still attempts delivery.
+                    print(
+                        f"notify: queue enqueue failed ({queue_reason}); "
+                        "falling back to SMTP",
+                        file=sys.stderr,
+                    )
+                sent_ok, sent_reason = _send_email(
+                    event=event, severity=sev, summary=summary, detail=detail,
+                    attrs=attrs_final, actor=actor_resolved, ts=ts_iso,
                 )
+                if not sent_ok and sent_reason not in (
+                    "smtp-disabled", "disabled-by-env",
+                ) and not sent_reason.startswith("below-threshold"):
+                    print(
+                        f"notify: email transport failure: {sent_reason}",
+                        file=sys.stderr,
+                    )
 
         # Best-effort OTel event.
         try:
