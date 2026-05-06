@@ -203,6 +203,31 @@ def set_item_text_field(
     )
 
 
+def _enforce_board_state(
+    *, change_id: str, owner: str, project_number: int
+) -> int:
+    """Per project-board-sync.md L6: assert Status=In Progress on the project item.
+
+    Returns 0 on match, non-zero on mismatch / item-not-found / GraphQL error.
+    Reuses verify_board_state's exit-code semantics.
+    """
+    from scripts import verify_board_state  # local import to avoid circular load
+
+    print("→ enforce-board: verifying Status='In Progress' on the project item")
+    return verify_board_state.main(
+        [
+            "--change-id",
+            change_id,
+            "--owner",
+            owner,
+            "--project-number",
+            str(project_number),
+            "--expected-status",
+            "In Progress",
+        ]
+    )
+
+
 def run(
     *,
     change_id: str,
@@ -211,6 +236,7 @@ def run(
     repo: str | None,
     dry_run: bool,
     default_branch: str | None = None,
+    enforce_board: bool = False,
 ) -> int:
     if not _gh_available():
         print("error: gh CLI not authenticated; run `gh auth login` first", file=sys.stderr)
@@ -328,6 +354,33 @@ def run(
         print(f"→ Set Branch={expected_branch} on item {change_id!r}")
         print(f"→ Set Base SHA={base_sha} on item {change_id!r}")
 
+    # L6 — board-state enforcement (opt-in). Per project-board-sync.md §2.
+    # When --enforce-board is passed, verify the project item is in the
+    # expected Status=In Progress before declaring success. The check runs
+    # AFTER setting the Branch/Base SHA fields (which the L2 workflow may
+    # not have fired yet for) — so dry-run skips it; live runs may need a
+    # short retry window if L2 is racing.
+    if enforce_board and not dry_run:
+        rc = _enforce_board_state(
+            change_id=change_id,
+            owner=owner,
+            project_number=project_number,
+        )
+        if rc != 0:
+            _emit(
+                "opsx_apply_companion.board_enforce_failed",
+                change_id=change_id,
+                exit_code=rc,
+            )
+            print(
+                f"error: --enforce-board check failed (exit {rc}). "
+                f"Likely cause: the L2 project-status-slice-progress workflow "
+                f"has not fired yet OR Status got drift-set to a non-"
+                f"InProgress value. See project-board-sync.md L2/L3.",
+                file=sys.stderr,
+            )
+            return rc
+
     _emit(
         "opsx_apply_companion.complete",
         change_id=change_id,
@@ -335,6 +388,7 @@ def run(
         base_sha=base_sha,
         rebased=(current == expected_branch),
         dry_run=dry_run,
+        enforce_board=enforce_board,
     )
     print(f"✓ /opsx:apply companion done — change_id={change_id}")
     return 0
@@ -377,6 +431,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print intended steps without applying them",
     )
+    p.add_argument(
+        "--enforce-board",
+        action="store_true",
+        help=(
+            "L6 enforcement: after setting Branch/Base SHA, verify the project "
+            "item's Status='In Progress' (delegating to verify_board_state.py). "
+            "Exits non-zero on mismatch — refuses to declare success without "
+            "board sync. See specs/project-board-sync.md §2 L6."
+        ),
+    )
     args = p.parse_args(argv)
 
     try:
@@ -387,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
             repo=args.repo,
             dry_run=args.dry_run,
             default_branch=args.default_branch,
+            enforce_board=args.enforce_board,
         )
     except RuntimeError as e:
         print(f"error: {e}", file=sys.stderr)
