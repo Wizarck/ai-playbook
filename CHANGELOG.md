@@ -4,6 +4,8 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-06 — project-board-sync + agent-telemetry + 7-layer defense-in-depth
+
 ### Added
 
 - **`specs/project-board-sync.md`** — new normative spec (v1.0.0) codifying a 7-layer defense-in-depth contract for GitHub Project board sync during AI-driven OpenSpec work. L1 built-in workflows, L2 custom Actions workflow, L3 required status check (`project-board-synced`), L4 state-machine validator (gh-aw ProjectOps pattern), L5 OTLP agent telemetry, L6 companion script `--enforce-board` flag, L7 archive skill Step 0 verification. Five truly-independent layers (server-side + telemetry) plus two tool-level reinforcers. Authored after consumer-e Wave 2 retro surfaced silent board drift (slices merged with `Status=Backlog`, no audit trail). Research-grounded justifications cite OWASP AI Security Guide 2026, GitHub gh-aw ProjectOps pattern, EU AI Act forward-looking compliance, and the LLM-structured-outputs syntax-vs-semantics distinction.
