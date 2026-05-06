@@ -58,6 +58,61 @@ The worker's verdict message MUST include:
 
 If lint / build is part of the verification (per the project's CI), include those outputs too.
 
+#### 4.1.1 Broadest-scope rule
+
+Run lint / typecheck at the **broadest scope CI uses**, not the slice subdirectory.
+
+CI runs `mypy --strict apps/api/`, `pnpm --filter @consumer/api check`,
+`cargo check --workspace`, etc. — paths that span the whole package, not just
+the bounded context the slice touches. A worker that runs `mypy --strict
+apps/api/src/iguanatrader/contexts/<slice>/` and reports clean has **not
+verified what CI will verify**: the broader scope picks up test files,
+fixtures, sibling modules, and cross-cut imports that the slice's subdir
+silently excludes.
+
+This rule was retro-proven by iguanatrader Wave 2 slice P1
+(`approval-channels-multichannel`, 2026-05-06): six `mypy --strict` errors
+in test files were invisible at `apps/api/src/iguanatrader/contexts/approval/`
+scope but immediately surfaced at `apps/api/` scope. The fix-push-fix cycle
+that resulted (cf. retro at `retros/approval-channels-multichannel.md`) was
+preventable with one pre-push command.
+
+The verdict message MUST cite the actual command CI runs, not a narrower
+proxy. If the project's CI workflow uses a different scope per check (e.g.
+type-check on `apps/`, lint on the changed files only), the worker matches
+that exactly — discoverable via `.github/workflows/*.yml` inspection.
+
+#### 4.1.2 Tool-exit-code-over-text rule
+
+When a claim *can be* mechanically verified by a tool, the verdict message
+MUST cite the tool's exit code, not paraphrase the tool's output.
+
+Examples:
+
+| Claim | ❌ Forbidden form | ✅ Required form |
+|---|---|---|
+| "All migrations applied successfully" | "I confirmed migrations are clean" | `alembic current` exit 0 + output showing the head revision |
+| "GH Project board updated to In Progress" | "I updated the project board" | Output of `python scripts/verify_board_state.py --change-id X` exit 0 |
+| "Tests pass" | "Tests look good" | Pytest's last line `===== N passed in Ms =====` |
+| "No mypy errors" | "Types check out" | `mypy --strict <scope>` exit 0 + `Success: no issues found in N source files` |
+
+The rule's justification, per [LLM Structured Outputs: Schema Validation 2026](https://collinwilkins.com/articles/structured-output):
+
+> *"Structured output guarantees syntactically correct JSON, but does not
+> guarantee the values are semantically correct. You must always validate the
+> final output in your application code before using it."*
+
+An LLM can fabricate plausible tool output. Only **the tool's actual exit
+code from a non-LLM-controlled process** is proof. This rule generalises the
+slice-2 incident (cf. `gotchas.md` #14) where a worker AI claimed `pytest`
+was green based on a hallucinated transcript; CI then failed on push because
+the test had not been run.
+
+Reviewers (humans or QA agents) reject any verdict that paraphrases instead
+of cites. The reject reason is canonical: `❓ CLARIFICATION NEEDED — verdict
+paraphrases tool output instead of citing exit code; per
+verification-before-completion.md §4.1.2`.
+
 ### 4.2 Spec / doc changes
 
 For `proposal.md`, `design.md`, `tasks.md`, ADRs, etc., where there's no automated verification:

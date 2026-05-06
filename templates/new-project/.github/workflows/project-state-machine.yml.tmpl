@@ -1,0 +1,116 @@
+# project-state-machine.yml — validate project board Status transitions.
+#
+# Per project-board-sync.md L4: when a project item's Status changes, validate
+# the transition against the canonical state-machine graph. Reverts illegal
+# transitions and posts an audit comment on the linked issue/PR.
+#
+# State graph (per project-board-sync.md §3):
+#
+#     Backlog → Todo → In Progress → Review → Done
+#
+# - Forward transitions: allowed.
+# - Reverse transitions: allowed (e.g. Review → In Progress when CI fails); audit
+#   comment posted but not reverted.
+# - Skipping (e.g. Todo → Done direct): rejected; reverted.
+#
+# Exception: items carrying the `break-glass` label (per specs/break-glass.md)
+# are exempt — emergency hot-fixes can transition freely with break-glass audit.
+#
+# Failure mode this prevents: Status set to a value that violates the transition
+# graph, e.g. AI worker setting Status=Done without ever passing through Review.
+#
+# Implementation note: GitHub does not yet send the previous-status in the
+# project_v2_item.edited webhook, so we infer it via Git trail. v1 implements
+# a simpler invariant: forbid `Done` set on an item whose latest PR is not merged.
+# Full state-machine validation lands in v0.10.1 once GH adds previous-state in
+# the webhook payload (tracked at https://github.com/orgs/community/discussions/53973).
+
+name: project-state-machine
+
+on:
+  # GitHub does not yet expose project_v2_item.edited webhooks at the workflow
+  # level. v1 of this workflow runs on a schedule + workflow_dispatch as a
+  # periodic auditor. v2 will switch to native event triggers once available.
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  audit:
+    name: Audit Status transitions on the project board
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit board for invalid Status values
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+        run: |
+          set -euo pipefail
+
+          echo "Auditing project board for invalid Done items..."
+
+          PROJECT_DATA=$(gh api graphql -f query='
+            query($owner: String!, $number: Int!) {
+              user(login: $owner) {
+                projectV2(number: $number) {
+                  id
+                  items(first: 200) {
+                    nodes {
+                      id
+                      fieldValues(first: 30) {
+                        nodes {
+                          ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
+                          ... on ProjectV2ItemFieldLabelValue { labels(first: 5) { nodes { name } } }
+                        }
+                      }
+                      content {
+                        ... on Issue { number title state url }
+                        ... on PullRequest { number title state merged url }
+                        ... on DraftIssue { title }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f owner="$PROJECT_OWNER" -F number="$PROJECT_NUMBER")
+
+          # Find items with Status=Done that have no merged PR (potential illegal transition)
+          INVALID=$(echo "$PROJECT_DATA" | jq -c '
+            .data.user.projectV2.items.nodes[]
+            | select(.fieldValues.nodes[]? | select(.field.name=="Status" and .name=="Done"))
+            | select((.content.merged // false) == false)
+            | select((.content | has("merged")) or (.content | has("state")))
+            | {id, title: .content.title, url: .content.url, number: .content.number}')
+
+          if [ -z "$INVALID" ]; then
+            echo "✅ No invalid Done items found."
+            exit 0
+          fi
+
+          echo "$INVALID" | while IFS= read -r item; do
+            TITLE=$(echo "$item" | jq -r '.title')
+            URL=$(echo "$item" | jq -r '.url // "(no url)"')
+            NUM=$(echo "$item" | jq -r '.number // "(no num)"')
+            echo "::warning::Item '$TITLE' has Status=Done but no merged PR. URL: $URL"
+
+            # Post audit comment on the linked issue/PR if available
+            if [ "$URL" != "(no url)" ] && [ "$NUM" != "(no num)" ]; then
+              # Only comment once per audit run — check if a recent state-machine comment exists
+              EXISTING=$(gh api "repos/${{ github.repository }}/issues/$NUM/comments" --jq '.[] | select(.body | startswith("⚠️ project-state-machine")) | .id' | head -1 || true)
+              if [ -z "$EXISTING" ]; then
+                gh api "repos/${{ github.repository }}/issues/$NUM/comments" \
+                  -f body="⚠️ project-state-machine: Status was set to **Done** but no PR has been merged for this item. This transition violates the canonical state graph (Backlog → Todo → In Progress → Review → Done). If this is intentional (e.g. closed without merge, dropped scope), set the \`break-glass\` label with a reason. Otherwise, the L2 workflow should reset Status to In Progress on next push." || true
+              fi
+            fi
+          done
+
+          # Note: v1 does NOT auto-revert Status=Done. It only audits + comments.
+          # v2 will revert via mutation once the previous-state inference is robust.
+          echo ""
+          echo "Audit complete. Items above flagged for human review."

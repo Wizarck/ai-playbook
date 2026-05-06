@@ -75,8 +75,14 @@ jobs:
             exit 0
           fi
 
-          TOTAL=$(grep -cE '^\s*-\s*\[[ xX]\]' "$TASKS_FILE" || echo 0)
-          UNCHECKED=$(grep -cE '^\s*-\s*\[ \]' "$TASKS_FILE" || echo 0)
+          # Use `grep ... | wc -l` instead of `grep -c` so we never trip the
+          # exit-1-when-0-matches edge case. With `grep -c ... || echo 0`,
+          # zero matches produced "0\n0" (grep prints 0 + exits 1, then
+          # echo 0 fires) which broke the arithmetic with
+          # "syntax error in expression". `wc -l` always returns the count
+          # on stdout and exits 0 regardless of pipe input.
+          TOTAL=$(grep -E '^\s*-\s*\[[ xX~]\]' "$TASKS_FILE" 2>/dev/null | wc -l | tr -d ' ')
+          UNCHECKED=$(grep -E '^\s*-\s*\[ \]' "$TASKS_FILE" 2>/dev/null | wc -l | tr -d ' ')
           CHECKED=$((TOTAL - UNCHECKED))
 
           echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
