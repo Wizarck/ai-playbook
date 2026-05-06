@@ -30,6 +30,7 @@ All runbooks follow the same shape:
 | [runbook-db-corruption.md](runbook-db-corruption.md) | Hindsight DB corruption (S1, data integrity). Stub v0.1.0 — `incident-response.md` §4 scenario #2. | [specs/incident-response.md](../specs/incident-response.md), [specs/memory-hierarchy.md](../specs/memory-hierarchy.md) |
 | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) | Scoped credential leak (1-3 keys), 1h MTTR. Stub v0.1.0. | [rotate-secrets.md](rotate-secrets.md), [specs/incident-response.md](../specs/incident-response.md) §4 scenario #3 |
 | [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) | Wide-scope leak (machine compromise, supplier compromise, public repo). Stub v0.1.0. | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md), [specs/incident-response.md](../specs/incident-response.md) |
+| [cascade-failure-template.md](cascade-failure-template.md) | Author a per-service cascade-failure runbook (added v0.11.0). Template with 5 sections (symptom list / precondition check / impact map / recovery sequence / postmortem trigger). | [specs/post-mortem.md](../specs/post-mortem.md), [specs/degradation-modes.md](../specs/degradation-modes.md), [specs/incident-response.md](../specs/incident-response.md) |
 
 ## Adding a new runbook
 
