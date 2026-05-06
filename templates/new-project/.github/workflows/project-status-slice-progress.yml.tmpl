@@ -1,0 +1,202 @@
+# project-status-slice-progress.yml — track per-slice progress on the project board.
+#
+# Per project-board-sync.md L2: when work happens on a `slice/<change-id>` branch,
+# automatically populate the project item's Branch field, Base SHA, and Status
+# transitions (In Progress on first push; Review on PR opened). Complements
+# project-status.yml (which handles wave-level Blocked → Todo transitions when
+# dependencies merge).
+#
+# Failure mode this prevents: AI worker silently drifts from board state,
+# leaving Status=Backlog and custom fields empty across an entire wave (cf.
+# consumer-e Wave 2 retro 2026-05-06).
+#
+# Setup:
+# 1. Copy this template to <consumer>/.github/workflows/project-status-slice-progress.yml.
+# 2. Required repo secret: `PROJECT_AUTOMATION_TOKEN` — a fine-grained PAT with
+#    Project: read+write on the consumer's project board (same secret as project-status.yml).
+# 3. Required repo variables:
+#    - PROJECT_OWNER: GH user/org login (e.g. "Wizarck")
+#    - PROJECT_NUMBER: numeric project ID (e.g. "2")
+#
+# How it fires:
+# - On `push` to a `slice/**` branch: extract change-id from branch name; resolve
+#   the matching project item by Title; set Branch field + Base SHA + Status=In Progress.
+# - On `pull_request` opened/reopened/synchronize from `slice/**` to main: set Status=Review.
+#
+# Idempotent: re-running on a board that's already in the target state is a no-op
+# (GraphQL `updateProjectV2ItemFieldValue` accepts the same value harmlessly).
+
+name: project-status-slice-progress
+
+on:
+  push:
+    branches: ["slice/**"]
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: project-status-slice-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  on-push:
+    name: Push → set Branch + Base SHA + In Progress
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/slice/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve change-id from branch
+        id: change
+        run: |
+          # GITHUB_REF is "refs/heads/slice/<change-id>"
+          CHANGE_ID="${GITHUB_REF#refs/heads/slice/}"
+          echo "change_id=$CHANGE_ID" >> "$GITHUB_OUTPUT"
+          echo "Change ID: $CHANGE_ID"
+
+      - name: Update project item (In Progress + Branch + Base SHA)
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          CHANGE_ID: ${{ steps.change.outputs.change_id }}
+          BRANCH: slice/${{ steps.change.outputs.change_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Fetch project ID + Status field ID + In-Progress option ID + Branch field ID + Base SHA field ID
+          PROJECT_DATA=$(gh api graphql -f query='
+            query($owner: String!, $number: Int!) {
+              user(login: $owner) {
+                projectV2(number: $number) {
+                  id
+                  fields(first: 50) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField { id name options { id name } }
+                      ... on ProjectV2Field { id name dataType }
+                    }
+                  }
+                  items(first: 100) {
+                    nodes {
+                      id
+                      fieldValues(first: 20) {
+                        nodes {
+                          ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2Field { name } } }
+                        }
+                      }
+                      content {
+                        ... on Issue { title }
+                        ... on PullRequest { title }
+                        ... on DraftIssue { title }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f owner="$PROJECT_OWNER" -F number="$PROJECT_NUMBER")
+
+          PROJECT_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.id')
+          STATUS_FIELD_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Status") | .id')
+          IN_PROGRESS_OPT_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Status") | .options[] | select(.name=="In Progress") | .id')
+          BRANCH_FIELD_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Branch") | .id')
+          BASE_SHA_FIELD_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Base SHA") | .id')
+
+          # Find the item whose title contains the change-id
+          ITEM_ID=$(echo "$PROJECT_DATA" | jq -r --arg cid "$CHANGE_ID" '
+            .data.user.projectV2.items.nodes[]
+            | select(.content.title | tostring | contains($cid))
+            | .id' | head -1)
+
+          if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
+            echo "::warning::No project item found whose title contains '$CHANGE_ID'. Skipping."
+            exit 0
+          fi
+
+          echo "Item ID: $ITEM_ID"
+          echo "Setting Branch=$BRANCH, Base SHA=${HEAD_SHA:0:7}, Status=In Progress"
+
+          # Set Status=In Progress
+          gh api graphql -f query='
+            mutation($p: ID!, $i: ID!, $f: ID!, $v: String!) {
+              updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {singleSelectOptionId: $v}}) { clientMutationId }
+            }' -f p="$PROJECT_ID" -f i="$ITEM_ID" -f f="$STATUS_FIELD_ID" -f v="$IN_PROGRESS_OPT_ID" >/dev/null
+
+          # Set Branch field
+          if [ -n "$BRANCH_FIELD_ID" ] && [ "$BRANCH_FIELD_ID" != "null" ]; then
+            gh api graphql -f query='
+              mutation($p: ID!, $i: ID!, $f: ID!, $v: String!) {
+                updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {text: $v}}) { clientMutationId }
+              }' -f p="$PROJECT_ID" -f i="$ITEM_ID" -f f="$BRANCH_FIELD_ID" -f v="$BRANCH" >/dev/null
+          fi
+
+          # Set Base SHA (use the merge-base with main, not HEAD)
+          BASE_SHA=$(git rev-parse origin/main 2>/dev/null || echo "$HEAD_SHA")
+          if [ -n "$BASE_SHA_FIELD_ID" ] && [ "$BASE_SHA_FIELD_ID" != "null" ]; then
+            gh api graphql -f query='
+              mutation($p: ID!, $i: ID!, $f: ID!, $v: String!) {
+                updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {text: $v}}) { clientMutationId }
+              }' -f p="$PROJECT_ID" -f i="$ITEM_ID" -f f="$BASE_SHA_FIELD_ID" -f v="${BASE_SHA:0:7}" >/dev/null
+          fi
+
+          echo "✅ Updated project item for slice/$CHANGE_ID"
+
+  on-pr-opened:
+    name: PR opened → Status=Review
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && startsWith(github.head_ref, 'slice/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve change-id from PR head
+        id: change
+        run: |
+          CHANGE_ID="${GITHUB_HEAD_REF#slice/}"
+          echo "change_id=$CHANGE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Update project item (Status=Review)
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          CHANGE_ID: ${{ steps.change.outputs.change_id }}
+        run: |
+          set -euo pipefail
+
+          PROJECT_DATA=$(gh api graphql -f query='
+            query($owner: String!, $number: Int!) {
+              user(login: $owner) {
+                projectV2(number: $number) {
+                  id
+                  fields(first: 50) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } }
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content { ... on Issue { title } ... on PullRequest { title } ... on DraftIssue { title } }
+                    }
+                  }
+                }
+              }
+            }' -f owner="$PROJECT_OWNER" -F number="$PROJECT_NUMBER")
+
+          PROJECT_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.id')
+          STATUS_FIELD_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Status") | .id')
+          REVIEW_OPT_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Status") | .options[] | select(.name=="Review") | .id')
+
+          ITEM_ID=$(echo "$PROJECT_DATA" | jq -r --arg cid "$CHANGE_ID" '
+            .data.user.projectV2.items.nodes[]
+            | select(.content.title | tostring | contains($cid))
+            | .id' | head -1)
+
+          if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
+            echo "::warning::No project item found whose title contains '$CHANGE_ID'. Skipping."
+            exit 0
+          fi
+
+          gh api graphql -f query='
+            mutation($p: ID!, $i: ID!, $f: ID!, $v: String!) {
+              updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {singleSelectOptionId: $v}}) { clientMutationId }
+            }' -f p="$PROJECT_ID" -f i="$ITEM_ID" -f f="$STATUS_FIELD_ID" -f v="$REVIEW_OPT_ID" >/dev/null
+
+          echo "✅ Set Status=Review for slice/$CHANGE_ID"

@@ -1,0 +1,141 @@
+# project-board-synced-check.yml — required status check verifying board ↔ branch sync.
+#
+# Per project-board-sync.md L3: a status check that physically blocks the merge
+# button if the project board is out of sync with the PR branch state. Runs on
+# every PR push; designed to be added to the required-status-checks list per
+# release-management.md §4.1 so branch protection enforces it.
+#
+# Specifically asserts:
+# - The branch's change-id matches a project item.
+# - That item's Status is "In Progress" or "Review" (not Backlog / Todo / Done).
+# - The Branch field on the item equals the PR's head ref.
+# - The Base SHA field is populated (non-empty).
+#
+# Failure mode this prevents: PR merges with a stale board, leaving Status=Backlog
+# and operators unable to track velocity from the board (cf. consumer-e Wave 2
+# retro 2026-05-06).
+#
+# Setup:
+# 1. Copy this template to <consumer>/.github/workflows/project-board-synced-check.yml.
+# 2. Required repo secret: `PROJECT_AUTOMATION_TOKEN` (same as other project workflows).
+# 3. Required repo variables: PROJECT_OWNER, PROJECT_NUMBER.
+# 4. Add `project-board-synced` to the required-status-checks list in branch
+#    protection (Settings → Branches → main → Require status checks → search
+#    "project-board-synced").
+
+name: project-board-synced
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Verify board ↔ branch sync
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'slice/')
+    steps:
+      - name: Resolve change-id from PR head
+        id: change
+        run: |
+          CHANGE_ID="${GITHUB_HEAD_REF#slice/}"
+          echo "change_id=$CHANGE_ID" >> "$GITHUB_OUTPUT"
+          echo "branch=slice/$CHANGE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Query project item state
+        id: query
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          CHANGE_ID: ${{ steps.change.outputs.change_id }}
+        run: |
+          set -euo pipefail
+
+          PROJECT_DATA=$(gh api graphql -f query='
+            query($owner: String!, $number: Int!) {
+              user(login: $owner) {
+                projectV2(number: $number) {
+                  items(first: 200) {
+                    nodes {
+                      id
+                      fieldValues(first: 30) {
+                        nodes {
+                          ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
+                          ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2Field { name } } }
+                        }
+                      }
+                      content {
+                        ... on Issue { title }
+                        ... on PullRequest { title }
+                        ... on DraftIssue { title }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f owner="$PROJECT_OWNER" -F number="$PROJECT_NUMBER")
+
+          ITEM=$(echo "$PROJECT_DATA" | jq --arg cid "$CHANGE_ID" '
+            .data.user.projectV2.items.nodes[]
+            | select(.content.title | tostring | contains($cid))' | head -200)
+
+          if [ -z "$ITEM" ]; then
+            echo "::error::No project item found whose title contains '$CHANGE_ID'."
+            echo "Either: (a) add the slice to the project board, or (b) rename the branch to match an existing item."
+            exit 1
+          fi
+
+          STATUS=$(echo "$ITEM" | jq -r '.fieldValues.nodes[] | select(.field.name=="Status") | .name' | head -1)
+          BRANCH_FIELD=$(echo "$ITEM" | jq -r '.fieldValues.nodes[] | select(.field.name=="Branch") | .text' | head -1)
+          BASE_SHA_FIELD=$(echo "$ITEM" | jq -r '.fieldValues.nodes[] | select(.field.name=="Base SHA") | .text' | head -1)
+
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "branch_field=$BRANCH_FIELD" >> "$GITHUB_OUTPUT"
+          echo "base_sha_field=$BASE_SHA_FIELD" >> "$GITHUB_OUTPUT"
+          echo "Status=$STATUS, Branch=$BRANCH_FIELD, Base SHA=$BASE_SHA_FIELD"
+
+      - name: Assert Status ∈ {In Progress, Review}
+        env:
+          STATUS: ${{ steps.query.outputs.status }}
+        run: |
+          case "$STATUS" in
+            "In Progress"|"Review")
+              echo "✅ Status=$STATUS is valid for an open PR."
+              ;;
+            "")
+              echo "::error::Status field is empty on the project item. Run opsx_apply_companion.py to set Status=In Progress."
+              exit 1
+              ;;
+            *)
+              echo "::error::Status='$STATUS' is invalid for an open PR. Expected 'In Progress' (during work) or 'Review' (after PR opened)."
+              echo "Likely cause: the L2 project-status-slice-progress workflow did not fire (check secret PROJECT_AUTOMATION_TOKEN) or the AI worker bypassed opsx_apply_companion.py."
+              exit 1
+              ;;
+          esac
+
+      - name: Assert Branch field matches branch
+        env:
+          EXPECTED: ${{ steps.change.outputs.branch }}
+          ACTUAL: ${{ steps.query.outputs.branch_field }}
+        run: |
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Branch field on project item is '$ACTUAL' but PR head is '$EXPECTED'."
+            echo "Run opsx_apply_companion.py to populate the Branch field correctly."
+            exit 1
+          fi
+          echo "✅ Branch field matches: $ACTUAL"
+
+      - name: Assert Base SHA field populated
+        env:
+          BASE_SHA: ${{ steps.query.outputs.base_sha_field }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "null" ]; then
+            echo "::error::Base SHA field is empty on the project item. opsx_apply_companion.py captures this at slice start."
+            exit 1
+          fi
+          echo "✅ Base SHA field populated: $BASE_SHA"
