@@ -190,6 +190,50 @@ The Action auto-emits `warn` notifications per PR via
 Dashboard bell at `https://consumer-d-dashboard.consumer-bfood.com/api/notifications`
 surfaces them. No manual step needed.
 
+### 10. First-run smoke test (added v0.11.0)
+
+> Closes the v0.10.3 gap from CHANGELOG.md noting "v0.10.x had 3
+> real-world-surfaced gaps after release: tests stub at the boundary,
+> real invocation reveals environmental constraints".
+
+Before merging the rc → stable promotion (step 5 in §"Quick reference"
+below), run **every new or modified script / workflow / skill** against
+ONE real consumer at least once, end-to-end, OUTSIDE of CI. CI mocks the
+boundary that hides environmental constraints (API rate limits, locale
+encoding, missing markers in auto-generated content); real invocation
+exposes them.
+
+Procedure:
+
+1. Pick the canonical first-run consumer (default: `consumer-e`).
+2. For each new / modified surface in the release, list a real
+   invocation that exercises the boundary CI mocks. Examples from
+   v0.10.x retros:
+   - `verify_board_state.py` (v0.10.0) — invoke against the real
+     project board with `--expected-status='In Progress'` (caught the
+     `first: 200` GraphQL pagination limit and the cp1252 stdio crash;
+     CI mocks couldn't surface either).
+   - `propagate_bump.py` body rendering (v0.10.0) — open a real bump PR
+     and assert `gh pr view --json body | jq` contains the §4.5 markers
+     (caught the missing-block bug across 5 PRs; CI tested the function
+     in isolation, not the rendered body).
+   - New skills — invoke `/<skill-name>` interactively in a real Claude
+     Code session against a real change folder; compare output to the
+     skill's documented schema.
+3. Smoke-test results land in the release PR's body under `## First-run
+   smoke (per release.md §10)`. Each result: `surface | command | exit
+   code | observation`. Failures block stable promotion; rc bumps
+   absorb the fix-and-retest loop.
+
+This step is non-skippable for releases that ship new scripts / new
+workflows / new skills. Pure documentation releases MAY skip with a
+one-line rationale in the release PR ("v0.X.Y is docs-only; no runtime
+surface to smoke").
+
+The smoke-test discipline is the cheapest insurance against the
+"v0.10.x cascade" pattern (3 hotfixes within 5 days because real
+invocations surfaced environmental gaps that mocked tests didn't).
+
 ## Quick reference: post-v0.8.x release flow
 
 For a release that touches multiple specs/scripts:
