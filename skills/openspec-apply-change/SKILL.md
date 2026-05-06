@@ -56,6 +56,37 @@ Implement tasks from an OpenSpec change.
    - **spec-driven**: proposal, specs, design, tasks
    - Other schemas: follow the contextFiles from CLI output
 
+4b. **Preflight re-grep cited identifiers (added v0.11.0)**
+
+   Per [release-management.md](../../specs/release-management.md) §6.5 (pre-flight rebase) the worktree base is fresh, but `proposal.md` may have been written days earlier. Identifiers cited in the proposal (class names, function names, file paths, migration slot numbers, fact-kind enum values, ADR numbers) may have **changed on `main` since the proposal landed**. Apply silently against stale citations produces silent divergence.
+
+   Before starting implementation, re-grep every identifier the proposal/design/tasks cites:
+
+   1. Walk `proposal.md` + `design.md` + `tasks.md` and extract:
+      - Quoted file paths (`apps/api/src/.../foo.py`).
+      - Backticked class / function names (`` `IBClient` ``, `` `place_order` ``).
+      - Migration slot numbers (`0007_*`, `0010_*`).
+      - ADR numbers (`ADR-021`).
+      - Enum values mentioned in citations.
+   2. For each, run `git grep -n "<identifier>"` (or `Grep` tool) on `main`.
+   3. **If any cited identifier returns 0 hits**, surface as a divergence warning:
+
+      ```
+      ⚠ Citation drift detected
+      proposal.md cites `FactKindEnum.MOMENTUM_SCORE` but no occurrence found on main.
+      Likely renamed or removed in a parallel slice merged after this proposal landed.
+
+      Options:
+      1. Re-read the current main code to find the new name; update tasks.md citations.
+      2. Re-open Gate D for design refresh (recommended for ≥3 drifted citations).
+      3. Override with --skip-preflight-grep (logs deviation in retro carry-forward).
+      ```
+
+   4. **If 1-2 identifiers drifted**, show the diff and let the user decide (small drift is normal across week-old proposals).
+   5. **If ≥3 identifiers drifted OR a critical surface (migration slot, FK, public API) drifted**, refuse to proceed without explicit `--skip-preflight-grep` flag.
+
+   This catches the failure mode surfaced 2026-05-06 in iguanatrader (proposals written before parallel slices renamed cited classes) — without preflight grep, the worker AI would silently apply against drifted state and either fail at typecheck (best case) or ship broken code (worst case).
+
 5. **Show current progress**
 
    Display:

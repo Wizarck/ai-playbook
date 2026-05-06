@@ -4,11 +4,77 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.10.3)
+### Known gaps still pending (target: v0.11.1+)
 
-- **`propagate_bump.py` + `propagate_skills_bump.py` MUST pre-populate §4.5** in the auto-generated PR body. Surfaced 2026-05-06 during v0.10.0 propagation: both auto-opened PRs (#74 + #75 in `iguanatrader`) failed the `ai-self-review-required` check because their bodies lacked the `Profile:` / `Reviewer:` / `Self-review findings:` markers required by §4.5.3. Manual fix needed (edit body + push empty commit to retrigger CI). Spec implication: `release-management.md` §4.5.3 needs §4.5.4 codifying the "bump PRs MUST include §4.5 markers in auto-generated body" rule.
-- **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Surfaced 2026-05-06 from a question about CI not catching "stepping over" risk.
-- **`templates/new-project/.github/workflows/propagate-archive.yml.tmpl`** (new template) — auto-runs `openspec archive --change <id>` when a `slice/<id>` PR squash-merges to main. Surfaced 2026-05-06 by silent archive drift in iguanatrader Wave 2 (PR #68 R1 + #69 T1 merged 2026-05-05 but openspec changes sat in active tree for 28h; required manual closeout PR #78). Pairs with the L4 state-machine validator (which already detects `Status=Done + no merged PR` mismatches; this template addresses the inverse: `merged PR + no archive`).
+- **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a v0.11.1 follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
+- **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
+
+## [0.11.0] — 2026-05-06 — cross-project pattern consolidation: migration slots, Protocol+InTreeFake, additive extension, HITL approval, multi-layer defense
+
+Major cross-project lessons-consolidation release. Mined 14 iguanatrader retros + 22 openTrattOS retros + 28 eligia-core ADRs + palafito-b2b docs/archive for recurring patterns; produced 7 new normative specs, 1 new skill, 2 new runbook surfaces, 3 new templates, and 5 spec extensions.
+
+### Added
+
+#### Tier-1 specs (HIGH-severity cross-project patterns)
+
+- **`specs/migration-slot-reservation.md`** (v1.0.0) — universal contract for **reserving monotonic / append-only namespace slots** across parallel slices (DB migrations, gotcha IDs, ADR numbers, seed entity IDs). Subsumes + generalises `release-management.md` §6.4.1/§6.4.2. Closes the **6-consecutive migration-slot-collision pattern** in iguanatrader Wave 2-3 (R1/R2/R5/R3/T2/O2 all picked slot `0007`/`0008` independently). Validated by openTrattOS m2-data-model + cost-rollup parallel m2 races.
+- **`specs/protocol-fake-deferred-install.md`** (v1.0.0) — canonical **Protocol + InTreeFake + DeferredProductionInstall** pattern for isolating heavy / security-sensitive vendor SDKs. Cross-validated by 6+ iguanatrader Wave 3 slices (R5/T2/R3/O2 + 2 more) + openTrattOS m2-recipes-core service IoC + eligia-core ADR-018/-028 sidecar isolation. Defines the four artefacts (Protocol / fake / deferred-install row / production adapter) + cross-language guidance (Python / TypeScript-NestJS / Elixir-behaviour).
+- **`specs/cross-slice-additive-extension.md`** (v1.0.0) — three additive shapes (nullable / `NOT NULL DEFAULT <sentinel>` / JSONB) for parallel slices extending shared entities. Drawn from 4+ iguanatrader R-series slices (`dedupe_key`, `audit_trail_id`, `client_order_id`) + openTrattOS m2-data-model array/jsonb columns. Codifies migration-chain discipline + read-side discipline.
+- **`specs/hitl-approval-pattern.md`** (v1.0.0) — runtime **HITL gating for state-mutating actions** in single-operator AI systems. Cross-validated by **3 projects** (iguanatrader P1 Telegram approval-channels + eligia-core ADR-028 WABA-MCP rollout gating + palafito-b2b operator-gated deploys). Defines the five Protocol artefacts (mutation request DTO / channel Protocol / HMAC correlation / decision persistence / TTL+escalation ladder) + a canonical 3-tier channel ladder + cross-project mutation taxonomy.
+
+#### Tier-2 specs (MED-severity recurring patterns)
+
+- **`specs/dependency-injection-patterns.md`** (v1.0.0) — provider deduplication (NestJS `@Global()` rule + Python `app.dependency_overrides` + Phoenix `Application.put_env` equivalents) + **seam-then-consume DI tokens** for cross-slice extension. Cross-validated by openTrattOS m2-mcp-write-capabilities (`payload_before:null` bug from `@Global()` re-declaration) + m2-cost-rollup-and-audit (`INVENTORY_COST_RESOLVER` token rebinding) + eligia-core ADR-028 (action-class dispatcher dict). Includes the **class-level cache reset autouse fixture** pattern for test isolation.
+- **`specs/database-numeric-boundaries.md`** (v1.0.0) — **money/decimal column boundary rule** (explicit coercion at ORM, never per-call). Surfaced by openTrattOS m2-cost-rollup numeric-string-multiplication bug (`"1000NaN"` shipped to BI ingest). Per-stack recipes for TypeORM / Prisma / SQLAlchemy / Ecto. Generalises the AGENTS.md "no float for money" universal rule.
+- **`specs/multi-layer-defense-single-operator.md`** (v1.0.0) — canonical **5-layer defense pattern** (L1 Identity / L2 Ingress / L3 Network / L4 State-RBAC / L5 Ergonomic) for single-operator AI systems. Cross-validated by eligia-core ADRs 017/018/019/020/024 + palafito-b2b `MERGE-ORDERS-SECURITY-AUDIT.md` zero-permission plugin fork. Decision matrix for when each layer is warranted.
+
+#### Spec extensions (added sections to existing canonical specs)
+
+- **`specs/release-management.md` §4.5.4**: codifies that **auto-generated bump / chore-archive PRs MUST pre-populate the §4.5 AI-reviewer signoff block**. Closes the v0.10.3 CHANGELOG gap surfaced 2026-05-06 by 5 failed bump PRs + 3 failed chore-archive PRs in iguanatrader (PRs #90/#92/#94 all required manual body-edit roundtrips).
+- **`specs/release-management.md` §6.6.1**: canonical **subagent prompt template** + mandatory verification commands contract for intra-slice parallelism. Cross-validated by openTrattOS Wave 1.7-1.9 (3 subagent slices, 0 boundary violations, ~22 min/slice saved). Template at `templates/subagent-prompt.md.tmpl`.
+- **`specs/release-management.md` §6.7**: **post-merge OpenSpec archive automation**. Closes the second v0.10.3 CHANGELOG gap (28h archive drift in iguanatrader Wave 2 PRs #68+#69). Workflow template fires on `slice/*` PR squash-merge to main; opens `chore/archive-<id>` PR with §4.5-marker-populated body and auto-merge enabled.
+- **`specs/event-and-data-patterns.md` §9**: async event-emission ordering — `tap()` vs `mergeMap+emitAsync` for read-after-write coherence + cascade self-emission guard (one-line ID equality check). Cross-stack equivalents for NestJS RxJS / Phoenix LiveView / FastAPI / Express. Cross-validated by openTrattOS m2-mcp-write-capabilities + m2-cost-rollup race conditions.
+- **`specs/runbook-bmad-openspec.md` §3.7.2**: **proposal-only-first** for tech-seam slices (new tech stack, architectural seams, cross-cutting infrastructure). Cross-validated by openTrattOS m2-ui-foundation + iguanatrader api-foundation-rfc7807. Defers design.md/tasks.md/apply until Gate D approval lands; saves rework when design is rescinded mid-apply.
+- **`skills/openspec-apply-change/SKILL.md` §4b**: **preflight re-grep** of cited identifiers (class names, file paths, migration slot numbers, ADR numbers) on `main` before apply. Catches state divergence between propose and apply (proposals written days earlier may cite renamed/removed identifiers). Refuses to proceed if ≥3 identifiers drifted; warns + asks if 1-2.
+- **`runbooks/release.md` §10**: mandatory **first-run smoke test** for every new script / workflow / skill against ONE real consumer before rc → stable promotion. Closes the v0.10.x cascade pattern (3 hotfixes within 5 days because tests stubbed boundaries that hid environmental constraints — API limits, locale encoding, missing markers).
+
+#### New templates
+
+- **`templates/new-project/.github/workflows/propagate-archive.yml.tmpl`** — GH Actions workflow implementing release-management.md §6.7. Self-contained; consumers copy in + ensure `allow_auto_merge=true` is set.
+- **`templates/subagent-prompt.md.tmpl`** — five-section subagent prompt template (Scope / Owns / Reads / Verification commands / Report format) per release-management.md §6.6.1.
+- **`templates/k8s/serviceaccount-namespace-scoped.yaml.tmpl`** — L4 RBAC starter; default-deny + verify-by-attempted-denial pattern per multi-layer-defense-single-operator.md.
+- **`templates/k8s/networkpolicy-egress-allowlist.yaml.tmpl`** — L3 egress control; DNS-aware variant for Cilium/Calico CNIs.
+
+#### New runbooks
+
+- **`runbooks/cascade-failure-template.md`** (v1.0.0) — template runbook for **service-dependency cascade failures**. 5-section structure (symptom list / precondition check / impact map / recovery sequence / postmortem trigger). Cross-validated by eligia-core `runbook-litellm-down-cascade.md` (LiteLLM → Hindsight → Hermes → Paperclip cascade) + palafito-b2b gotchas.
+
+#### New skill
+
+- **`skills/bmad-extract-lessons-from-adrs/`** (v1.0) — mining skill for projects without populated `retros/` directories. Walks ADRs / gotchas / runbooks / docs/archive / CHANGELOGs / postmortems for cross-project patterns. Used to mine eligia-core (28 ADRs) + palafito-b2b (docs/archive) for v0.11.0 patterns. Reusable for future ai-playbook releases.
+
+### Migration
+
+Existing consumers on v0.10.x adopt v0.11.0 by:
+
+1. **Submodule bump**: the `propagate-playbook-bump.yml` Action opens the bump PR automatically once `v0.11.0` is tagged.
+2. **Slot reservations** (per `migration-slot-reservation.md`): for projects with active OpenSpec waves, audit current slot usage + add the **"Slot reservations"** section to `docs/openspec-slice.md`. Re-open Gate C to approve. Existing slot assignments are preserved; only future scaffolds get the new validation.
+3. **Deferred installs table** (per `protocol-fake-deferred-install.md`): for projects using Protocol + fake patterns, add the **"Deferred installs"** section to `docs/openspec-slice.md` listing every Protocol-isolated capability.
+4. **HITL mutation taxonomy** (per `hitl-approval-pattern.md`): for projects with state-mutating AI actions, list the mutation classes that require HITL gating in `AGENTS.md`.
+5. **Multi-layer-defense matrix** (per `multi-layer-defense-single-operator.md`): for projects with operator-gated infrastructure, document the 5-layer matrix as 5 ADRs (or a single combined ADR).
+6. **Subagent prompt template** (per `release-management.md` §6.6.1): for projects using `/openspec-apply-parallel`, copy the subagent prompt template and extend with project-specific verification commands.
+
+Migration is **non-destructive**: existing artefacts are preserved; only new scaffolds opt into the new validations. Each consumer's bump PR includes a checklist to drive the migration.
+
+### Notes
+
+- All 7 new specs + 1 new skill cross-validated by ≥2 projects (most by 3+ projects). One-source patterns deliberately excluded as project-specific.
+- The mining session (used to identify these patterns) is reproducible via the new `bmad-extract-lessons-from-adrs` skill — ai-playbook v0.12+ should run it against every consumer with empty `retros/` to seed the next consolidation pass.
+- v0.11 deliberately ships as a feature release (not v0.10.3 patch) because the 7 new normative specs are too substantial for a patch slot.
+
+## [0.10.2] — 2026-05-06 — verify_board_state Windows UTF-8 hotfix
+
+### Fixed
 
 ## [0.10.2] — 2026-05-06 — verify_board_state Windows UTF-8 hotfix
 

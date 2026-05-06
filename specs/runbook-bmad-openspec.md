@@ -207,6 +207,68 @@ openTrattOS Wave 1.9 (`m2-audit-log`) where the mock surfaced a
 column-name mismatch that would have cost a re-spin during
 implementation.
 
+### 3.7.2 Proposal-only-first for tech-seam slices (added v0.11.0)
+
+When a slice introduces a **new tech stack**, an **architectural seam**
+that future slices will depend on, or **cross-cutting infrastructure**
+(MCP servers, agent frameworks, design systems, build tooling), the
+default flow — propose + design + tasks + apply in one continuous
+session — burns rework budget if Gate D approval is rescinded mid-apply.
+
+The recommended pattern: **open the slice as proposal-only at Gate D
+with explicit open questions**, defer design.md / tasks.md / apply
+until Gate D approval lands.
+
+Concrete shape:
+
+1. Run `/opsx:propose <change-id>` to scaffold the change folder + write
+   `proposal.md` only.
+2. The proposal's "Out of scope" section MAY include a list of explicit
+   open questions that need Gate D signal:
+   ```markdown
+   ## Open questions (await Gate D)
+
+   1. Should this slice ship the X-as-Y abstraction now or defer to Wave N+1?
+   2. Will the consumer slices need <feature>? (drives whether to expose it
+      in the public API).
+   3. Is the chosen library's license compatible with our license-boundary?
+   ```
+3. PR opens with `proposal.md` + `tasks.md` listing only `Phase 1: design
+   approval` task. CI is green (no code yet). The PR title carries
+   `(proposal-only)` suffix.
+4. Human reviewer answers the open questions in the PR review or during
+   a Gate D chat session. Gate D's outcome is recorded in the slice's
+   retro carry-forward (or in `docs/hitl-gates-log.md`).
+5. After Gate D approval, the slice continues with `design.md`, full
+   `tasks.md`, and apply — incrementally pushed to the same PR.
+
+When this earns its keep:
+
+- **New tech stack** (introducing React + Storybook + Tailwind 4 + Vite
+  in a previously-CLI-only project) — verified on openTrattOS
+  `m2-ui-foundation`.
+- **MCP server / agent integration** — the API surface design decisions
+  cascade across all consumer slices.
+- **Cross-language tooling** (introducing a Python sidecar in a
+  TypeScript monorepo) — verified by openTrattOS `tools/rag-proxy`.
+- **Major refactor** (extracting a shared library; renaming a public
+  API; rewriting an event channel) — verified by iguanatrader
+  `api-foundation-rfc7807`.
+
+When NOT to apply:
+
+- **Pure additive slices** within an established pattern (yet another
+  Tier-A SourcePort adapter, yet another bounded-context bootstrap once
+  the pattern is established) — full propose + apply in one session is
+  fine.
+- **Bug fixes** — the bug is already known; no design discussion
+  warranted.
+
+The pattern is **opt-in per slice** and lives in the slicing artefact
+as a column note (`Component category: tech-seam` per
+[bmad-openspec-bridge.md](bmad-openspec-bridge.md) §3.1) so the
+proposing AI knows which slices to gate.
+
 ### 3.8 Intra-slice parallelism (orthogonal to wave-level)
 
 When a single slice covers multiple disjoint bounded contexts (e.g. M1 implementation slices that scaffold IAM + Ingredients + Suppliers + UoM in one OpenSpec change), the main agent MAY spawn subagents in parallel — one per bounded context — provided every group declares write-path ownership in `tasks.md` and shared files are reserved for serial recombination by the main agent. The full contract is in [release-management.md](release-management.md) §6.6.

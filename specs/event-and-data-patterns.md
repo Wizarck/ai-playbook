@@ -390,12 +390,93 @@ for the user-facing flow, which doesn't need it.
   whether retry is correct (5xx retry, 4xx don't). Move the retry to
   the proxy if you want to keep the caller simple.
 
-## 9. Cross-references
+## 9. Async event-emission ordering (tap vs mergeMap) — added v0.11.0
+
+Cross-cutting pattern surfaced by openTrattOS m2-mcp-write-capabilities (RxJS `tap()` race) and m2-cost-rollup-and-audit (immediate read-after-write hazard from acceptance tests reading `audit_log` post-response). Applies to **any framework** with side-effect emission inside a request handler — RxJS `tap()` (NestJS), Phoenix `Process.send/3` from a controller, Python `asyncio.create_task` in a route handler, Node Express middleware that emits via `EventEmitter`.
+
+### 9.1 The hazard
+
+Consider a NestJS controller that handles `POST /orders`:
+
+```ts
+// ❌ Race: tap() runs synchronously but emit is fire-and-forget;
+//    HTTP response goes out BEFORE subscribers (audit logger) finish.
+@Post()
+createOrder(@Body() dto: OrderDto) {
+  return this.service.create(dto).pipe(
+    tap(order => this.events.emit('order.created', order)),
+  );
+}
+```
+
+The HTTP 200 returns to the client; the client immediately polls `GET /audit?order=<id>` and reads **stale state** because the audit log subscriber is still running. Tests that poll the audit log post-response surface this as flaky — the order exists but the audit row hasn't materialised.
+
+### 9.2 The fix: `mergeMap` + `emitAsync` + gating
+
+```ts
+// ✅ Response holds until subscribers finish; client never observes
+//    pre-audit state.
+@Post()
+createOrder(@Body() dto: OrderDto) {
+  return this.service.create(dto).pipe(
+    mergeMap(async order => {
+      await this.events.emitAsync('order.created', order);
+      return order;
+    }),
+  );
+}
+```
+
+`emitAsync` returns a promise that resolves when ALL `@OnEvent('order.created')` listeners have completed. `mergeMap` gates the response on the promise.
+
+### 9.3 When `tap()` is correct
+
+Use `tap()` for **fire-and-forget** side effects where the response MUST not be gated:
+
+- Telemetry traces (the response shouldn't slow down because Langfuse is slow).
+- Cache invalidation (the cache may settle async; the client tolerates re-fetch).
+- Any side effect explicitly marked "best-effort, may lag".
+
+Use `mergeMap + emitAsync` for **read-after-write coherence** requirements:
+
+- Audit log writes that subsequent reads must observe.
+- Idempotency-key persistence that retries depend on.
+- Any DB write whose absence in the response context is a bug.
+
+### 9.4 Cross-language equivalents
+
+| Stack | "Don't gate" pattern | "Gate" pattern |
+|---|---|---|
+| NestJS / RxJS | `.pipe(tap(...))` | `.pipe(mergeMap(async ... => { await emit(...); return ... }))` |
+| Express middleware | `req.eventBus.emit(...)` synchronous | `await req.eventBus.emitAsync(...)` (wait promise) |
+| Phoenix LiveView | `Process.send(self(), :event, [:noconnect])` | `GenServer.call(audit, {:write, payload})` (sync call) |
+| Python asyncio (FastAPI) | `asyncio.create_task(coro)` | `await coro` directly in handler |
+
+### 9.5 Anti-pattern: cascade events without self-emission guard
+
+When `@OnEvent('entity.updated')` triggers `events.emit('entity.cascade_updated')` and a sibling listener consumes the cascade event AND re-emits `entity.updated` (e.g. for downstream notification), the loop is infinite. Cross-validated by openTrattOS m2-cost-rollup-and-audit (cascade across BCs) + m2-mcp-write-capabilities.
+
+The fix is a **one-line self-emission guard**:
+
+```ts
+@OnEvent('order.updated')
+async handleCascade(evt: OrderUpdatedEvent) {
+  for (const dependent of await this.findDependents(evt.entityId)) {
+    if (dependent.id === evt.entityId) continue;  // self-guard
+    await this.events.emitAsync('order.updated', { ...dependent });
+  }
+}
+```
+
+The guard is **structural** (compare entity IDs), not behavioural (rely on listener ordering). Behavioural guards break when listener registration order changes between deploys.
+
+## 10. Cross-references
 
 - [release-management.md](release-management.md) §6.4 (anti-collision contract for shared files; this spec covers the *shape* of the shared schemas)
 - [project-board-sync.md](project-board-sync.md) (audit table is one consumer of these patterns)
 - [agent-telemetry.md](agent-telemetry.md) (telemetry traces follow §2 hybrid translation pattern when consuming legacy spans)
+- [dependency-injection-patterns.md](dependency-injection-patterns.md) (sister spec for DI seams that frequently emit/consume events)
 - [taxonomy.md](taxonomy.md) (event-bus / channel / envelope canonical names)
 - [enforcement-status.md](enforcement-status.md) (live adoption matrix)
-- External: openTrattOS retros `m2-audit-log` (Wave 1.9), `m2-ai-yield-corpus` (Wave 1.8), `m2-ai-yield-suggestions` (Wave 1.7) — case studies for §2-§8.
+- External: openTrattOS retros `m2-audit-log` (Wave 1.9), `m2-ai-yield-corpus` (Wave 1.8), `m2-ai-yield-suggestions` (Wave 1.7), `m2-mcp-write-capabilities` (Wave 1.10), `m2-cost-rollup-and-audit` (Wave 1.9) — case studies for §2-§9.
 - External: iguanatrader retros `risk-engine-protections`, `approval-channels-multichannel` — pure-engine + canonical-contract case studies for §7-§8.
