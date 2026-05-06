@@ -1,0 +1,81 @@
+# =============================================================================
+# NetworkPolicy with explicit egress allowlist (FQDN-driven)
+# =============================================================================
+# Per multi-layer-defense-single-operator.md L3 (Network).
+# Requires CNI with NetworkPolicy support (Calico, Cilium, etc.).
+# k3s default Flannel does NOT enforce; switch CNI before applying as a control.
+#
+# Usage:
+#   1. Replace {{namespace}}, {{service-name}}, {{egress-fqdns}}.
+#   2. Apply:
+#        kubectl apply -f networkpolicy.yaml
+#   3. Verify enforcement:
+#        kubectl exec -n {{namespace}} deploy/{{service-name}} -- curl -fsS https://blocked.example.com
+#        # MUST timeout / connection refused.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{service-name}}-egress-allowlist
+  namespace: {{namespace}}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{service-name}}
+  policyTypes:
+    - Egress
+  egress:
+    # DNS egress (mandatory; egress without DNS is broken)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+    # Egress to specific external FQDNs
+    # Note: stock NetworkPolicy can't filter by FQDN — needs Cilium /
+    # Calico DNS-aware policies. The IP block below is a placeholder;
+    # replace with the egress IPs of the FQDNs you allow OR use a
+    # DNS-aware CNI's CRD (e.g. CiliumNetworkPolicy with toFQDNs).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0  # PLACEHOLDER — tighten to specific CIDRs
+            except:
+              # Block private RFC1918 ranges if the workload should never
+              # talk to internal addresses
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+---
+# For DNS-aware egress (Cilium example) — uncomment if using Cilium:
+# apiVersion: cilium.io/v2
+# kind: CiliumNetworkPolicy
+# metadata:
+#   name: {{service-name}}-fqdn-egress
+#   namespace: {{namespace}}
+# spec:
+#   endpointSelector:
+#     matchLabels:
+#       app: {{service-name}}
+#   egress:
+#     - toFQDNs:
+#         - matchName: api.anthropic.com
+#         - matchName: api.openai.com
+#         - matchPattern: "*.amazonaws.com"
+#       toPorts:
+#         - ports:
+#             - port: "443"
+#               protocol: TCP
