@@ -177,6 +177,36 @@ The worktree directory name **equals** the OpenSpec change-id (the same folder n
 
 Greenfield consumer projects adopt this layout from day one via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §1. Existing consumers on the legacy single-tree layout keep working — migration is opt-in per §3 of that runbook.
 
+### 3.7.1 Design-mock HTML for dense designs (optional review aid)
+
+When a slice's `design.md` is dense — multi-bounded-context schema, several
+contracts, a Gate D recap — a **visual mock HTML** built mid-session
+materially helps the human reviewer eyeball the architecture before
+approving implementation.
+
+The mock is an HTML file under
+`_bmad-output/planning-artifacts/<change-id>-design-mock.html` (or the
+project's equivalent BMAD planning output directory) covering:
+
+1. **Architecture flow diagram** (boxes + arrows showing the bounded
+   contexts and event channels touched).
+2. **Schema cards** (one card per new table or extended table, with
+   columns + types + key indexes).
+3. **Sample API request/response** (one or two representative endpoints).
+4. **Gate D recap** (one box per architectural decision with the
+   decision text + Master's approval signal from chat).
+
+The mock uses the project's design-system palette (per
+[`ux-track.md`](ux-track.md) §"OKLCH-canonical colour rule") so the
+visualisation looks like the project, not a generic mock template.
+
+This pattern is **optional** — appropriate for slices that span ≥3
+bounded contexts or introduce a non-trivial schema. Trivial slices (one
+file, one bounded context) don't earn the overhead. Validated on
+openTrattOS Wave 1.9 (`m2-audit-log`) where the mock surfaced a
+column-name mismatch that would have cost a re-spin during
+implementation.
+
 ### 3.8 Intra-slice parallelism (orthogonal to wave-level)
 
 When a single slice covers multiple disjoint bounded contexts (e.g. M1 implementation slices that scaffold IAM + Ingredients + Suppliers + UoM in one OpenSpec change), the main agent MAY spawn subagents in parallel — one per bounded context — provided every group declares write-path ownership in `tasks.md` and shared files are reserved for serial recombination by the main agent. The full contract is in [release-management.md](release-management.md) §6.6.
@@ -194,6 +224,35 @@ Post-archive retro is mandatory; weekly and monthly retros cover accumulation.
 | Monthly | Lifecycle check — stale changes, outdated memories, drift findings. | `retros/monthly-<YYYY-MM>.md`. |
 
 Full cadence in [`specs/retrospective-cadence.md`](retrospective-cadence.md).
+
+### 4.1 Forward-authored retros (recommended pattern)
+
+Author the per-slice retro **during** the slice's implementation phase, not
+after merge. The retro lands in the same commit as the archive, with the
+**squash SHA + merge date filled in post-merge during the archive step**.
+
+This pattern, validated across openTrattOS Wave 1.7-1.9 (PRs #87-#90, May
+2026) and iguanatrader Wave 2 (slices R1, T1, K1, P1, O1, W1):
+
+- Reduces the "after-merge cognitive drop-off" failure mode where the AI
+  worker forgets a non-trivial lesson by the time the archive runs.
+- Lets the retro capture forward-looking notes ("next slice will reuse the
+  hybrid translation pattern from this one") naturally — they're current at
+  authoring time.
+- Keeps the retro within the slice's PR diff, so reviewers see the lesson
+  capture before approving.
+
+The retro template (per [`templates/retros/post-archive.md.tmpl`](../templates/retros/post-archive.md.tmpl))
+has two placeholders that the archive step fills in mechanically:
+
+```markdown
+> **Slice**: `<change-id>` · **PR**: [#NN](...) · **Merged**: <YYYY-MM-DD> · **Squash SHA**: `<7-char-sha>`
+```
+
+The `openspec-archive-change` skill computes the SHA and date from `git log`
+post-merge and updates the retro before committing the archive. Workers
+authoring forward retros leave those fields as `<filled in post-merge>`
+placeholders; the skill enforces non-placeholder values before archiving.
 
 ## 5 HITL summary
 

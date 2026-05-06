@@ -189,6 +189,52 @@ Consumer projects' CI pre-commit step MUST invoke the hooks against the diff bet
 
 The diff-based invocation only checks files this PR actually changes. Hooks that ALSO need to be diff-aware (i.e. decide on the modified set of files, not the existing set) are listed in the `block_manual_spec_edit.py` reference implementation as of v0.8.0.
 
+#### 4.4.1 Gitleaks scans full PR commit history (`fetch-depth: 0`)
+
+The standard gitleaks workflow (per most CI templates) uses `fetch-depth: 0`
+to scan **every commit** in the PR's history, not just the latest commit.
+A leak introduced in commit N and "fixed" in commit N+1 still fails the
+scan because gitleaks finds the leak at commit N.
+
+Resolution: **squash the offending commit out of the branch's history**:
+
+```bash
+git reset --soft origin/main
+git commit -m "<original message minus the leak>"
+git push --force-with-lease origin slice/<change-id>
+```
+
+Force-push on a feature branch is acceptable per `release-management.md`
+§2.3; never on `main` or shared release branches without break-glass.
+
+#### 4.4.2 Markdown style guide: avoid `KEY=<placeholder>` syntax
+
+When documenting environment variables in markdown (READMEs, runbooks,
+`.env.example` files mirrored in docs), AVOID shell-syntax placeholders:
+
+```
+❌ Forbidden:
+BRAVE_API_KEY=<your Brave Search API subscription key>
+
+✅ Use bullet lists:
+The following env vars must be set:
+- `BRAVE_API_KEY` — Brave Search API subscription key (obtain at brave.com/api)
+- `LANGFUSE_PUBLIC_KEY` — Langfuse Cloud public key
+
+✅ Or inline narrative:
+Set `BRAVE_API_KEY` to your Brave Search API subscription key.
+```
+
+The shell-syntax form (`KEY=<value>`) triggers gitleaks's
+`generic-api-key` matcher because the angle-bracket placeholder shape
+matches the regex for "looks like a placeholder for a real key value".
+The bullet-list and narrative forms don't trigger the matcher.
+
+This rule was retro-proven on openTrattOS PR #89 (`m2-wrap-up`,
+2026-05-06) where the `<your Brave Search API subscription key>` line in
+a runbook fired gitleaks on first push and required a force-push to
+clear the history.
+
 ### 4.5 AI-reviewer feedback loop (worker AI must read + respond before Gate F)
 
 When a Profile A repo opens a PR, an **AI reviewer** (CodeRabbit by default; claude-code-action when Phase 3 lands) leaves comments. These comments are not optional reading — the worker AI that opened the PR MUST integrate them into the loop:
@@ -426,6 +472,72 @@ When a parallel-wave slice MUST touch a shared file, it coordinates via:
 2. **Ownership split** — the shared file is split into N per-slice fragments (e.g. `Makefile` becomes `Makefile` + `apps/api/Makefile.includes` + `apps/web/Makefile.includes` + ...), each slice owns its fragment.
 3. **HITL coordination** — for files where neither (1) nor (2) is possible (e.g. `.gitignore`), the affected slices add a HITL gate at design-review time documenting the touch.
 
+#### 6.4.1 Append-only doc files: numbering ranges per slice
+
+Files that grow append-only across multiple parallel slices (`docs/gotchas.md`,
+`CHANGELOG.md`, append-only ADR indexes, etc.) require an **explicit numeric
+range per slice** declared in the slice prompt or scope note. Without ranges,
+every parallel-wave slice picks `next-available-N` independently and collides
+on rebase.
+
+Range-allocation table (recommended convention):
+
+| Slice category | Range | Example |
+|---|---|---|
+| Foundation (Wave 0–1) | 1–29 | shared kernel slices |
+| Wave 2 bounded contexts | 30–79 (10 per slice) | research: 40-49, trading: 50-59, risk: 60-69, approval: 70-79 |
+| Wave 3 adapters / strategies | 80–199 (20 per slice) | edgar: 80-99, news: 100-119, openbb: 120-139, briefs: 140-159, ibkr: 160-179, donchian: 180-199 |
+| Wave 4+ consolidation | 200+ | per-slice 10 reserved |
+
+The range is declared in the slice's `proposal.md` "Out of scope" section
+("This slice consumes gotchas.md range 100-119") and enforced socially at
+review. The numbers are *append-only IDs*, not contiguous: a slice may use 2
+of its 10 IDs and leave 8 free for future reference from sibling slices.
+
+The cost of getting this wrong is real: iguanatrader Wave 2 saw two slices
+(K1 and T1) both pick `gotchas.md` IDs `#31`–`#33`, producing a rebase-time
+renumbering tax across `apps/api/README.md`, `docs/runbooks/risk-kill-switch.md`,
+and the slice's own `tasks.md`. The convention above prevents this.
+
+#### 6.4.2 Migration revision strings: verbose-form from scaffold
+
+Alembic / Sqlx / Prisma / Diesel migrations that ship monotonic revision IDs
+MUST use the **verbose form** `<NNNN>_<topic>` (matching the filename) from
+the moment the migration is scaffolded — not the bare numeric form.
+
+❌ Forbidden form (latently broken):
+
+```python
+revision: str = "0007"
+down_revision: str | None = "0006"
+```
+
+✅ Required form:
+
+```python
+revision: str = "0007_observability_tables"
+down_revision: str | None = "0006_approval_tables"
+```
+
+Reason: when a downstream slice references the predecessor's revision string
+in `down_revision`, the verbose form provides self-documentation
+(`down_revision="0006_approval_tables"` reads what it depends on) AND prevents
+silent chain breakage. iguanatrader Wave 2 latently shipped a chain mismatch
+where R1's revision was `"0003"` but T1's `down_revision` was
+`"0003_research_tables"`; no test exercises the live `ScriptDirectory.walk_revisions()`
+on every push, so the mismatch sat on `main` until K1's PR caught it (cf.
+`retros/risk-engine-protections.md` lesson 3).
+
+The convention is inexpensive: scaffolders that emit the bare form (`alembic
+revision -m "..."` defaults) require a one-line edit immediately after
+scaffold. The slice's `tasks.md` should bake this into task 1 ("Generate
+migration; immediately convert revision string to verbose form").
+
+A complementary CI gate — a generic `test_migration_chain_walks.py` that runs
+`ScriptDirectory.walk_revisions()` and fails on any unresolvable revision —
+is recommended for projects with monotonic migrations. The gate has been
+tracked as a candidate inclusion in the playbook's CI templates for v0.10.1.
+
 ### 6.5 Pre-flight rebase before slice start
 
 Before the AI begins implementing a slice (i.e. before the first task commit on `slice/<change-id>`), it MUST:
@@ -462,7 +574,7 @@ The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `releas
 
 **When it applies.** The slice contains ≥2 task groups with disjoint write-paths. The canonical example is a slice that scaffolds N bounded contexts in one shot (e.g. `module-1-ingredients-implementation` covering `iam/`, `ingredients/`, `suppliers/`, `cost/`, `shared/uom/` — 5 disjoint roots under `apps/api/src/`). Sequential implementation works fine; intra-slice parallelism just shortens wall-clock.
 
-**When it does NOT apply.** Single-bounded-context slices, slices with TDD-tight ordering (e.g. interface → impl → consumer), slices small enough that spawning + coordination overhead exceeds the savings (rule of thumb: <3 task groups, or any group <10 tasks).
+**When it does NOT apply.** Single-bounded-context slices, slices with TDD-tight ordering (e.g. interface → impl → consumer), slices small enough that spawning + coordination overhead exceeds the savings (rule of thumb: <3 task groups, or any group <10 tasks). **Also explicitly NOT applied** to slices with **cross-BC verification gates** — i.e. acceptance criteria that require state from BC-A to be observed by BC-B during the same execution. Examples: cost ↔ allergens ↔ labels ↔ audit cross-checks (openTrattOS Wave 1.9), or trading service → risk engine → kill-switch state propagation (iguanatrader Wave 2 K1). The serial verification path is structurally simpler than coordinating subagent recombination *plus* cross-BC test orchestration; the parallelism win is eaten by the coordination overhead.
 
 **Pre-conditions** (before spawning subagents):
 
@@ -589,8 +701,45 @@ For Arturo's current consumer constellation (May 2026):
 
 ---
 
+## 9.5. Project board sync contract (status transitions + drift detection)
+
+The schema in §5 codifies *what fields exist on the board*; it does **not**
+codify *how Status transitions occur*, *what proves a transition happened*, or
+*how AI-driven drift gets caught*. That contract lives in a dedicated sibling
+spec — [project-board-sync.md](project-board-sync.md) — added in v0.10.0
+after the iguanatrader Wave 2 retro surfaced silent board drift (slices
+merged with `Status=Backlog`, `Branch` field empty, no audit trail of
+progression).
+
+The sibling spec defines a 7-layer defense-in-depth contract:
+
+| Layer | Mechanism | What it catches |
+|---|---|---|
+| L1 | GH Projects v2 built-in workflows | Item not on board / Status not Done after merge |
+| L2 | Custom Actions workflow `project-status.yml` | Custom fields drift; In-Progress / Review transitions skipped |
+| L3 | Required status check `project-board-synced` | Drift between branch state and board (blocks merge button) |
+| L4 | State-machine validator workflow (gh-aw ProjectOps pattern) | Skipped Status (Todo → Done direct) |
+| L5 | Agent OTLP telemetry → Langfuse (per [agent-telemetry.md](agent-telemetry.md)) | Post-hoc audit "did the AI run companion before commit?" |
+| L6 | `opsx_apply_companion.py --enforce-board` | "AI claims updated board" without proof |
+| L7 | `openspec-archive-change` skill Step 0 invokes `verify_board_state.py` | Archive with stale board |
+
+L1, L2, L3, L4, L5 are **truly independent of AI behavior** (server-side
+workflows + external telemetry collector). L6 + L7 are tool-level reinforcers
+where the AI runs a script but the script's exit code (not the AI's text)
+produces the verdict.
+
+The contract supersedes any informal "the AI should remember to update the
+board" expectation. Drift is now **structurally impossible** in the strong
+layers (L1–L4) and **observable post-hoc** in the audit layer (L5).
+
+See [project-board-sync.md](project-board-sync.md) for the full failure-mode
+matrix, state-machine graph, research justifications, and per-layer
+adoption status.
+
 ## 10. Cross-references
 
+- [project-board-sync.md](project-board-sync.md) — the 7-layer sync contract that supersedes informal Status-update expectations (added v0.10.0).
+- [agent-telemetry.md](agent-telemetry.md) — Claude Code OTLP-to-Langfuse pattern for L5 of the sync contract (added v0.10.0).
 - [runbook-bmad-openspec.md](runbook-bmad-openspec.md) §3 — OpenSpec lifecycle this spec governs the source-control side of.
 - [issue-tracking.md](issue-tracking.md) — ticket↔proposal automation (Jira / GH Issues); this spec extends to the source-control side.
 - [bmad-openspec-bridge.md](bmad-openspec-bridge.md) §3 — slicing artefact schema this spec depends on for dep-graph parsing.
