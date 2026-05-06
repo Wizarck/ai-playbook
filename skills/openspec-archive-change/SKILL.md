@@ -15,6 +15,32 @@ Archive a completed change in the experimental workflow.
 
 **Steps**
 
+0. **Verify project board Status=Done before archiving** (per [project-board-sync.md](../../specs/project-board-sync.md) §2 L7)
+
+   Invoke `scripts/verify_board_state.py` BEFORE doing any archive work. The script queries the GH Project board and exits non-zero if the matching item's Status is not `Done`. Refuse to archive on non-zero exit — do NOT paraphrase the script's output, cite the exit code (per [verification-before-completion.md](../../specs/verification-before-completion.md) §4.1.2).
+
+   Required env / inputs:
+   - `--change-id` — the OpenSpec change-id being archived
+   - `--owner` — GH user/org login owning the project
+   - `--project-number` — numeric Project V2 ID
+   - `--expected-status Done` — default for archive workflows
+
+   ```bash
+   python -m scripts.verify_board_state \
+       --change-id <name> \
+       --owner <gh-user-or-org> \
+       --project-number <N> \
+       --expected-status Done
+   ```
+
+   Exit-code semantics (stable contract):
+   - `0` — Status=Done, proceed.
+   - `1` — Status mismatch. Refuse archive: surface the script's stderr to the user and ask them to (a) wait for L1 PR-merged automation to fire, or (b) verify the L2 workflow ran correctly, or (c) manually advance the status if board got drift.
+   - `2` — Item not found. Refuse archive: the change-id doesn't match a project item title.
+   - `3` — GraphQL/network error. Surface to user and offer one retry.
+
+   **If `scripts/verify_board_state.py` is not present** (consumer on ai-playbook < v0.10.0): emit a warning and continue (legacy behaviour). New consumers (v0.10.0+) MUST have the script and MUST not bypass.
+
 1. **If no change name provided, prompt for selection**
 
    Run `openspec list --json` to get available changes. Use the **AskUserQuestion tool** to let the user select.
@@ -135,6 +161,7 @@ All artifacts complete. All tasks complete.
 ```
 
 **Guardrails**
+- **Always run Step 0 first** (project board Status=Done verification) for consumers on ai-playbook v0.10.0+; refuse archive on non-zero exit per project-board-sync.md L7
 - Always prompt for change selection if not provided
 - Use artifact graph (openspec status --json) for completion checking
 - Don't block archive on warnings - just inform and confirm
