@@ -84,12 +84,18 @@ def _fetch_item_status(*, owner: str, project_number: int, change_id: str) -> tu
     ``status_value`` is the Status single-select option name (e.g. "Done").
     ``item_title`` is the full Title of the matched item.
     Both are ``None`` when no matching item is found.
+
+    Paginates over project items in 100-item pages (GitHub's GraphQL
+    ``first`` connection limit). v0.10.0 used ``first: 200`` which exceeded
+    the limit and produced ``HTTP 422: Requesting 200 records on the
+    connection exceeds the 'first' limit of 100 records``. Fixed in v0.10.1.
     """
     query = """
-    query($owner: String!, $number: Int!) {
+    query($owner: String!, $number: Int!, $cursor: String) {
       user(login: $owner) {
         projectV2(number: $number) {
-          items(first: 200) {
+          items(first: 100, after: $cursor) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               fieldValues(first: 30) {
                 nodes {
@@ -110,25 +116,34 @@ def _fetch_item_status(*, owner: str, project_number: int, change_id: str) -> tu
       }
     }
     """
-    data = _gh_graphql(query, owner=owner, number=project_number)
-    user = data.get("user") or {}
-    project = user.get("projectV2") or {}
-    items = (project.get("items") or {}).get("nodes") or []
+    cursor: str | None = None
+    while True:
+        kwargs: dict[str, Any] = {"owner": owner, "number": project_number}
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+        data = _gh_graphql(query, **kwargs)
+        user = data.get("user") or {}
+        project = user.get("projectV2") or {}
+        items_block = project.get("items") or {}
+        items = items_block.get("nodes") or []
 
-    for item in items:
-        content = item.get("content") or {}
-        title = content.get("title", "")
-        if change_id not in title:
-            continue
-        # Found the matching item. Extract Status.
-        for fv in (item.get("fieldValues") or {}).get("nodes") or []:
-            field = fv.get("field") or {}
-            if field.get("name") == "Status":
-                return fv.get("name"), title
-        # Item found but no Status field value populated.
-        return None, title
+        for item in items:
+            content = item.get("content") or {}
+            title = content.get("title", "")
+            if change_id not in title:
+                continue
+            # Found the matching item. Extract Status.
+            for fv in (item.get("fieldValues") or {}).get("nodes") or []:
+                field = fv.get("field") or {}
+                if field.get("name") == "Status":
+                    return fv.get("name"), title
+            # Item found but no Status field value populated.
+            return None, title
 
-    return None, None
+        page_info = items_block.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            return None, None
+        cursor = page_info.get("endCursor")
 
 
 def main(argv: list[str] | None = None) -> int:
