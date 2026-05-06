@@ -4,6 +4,11 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Known gaps surfaced after v0.10.0 cut (target: v0.10.1)
+
+- **`propagate_bump.py` + `propagate_skills_bump.py` MUST pre-populate §4.5** in the auto-generated PR body. Surfaced 2026-05-06 during v0.10.0 propagation: both auto-opened PRs (#74 + #75 in `consumer-e`) failed the `ai-self-review-required` check because their bodies lacked the `Profile:` / `Reviewer:` / `Self-review findings:` markers required by §4.5.3. Manual fix needed (edit body + push empty commit to retrigger CI). Spec implication: `release-management.md` §4.5.3 needs §4.5.4 codifying the "bump PRs MUST include §4.5 markers in auto-generated body" rule, with a canonical short-form template for "no semantic changes — automated submodule pin advance" findings.
+- **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Surfaced 2026-05-06 from a question about CI not catching "stepping over" risk (developer mid-work when bump lands). Note: GitHub merge queue (HTTP 422 on Free plan, requires Team/Enterprise) and branch protection on private repos (HTTP 403, requires Pro) are NOT viable for solo-dev personal repos — software-side scanning is the practical mitigation. See `release-management.md` §6.5 (pre-flight rebase) — `strict=true` on protected branches already covers the 80%; this Capa 2 covers the 20%.
+
 ## [0.10.0] — 2026-05-06 — project-board-sync + agent-telemetry + 7-layer defense-in-depth
 
 ### Added
