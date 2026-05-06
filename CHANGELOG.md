@@ -4,10 +4,21 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps surfaced after v0.10.0 cut (target: v0.10.1)
+### Known gaps still pending (target: v0.10.2)
 
 - **`propagate_bump.py` + `propagate_skills_bump.py` MUST pre-populate §4.5** in the auto-generated PR body. Surfaced 2026-05-06 during v0.10.0 propagation: both auto-opened PRs (#74 + #75 in `iguanatrader`) failed the `ai-self-review-required` check because their bodies lacked the `Profile:` / `Reviewer:` / `Self-review findings:` markers required by §4.5.3. Manual fix needed (edit body + push empty commit to retrigger CI). Spec implication: `release-management.md` §4.5.3 needs §4.5.4 codifying the "bump PRs MUST include §4.5 markers in auto-generated body" rule, with a canonical short-form template for "no semantic changes — automated submodule pin advance" findings.
 - **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Surfaced 2026-05-06 from a question about CI not catching "stepping over" risk (developer mid-work when bump lands). Note: GitHub merge queue (HTTP 422 on Free plan, requires Team/Enterprise) and branch protection on private repos (HTTP 403, requires Pro) are NOT viable for solo-dev personal repos — software-side scanning is the practical mitigation. See `release-management.md` §6.5 (pre-flight rebase) — `strict=true` on protected branches already covers the 80%; this Capa 2 covers the 20%.
+
+## [0.10.1] — 2026-05-06 — verify_board_state pagination hotfix
+
+### Fixed
+
+- **`scripts/verify_board_state.py`** — replaced `items(first: 200)` with paginated `items(first: 100, after: $cursor)` walking via `pageInfo.hasNextPage` / `endCursor`. Surfaced 2026-05-06 during first real invocation against `iguanatrader` project board: GitHub GraphQL connection limit on `first` is 100, not 200, producing `HTTP 422: Requesting 200 records on the connection exceeds the 'first' limit of 100 records`. v0.10.0's tests mocked the GraphQL transport with `subprocess.run` patches that returned a single response; they never hit the real API limit. The pagination loop now terminates cleanly via `pageInfo.hasNextPage=false`.
+- **`tests/test_verify_board_state.py`** — added 2 pagination tests (`test_pagination_walks_to_second_page`, `test_pagination_stops_after_last_page_when_not_found`) covering the cursor-following loop. Also extended `_make_graphql_response` helper to accept `has_next_page` + `end_cursor` so existing tests stay compatible.
+
+### Notes
+
+- This is a real-world-vs-mocks gap: the bug shipped because tests stubbed the transport at the boundary that hides the API constraint. v0.10.2 should add a contract test that uses `gh api graphql --schema` validation (or a recorded fixture from a real call) so structural API mismatches surface in CI.
 
 ## [0.10.0] — 2026-05-06 — project-board-sync + agent-telemetry + 7-layer defense-in-depth
 
