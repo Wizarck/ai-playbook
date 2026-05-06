@@ -4,10 +4,21 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.10.2)
+### Known gaps still pending (target: v0.10.3)
 
-- **`propagate_bump.py` + `propagate_skills_bump.py` MUST pre-populate §4.5** in the auto-generated PR body. Surfaced 2026-05-06 during v0.10.0 propagation: both auto-opened PRs (#74 + #75 in `iguanatrader`) failed the `ai-self-review-required` check because their bodies lacked the `Profile:` / `Reviewer:` / `Self-review findings:` markers required by §4.5.3. Manual fix needed (edit body + push empty commit to retrigger CI). Spec implication: `release-management.md` §4.5.3 needs §4.5.4 codifying the "bump PRs MUST include §4.5 markers in auto-generated body" rule, with a canonical short-form template for "no semantic changes — automated submodule pin advance" findings.
-- **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Surfaced 2026-05-06 from a question about CI not catching "stepping over" risk (developer mid-work when bump lands). Note: GitHub merge queue (HTTP 422 on Free plan, requires Team/Enterprise) and branch protection on private repos (HTTP 403, requires Pro) are NOT viable for solo-dev personal repos — software-side scanning is the practical mitigation. See `release-management.md` §6.5 (pre-flight rebase) — `strict=true` on protected branches already covers the 80%; this Capa 2 covers the 20%.
+- **`propagate_bump.py` + `propagate_skills_bump.py` MUST pre-populate §4.5** in the auto-generated PR body. Surfaced 2026-05-06 during v0.10.0 propagation: both auto-opened PRs (#74 + #75 in `iguanatrader`) failed the `ai-self-review-required` check because their bodies lacked the `Profile:` / `Reviewer:` / `Self-review findings:` markers required by §4.5.3. Manual fix needed (edit body + push empty commit to retrigger CI). Spec implication: `release-management.md` §4.5.3 needs §4.5.4 codifying the "bump PRs MUST include §4.5 markers in auto-generated body" rule.
+- **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Surfaced 2026-05-06 from a question about CI not catching "stepping over" risk.
+- **`templates/new-project/.github/workflows/propagate-archive.yml.tmpl`** (new template) — auto-runs `openspec archive --change <id>` when a `slice/<id>` PR squash-merges to main. Surfaced 2026-05-06 by silent archive drift in iguanatrader Wave 2 (PR #68 R1 + #69 T1 merged 2026-05-05 but openspec changes sat in active tree for 28h; required manual closeout PR #78). Pairs with the L4 state-machine validator (which already detects `Status=Done + no merged PR` mismatches; this template addresses the inverse: `merged PR + no archive`).
+
+## [0.10.2] — 2026-05-06 — verify_board_state Windows UTF-8 hotfix
+
+### Fixed
+
+- **`scripts/verify_board_state.py`** — added `sys.stdout/sys.stderr.reconfigure(encoding="utf-8")` at module top. v0.10.1's success path printed `✅ Project item ... matches expected` which crashed with `UnicodeEncodeError` on Windows cp1252 consoles. Pattern mirrors `scripts/notify.py` and `scripts/verify_llm_routing.py`. Surfaced 2026-05-06 during first invocation from `/c/Projects/iguanatrader/.ai-playbook/scripts/verify_board_state.py` on Windows. Linux CI was unaffected (default UTF-8). The crash masked exit code 0 (success) and surfaced as exit code 1, which would cause spurious `--enforce-board` failures on Windows for slices that ARE actually in the expected state.
+
+### Notes
+
+- This is the third real-world-surfaced gap in the v0.10.x line (after `first: 200` API limit and §4.5 auto-population). Pattern: tests stub at the boundary, real-world invocation reveals environmental constraints (API limits, locale encoding, missing markers in auto-generated content). v0.10.3 should formalize a "first real invocation" smoke test in the release ritual.
 
 ## [0.10.1] — 2026-05-06 — verify_board_state pagination hotfix
 

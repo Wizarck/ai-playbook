@@ -50,6 +50,14 @@ import subprocess
 import sys
 from typing import Any
 
+# Force UTF-8 on stdio so non-ASCII glyphs (✅ in the success line) don't
+# blow up on Windows cp1252 consoles. Mirrors the pattern from notify.py.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except (AttributeError, OSError):
+        pass
+
 # Exit codes — stable contract.
 EXIT_OK = 0
 EXIT_STATUS_MISMATCH = 1
