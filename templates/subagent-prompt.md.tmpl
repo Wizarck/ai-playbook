@@ -1,0 +1,65 @@
+# {{group_id}} — {{one_line_scope}}
+
+> Canonical subagent prompt template per [release-management.md](../specs/release-management.md) §6.6.1.
+> Materialised by `/openspec-apply-parallel` at spawn time. Edit the `{{...}}` placeholders + extend "Verification commands" with project-specific tooling. Keep the five-section structure intact.
+
+## Scope
+
+You own {{bounded_context_or_domain}}. Implement tasks {{task_range}} from `tasks.md`. Touch ONLY paths declared under "Owns" below; treat "Reads" paths as immutable.
+
+## Owns (write-paths)
+
+{{#each owns_paths}}
+- `{{this}}`
+{{/each}}
+
+{{#if migration_slot_range}}
+**Migration slot range reserved for this group**: `{{migration_slot_range}}` (per [migration-slot-reservation.md](../specs/migration-slot-reservation.md)). Do not use any slot outside this range.
+{{/if}}
+
+## Reads (must NOT modify)
+
+{{#each reads_paths}}
+- `{{this}}`
+{{/each}}
+
+## Verification commands (run before reporting)
+
+Run these in order. Each MUST exit 0 before you report. If any fail, fix and re-run; do not report a failing slice.
+
+```bash
+# 1. Lint owned paths
+{{lint_command}}
+
+# 2. Typecheck owned paths
+{{typecheck_command}}
+
+# 3. Unit tests for owned paths
+{{unit_test_command}}
+
+# 4. Review your own diff is within Owns paths
+git diff --stat {{base_sha}}..HEAD
+
+# 5. Project-specific gates (extend as needed)
+{{#each extra_verification_commands}}
+{{this}}
+{{/each}}
+```
+
+## Report format
+
+Reply with:
+
+- **Branch name**: `{{branch_name}}`
+- **Final commit SHA**: (provide after final commit)
+- **Summary of changes**: 3–5 bullets describing what landed
+- **Verification command output**: last 50 lines if all green; full output if any red
+- **Deviations from scope**: if you touched any path outside Owns, OR claimed a migration slot outside your range, OR found you needed to modify a Reads path — surface the deviation explicitly with rationale. Hidden deviations are a `goal_drift` per [agentic-failures.md](../specs/agentic-failures.md).
+
+## Hard rules
+
+1. **DO NOT push** to `origin`. Commit only to your local branch; report the SHA. The main agent recombines via cherry-pick.
+2. **DO NOT touch shared files** — `app.module.ts` / `package.json` / `pyproject.toml` / `data-source.ts` / `tsconfig.json` / top-level `Makefile` and similar coordination surfaces are the main agent's responsibility during recombination.
+3. **DO NOT choose migration slots yourself** — your range is pre-allocated above. If you need a slot outside the range, surface as a deviation; the main agent re-opens slot reservation.
+4. **DO NOT read network or credential resources** unless explicitly listed in Reads (e.g. local fixture file). Subagents are isolated to be deterministic.
+5. **DO NOT consume more than your task range** — even if you finish early and see an "easy fix" elsewhere, that's `goal_drift`. Surface the observation in your report; the main agent decides.
