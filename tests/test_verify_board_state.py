@@ -27,13 +27,28 @@ from scripts import verify_board_state
 # ---------------------------------------------------------------------------
 
 
-def _make_graphql_response(items: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build the shape `_gh_graphql` parses out of `gh api graphql`'s stdout."""
+def _make_graphql_response(
+    items: list[dict[str, Any]],
+    *,
+    has_next_page: bool = False,
+    end_cursor: str | None = None,
+) -> dict[str, Any]:
+    """Build the shape `_gh_graphql` parses out of `gh api graphql`'s stdout.
+
+    Includes ``pageInfo`` so the paginated implementation in
+    `_fetch_item_status` can decide whether to follow the cursor.
+    """
     return {
         "data": {
             "user": {
                 "projectV2": {
-                    "items": {"nodes": items},
+                    "items": {
+                        "nodes": items,
+                        "pageInfo": {
+                            "hasNextPage": has_next_page,
+                            "endCursor": end_cursor,
+                        },
+                    },
                 },
             },
         },
@@ -285,3 +300,72 @@ def test_help_flag_exits_0() -> None:
     with pytest.raises(SystemExit) as exc:
         verify_board_state.main(["--help"])
     assert exc.value.code == 0
+
+
+# ---------------------------------------------------------------------------
+# Pagination — issue surfaced 2026-05-06: GitHub GraphQL `first` connection
+# limit is 100; v0.10.0's `items(first: 200)` produced HTTP 422. v0.10.1
+# paginates over 100-item pages.
+# ---------------------------------------------------------------------------
+
+
+def test_pagination_walks_to_second_page() -> None:
+    """When item is on page 2, the script must follow the cursor."""
+    page1 = _make_graphql_response(
+        [_item(title=f"item-{i}", status="Done") for i in range(5)],
+        has_next_page=True,
+        end_cursor="CURSOR_PAGE_2",
+    )
+    page2 = _make_graphql_response(
+        [_item(title="target-slice", status="Done")],
+        has_next_page=False,
+        end_cursor=None,
+    )
+    completed_responses = [
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(page1), stderr=""),
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(page2), stderr=""),
+    ]
+    with patch("scripts.verify_board_state.subprocess.run", side_effect=completed_responses) as mock_run:
+        rc = verify_board_state.main(
+            [
+                "--change-id",
+                "target-slice",
+                "--owner",
+                "Wizarck",
+                "--project-number",
+                "2",
+            ]
+        )
+    assert rc == 0
+    assert mock_run.call_count == 2
+
+
+def test_pagination_stops_after_last_page_when_not_found() -> None:
+    """No item matches across all pages → exit 2 after walking to end."""
+    page1 = _make_graphql_response(
+        [_item(title="other-1", status="Done")],
+        has_next_page=True,
+        end_cursor="CURSOR_PAGE_2",
+    )
+    page2 = _make_graphql_response(
+        [_item(title="other-2", status="Done")],
+        has_next_page=False,
+        end_cursor=None,
+    )
+    completed_responses = [
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(page1), stderr=""),
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(page2), stderr=""),
+    ]
+    with patch("scripts.verify_board_state.subprocess.run", side_effect=completed_responses) as mock_run:
+        rc = verify_board_state.main(
+            [
+                "--change-id",
+                "missing",
+                "--owner",
+                "Wizarck",
+                "--project-number",
+                "2",
+            ]
+        )
+    assert rc == 2
+    assert mock_run.call_count == 2
