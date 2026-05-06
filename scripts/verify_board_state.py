@@ -50,7 +50,6 @@ import subprocess
 import sys
 from typing import Any
 
-
 # Exit codes — stable contract.
 EXIT_OK = 0
 EXIT_STATUS_MISMATCH = 1
@@ -79,9 +78,7 @@ def _gh_graphql(query: str, **variables: Any) -> dict[str, Any]:  # noqa: ANN401
     return payload.get("data") or {}
 
 
-def _fetch_item_status(
-    *, owner: str, project_number: int, change_id: str
-) -> tuple[str | None, str | None]:
+def _fetch_item_status(*, owner: str, project_number: int, change_id: str) -> tuple[str | None, str | None]:
     """Return ``(status_value, item_title)`` for the matching project item.
 
     ``status_value`` is the Status single-select option name (e.g. "Done").

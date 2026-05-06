@@ -22,7 +22,6 @@ import pytest
 
 from scripts import verify_board_state
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -74,9 +73,7 @@ def _mock_subprocess_run_returning(payload: dict[str, Any]):
 
 
 def test_status_matches_expected_returns_0() -> None:
-    payload = _make_graphql_response(
-        [_item(title="risk-engine-protections", status="Done")]
-    )
+    payload = _make_graphql_response([_item(title="risk-engine-protections", status="Done")])
     with _mock_subprocess_run_returning(payload):
         rc = verify_board_state.main(
             [
@@ -94,9 +91,7 @@ def test_status_matches_expected_returns_0() -> None:
 
 
 def test_default_expected_status_is_done() -> None:
-    payload = _make_graphql_response(
-        [_item(title="some-slice", status="Done")]
-    )
+    payload = _make_graphql_response([_item(title="some-slice", status="Done")])
     with _mock_subprocess_run_returning(payload):
         # Don't pass --expected-status; should default to Done.
         rc = verify_board_state.main(
@@ -114,9 +109,7 @@ def test_default_expected_status_is_done() -> None:
 
 def test_status_match_with_in_progress_status() -> None:
     """L6 path uses --expected-status='In Progress'."""
-    payload = _make_graphql_response(
-        [_item(title="risk-engine-protections", status="In Progress")]
-    )
+    payload = _make_graphql_response([_item(title="risk-engine-protections", status="In Progress")])
     with _mock_subprocess_run_returning(payload):
         rc = verify_board_state.main(
             [
@@ -139,9 +132,7 @@ def test_status_match_with_in_progress_status() -> None:
 
 
 def test_status_mismatch_returns_1(capsys: pytest.CaptureFixture[str]) -> None:
-    payload = _make_graphql_response(
-        [_item(title="risk-engine-protections", status="In Progress")]
-    )
+    payload = _make_graphql_response([_item(title="risk-engine-protections", status="In Progress")])
     with _mock_subprocess_run_returning(payload):
         rc = verify_board_state.main(
             [
@@ -163,9 +154,7 @@ def test_status_mismatch_returns_1(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_status_field_empty_returns_1(capsys: pytest.CaptureFixture[str]) -> None:
     """Item exists but has no Status value populated → mismatch."""
-    payload = _make_graphql_response(
-        [_item(title="risk-engine-protections", status=None)]
-    )
+    payload = _make_graphql_response([_item(title="risk-engine-protections", status=None)])
     with _mock_subprocess_run_returning(payload):
         rc = verify_board_state.main(
             [

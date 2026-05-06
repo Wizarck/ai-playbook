@@ -57,6 +57,7 @@ Exit codes
     2 — setup error (gh unavailable, project / item not found, dirty tree)
     3 — unrecoverable GraphQL error
 """
+
 from __future__ import annotations
 
 import argparse
@@ -100,8 +101,7 @@ def _verify_clean_tree() -> None:
     dirty = r.stdout.strip()
     if dirty:
         raise RuntimeError(
-            "working tree is dirty. Commit or stash before running "
-            "/opsx:apply companion. Output:\n" + dirty
+            "working tree is dirty. Commit or stash before running /opsx:apply companion. Output:\n" + dirty
         )
 
 
@@ -132,7 +132,7 @@ def _detect_default_branch() -> str:
         ref = r.stdout.strip()  # e.g. refs/remotes/origin/main
         prefix = "refs/remotes/origin/"
         if ref.startswith(prefix):
-            return ref[len(prefix):]
+            return ref[len(prefix) :]
     # Fallback: probe the two common defaults.
     for candidate in ("main", "master"):
         rr = _git(
@@ -176,9 +176,7 @@ def _rebase_onto_default(slice_branch: str, default_branch: str) -> None:
     )
 
 
-def set_item_text_field(
-    project_id: str, item_id: str, field_id: str, value: str, *, dry_run: bool
-) -> None:
+def set_item_text_field(project_id: str, item_id: str, field_id: str, value: str, *, dry_run: bool) -> None:
     """Set a TEXT field on a project item via GraphQL."""
     if dry_run:
         return
@@ -203,9 +201,7 @@ def set_item_text_field(
     )
 
 
-def _enforce_board_state(
-    *, change_id: str, owner: str, project_number: int
-) -> int:
+def _enforce_board_state(*, change_id: str, owner: str, project_number: int) -> int:
     """Per project-board-sync.md L6: assert Status=In Progress on the project item.
 
     Returns 0 on match, non-zero on mismatch / item-not-found / GraphQL error.
@@ -345,12 +341,8 @@ def run(
         print(f"→ would: set Branch={expected_branch!r} on item {change_id!r} (dry-run)")
         print(f"→ would: set Base SHA={base_sha!r} on item {change_id!r} (dry-run)")
     else:
-        set_item_text_field(
-            proj.id, item.id, branch_field.id, expected_branch, dry_run=dry_run
-        )
-        set_item_text_field(
-            proj.id, item.id, sha_field.id, base_sha, dry_run=dry_run
-        )
+        set_item_text_field(proj.id, item.id, branch_field.id, expected_branch, dry_run=dry_run)
+        set_item_text_field(proj.id, item.id, sha_field.id, base_sha, dry_run=dry_run)
         print(f"→ Set Branch={expected_branch} on item {change_id!r}")
         print(f"→ Set Base SHA={base_sha} on item {change_id!r}")
 
