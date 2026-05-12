@@ -1,27 +1,31 @@
 # litellm-router.yaml — task-class → model routing matrix
 #
 # Per OpenSpec change `add-litellm-enforcement` (Phase 5 P5.4) and
-# `specs/model-routing.md` v2.0.0. This file is the canonical
+# `specs/model-routing.md` v2.0.0+. This file is the canonical
 # task-class routing specification.
 #
 # ===========================================================================
 # PRODUCTION DEPLOY — IMPORTANT
 # ===========================================================================
-# LiteLLM accepts only ONE --config file at startup. The proxy in production
-# loads `helm/eligia-stack/templates/configmaps.yaml` (ConfigMap
-# `litellm-config`), which mirrors the 12 `model_list:` entries below
-# alongside the 7 per-consumer aliases (Hermes/RAG/Hindsight).
+# LiteLLM accepts only ONE --config file at startup. Each consumer of this
+# playbook (eligia-core, openTrattOS, palafito-b2b, ...) deploys LiteLLM
+# with a project-local ConfigMap (or docker-compose volume mount) that
+# MUST mirror the `model_list:` task-class entries below.
 #
-# Until automated sync lands (.ai-playbook/tests/test_litellm_config_sync.py
-# enforces strict subset), edits to this file MUST be applied to the
-# ConfigMap in the same PR. The sync test will block PRs that drift.
+# Edits to this file MUST be applied to the consumer's ConfigMap in the
+# same PR (or via a propagator script). Each consumer SHOULD ship a sync
+# test that asserts strict-subset — for example, eligia-core ships
+# `.ai-playbook/tests/test_litellm_config_sync.py` against
+# `helm/eligia-stack/templates/configmaps.yaml`. The test lives in the
+# CONSUMER (it reads consumer-local paths), not in this playbook repo.
 #
 # Owner of THIS file: spec authors (model-routing.md), Python callers of
 # `_llm.call(task_class, ...)` who validate against it.
-# Owner of the ConfigMap: helm chart, Fleet GitOps reconcile loop.
+# Owner of the ConfigMap: each consumer's deployment chart + Fleet/CD.
 # ===========================================================================
 #
-# Change the matrix here — NOT in code — AND propagate to the ConfigMap.
+# Change the matrix here — NOT in code — AND propagate to the consumer
+# ConfigMap(s).
 
 router_settings:
   routing_strategy: simple-shuffle
