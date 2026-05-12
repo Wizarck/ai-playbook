@@ -144,6 +144,20 @@ Defaults are starting points; tune via `scripts/litellm_budgets.sh` after the fi
 
 When a per-consumer key is missing for a task class, `_llm.py` falls back to the unrouted `ANTHROPIC_API_KEY` (and surfaces a warning event to `events.jsonl`). Missing the unrouted key as well makes `_llm.call(...)` raise `LLMRoutingError`.
 
+#### How to add a new consumer
+
+A `consumer` is a **budget bucket** (a LiteLLM virtual key with its own monthly cap). Add one when an existing bucket cannot absorb a new caller's spend without breaching its budget or muddying attribution.
+
+1. **Choose a SHOUTCASE name.** Convention: short, role-descriptive (e.g., `AIDE`, `INSPECTOR`). Avoid product names (those go in `application` instead — see `model-routing.md` §5).
+2. **Generate a provider API key.** For Anthropic: `console.anthropic.com → Workspaces → <consumer-d> → API Keys → Create`. Tag the key with the consumer name. For OpenRouter: `openrouter.ai/keys → Create Key` with a credit limit matching the intended monthly budget.
+3. **Store in SOPS.** Encrypt into `secrets/secrets.env` as `<PROVIDER>_API_KEY_<CONSUMER>=<value>`. Run `scripts/sops-to-env.sh k8s` to sync into the `consumer-d-secrets` k8s Secret.
+4. **Wire into LiteLLM.** Two edits in the same PR:
+   - `.ai-playbook/configs/litellm-router.yaml` — point the relevant `model_name` entries' `api_key: os.environ/<PROVIDER>_API_KEY_<CONSUMER>`.
+   - `helm/consumer-d-stack/templates/configmaps.yaml` — mirror the change (see `test_litellm_config_sync.py` for the contract).
+5. **Add to this table** (above) with the default monthly budget.
+6. **Set the budget cap.** Use `scripts/litellm_budgets.sh set <CONSUMER> <amount_usd>`. Caps live in the LiteLLM admin DB at runtime, NOT in yaml — the script is authoritative.
+7. **Smoke test.** `python -m scripts._llm <task_class> "ping" --consumer <CONSUMER>` returns a response and Langfuse trace shows `metadata.consumer = <CONSUMER>`.
+
 ---
 
 ## `SMTP_*` (email notifications from `scripts/notify.py`)
