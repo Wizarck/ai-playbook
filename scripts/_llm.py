@@ -120,6 +120,7 @@ class LLMResponse:
     model_actual: str          # gen_ai.response.model — after any fallback hops
     fallback_depth: int        # 0 = primary served; 1+ = hops down the chain
     consumer: str | None       # virtual-key consumer this request was billed to
+    application: str | None = None  # functional grouping (per add-litellm-enforcement D3.8)
     usage: dict[str, int] = field(default_factory=dict)  # {"prompt_tokens", "completion_tokens", ...}
     raw: dict[str, Any] = field(default_factory=dict)    # full provider response for debugging
 
@@ -144,6 +145,25 @@ def _resolve_consumer(explicit: str | None) -> str | None:
         return explicit.upper()
     env = os.environ.get("AIPLAYBOOK_CONSUMER", "").strip()
     return env.upper() if env else None
+
+
+def _resolve_application(explicit: str | None) -> str | None:
+    """Resolve the `application` tag for OTel attribution.
+
+    Per add-litellm-enforcement D3.8: this is a SEPARATE dimension from
+    `consumer`. `consumer` groups by budget bucket; `application` groups
+    by functional subsystem. M:M cardinality (one consumer fans out to
+    many applications, one application can hit many consumers via
+    different task classes).
+
+    Canonical roster lives in `model-routing.md` §5. Validation against
+    that roster is warn-only in v1, strict in v2 (post-migration).
+    """
+    if explicit:
+        # Lowercased + kebab — `hermes-bot`, `aiops-workflow-vps-maintainer`.
+        return explicit.strip().lower()
+    env = os.environ.get("AIPLAYBOOK_APPLICATION", "").strip()
+    return env.lower() if env else None
 
 
 def _events_path() -> Path:
@@ -186,6 +206,7 @@ def call(
     system: str | None = None,
     max_tokens: int | None = None,
     consumer: str | None = None,
+    application: str | None = None,
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
     **extra: Any,
 ) -> LLMResponse:
@@ -199,6 +220,18 @@ def call(
         consumer: per-consumer virtual key (``ADVISOR``/``HERMES``/``JUDGE``/...).
             When set, LiteLLM applies that key's budget. Default reads
             ``AIPLAYBOOK_CONSUMER`` env or falls back to the YAML default.
+        application: functional subsystem tag for cost attribution
+            (``hermes-bot``/``dashboard-backend``/``aiops-workflow-<name>``).
+            Per add-litellm-enforcement D3.8: SEPARATE dimension from
+            ``consumer``; M:M cardinality. Default reads
+            ``AIPLAYBOOK_APPLICATION`` env. Canonical roster in
+            ``model-routing.md`` §5.
+
+            Example::
+
+                call("triage", "ping",
+                     consumer="ADVISOR",            # budget bucket
+                     application="dashboard-backend")  # functional bucket
         timeout_seconds: per-call wall-time cap.
         **extra: forwarded to the LiteLLM `/chat/completions` request body
             (e.g. `temperature`, `top_p`, `response_format`).
@@ -218,6 +251,7 @@ def call(
         )
 
     consumer_resolved = _resolve_consumer(consumer)
+    application_resolved = _resolve_application(application)
 
     messages: list[dict[str, str]] = []
     if system:
@@ -231,6 +265,7 @@ def call(
         "metadata": {
             "task_class": task_class,
             "consumer": consumer_resolved,
+            "application": application_resolved,
         },
         **extra,
     }
@@ -250,6 +285,7 @@ def call(
     _emit_event("gen_ai.request.started", {
         "ai_playbook.task_class": task_class,
         "ai_playbook.consumer": consumer_resolved,
+        "ai_playbook.application": application_resolved,
         "gen_ai.request.model": task_class,  # resolved by proxy
     })
 
@@ -262,6 +298,7 @@ def call(
         _emit_event("gen_ai.request.failed", {
             "ai_playbook.task_class": task_class,
             "ai_playbook.consumer": consumer_resolved,
+            "ai_playbook.application": application_resolved,
             "error": f"{type(e).__name__}: {e}",
             "elapsed_seconds": round(time.time() - started, 3),
             "severity": "error",
@@ -280,6 +317,7 @@ def call(
         _emit_event("gen_ai.request.malformed", {
             "ai_playbook.task_class": task_class,
             "ai_playbook.consumer": consumer_resolved,
+            "ai_playbook.application": application_resolved,
             "error": f"{type(e).__name__}: {e}",
             "raw_keys": list(body.keys()) if isinstance(body, dict) else "non-dict",
             "severity": "error",
@@ -295,6 +333,7 @@ def call(
     _emit_event("gen_ai.usage", {
         "ai_playbook.task_class": task_class,
         "ai_playbook.consumer": consumer_resolved,
+        "ai_playbook.application": application_resolved,
         "gen_ai.request.model": task_class,
         "gen_ai.response.model": model_actual,
         "ai_playbook.routing.fallback_depth": fallback_depth,
@@ -309,6 +348,7 @@ def call(
         model_actual=model_actual,
         fallback_depth=fallback_depth,
         consumer=consumer_resolved,
+        application=application_resolved,
         usage=usage,
         raw=body,
     )
@@ -328,6 +368,8 @@ def _main() -> None:
     parser.add_argument("--system", default=None)
     parser.add_argument("--max-tokens", type=int, default=None)
     parser.add_argument("--consumer", default=None)
+    parser.add_argument("--application", default=None,
+                        help="Functional tag (e.g. dashboard-backend); see model-routing.md §5")
     args = parser.parse_args()
 
     try:
@@ -335,6 +377,7 @@ def _main() -> None:
             args.task_class, args.prompt,
             system=args.system, max_tokens=args.max_tokens,
             consumer=args.consumer,
+            application=args.application,
         )
     except LLMRoutingError as e:
         print(f"ERROR: {e}", flush=True)
