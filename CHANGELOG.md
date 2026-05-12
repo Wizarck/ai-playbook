@@ -4,6 +4,16 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Added — LLM application tag (target: v0.12.0)
+
+A second observability dimension orthogonal to `consumer`. `consumer` groups by budget bucket (LiteLLM virtual-key); `application` groups by functional subsystem (which subsystem is calling LLM). Surfaces the M:M cardinality so the dashboard cost-by-tag widget (consumer of this playbook, Phase 2 of cost-by-tag-dashboard project in eligia-core) can attribute cost by functional bucket.
+
+- **`scripts/_llm.py`** — `call()` accepts new `application: str | None = None` kwarg. `_resolve_application()` mirrors `_resolve_consumer()` with `AIPLAYBOOK_APPLICATION` env fallback (kebab-lowercase normalisation). All 4 OTel emission points propagate `ai_playbook.application`. CLI surface gains `--application`. `LLMResponse` dataclass gains `application` field. 16/16 existing tests pass — backwards-compatible.
+- **`specs/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (hermes-bot, dashboard-backend, aiops-workflow-`<name>`, prompt-injection-filter, lib-advisor, hindsight-internal, claude-code reserved) + "how to add a new application" recipe + worked examples. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
+- **`specs/env-vars.md`** §Per-consumer virtual keys — new "How to add a new consumer" 7-step subsection (provider key generation → SOPS encryption → k8s sync → LiteLLM wiring → table registration → budget cap script → smoke test).
+- **`configs/litellm-router.yaml`** — top-of-file warning section documenting the production-deploy mirror contract: LiteLLM accepts only ONE `--config` file, so this yaml MUST be mirrored into the consumer's ConfigMap (see `tests/test_litellm_config_sync.py` for the sync contract).
+- **`tests/test_litellm_config_sync.py`** (new) — 4 assertions: parses both yamls, asserts strict-subset (every task class in the playbook yaml is present in the consumer's ConfigMap), asserts model consistency across both. Targets the bug class that produced the 2026-05-11 silent regression in eligia-core (proxy had 0 of 11 task classes registered; every `_llm.call` would have 404'd if any caller used the helper).
+
 ### Known gaps still pending (target: v0.11.1+)
 
 - **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a v0.11.1 follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.

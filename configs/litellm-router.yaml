@@ -1,19 +1,27 @@
 # litellm-router.yaml — task-class → model routing matrix
 #
 # Per OpenSpec change `add-litellm-enforcement` (Phase 5 P5.4) and
-# `specs/model-routing.md` v2.0.0. This is the canonical mapping consumed
-# by the LiteLLM proxy at startup. Every LLM call from `_llm.call(task_class, ...)`
-# resolves through this file.
+# `specs/model-routing.md` v2.0.0. This file is the canonical
+# task-class routing specification.
 #
-# Coexistence with `eligia-core/configs/litellm/litellm_config.yaml`:
-#   - That file declares per-consumer aliases (Hermes, RAG, Hindsight) for
-#     budget isolation.
-#   - This file declares the TASK-CLASS routing matrix (triage, daily_dev,
-#     etc.) and the fallback chains.
-#   - The proxy reads BOTH (merged at start time): consumer aliases for the
-#     `model_list:` block, task-class router for the `router_settings:` block.
+# ===========================================================================
+# PRODUCTION DEPLOY — IMPORTANT
+# ===========================================================================
+# LiteLLM accepts only ONE --config file at startup. The proxy in production
+# loads `helm/eligia-stack/templates/configmaps.yaml` (ConfigMap
+# `litellm-config`), which mirrors the 12 `model_list:` entries below
+# alongside the 7 per-consumer aliases (Hermes/RAG/Hindsight).
 #
-# Change the matrix here — NOT in code.
+# Until automated sync lands (.ai-playbook/tests/test_litellm_config_sync.py
+# enforces strict subset), edits to this file MUST be applied to the
+# ConfigMap in the same PR. The sync test will block PRs that drift.
+#
+# Owner of THIS file: spec authors (model-routing.md), Python callers of
+# `_llm.call(task_class, ...)` who validate against it.
+# Owner of the ConfigMap: helm chart, Fleet GitOps reconcile loop.
+# ===========================================================================
+#
+# Change the matrix here — NOT in code — AND propagate to the ConfigMap.
 
 router_settings:
   routing_strategy: simple-shuffle
