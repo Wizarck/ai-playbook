@@ -1,6 +1,8 @@
 # model-routing.md
 
-> **Status**: v2.0.0 — added `safety_judge` and `conversational_agent` task classes; runtime enforcement wired via [`scripts/_llm.py`](../scripts/_llm.py) + [`configs/litellm-router.yaml`](../configs/litellm-router.yaml) by OpenSpec change [`add-litellm-enforcement`](../../openspec/changes/add-litellm-enforcement/proposal.md) (Phase 5 P5.4) on 2026-05-01.
+> **Status**: v2.1.0 — additive: §5 "Application tags" introduces a second observability dimension orthogonal to `consumer` (per OpenSpec change [`add-litellm-enforcement`](../../openspec/changes/add-litellm-enforcement/proposal.md) D3.8, 2026-05-11). `ai_playbook.application` OTel attr added to §4. No breaking changes.
+>
+> v2.0.0 — added `safety_judge` and `conversational_agent` task classes; runtime enforcement wired via [`scripts/_llm.py`](../scripts/_llm.py) + [`configs/litellm-router.yaml`](../configs/litellm-router.yaml) by the same change (Phase 5 P5.4) on 2026-05-01.
 
 The routing matrix below is the canonical taxonomy every playbook consumer uses to pick a model for a given task class. It is **LLM-agnostic at the spec layer**: the primary and fallback columns name specific model IDs as of 2026-05, but the task classes and the fallback semantics are intended to outlive any specific generation of models. When a new family ships, bump IDs in the table; do not reshape the taxonomy lightly.
 
@@ -100,19 +102,78 @@ Every LLM call wrapped by the router emits a span with at minimum:
 | `gen_ai.usage.output_tokens` | int | Completion tokens billed. |
 | `gen_ai.usage.cache_read_input_tokens` | int | Cached-prefix tokens read (0 if provider did not report). |
 | `ai_playbook.task_class` | string | Canonical class from §1 (e.g., `daily-dev`, `code-review-blind-hunter`, `llm-as-judge`). |
+| `ai_playbook.consumer` | string \| null | Budget bucket (LiteLLM virtual-key consumer): `ADVISOR`, `EXECUTOR`, `HERMES`, `JUDGE`, `WORKFLOWS`, ... See env-vars.md `## Per-consumer virtual keys`. Null when the caller doesn't set it. |
+| `ai_playbook.application` | string \| null | Functional grouping (see §5). Examples: `hermes-bot`, `dashboard-backend`, `aiops-workflow-vps-maintainer`. Null when the caller doesn't set it (drift detector flags). Added v2.1.0. |
 | `ai_playbook.routing.fallback_depth` | int | 0 on primary, 1 on first fallback, etc. |
 | `ai_playbook.routing.reason` | string | Present when `fallback_depth > 0`; enum-ish: `rate_limit`, `timeout`, `error`, `health_probe`. |
 
 These attribute names align with the OpenTelemetry Semantic Conventions for Generative AI (the `gen_ai.*` family) and with the existing Langfuse wrappers in `eligia-core/lib/telemetry/{anthropic,gemini,ollama}_tracer.py`. Keep the attribute surface additive — `additionalProperties: true` applies.
 
-## 5. Hooks and existing code
+## 5. Application tags (v2.1.0)
+
+`ai_playbook.application` is a SEPARATE dimension from `ai_playbook.consumer` (the budget bucket). Per [`add-litellm-enforcement` D3.8](../../openspec/changes/add-litellm-enforcement/proposal.md):
+
+| | `consumer` | `application` |
+|---|---|---|
+| **Purpose** | Budget isolation (LiteLLM virtual-key cap) | Cost attribution / observability |
+| **Cardinality** | 1:1 with the field's value | M:M with consumer (one bucket fans out to many apps; one app can hit many buckets via different task classes) |
+| **Where set** | LiteLLM virtual-key env var `<PROV>_API_KEY_<CONSUMER>` + `_llm.call(consumer=...)` | Caller process env `AIPLAYBOOK_APPLICATION` + `_llm.call(application=...)` |
+| **Used by** | LiteLLM budget enforcement; provider-billing reconciliation | Dashboard cost-by-application widget (Phase 3 of cost-by-tag); debugging |
+
+### Canonical application roster (initial)
+
+The roster is intentionally short — additions go through the recipe below.
+
+| Application | What it is | Set by |
+|---|---|---|
+| `hermes-bot` | Telegram + WhatsApp conversational adapter | `AIPLAYBOOK_APPLICATION` env in `/opt/hermes/.env` |
+| `dashboard-backend` | FastAPI app (Langfuse meta-queries, audit summarisation, ad-hoc smoke tests) | env in `helm/eligia-stack/templates/dashboard.yaml` deployment |
+| `aiops-workflow-<name>` | One per workflow in `langgraph-aiops/workflows/`. Examples: `aiops-workflow-vps-maintainer`, `aiops-workflow-retro-generator`, `aiops-workflow-playbook-bump-propagator` | env per-workflow in `langgraph-aiops/Dockerfile` ENTRYPOINT wrapper |
+| `prompt-injection-filter` | The safety-judge gate (layer-2 Haiku) | env in the script wrapper |
+| `lib-advisor` | The executor/advisor session pair | env via `eligia-core/lib/advisor.py` defaults |
+| `hindsight-internal` | Hindsight's recall summarizer (calls LiteLLM via `HINDSIGHT_API_LLM_BASE_URL=http://litellm:4000`) | env in `helm/eligia-stack/templates/hindsight.yaml` |
+| `claude-code` *(reserved)* | Claude Code CLI sessions. Currently routes via direct Anthropic API (not via LiteLLM); reserved here for future inclusion via OTel forwarder. | n/a today |
+
+The `claude-code` row is reserved — the dashboard's cost-by-application widget will show it as "no data (out of LiteLLM scope)" until/unless we add an OTel forwarder.
+
+### How to add a new application
+
+An `application` is a **functional bucket** (what subsystem is making the call). Add one when a new caller can't reasonably be classified under an existing app — typically when it has its own deployment manifest or its own runbook for restarting.
+
+1. **Choose a kebab-lowercase name.** Convention: short, function-descriptive. Prefix with `aiops-workflow-` if it's one workflow inside the `langgraph-aiops/workflows/` directory.
+2. **Register in the table above.** Same PR adds the row + the deployment manifest change that sets `AIPLAYBOOK_APPLICATION=<name>`.
+3. **Set the env at process startup.** Either via the deployment env block (k8s) OR via a wrapper shell script (`AIPLAYBOOK_APPLICATION=<name> exec python -m mymodule.entry`).
+4. **Verify trace metadata.** Trigger one LLM call from the new application; the Langfuse Cloud trace browser should show `metadata.application = <name>`. The cost-by-application widget (once Phase 3 lands) will render a bucket for the app once total calls ≥ 3.
+5. **(post-strict-mode)** If `verify_llm_routing.py` is in strict mode, ensure `_llm.call(application="<name>")` is set explicitly at the call site — env-only is allowed but explicit is recommended for code review clarity.
+
+### `consumer` vs `application`: worked examples
+
+```
+consumer=WORKFLOWS                        ← one budget bucket
+  ├─ application=aiops-workflow-vps-maintainer    (task_class=retrospective)
+  ├─ application=aiops-workflow-retro-generator   (task_class=retrospective)
+  └─ application=langgraph-doc-writer             (task_class=doc_writing_*)
+                                                   ↑ same app, different task_classes
+
+consumer=ADVISOR
+  └─ application=lib-advisor              (task_class=architecture_proposal)
+                                          (task_class=daily_dev)
+
+consumer=HERMES
+  └─ application=hermes-bot               (task_class=conversational_agent)
+
+consumer=JUDGE
+  └─ application=prompt-injection-filter  (task_class=safety_judge)
+```
+
+## 6. Hooks and existing code
 
 - **`scripts/doctor.py`** — primary-provider health check at session start: ping each primary referenced by `AIPLAYBOOK_DEFAULT_TASK_CLASSES` (or the full set), record RTT, and warn on any class whose primary is unreachable.
 - **`scripts/log_event.py`** — emits the OTel span attributes listed in §4. The router calls it; callers don't emit these directly.
 - **`eligia-core/lib/advisor.py`** — existing advisor-pattern implementation. **This spec informs `advisor.py`; `advisor.py` is not modified by this spec.** The mapping is: `AdvisorSession.executor_*` corresponds to the "Daily dev / story implementation" task class, and `AdvisorSession.advisor_*` corresponds to the "Architecture proposal / ADR drafting" class. When the advisor is cross-provider (the `_run_manual_2call` path), both calls are independently subject to this matrix's fallback semantics.
 - **`eligia-core/lib/telemetry/*.py`** — existing Langfuse wrappers. Consumers in ELIGIA trace through these; the playbook router emits the same `gen_ai.*` attributes so the two telemetry paths line up.
 
-## 6. Break-glass
+## 7. Break-glass
 
 A user can pin a specific model against the matrix using the break-glass flag:
 
@@ -127,5 +188,5 @@ The override produces the audit trail defined in `break-glass.md` and surfaces i
 - [degradation-modes.md](degradation-modes.md) — state machine the router feeds into.
 - [prompt-caching.md](prompt-caching.md) — cache ordering that applies regardless of provider.
 - [parallel-review.md](parallel-review.md) — consumer of the three "Code review" task classes.
-- [break-glass.md](break-glass.md) — `--force-with-reason` semantics referenced in §6.
+- [break-glass.md](break-glass.md) — `--force-with-reason` semantics referenced in §7.
 - [notification-policy.md](notification-policy.md) — when and how user-visible fallback notifications are delivered.
