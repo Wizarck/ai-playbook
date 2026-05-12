@@ -4,19 +4,42 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Added — LLM application tag (target: v0.12.0)
+### Known gaps still pending (target: v0.12.1+)
 
-A second observability dimension orthogonal to `consumer`. `consumer` groups by budget bucket (LiteLLM virtual-key); `application` groups by functional subsystem (which subsystem is calling LLM). Surfaces the M:M cardinality so the dashboard cost-by-tag widget (consumer of this playbook, Phase 2 of cost-by-tag-dashboard project in consumer-d) can attribute cost by functional bucket.
+- **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
+- **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
+
+## [0.12.0] — 2026-05-12 — LLM application tag (second observability dimension orthogonal to consumer)
+
+Additive MINOR release. Adds a second tagging dimension (`application`) parallel to the existing `consumer`, enabling cost attribution by functional subsystem in downstream observability tooling (cost-by-tag dashboard in consumer-d, similar surfaces in other consumers).
+
+Motivation: consumers like `WORKFLOWS` fan out to many functional subsystems (`aiops-workflow-vps-maintainer`, `aiops-workflow-retro-generator`, `langgraph-doc-writer`, ...). Attribution by `consumer` alone collapses these into one bucket, breaking *"which subsystem is driving Opus cost?"*. Collapsing the two dimensions instead (one tag per app) explodes the LiteLLM virtual-key roster and breaks the budget abstraction. Decouple from day 1.
+
+Origin: cost-by-tag-dashboard project in consumer-d (Phase 1), see [`openspec/changes/llm-application-tag/proposal.md`](openspec/changes/llm-application-tag/proposal.md).
+
+### Added
 
 - **`scripts/_llm.py`** — `call()` accepts new `application: str | None = None` kwarg. `_resolve_application()` mirrors `_resolve_consumer()` with `AIPLAYBOOK_APPLICATION` env fallback (kebab-lowercase normalisation). All 4 OTel emission points propagate `ai_playbook.application`. CLI surface gains `--application`. `LLMResponse` dataclass gains `application` field. 16/16 existing tests pass — backwards-compatible.
-- **`specs/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (hermes-bot, dashboard-backend, aiops-workflow-`<name>`, prompt-injection-filter, lib-advisor, hindsight-internal, claude-code reserved) + "how to add a new application" recipe + worked examples. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
+- **`specs/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (`hermes-bot`, `dashboard-backend`, `aiops-workflow-<name>`, `prompt-injection-filter`, `lib-advisor`, `hindsight-internal`, `claude-code` reserved) + "how to add a new application" recipe + worked examples showing `consumer × application` M:M. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
 - **`specs/env-vars.md`** §Per-consumer virtual keys — new "How to add a new consumer" 7-step subsection (provider key generation → SOPS encryption → k8s sync → LiteLLM wiring → table registration → budget cap script → smoke test).
-- **`configs/litellm-router.yaml`** — top-of-file warning section documenting the production-deploy mirror contract: LiteLLM accepts only ONE `--config` file, so this yaml MUST be mirrored into the consumer's ConfigMap. The companion sync test lives in the consumer's repo (e.g. `consumer-d/.ai-playbook/tests/test_litellm_config_sync.py`), NOT here — it reads the consumer's local helm template, which doesn't exist inside the playbook standalone.
+- **`configs/litellm-router.yaml`** — top-of-file warning section documenting the production-deploy mirror contract: LiteLLM accepts only ONE `--config` file, so this yaml MUST be mirrored into the consumer's project-local ConfigMap. The companion sync test lives in the consumer's repo (e.g. `consumer-d/dashboard/tests/test_litellm_config_sync.py`), NOT here — it reads the consumer's local deploy template, which doesn't exist inside the playbook standalone.
+- **`openspec/changes/llm-application-tag/`** — new openspec change folder tracking the playbook-side of this work, cross-referenced to the parent project in consumer-d.
 
-### Known gaps still pending (target: v0.11.1+)
+### Changed
 
-- **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a v0.11.1 follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
-- **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
+- N/A — fully additive. No existing surface modified in a breaking way.
+
+### Removed
+
+- N/A.
+
+### Notes for consumers
+
+- Bump submodule `.ai-playbook` to `v0.12.0` via `propagate_bump.py` (or manually `cd .ai-playbook && git checkout v0.12.0`).
+- Existing callers that don't pass `application=` continue to work; the resulting trace's `metadata.application` will be `null` until adopted.
+- Each consumer SHOULD ship a sync test that asserts strict-subset against their local LiteLLM ConfigMap / docker-compose volume mount. See consumer-d for the reference implementation.
+
+## [0.11.0] — 2026-05-06 — cross-project pattern consolidation: migration slots, Protocol+InTreeFake, additive extension, HITL approval, multi-layer defense
 
 ## [0.11.0] — 2026-05-06 — cross-project pattern consolidation: migration slots, Protocol+InTreeFake, additive extension, HITL approval, multi-layer defense
 
