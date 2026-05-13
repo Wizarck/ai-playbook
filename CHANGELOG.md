@@ -9,6 +9,13 @@ All notable changes to `ai-playbook` are documented here. Semver.
 - **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
 - **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
 
+### Added (v0.13.0 candidate)
+
+- **`scripts/verify_llm_routing.py`** — new AST-based check `missing-application-kwarg`. Flags `_llm.call(...)` invocations that lack an explicit `application=` keyword. Handles aliased imports (`from ._llm import call as _llm_call`), attribute chains (`scripts._llm.call(...)`), and multiline call sites. Respects existing `# llm-routing-allow: <reason>` inline whitelist (use `env-fallback` for callers relying on `AIPLAYBOOK_APPLICATION` env). Warn-only in v1 — promote to `--strict` after 30 days of green CI (target: 2026-06-05). Closes T7.5 of parent eligia-core change `add-litellm-enforcement`.
+- **`.github/workflows/test.yml`** — new "Drift detector (warn-only)" CI step running `python -m scripts.verify_llm_routing` on every PR. Closes T7.8.
+- **`tests/test_llm_helper.py`** — 9 new `test_scan_*` tests covering the AST check (clean-tree updated; new cases for missing/explicit/multiline/aliased/inline-allow/kwargs-splat/excludes-`_llm.py`/chained-attr). 26/26 tests passing.
+- **`openspec/changes/llm-drift-detector-app-kwarg/proposal.md`** — new openspec change tracking the playbook-side of T7.
+
 ## [0.12.1] — 2026-05-13 — prompt-injection-filter adopts application tag
 
 Patch release. `scripts/prompt_injection_filter.py:_run_layer2()` now passes `application="prompt-injection-filter"` to its existing `_llm.call(task_class="safety_judge", ...)` invocation (the parameter shipped in v0.12.0). Without the explicit kwarg, the trace's `metadata.application` was null and downstream observability tooling (eligia-core's cost-by-application widget, Phase 3) would have rendered the entries in the "untagged" bucket.
