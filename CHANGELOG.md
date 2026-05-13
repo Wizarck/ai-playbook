@@ -6,6 +6,19 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ### Known gaps still pending (target: v0.14.0+)
 
+## [0.13.2] — 2026-05-13 — upstream-sync §9: containerised forks pin-bump rule
+
+Patch release. Docs-only — `specs/upstream-sync.md` v1.0.0 → v1.1.0 gains §9 "Containerised forks — base-image pin discipline" capturing a fork-overlay-Docker gotcha learned in [`Wizarck/hermes-agent#6`](https://github.com/Wizarck/hermes-agent/pull/6) on 2026-05-13.
+
+Rule: when a fork ships as `FROM <upstream>@sha256:<digest> + COPY our_source.py`, the pinned digest and the fork source tree MUST advance together during every upstream sync. Skipping the pin bump produces a container where new source files (with new imports) sit on top of an OLD base image without the modules they need → `ModuleNotFoundError` at startup.
+
+Spec adds the rule, a 4-step recipe (merge → resolve digest → bump pin → rebuild), an applicability boundary (only for overlay forks), and a memory-retention hook tagged `upstream-sync, containerised-fork, fork-image-pin`.
+
+### Notes for consumers
+
+- Bump submodule `.ai-playbook` to `v0.13.2`. No code changes required. Consumers running fork overlays (Hermes, Hindsight, Paperclip, LightRAG, ...) benefit from the vendored doc.
+
+
 - **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
 - **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
 - **`missing-application-kwarg` warn → strict ratchet**: target 2026-06-05 after 30 days of green CI. Flip pre-commit + CI to `--strict` and add runtime `LLMConfigError` in `_llm.call()` when neither `application=` arg nor `AIPLAYBOOK_APPLICATION` env is set.
