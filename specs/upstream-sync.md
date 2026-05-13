@@ -1,6 +1,10 @@
 # upstream-sync.md
 
-> **Status**: v1.0.0.
+> **Status**: v1.1.0 — additive: §9 "Containerised forks — base-image pin discipline" surfaces
+> a fork-overlay-Docker gotcha learned the hard way on 2026-05-13 in `Wizarck/hermes-agent` PR #6.
+> Original §9 "Cross-references" renumbered to §10.
+>
+> v1.0.0 — initial fork governance contract.
 
 Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving
 upstream repos (Hindsight, Hermes, Paperclip, LightRAG, and others). Upstream commits land at
@@ -137,7 +141,72 @@ Conflicts and lost patches retain as `kind=failure` with subtype `upstream_lost_
 can surface repeat offenders (an upstream surface we keep losing patches on is a signal to stop
 patching that file and open an upstream RFC instead).
 
-## 9. Cross-references
+## 9. Containerised forks — base-image pin discipline
+
+Some forks ship as a Docker overlay: a slim `Dockerfile` that does
+
+```dockerfile
+FROM <upstream-image>@sha256:<digest>
+COPY our/patched/source.py /opt/app/our/patched/source.py
+```
+
+The pinned `<digest>` and the fork's source tree **MUST advance together** during every upstream
+sync. Skipping the pin bump produces a container where new source files (with new imports) sit on
+top of an OLD base image (without those modules):
+
+```
+ModuleNotFoundError: No module named '<new_module_from_upstream>'
+```
+
+This was discovered on 2026-05-13 in `Wizarck/hermes-agent` PR #6: the source tree was synced to
+upstream commit `1979ef580` (which introduced `agent.account_usage`), but the overlay still pinned
+`nousresearch/hermes-agent@sha256:c47d282…` — an older base image. The container moved from
+`healthy` (pre-sync) → `unhealthy` (post-sync) for ~10 minutes until the pin bump landed.
+
+### Rule
+
+Every upstream sync on a containerised fork SHALL bump BOTH:
+
+1. The fork's source tree (the `git merge upstream/main` step covered by §5).
+2. The base-image digest pinned in the overlay Dockerfile.
+
+### Recipe
+
+```bash
+# 1. Sync the fork source tree.
+git fetch upstream
+git merge upstream/main  # resolve conflicts per §5 diff triage rubric
+
+# 2. Resolve the matching base-image digest. NousResearch publishes one
+#    Docker tag per upstream commit (sha-<full-sha>). Other upstreams may
+#    use a different tag scheme — check the fork's UPSTREAM image source.
+HEAD_SHA=$(git rev-parse upstream/main)
+TAG="sha-${HEAD_SHA}"
+DIGEST=$(curl -s "https://hub.docker.com/v2/repositories/<owner>/<image>/tags/${TAG}" \
+          | jq -r '.digest')
+
+# 3. Bump ARG UPSTREAM=...@sha256:<new digest> in the overlay Dockerfile.
+#    Commit alongside the merge in step 1 (or as a separate hotfix PR if
+#    the merge was already pushed).
+
+# 4. Rebuild + restart on every deploy target.
+```
+
+### When the rule applies
+
+The rule is conditional on the fork using the overlay pattern. Forks that build entirely from
+source (no pinned base image; the runtime image IS the fork tree compiled fresh) skip §9 entirely.
+The fork inventory in [`../docs/fork-inventory.md`](../docs/fork-inventory.md) SHOULD mark which
+forks use the overlay pattern so this rule is auto-discoverable.
+
+### Memory retention
+
+When a containerised-fork sync requires the pin bump, retain a `kind=gotcha` entry per §8 with
+tags `upstream-sync, containerised-fork, fork-image-pin`. Repeat hits surface the same
+pattern across other forks — an opportunity to template the bump into the upstream-refresher
+workflow itself.
+
+## 10. Cross-references
 
 - [break-glass.md](break-glass.md) — override contract for force-pushes.
 - [agentic-failures.md](agentic-failures.md) — `untracked_state_mutation` applies to orphan
