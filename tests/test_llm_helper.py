@@ -231,7 +231,8 @@ import verify_llm_routing  # noqa: E402
 
 def test_scan_clean_tree_returns_no_findings(tmp_path: Path) -> None:
     (tmp_path / "good.py").write_text(
-        "from scripts._llm import call\nresp = call('triage', 'ping')\n",
+        "from scripts._llm import call\n"
+        "resp = call('triage', 'ping', application='dashboard-backend')\n",
         encoding="utf-8",
     )
     findings = verify_llm_routing.scan(tmp_path)
@@ -332,3 +333,127 @@ def test_scan_returns_findings_sorted_by_path_then_line(tmp_path: Path) -> None:
     assert findings[1].line_no == 1
     assert findings[2].path.endswith("b.py")
     assert findings[2].line_no == 2
+
+
+# ---------------------------------------------------------------------------
+# verify_llm_routing.scan — AST check: missing `application=` kwarg
+# ---------------------------------------------------------------------------
+
+
+def test_scan_flags_llm_call_missing_application(tmp_path: Path) -> None:
+    (tmp_path / "caller.py").write_text(
+        "from scripts import _llm\n"
+        "resp = _llm.call('triage', 'ping', consumer='ADVISOR')\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert len(findings) == 1
+    assert findings[0].rule == "missing-application-kwarg"
+    assert findings[0].line_no == 2
+    assert findings[0].path.endswith("caller.py")
+
+
+def test_scan_accepts_explicit_application_kwarg(tmp_path: Path) -> None:
+    (tmp_path / "caller.py").write_text(
+        "from scripts import _llm\n"
+        "resp = _llm.call('triage', 'ping', application='dashboard-backend')\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert findings == []
+
+
+def test_scan_flags_multiline_call_missing_application(tmp_path: Path) -> None:
+    (tmp_path / "caller.py").write_text(
+        "from scripts import _llm\n"
+        "resp = _llm.call(\n"
+        "    'triage',\n"
+        "    'ping',\n"
+        "    consumer='ADVISOR',\n"
+        "    max_tokens=256,\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert len(findings) == 1
+    assert findings[0].rule == "missing-application-kwarg"
+    # The finding points at the line where the Call starts.
+    assert findings[0].line_no == 2
+
+
+def test_scan_accepts_multiline_call_with_application(tmp_path: Path) -> None:
+    (tmp_path / "caller.py").write_text(
+        "from scripts import _llm\n"
+        "resp = _llm.call(\n"
+        "    'triage',\n"
+        "    'ping',\n"
+        "    consumer='ADVISOR',\n"
+        "    application='lib-advisor',\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert findings == []
+
+
+def test_scan_handles_aliased_call_import(tmp_path: Path) -> None:
+    """Aliased import: `from ._llm import call as _llm_call` — alias is tracked."""
+    (tmp_path / "caller.py").write_text(
+        "from scripts._llm import call as _llm_call\n"
+        "resp = _llm_call('safety_judge', 'text', consumer='INJECTION')\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert len(findings) == 1
+    assert findings[0].rule == "missing-application-kwarg"
+
+
+def test_scan_inline_allow_whitelists_missing_application(tmp_path: Path) -> None:
+    (tmp_path / "caller.py").write_text(
+        "from scripts import _llm\n"
+        "resp = _llm.call('triage', 'ping')  # llm-routing-allow: env-fallback\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert findings == []
+
+
+def test_scan_skips_call_with_kwargs_splat(tmp_path: Path) -> None:
+    """If the call uses **kwargs we can't know statically whether application is present.
+
+    Skip rather than emit a false positive.
+    """
+    (tmp_path / "caller.py").write_text(
+        "from scripts import _llm\n"
+        "extra = {'application': 'dashboard-backend'}\n"
+        "resp = _llm.call('triage', 'ping', **extra)\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert findings == []
+
+
+def test_scan_excludes_llm_module_itself(tmp_path: Path) -> None:
+    """`scripts/_llm.py` implements `call` — it must not be scanned."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "_llm.py").write_text(
+        "def call(task_class, prompt):\n"
+        "    return _llm_call_internal(task_class, prompt)\n"
+        "def _llm_call_internal(a, b):\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert findings == []
+
+
+def test_scan_handles_chained_attribute_call(tmp_path: Path) -> None:
+    """`scripts._llm.call(...)` (fully qualified) is still flagged when application is missing."""
+    (tmp_path / "caller.py").write_text(
+        "import scripts._llm\n"
+        "resp = scripts._llm.call('triage', 'ping')\n",
+        encoding="utf-8",
+    )
+    findings = verify_llm_routing.scan(tmp_path)
+    assert len(findings) == 1
+    assert findings[0].rule == "missing-application-kwarg"
