@@ -6,6 +6,23 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ### Known gaps still pending (target: v0.14.0+)
 
+## [0.13.3] — 2026-05-13 — fusion-integration-pattern spec + new-project template polish
+
+Patch release. Additive — codifies the integration pattern for consumer projects that already have a mature OpenSpec custom workflow (their own `openspec/schemas/<name>/schema.yaml` with N artefacts and project-specific Karpathy/discipline rules). The pattern preserves the consumer's accumulated workflow investment and imports the formal contracts the playbook ships (verdict-contract S1-S4, parallel-review context isolation, agentic-failures taxonomy, output-completeness rules, verification-before-completion iron law, agent-contract write_paths, Hindsight recall) without replacing the custom workflow.
+
+First reference implementation: `geeplo` (FastAPI + Next.js modular monolith, `geeplo-team` schema with 9 artefacts, 18 changes pre-fusion).
+
+New: [`specs/fusion-integration-pattern.md`](specs/fusion-integration-pattern.md) — fusion decision matrix, AGENTS.md §7 template structure, migration policy (existing changes exempt), N-layer parallel review (3 isolated playbook layers + 1 holistic project-reviewer layer with M custom checks; no size opt-out), dual canonical memory sources (Markdown SSOT + Hindsight recall), verdict mapping reference (legacy → canonical), pre-commit hook profile with documented opt-out conditions, worked example.
+
+Template polish (no breaking changes for existing consumers):
+
+- `templates/new-project/AGENTS.md.tmpl`: bump `inherits_from` pin from `v0.3.0` to `v0.13.2` (current shipped at time of v0.13.3 PR). Add §7 comment block linking to fusion-integration-pattern.md for projects with pre-existing custom workflows.
+- `templates/new-project/.pre-commit-config.yaml.tmpl`: add `verdict-lint` hook as default (matches `openspec/changes/*/(review|verify).md`). Comment out `block_manual_spec_edit` and `verify_llm_routing` hooks with explicit opt-in activation conditions documented inline. Expand `mcp-validate` `files` regex to match both `mcp-servers.yaml` and `mcp-servers.project.yaml`.
+
+### Notes for consumers
+
+- Bump submodule `.ai-playbook` to `v0.13.3`. No code changes required. Existing consumer projects with their own workflow stay on the path they were on; the new spec is opt-in for projects that need it.
+
 ## [0.13.2] — 2026-05-13 — upstream-sync §9: containerised forks pin-bump rule
 
 Patch release. Docs-only — `specs/upstream-sync.md` v1.0.0 → v1.1.0 gains §9 "Containerised forks — base-image pin discipline" capturing a fork-overlay-Docker gotcha learned in [`Wizarck/hermes-agent#6`](https://github.com/Wizarck/hermes-agent/pull/6) on 2026-05-13.

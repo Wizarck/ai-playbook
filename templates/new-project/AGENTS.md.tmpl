@@ -2,7 +2,7 @@
 schema: agents-md/v1
 version: 0.1.0
 inherits_from:
-  - github.com/Wizarck/ai-playbook@v0.3.0
+  - github.com/Wizarck/ai-playbook@v0.13.2
 updated: {{TODAY}}
 project: {{PROJECT_NAME}}
 owner: {{OWNER_EMAIL}}
@@ -81,6 +81,24 @@ Rendered to [`.mcp.json`](.mcp.json) + [`.gemini/settings.json`](.gemini/setting
 ## 7 Overrides inherited from playbook
 
 {{NONE_OR_EXPLICIT_OVERRIDES_WITH_RATIONALE}}
+
+<!--
+If this project has a pre-existing OpenSpec custom workflow (its own
+`openspec/schemas/<name>/schema.yaml` with N artefacts), use the **fusion
+integration pattern** to import playbook contracts without replacing the
+custom workflow. See [.ai-playbook/specs/fusion-integration-pattern.md].
+
+Typical §7 sub-sections for fusion projects:
+  §7.1 — OpenSpec workflow (fusion, not replacement) + verdict mapping
+  §7.2 — Memory (dual canonical: openspec/memory.md + Hindsight bank)
+  §7.3 — BMAD Discovery (skills available, workflow not mandatory)
+  §7.4 — Available but not active by default (opt-in)
+  §7.5 — Not applicable to this project
+
+`scripts/drift_check.py --check overrides` validates that each entry cites
+a playbook spec by path.
+-->
+
 
 ## 8 Gotchas
 
