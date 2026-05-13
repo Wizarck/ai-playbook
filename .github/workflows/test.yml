@@ -36,3 +36,11 @@ jobs:
 
       - name: Test
         run: pytest -ra
+
+      - name: Drift detector (warn-only)
+        # Change C add-litellm-enforcement T7.8: surface direct-SDK callers and
+        # `_llm.call(...)` invocations missing `application=`. Warn-only mode —
+        # exit 0 even on findings. Promote to `--strict` after 30 days of green
+        # builds (target: 2026-06-05). See verify_llm_routing.py header for the
+        # warn → strict ratchet (D3.5).
+        run: python -m scripts.verify_llm_routing
