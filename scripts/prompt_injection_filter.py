@@ -198,6 +198,7 @@ def _run_layer2(text: str) -> tuple[str, str]:
             system=_LAYER2_SYSTEM,
             max_tokens=256,
             consumer="INJECTION",
+            application="prompt-injection-filter",
         )
     except LLMRoutingError as exc:
         return "skipped", f"LiteLLM proxy unreachable: {exc}"
