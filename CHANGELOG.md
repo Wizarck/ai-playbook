@@ -4,6 +4,10 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Changed
+
+- **`specs/enforcement-status.md`** — refreshed the `model-routing.md` row (line 47) to reflect post-Phase-1 reality of OpenSpec change `add-litellm-enforcement` (eligia-core): drift detector now covers BOTH direct-SDK and `_llm.call(...)` missing `application=` (v0.13.0 AST check); call-site migrations CLOSED for `prompt_injection_filter.py` (v0.12.1) and `eligia-core/lib/advisor.py:_call_via_litellm` (eligia-core PR #166); application tag lands end-to-end (v0.12.0 + roster in §5 of model-routing.md). Strict-mode promotion target 2026-06-05 still pending (after 30 green-build days). No behaviour change — docs only.
+
 ### Known gaps still pending (target: v0.14.0+)
 
 - **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
