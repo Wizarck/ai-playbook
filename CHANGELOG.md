@@ -4,16 +4,20 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Changed — prompt-injection-filter uses explicit application tag (target: v0.12.1)
-
-`scripts/prompt_injection_filter.py:_run_layer2()` passes `application="prompt-injection-filter"` to its existing `_llm.call(task_class="safety_judge", ...)` invocation. Without the explicit kwarg, the trace's `metadata.application` was null and the dashboard cost-by-application widget (consumer-d Phase 3) would have rendered the entries in the "untagged" bucket. First caller in the playbook to adopt the `application` parameter shipped in v0.12.0.
-
-This is a one-line patch — no behavior change beyond OTel metadata.
-
-### Known gaps still pending (target: v0.12.1+)
+### Known gaps still pending (target: v0.13.0+)
 
 - **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
 - **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
+
+## [0.12.1] — 2026-05-13 — prompt-injection-filter adopts application tag
+
+Patch release. `scripts/prompt_injection_filter.py:_run_layer2()` now passes `application="prompt-injection-filter"` to its existing `_llm.call(task_class="safety_judge", ...)` invocation (the parameter shipped in v0.12.0). Without the explicit kwarg, the trace's `metadata.application` was null and downstream observability tooling (consumer-d's cost-by-application widget, Phase 3) would have rendered the entries in the "untagged" bucket.
+
+First caller in the playbook to adopt the application dimension. No behavior change beyond OTel metadata.
+
+### Notes for consumers
+
+- Bump submodule `.ai-playbook` to `v0.12.1`. No code changes required in consumers unless they want to backport the same pattern (`application=` kwarg) to their own callers — recommended.
 
 ## [0.12.0] — 2026-05-12 — LLM application tag (second observability dimension orthogonal to consumer)
 
