@@ -23,6 +23,17 @@ Detection rules:
   | anywhere outside the helper | `scripts/_llm.py`, `lib/telemetry/gemini_tracer.py` |
 | `os.environ.get("ANTHROPIC_API_KEY"` / `os.getenv("ANTHROPIC_API_KEY"`
   | anywhere outside helpers | `scripts/_llm.py` |
+| `_llm.call(...)` / `_llm_call(...)` invoked without explicit `application=`
+  | anywhere outside the helper and tests | `scripts/_llm.py`, `tests/` |
+
+The application-tag check (`missing-application-kwarg`) requires AST parsing
+because real-world `_llm.call(...)` invocations span multiple lines. It looks
+at every call site, resolves the function name through file-local imports
+(both `_llm.call(...)` and `from ._llm import call as _llm_call` aliases),
+and emits a finding when no `application=` keyword is present. Callers may
+rely on the `AIPLAYBOOK_APPLICATION` env var as a fallback — the static check
+cannot see env state, so this is best-effort: in v1 it warns; the helper
+itself enforces strict mode at runtime once the migration window closes.
 
 Excluded paths (built-in):
 
@@ -43,6 +54,7 @@ Pre-commit hook config: see `.pre-commit-config.yaml` (added by Task 7 of the ch
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -128,6 +140,10 @@ _BUILTIN_EXCLUSIONS: tuple[str, ...] = (
 _INLINE_ALLOW_RE = re.compile(r"#\s*llm-routing-allow:\s*\S")
 
 
+# Name of the AST rule that flags `_llm.call(...)` without `application=`.
+_APPLICATION_RULE_NAME = "missing-application-kwarg"
+
+
 # ---------------------------------------------------------------------------
 # Walking
 # ---------------------------------------------------------------------------
@@ -181,6 +197,105 @@ def _scan_file(path: Path) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
+# AST-based scan: `_llm.call(...)` missing `application=` kwarg
+# ---------------------------------------------------------------------------
+
+
+def _collect_llm_bindings(tree: ast.AST) -> tuple[set[str], set[str]]:
+    """Return ``(call_aliases, module_aliases)`` bound in this file.
+
+    - ``call_aliases``: names that resolve to ``scripts._llm.call`` (e.g.
+      from ``from ._llm import call as _llm_call`` → ``{"_llm_call"}``).
+    - ``module_aliases``: names that resolve to the ``_llm`` module itself
+      (e.g. from ``from scripts import _llm`` → ``{"_llm"}``). Always
+      includes the bare name ``"_llm"`` so ``_llm.call(...)`` without an
+      explicit import in the file is still flagged.
+    """
+    call_aliases: set[str] = set()
+    module_aliases: set[str] = {"_llm"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if mod.endswith("_llm"):
+                for alias in node.names:
+                    if alias.name == "call":
+                        call_aliases.add(alias.asname or "call")
+            for alias in node.names:
+                if alias.name == "_llm":
+                    module_aliases.add(alias.asname or "_llm")
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.endswith("_llm"):
+                    if alias.asname:
+                        module_aliases.add(alias.asname)
+                    elif "." not in alias.name:
+                        module_aliases.add(alias.name)
+    return call_aliases, module_aliases
+
+
+def _is_llm_call(node: ast.Call, call_aliases: set[str], module_aliases: set[str]) -> bool:
+    """True if ``node`` is a call to ``_llm.call`` (any binding) or to a known alias."""
+    func = node.func
+    if isinstance(func, ast.Attribute) and func.attr == "call":
+        cur: ast.AST = func.value
+        while isinstance(cur, ast.Attribute):
+            if cur.attr in module_aliases:
+                return True
+            cur = cur.value
+        if isinstance(cur, ast.Name) and cur.id in module_aliases:
+            return True
+    return isinstance(func, ast.Name) and func.id in call_aliases
+
+
+def _scan_file_ast(path: Path) -> list[Finding]:
+    """Scan ``path`` for ``_llm.call(...)`` invocations missing ``application=``."""
+    findings: list[Finding] = []
+    try:
+        source = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return findings
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError:
+        return findings
+
+    call_aliases, module_aliases = _collect_llm_bindings(tree)
+    source_lines = source.splitlines()
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not _is_llm_call(node, call_aliases, module_aliases):
+            continue
+        kwarg_names = {kw.arg for kw in node.keywords if kw.arg is not None}
+        if "application" in kwarg_names:
+            continue
+        # `**kwargs` may carry application; we cannot know statically — skip.
+        if any(kw.arg is None for kw in node.keywords):
+            continue
+
+        # Inline allow on any line spanned by this call expression.
+        start = node.lineno
+        end = getattr(node, "end_lineno", start) or start
+        skipped = False
+        for ln in range(start, end + 1):
+            if 0 < ln <= len(source_lines) and _INLINE_ALLOW_RE.search(source_lines[ln - 1]):
+                skipped = True
+                break
+        if skipped:
+            continue
+
+        line_text = source_lines[start - 1] if 0 < start <= len(source_lines) else ""
+        findings.append(Finding(
+            path=str(path),
+            line_no=start,
+            rule=_APPLICATION_RULE_NAME,
+            line=line_text,
+        ))
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Public API (also used by tests)
 # ---------------------------------------------------------------------------
 
@@ -192,7 +307,8 @@ def scan(repo_root: Path | str, *, exclusions: tuple[str, ...] | None = None) ->
     out: list[Finding] = []
     for f in _walk_repo(root, excl):
         out.extend(_scan_file(f))
-    out.sort(key=lambda f: (f.path, f.line_no))
+        out.extend(_scan_file_ast(f))
+    out.sort(key=lambda f: (f.path, f.line_no, f.rule))
     return out
 
 
@@ -225,12 +341,23 @@ def _main() -> int:
             print(f"verify_llm_routing: {len(findings)} finding(s):", file=sys.stderr)
             for f in findings:
                 print(f"  {f.render()}", file=sys.stderr)
-            print(
-                "\nMigrate each call to `from scripts._llm import call` and use "
-                "`call(task_class, prompt, ...)`. See specs/model-routing.md §1 for "
-                "the task-class taxonomy. Inline allow with `# llm-routing-allow: <reason>`.",
-                file=sys.stderr,
-            )
+            direct_sdk = [f for f in findings if f.rule != _APPLICATION_RULE_NAME]
+            missing_app = [f for f in findings if f.rule == _APPLICATION_RULE_NAME]
+            if direct_sdk:
+                print(
+                    "\nDirect-SDK callers: migrate each to `from scripts._llm import call` "
+                    "and use `call(task_class, prompt, ...)`. See specs/model-routing.md §1 "
+                    "for the task-class taxonomy. Inline allow with `# llm-routing-allow: <reason>`.",
+                    file=sys.stderr,
+                )
+            if missing_app:
+                print(
+                    "\nMissing-application: add an explicit `application=\"<canonical-name>\"` "
+                    "kwarg to each `_llm.call(...)` flagged above. See specs/model-routing.md §5 "
+                    "for the canonical application roster. Callers that set `AIPLAYBOOK_APPLICATION` "
+                    "at runtime can also annotate the call with `# llm-routing-allow: env-fallback`.",
+                    file=sys.stderr,
+                )
 
     if findings and strict:
         return 2
