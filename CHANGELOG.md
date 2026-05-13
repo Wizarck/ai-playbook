@@ -4,17 +4,38 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.13.0+)
+### Known gaps still pending (target: v0.14.0+)
 
 - **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
 - **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
+- **`missing-application-kwarg` warn → strict ratchet**: target 2026-06-05 after 30 days of green CI. Flip pre-commit + CI to `--strict` and add runtime `LLMConfigError` in `_llm.call()` when neither `application=` arg nor `AIPLAYBOOK_APPLICATION` env is set.
 
-### Added (v0.13.0 candidate)
+## [0.13.0] — 2026-05-13 — drift detector: `_llm.call(...)` missing `application=` kwarg
 
-- **`scripts/verify_llm_routing.py`** — new AST-based check `missing-application-kwarg`. Flags `_llm.call(...)` invocations that lack an explicit `application=` keyword. Handles aliased imports (`from ._llm import call as _llm_call`), attribute chains (`scripts._llm.call(...)`), and multiline call sites. Respects existing `# llm-routing-allow: <reason>` inline whitelist (use `env-fallback` for callers relying on `AIPLAYBOOK_APPLICATION` env). Warn-only in v1 — promote to `--strict` after 30 days of green CI (target: 2026-06-05). Closes T7.5 of parent consumer-d change `add-litellm-enforcement`.
-- **`.github/workflows/test.yml`** — new "Drift detector (warn-only)" CI step running `python -m scripts.verify_llm_routing` on every PR. Closes T7.8.
+Additive MINOR release. `scripts/verify_llm_routing.py` gains a second detection rule beyond direct-SDK callers: every `_llm.call(...)` invocation MUST carry an explicit `application=` keyword (or rely on `AIPLAYBOOK_APPLICATION` env at runtime). Without static enforcement, new callers shipping post-v0.12.0 could silently land with `metadata.application = null` and render in downstream observability as "untagged" — defeating the purpose of the application dimension.
+
+Closes T7.5 + T7.8 of parent consumer-d change `add-litellm-enforcement`. Tracked here at [`openspec/changes/llm-drift-detector-app-kwarg/proposal.md`](openspec/changes/llm-drift-detector-app-kwarg/proposal.md).
+
+### Added
+
+- **`scripts/verify_llm_routing.py`** — new AST-based check `missing-application-kwarg`. Flags `_llm.call(...)` invocations that lack an explicit `application=` keyword. Handles aliased imports (`from ._llm import call as _llm_call`), attribute chains (`scripts._llm.call(...)`), and multiline call sites. Respects existing `# llm-routing-allow: <reason>` inline whitelist (use `env-fallback` for callers relying on `AIPLAYBOOK_APPLICATION` env). Warn-only in v1 — same warn → strict ratchet (D3.5) as the existing direct-SDK rules. CLI hint differentiates direct-SDK findings from missing-application findings.
+- **`.github/workflows/test.yml`** — new "Drift detector (warn-only)" CI step running `python -m scripts.verify_llm_routing` on every PR.
 - **`tests/test_llm_helper.py`** — 9 new `test_scan_*` tests covering the AST check (clean-tree updated; new cases for missing/explicit/multiline/aliased/inline-allow/kwargs-splat/excludes-`_llm.py`/chained-attr). 26/26 tests passing.
-- **`openspec/changes/llm-drift-detector-app-kwarg/proposal.md`** — new openspec change tracking the playbook-side of T7.
+- **`openspec/changes/llm-drift-detector-app-kwarg/`** — new openspec change tracking the playbook-side of T7.
+
+### Changed
+
+- N/A — fully additive. The new rule is warn-only, so existing builds remain green.
+
+### Removed
+
+- N/A.
+
+### Notes for consumers
+
+- Bump submodule `.ai-playbook` to `v0.13.0`. The new CI step will start flagging any `_llm.call(...)` in consumer code missing `application=`. Findings are warnings only — exit code 0 — but they appear in the CI log and are visible in pre-commit local runs.
+- Existing callers that already pass `application=` (e.g. consumer-d's `lib/advisor.py` adopted in v0.12.1's wave) are unaffected.
+- To migrate a flagged call, add the canonical `application="<name>"` per `specs/model-routing.md` §5 roster, OR annotate with `# llm-routing-allow: env-fallback` if the caller relies on `AIPLAYBOOK_APPLICATION` env in its deployment manifest.
 
 ## [0.12.1] — 2026-05-13 — prompt-injection-filter adopts application tag
 
