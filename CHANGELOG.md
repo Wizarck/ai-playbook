@@ -4,15 +4,21 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Changed
-
-- **`specs/enforcement-status.md`** — refreshed the `model-routing.md` row (line 47) to reflect post-Phase-1 reality of OpenSpec change `add-litellm-enforcement` (consumer-d): drift detector now covers BOTH direct-SDK and `_llm.call(...)` missing `application=` (v0.13.0 AST check); call-site migrations CLOSED for `prompt_injection_filter.py` (v0.12.1) and `consumer-d/lib/advisor.py:_call_via_litellm` (consumer-d PR #166); application tag lands end-to-end (v0.12.0 + roster in §5 of model-routing.md). Strict-mode promotion target 2026-06-05 still pending (after 30 green-build days). No behaviour change — docs only.
-
 ### Known gaps still pending (target: v0.14.0+)
 
 - **`propagate_bump.py` + `propagate_skills_bump.py` script implementation of §4.5.4 rule**: v0.11.0 codifies the rule (auto-generated bump PRs MUST pre-populate §4.5 markers); the script edits to actually emit the block in `_render_pr_body()` are deferred to a follow-up. Until then, the rule is enforced socially: a bump PR opened without §4.5 will fail the `ai-self-review-required` check and require a manual body edit.
 - **Capa 2 of bump-PR safety**: `propagate_bump.py` should scan the consumer's open PRs + branches with recent activity and post a comment listing them as "potentially affected, rebase needed post-merge". Carried forward from v0.10.x.
 - **`missing-application-kwarg` warn → strict ratchet**: target 2026-06-05 after 30 days of green CI. Flip pre-commit + CI to `--strict` and add runtime `LLMConfigError` in `_llm.call()` when neither `application=` arg nor `AIPLAYBOOK_APPLICATION` env is set.
+
+## [0.13.1] — 2026-05-13 — enforcement-status row 47 refresh (Phase 1 closure docs)
+
+Patch release. Docs-only — refreshes the `model-routing.md` row in `specs/enforcement-status.md` (line 47) to reflect post-Phase-1 reality of OpenSpec change `add-litellm-enforcement` in consumer-d. No code or behaviour change.
+
+The row now documents: drift detector covers BOTH direct-SDK and `_llm.call(...)` missing `application=` (v0.13.0 AST check); call-site migrations CLOSED for `prompt_injection_filter.py` (v0.12.1) and `consumer-d/lib/advisor.py:_call_via_litellm` (consumer-d PR #166); application tag lands end-to-end (v0.12.0 + roster in §5 of model-routing.md); CI step `Drift detector (warn-only)` wired in test.yml on 2026-05-13; strict-mode promotion target 2026-06-05 still pending.
+
+### Notes for consumers
+
+- Bump submodule `.ai-playbook` to `v0.13.1`. No code changes required. The vendored copy of `specs/enforcement-status.md` will reflect the post-Phase-1 reality.
 
 ## [0.13.0] — 2026-05-13 — drift detector: `_llm.call(...)` missing `application=` kwarg
 
