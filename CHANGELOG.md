@@ -6,6 +6,22 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ### Known gaps still pending (target: v0.14.0+)
 
+## [0.13.4] — 2026-05-14 — worker-agent delegation prompt contract (`release-management.md` §4.5.5 + §4.5.6)
+
+Patch release. Additive — codifies two prompt-engineering patterns that emerged across 4 consecutive worker-agent-delegated PRs in the `Wizarck/consumer-e` dashboard wave (#149, #150, #151, #152) plus one CI-recovery cycle (PR #152 L2 re-run).
+
+Both failure modes affect the **whole-slice worker-agent delegation** flow (main agent invokes `Agent(isolation="worktree", ...)` to ship apply → lint → push → open PR end-to-end). Neither was previously covered: §4.5.4 only covers *automation* PRs (bump / chore-archive scripts), not *worker-AI* delegation. The new subsections close that gap.
+
+New: [`specs/release-management.md`](specs/release-management.md) §4.5.5 — **Worker-agent delegation: STOP-after-`gh pr create` directive.** Prompts MUST embed the literal "STOP after `gh pr create` returns the PR URL. Do NOT poll CI." instruction. Verified on consumer-e PRs #149-#152: worker wall-time dropped from ~16 min to 4-8 min (263 seconds on PR #151, new record) after the directive landed.
+
+New: [`specs/release-management.md`](specs/release-management.md) §4.5.6 — **Worker-agent delegation: AI-reviewer signoff canonical block in prompt.** Prompts MUST embed the literal §4.5.3 block (three markers `Profile:`, `Reviewer:`, `Self-review findings:`) verbatim, not a free-form "write a self-review section" instruction. Failure surfaced on consumer-e PR #152 (substantive prose, no markers → L2 re-run cycle, +6 min recovery).
+
+Tracked at [`openspec/changes/agent-spawn-template-improvements/proposal.md`](openspec/changes/agent-spawn-template-improvements/proposal.md).
+
+### Notes for consumers
+
+- Bump submodule `.ai-playbook` to `v0.13.4`. No code changes required — docs-only patch. Main agents that already include the patterns ad-hoc see no change; main agents that don't get a documented contract to follow.
+
 ## [0.13.3] — 2026-05-13 — fusion-integration-pattern spec + new-project template polish
 
 Patch release. Additive — codifies the integration pattern for consumer projects that already have a mature OpenSpec custom workflow (their own `openspec/schemas/<name>/schema.yaml` with N artefacts and project-specific Karpathy/discipline rules). The pattern preserves the consumer's accumulated workflow investment and imports the formal contracts the playbook ships (verdict-contract S1-S4, parallel-review context isolation, agentic-failures taxonomy, output-completeness rules, verification-before-completion iron law, agent-contract write_paths, Hindsight recall) without replacing the custom workflow.
