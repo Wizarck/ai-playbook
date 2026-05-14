@@ -337,6 +337,36 @@ Reference implementation: `scripts/propagate_bump.py` and `scripts/propagate_ski
 
 The `apply_profile` helper (per §5.6) sets `allow_auto_merge=true` at the repo level, which exposes the per-PR "Enable auto-merge" button. The worker AI MUST NOT click it before §4.5 is satisfied. Auto-merge is a CONVENIENCE for clean PRs after Gate F approval, not a bypass for the feedback loop.
 
+### 4.5.5 Worker-agent delegation: STOP-after-`gh pr create` directive
+
+Introduced in v0.13.4. When the main agent invokes `Agent(isolation="worktree", ...)` (or equivalent) to delegate whole-slice shipping — apply tasks → lint → push branch → open PR — the delegating prompt MUST embed this directive verbatim:
+
+> **STOP after `gh pr create` returns the PR URL.** Do NOT poll CI. Do NOT wait for checks. The parent agent monitors CI status via `gh pr checks <N>` and handles merge / fix-forward / abort decisions.
+
+Reason: worker-agent task budgets are finite (typically ≤10 minutes wall-time). Polling CI from inside that budget produces zero signal the parent agent cannot see itself, while burning ~10 minutes per delegated slice. The parent agent retains the live conversation context and is better positioned to triage CI failures than a worker re-entered with stale state.
+
+Failure mode this prevents: surfaced 2026-05-13/14 during the iguanatrader dashboard wave. Worker agents on PRs #141 (`trades-list-and-detail`), #143 (`portfolio-pnl-and-equity-series`), and #148 (`risk-dashboard-ui`) idled ~10 minutes polling CI before reporting back, exhausting task budgets. After the directive landed in subsequent prompts (#149/#150/#151/#152), worker wall-time dropped to 4-8 minutes consistently (263 seconds on PR #151 — new record). Reference implementations: `Wizarck/iguanatrader` PRs #149-#152 prompt logs.
+
+### 4.5.6 Worker-agent delegation: AI-reviewer signoff canonical block in prompt
+
+Introduced in v0.13.4. When the main agent delegates whole-slice shipping per §4.5.5, the delegating prompt MUST include the literal §4.5.3 canonical block in the worker-agent's "PR body template" section. The worker copy-pastes this block into the PR body and substitutes placeholders. The prompt MUST NOT use a free-form "write a self-review section" instruction.
+
+Minimum viable prompt-embedded template:
+
+```markdown
+## AI-reviewer signoff
+
+- **Profile**: <A | B>  <!-- A = code-bearing slice; B = mechanical chore / docs-only -->
+- **Reviewer**: self-review <!-- (or claude-code-action / CodeRabbit when invoked) -->
+- **Self-review findings**: <one-sentence justification grounded in the diff shape; "none — <reason>" is acceptable for trivial Profile B diffs>
+```
+
+Reason: agents imitate the **shape** of past PR bodies, not the §4.5.3 contract. The three markers (`Profile:`, `Reviewer:`, `Self-review findings:`) are regex-validated by `scripts/post_self_review_checklist.py`; agents that learn from past PR bodies without re-reading §4.5.3 produce near-misses — substantive prose under a `## §4.5 self-review` heading that misses the markers, triggering an `ai-self-review-required` failure + L2 re-run cycle (~6 min recovery).
+
+Failure mode this prevents: surfaced 2026-05-14 on iguanatrader PR #152 (`test-cookies-pattern-migration`). Worker agent wrote a substantive `## §4.5 self-review` section with deprecation context, file counts, cross-tenant handling, and a "Test plan" — but no §4.5.3 markers. Recovery required parent to edit body + `gh run rerun` the L2 workflow.
+
+The contract is **strict** on Profile A repos. Profile B repos that opt out of the L2 check entirely may treat the block as optional — but the spec recommends including it for audit-trail uniformity even there.
+
 ---
 
 ## 5. Project board schema
