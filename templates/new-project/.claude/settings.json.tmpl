@@ -1,5 +1,5 @@
 {
-  "_comment": "Project-level Claude Code settings. SessionStart hook auto-recalls Hindsight context per .ai-playbook/specs/memory-hierarchy.md §4. Adjust the secrets path if your SOPS-encrypted .env lives somewhere other than the sibling eligia-core checkout.",
+  "_comment": "Project-level Claude Code settings. SessionStart hook auto-recalls Hindsight context per .ai-playbook/specs/memory-hierarchy.md §4. PreToolUse hook enforces apply-skill orchestration per .ai-playbook/specs/apply-skill-enforcement.md (v0.14.0).",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,18 @@
             "type": "command",
             "command": "sops exec-env ../eligia-core/secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id {{PROJECT_BANK}} 2>/dev/null || true",
             "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/openspec-apply-enforce.py",
+            "timeout": 10
           }
         ]
       }
