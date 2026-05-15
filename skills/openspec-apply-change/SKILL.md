@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires openspec CLI.
 metadata:
   author: openspec
-  version: "1.0"
+  version: "1.1"
   generatedBy: "1.3.0"
 ---
 
@@ -14,6 +14,26 @@ Implement tasks from an OpenSpec change.
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
 **Steps**
+
+0. **Write apply-session start marker** (required, added v1.1)
+
+   Before reading any context files or performing implementation, signal that
+   this apply session is skill-orchestrated. The PreToolUse hook installed
+   per `specs/apply-skill-enforcement.md` BLOCKS the first `Edit`/`Write` on a
+   slice's `write_paths` unless this marker exists for the current session.
+
+   ```bash
+   python .ai-playbook/scripts/openspec_apply_marker.py start --change-id "<name>" --skill-version 1.1
+   ```
+
+   The marker is appended to `openspec/changes/<name>/.apply_log.jsonl` (one
+   JSONL record per session start; committed to git for audit). If the helper
+   script is missing (consumer pre-v0.14.0 of ai-playbook), the hook is also
+   missing — proceed; older consumers see no enforcement. Inform the user that
+   their playbook bump is overdue.
+
+   See: `specs/apply-skill-enforcement.md` §1 (marker contract) and §3
+   (break-glass via `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` env).
 
 1. **Select the change**
 

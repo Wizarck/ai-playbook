@@ -102,6 +102,33 @@ For modules with many changes, batch mode is supported: `/opsx:propose --batch` 
 
 Commands in [capability map](../AGENTS.md) reference `/opsx:propose`, `/opsx:apply`, `/opsx:archive`, `/opsx:explore`.
 
+### 3.1.1 Apply phase orchestration: skill-only (v0.14.0+)
+
+The apply phase (step 5 in §3.1) MUST be initiated through the
+`openspec-apply-change` skill (or an equivalent CLI invocation of the marker
+helper). Manual `Edit`/`Write`/`MultiEdit` on a slice's declared `write_paths`
+without first writing the apply-session marker is `goal_drift` per
+[agentic-failures.md](agentic-failures.md) §2.13 (`apply_phase_bypass`).
+
+Two enforcement vectors ship in ai-playbook v0.14.0:
+
+- **L2 — skill marker.** The skill writes
+  `openspec/changes/<id>/.apply_log.jsonl` (a JSONL audit record) before
+  reading any context files. The marker proves orchestration; retros can
+  distinguish skill-driven work from manual work.
+- **L3 — PreToolUse hook.** A project-local hook blocks `Edit`/`Write` on
+  any file matching an active change's `write_paths` when no `start` record
+  exists for the current Claude session. Break-glass via
+  `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE=<≥10-char reason>` env (audited).
+
+Full contract: [apply-skill-enforcement.md](apply-skill-enforcement.md).
+Adoption checklist (per consumer): §5 of that spec.
+
+Cross-references: §3.4 self-validation gates run AFTER the skill picks up the
+slice; §3.2 worker→QA pairing applies as before — the QA reviewer can use the
+marker's `tasks_completed`/`tasks_total` fields to verify the apply session
+walked the full task list before declaring `✅ APPROVED`.
+
 ### 3.2 Worker → QA pairing
 
 Each artefact has a worker subagent and a QA subagent. They share no context beyond what `agent-contract.md` §2 defines. The QA subagent uses parallel review per `parallel-review.md` when the artefact warrants (≥2 layers per §2 of that spec).
