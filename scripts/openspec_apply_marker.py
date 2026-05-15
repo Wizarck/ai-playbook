@@ -151,7 +151,10 @@ def cmd_start(args: argparse.Namespace, project_root: Path) -> int:
         return _emit_error(
             why=f"OpenSpec change folder missing for `{args.change_id}`",
             where=str(project_root / "openspec" / "changes" / args.change_id),
-            fix=f"create the change folder first (e.g. `openspec/changes/{args.change_id}/proposal.md`) or pass a real change-id.",
+            fix=(
+                f"create the change folder first (e.g. `openspec/changes/{args.change_id}/proposal.md`) "
+                "or pass a real change-id."
+            ),
         )
     session_id = _resolve_session_id(args.session_id)
     record = {

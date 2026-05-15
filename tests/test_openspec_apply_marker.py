@@ -15,8 +15,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 # Resolve script path relative to repo root (parent of tests/)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "openspec_apply_marker.py"
@@ -194,6 +192,6 @@ def test_list_emits_jsonl_records(tmp_path: Path) -> None:
     )
     proc = _run(tmp_path, "list", "--change-id", "demo-slice", "--json")
     assert proc.returncode == 0, proc.stderr
-    lines = [json.loads(l) for l in proc.stdout.splitlines() if l.strip()]
+    lines = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
     assert any(r["event"] == "start" for r in lines)
     assert any(r["event"] == "stop" and r["outcome"] == "aborted" for r in lines)
