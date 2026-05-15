@@ -30,6 +30,7 @@ The catalog is deliberately open — if you observe a new mode, add a row via RF
 | `plan_mode_escape` | Modifies files while plan mode active | S1 | Yes |
 | `credential_exposure` | Logs or pastes a secret | S1 | Yes |
 | `cascade_failure` | One subagent's bad output poisons downstream | S2 | Partial |
+| `apply_phase_bypass` | Edits slice `write_paths` without the apply-skill marker | S2 | Yes |
 
 ## 2. Catalog detail
 
@@ -233,6 +234,35 @@ The catalog is deliberately open — if you observe a new mode, add a row via RF
 - **Example.** In a chained review (not the parallel pattern), Reviewer-B quoted Reviewer-A's
   "tests pass" claim without re-verifying. Tests were actually failing; parent shipped. Caught
   next day by CI. The mitigation is to use the parallel isolation pattern, not chained review.
+
+### 2.13 `apply_phase_bypass` — edits slice `write_paths` without the apply-skill marker
+
+- **Signal.** An `Edit`/`Write`/`MultiEdit` invocation targets a path listed in
+  some active change's `Owns (write_paths)` section in `tasks.md`, but
+  `openspec/changes/<id>/.apply_log.jsonl` has no `start` record for the
+  current session. Implementation work proceeds outside the skill's TDD walk,
+  citation-drift preflight, and self-validation gates (see §3.4 of
+  [runbook-bmad-openspec.md](runbook-bmad-openspec.md)).
+- **First-response playbook.**
+  1. The PreToolUse hook blocks the call with the canonical error
+     (`❌ apply phase bypass detected ...`) per
+     [error-message-standard.md](error-message-standard.md).
+  2. The agent invokes the skill (`/openspec-apply-change <id>`) which writes
+     step 0's marker and re-tries the edit.
+  3. If the edit is legitimately out-of-band (post-review fix days later,
+     emergency hotfix), set `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE=<reason>`. The
+     override is audited via an `override` JSONL record; monthly retros count
+     them.
+- **Detector.** `templates/new-project/.claude/hooks/openspec-apply-enforce.py`
+  (PreToolUse hook); helper script
+  `scripts/openspec_apply_marker.py session_started --change-id <id>` is the
+  underlying check.  
+  OTel: `ai_playbook.failure.kind=apply_phase_bypass`.
+- **Example.** Geeplo Revalid v1.0 epic (2026-05-14, PRs #1-#4): four slices
+  implemented with manual `Edit`/`Write` on declared `write_paths` instead of
+  through the `openspec-apply-change` skill. Symptoms: tests appended at end
+  (not TDD-red-first), citation-drift preflight skipped, self-validation
+  gates silent. Motivated this spec.
 
 ## 3. Universal OTel contract
 
