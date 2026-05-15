@@ -4,7 +4,54 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.14.0+)
+### Known gaps still pending (target: v0.15.0+)
+
+## [0.14.0] — 2026-05-15 — apply-phase orchestration enforcement (L1+L2+L3)
+
+Additive MINOR. Closes a real failure mode observed in consumer-a's Revalid v1.0 epic (2026-05-14, PRs #1-#4): four slices implemented with manual `Edit`/`Write` on declared `write_paths` instead of through the `openspec-apply-change` skill. Symptoms — tests appended at end (not TDD-red-first), citation-drift preflight (skill §4b, v0.11.0) skipped, self-validation gates (runbook §3.4) silent. The work landed but retros could not distinguish skill-orchestrated work from manual work.
+
+This release ships three coordinated enforcement layers:
+
+- **L1 — doc rule**: explicit text in [`specs/runbook-bmad-openspec.md`](specs/runbook-bmad-openspec.md) §3.1.1 stating apply phase MUST go through the skill. New row `2.13 apply_phase_bypass` in [`specs/agentic-failures.md`](specs/agentic-failures.md).
+- **L2 — skill marker**: skill `openspec-apply-change` bumped to v1.1 — new step 0 writes a JSONL `start` record to `openspec/changes/<id>/.apply_log.jsonl` (committed to git for audit). Marker helper `scripts/openspec_apply_marker.py` exposes `start`/`stop`/`override`/`is_active`/`session_started`/`list` subcommands.
+- **L3 — PreToolUse hook**: project-local hook at `.claude/hooks/openspec-apply-enforce.py` blocks `Edit`/`Write`/`MultiEdit` on a slice's `write_paths` when no `start` record exists for the current session. Break-glass via `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE=<≥10-char reason>` env (audited via `override` JSONL record).
+
+### Added
+
+- **`specs/apply-skill-enforcement.md`** (NEW, v1.0.0). Marker contract (§1), hook contract (§2), break-glass clause (§3, per [`break-glass.md`](specs/break-glass.md)), invariants INV-1..INV-4 (§4), consumer adoption checklist (§5), retro/audit cadence (§6).
+- **`scripts/openspec_apply_marker.py`** (NEW). 6 subcommands. JSONL append-only audit log. Session-id resolution: `--session-id` → `$CLAUDE_SESSION_ID` env → derived `local-<git-user>-<host>-<pid>`. Path resolution walks `cwd` ancestors for `openspec/` dir. Error shape per [`error-message-standard.md`](specs/error-message-standard.md). 9 tests in [`tests/test_openspec_apply_marker.py`](tests/test_openspec_apply_marker.py): happy paths, idempotent start, corrupt-JSONL recovery, override audit record, missing change folder, list subcommand.
+- **`templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl`** (NEW). Project-local PreToolUse hook. Reads JSON from stdin per Claude Code hook protocol. Walks `openspec/changes/*/tasks.md`, parses `Owns (write_paths)` section (bullet `* `path`` lines), glob-matches via `fnmatch`. Calls `session_started` subprocess per matching active change. Honours override env. Emits canonical block message per error-message-standard.md. Fail-open on missing helper. Perf budget <250ms p95. 10 tests in [`tests/test_apply_enforce_hook_template.py`](tests/test_apply_enforce_hook_template.py).
+- **Skill `openspec-apply-change` v1.1**: new step 0 ("Write apply-session start marker") inserted before existing step 1. Frontmatter `version: "1.0"` → `"1.1"`. Backwards-compatible: pre-v0.14.0 consumers without the helper script see the skill's note about overdue playbook bump but proceed (no block).
+
+### Changed
+
+- **`specs/runbook-bmad-openspec.md`** §3.1.1 (NEW subsection). Documents the apply-phase orchestration rule + the two enforcement vectors + cross-references to QA pairing (§3.2) and self-validation gates (§3.4).
+- **`specs/agentic-failures.md`** §1 catalog: new row `apply_phase_bypass` (S2, Detectable: Yes). §2 catalog detail: new section §2.13 with Signal/First-response/Detector/Example. Example cites the consumer-a Revalid incident.
+- **`specs/enforcement-status.md`**: new row for `apply-skill-enforcement.md` at ✅ wired. `agentic-failures.md` row flipped from 📋 spec-only to 🟡 partial (mode 2.13 now wired via the hook).
+- **`templates/new-project/.claude/settings.json.tmpl`**: registers the new `PreToolUse` hook for `Edit|Write|MultiEdit` matcher.
+
+### Migration (per consumer)
+
+5-step adoption checklist in [`specs/apply-skill-enforcement.md`](specs/apply-skill-enforcement.md) §5:
+
+1. Bump `.ai-playbook` submodule to `v0.14.0`.
+2. Copy `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl` → `.claude/hooks/openspec-apply-enforce.py`.
+3. Register the hook in `.claude/settings.json` (PreToolUse matcher `Edit|Write|MultiEdit`).
+4. Update `AGENTS.md` to reference the new spec.
+5. (Custom-schema projects) declare `apply.handler: openspec-apply-change` in `openspec/schemas/<name>/schema.yaml`.
+
+First-class adoption: `consumer-a` (concurrent follow-up PR; dogfooded by resuming the paused `revalid-bulk-action-sse` slice under the new regime).
+
+### Tests
+
+- 9 new tests in `tests/test_openspec_apply_marker.py` — all GREEN.
+- 10 new tests in `tests/test_apply_enforce_hook_template.py` — all GREEN.
+- Total new test count: 19.
+
+### Notes
+
+- The `enforce-apply-skill` change folder ships with a real `.apply_log.jsonl` from this slice's own apply session (dogfooded). See `openspec/changes/enforce-apply-skill/.apply_log.jsonl`.
+- Hook fails OPEN on helper absence (intentional, see [`specs/apply-skill-enforcement.md`](specs/apply-skill-enforcement.md) §2.4): a missing `.ai-playbook/scripts/openspec_apply_marker.py` warns to stderr but does not block. Consumer pre-v0.14.0 sees no enforcement.
 
 ## [0.13.4] — 2026-05-14 — worker-agent delegation prompt contract (`release-management.md` §4.5.5 + §4.5.6)
 
