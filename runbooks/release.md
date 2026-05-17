@@ -138,7 +138,7 @@ The run fires automatically on `push: tags: v*.*.*`. Expected outcome:
 ### 6. Verify PRs on each consumer
 
 ```bash
-for repo in Wizarck/openTrattOS Wizarck/eligia-core Wizarck/iguanatrader Wizarck/palafito-b2b Wizarck/livekit; do
+for repo in Wizarck/nexandro Wizarck/eligia-core Wizarck/iguanatrader Wizarck/palafito-b2b Wizarck/livekit; do
   echo "=== $repo ==="
   gh pr list --repo "$repo" --state open --head "chore/bump-playbook-vX.Y.Z" \
     --json url,title --jq '.[] | "\(.title) → \(.url)"'
@@ -262,7 +262,7 @@ consumer has merged the bump PR yet:
 
 ```bash
 # Close open PRs on consumers first (prevents accidental merge):
-for repo in Wizarck/openTrattOS Wizarck/eligia-core; do
+for repo in Wizarck/nexandro Wizarck/eligia-core; do
   gh pr close --repo "$repo" "chore/bump-playbook-vX.Y.Z" --delete-branch
 done
 

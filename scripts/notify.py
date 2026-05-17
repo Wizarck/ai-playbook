@@ -306,7 +306,7 @@ def _send_email(
 # `langgraph-aiops/notifications/`. When it's importable AND
 # `ELIGIA_NOTIFICATIONS_QUEUE_ENABLED=1`, warn/error notifications are
 # enqueued to a SQLite-backed retry layer instead of fired through SMTP
-# synchronously. Other consumers (palafito-b2b, openTrattOS, iguanatrader,
+# synchronously. Other consumers (palafito-b2b, nexandro, iguanatrader,
 # livekit) that lack the queue package fall through to SMTP unchanged.
 
 # Default channel per severity per `notification-policy.md` §3.1 + Change B

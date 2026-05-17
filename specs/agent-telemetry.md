@@ -139,7 +139,7 @@ For the Arturo-personal stack: the eligia infrastructure already operates a
 Langfuse Cloud project with keys in
 `C:/Projects/eligia-core/secrets/secrets.env` (`LANGFUSE_PUBLIC_KEY` /
 `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST`). Every Arturo-owned consumer
-(iguanatrader, openTrattOS, palafito-b2b, eligia-rag, eligia-skills) reuses
+(iguanatrader, nexandro, palafito-b2b, eligia-rag, eligia-skills) reuses
 that project. The `eligia-core/dashboard` already renders 4 Langfuse-backed
 widgets (`cost-estimate`, `top-models`, `traces-today`, `error-rate`); these
 widgets surface Claude Code agent activity once OTLP export is enabled,

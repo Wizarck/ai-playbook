@@ -66,7 +66,7 @@ If the SessionStart hook fails (Hindsight offline, SOPS key missing, sops binary
 
 ## Per-project tailoring
 
-The directive block is canonical; the `<project>` placeholder in step 2's query MUST be replaced with the project's slug (e.g. `openTrattOS`, `eligia-core`). The Hindsight `bank_id` is resolved from `<project>/mcp-servers.project.yaml` and passed to `inject_context.py` via the `--bank-id` flag inside the hook command.
+The directive block is canonical; the `<project>` placeholder in step 2's query MUST be replaced with the project's slug (e.g. `nexandro`, `eligia-core`). The Hindsight `bank_id` is resolved from `<project>/mcp-servers.project.yaml` and passed to `inject_context.py` via the `--bank-id` flag inside the hook command.
 
 Projects MAY append project-specific pre-conditions (e.g. "also read `docs/prd.md`") **after** step 3, never before; the universal steps always run first.
 
@@ -88,7 +88,7 @@ Canonical row format (insert as the FIRST row of §2 in every consumer's AGENTS.
 
 ### Migration
 
-Existing consumers (eligia-core, openTrattOS, palafito-b2b, iguanatrader, livekit) receive the row automatically as part of their next playbook-bump PR — `scripts/propagate_bump.py` is extended to insert the row in §2 if absent (idempotent; no-op if already present). See [docs/development-flow.md](../docs/development-flow.md) §3.3.
+Existing consumers (eligia-core, nexandro, palafito-b2b, iguanatrader, livekit) receive the row automatically as part of their next playbook-bump PR — `scripts/propagate_bump.py` is extended to insert the row in §2 if absent (idempotent; no-op if already present). See [docs/development-flow.md](../docs/development-flow.md) §3.3.
 
 New consumers bootstrapped via `scripts/bootstrap.py` after v0.9.3 inherit the row from `templates/new-project/AGENTS.md.tmpl` automatically.
 

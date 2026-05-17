@@ -9,7 +9,7 @@
 ## Scope
 
 This runbook covers Windows + WSL2 dev-loop gotchas surfaced during
-2026-Q2 across openTrattOS (Node 24+ Jest, Python tools), iguanatrader
+2026-Q2 across nexandro (Node 24+ Jest, Python tools), iguanatrader
 (git worktrees, Python venv), and eligia-core (poetry, MS Store Python).
 
 If you're on Linux or macOS, ignore this file.

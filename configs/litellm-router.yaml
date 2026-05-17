@@ -8,7 +8,7 @@
 # PRODUCTION DEPLOY — IMPORTANT
 # ===========================================================================
 # LiteLLM accepts only ONE --config file at startup. Each consumer of this
-# playbook (eligia-core, openTrattOS, palafito-b2b, ...) deploys LiteLLM
+# playbook (eligia-core, nexandro, palafito-b2b, ...) deploys LiteLLM
 # with a project-local ConfigMap (or docker-compose volume mount) that
 # MUST mirror the `model_list:` task-class entries below.
 #

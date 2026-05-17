@@ -16,7 +16,7 @@ Most ai-playbook consumer projects are single-language by primary intent
 
 - **iguanatrader** (Python primary) needs an OpenBB sidecar (Python ML
   service that doesn't fit the FastAPI app's deps).
-- **openTrattOS** (TypeScript primary, Turborepo) needs a RAG proxy
+- **nexandro** (TypeScript primary, Turborepo) needs a RAG proxy
   (Python FastAPI service translating LightRAG to the canonical
   contract) plus a corpus ingestion package (Python scripts piping
   authoritative sources into the RAG vector store).
@@ -181,7 +181,7 @@ codegen artefacts in `packages/<contract>/`.
 
 ## 6. Reference implementations
 
-- **openTrattOS** Wave 1.8 (`m2-ai-yield-corpus`, PR #88, 2026-05-06):
+- **nexandro** Wave 1.8 (`m2-ai-yield-corpus`, PR #88, 2026-05-06):
   introduced `tools/rag-proxy/` (FastAPI, ~750 LOC + 60 tests, mypy
   strict, ruff, 93.35% coverage) and `tools/rag-corpus/` (4 ingestion
   scripts: USDA + EU 1169/2011 + Escoffier + CIAA-gated). Net

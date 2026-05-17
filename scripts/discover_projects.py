@@ -2,7 +2,7 @@
 the projects registry (~/.ai-playbook/projects.yaml by default).
 
 The registry decouples dispatchers from hardcoded paths. Moving a project from
-C:\\OpenTrattOS to C:\\Projects\\openTrattOS only requires re-running this script —
+C:\\Nexandro to C:\\Projects\\nexandro only requires re-running this script —
 no markdown edits.
 
 See `specs/projects-registry.md` for the registry format and resolution rules.

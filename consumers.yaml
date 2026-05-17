@@ -58,8 +58,8 @@ schema: ai-playbook/consumers/v1
 version: 1
 
 consumers:
-  openTrattOS:
-    repo: Wizarck/openTrattOS
+  nexandro:
+    repo: Wizarck/nexandro
     default_branch: master
     visibility: public
     status: active

@@ -20,7 +20,7 @@ consumer=WORKFLOWS
 
 Asking *"which subsystem is driving Opus cost?"* with only `consumer` collapses these into one bucket. Cost attribution downstream (per-app dashboards, per-workflow budgets, debugging *"Hermes ran up the bill, but which Hermes path?"*) becomes unanswerable.
 
-Surfaced 2026-05-11 while scoping the cost-by-tag dashboard project in eligia-core (Phase 1 of 3). Will impact every consumer of this playbook that runs LLM calls: openTrattOS, palafito-b2b, plus eligia-core.
+Surfaced 2026-05-11 while scoping the cost-by-tag dashboard project in eligia-core (Phase 1 of 3). Will impact every consumer of this playbook that runs LLM calls: nexandro, palafito-b2b, plus eligia-core.
 
 ## Proposed change
 

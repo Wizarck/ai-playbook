@@ -7,7 +7,7 @@
 A **per-dev, gitignored YAML file** mapping project logical names to absolute paths on the current machine. Dispatchers resolve project locations through the registry, NOT through hardcoded paths.
 
 Benefit:
-- Arturo moves `openTrattOS` from `C:\OpenTrattOS` to `C:\Projects\openTrattOS` → rerun discovery → dispatchers keep working. No markdown edits.
+- Arturo moves `nexandro` from `C:\Nexandro` to `C:\Projects\nexandro` → rerun discovery → dispatchers keep working. No markdown edits.
 - A second dev clones projects under `/Users/jane/code/` → same dispatcher files work.
 - Mac / Linux / Windows / WSL coexist with the same sources.
 
@@ -25,8 +25,8 @@ The file lives in the **user's home** (not in any repo) because it encodes local
 ```yaml
 schema: ai-playbook/projects-registry/v1
 projects:
-  openTrattOS:
-    path: C:/Projects/openTrattOS
+  nexandro:
+    path: C:/Projects/nexandro
     owner: arturo6ramirez@gmail.com
     version: 1.0.0
     inherits_from:

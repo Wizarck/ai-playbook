@@ -156,7 +156,7 @@ Within ~5 minutes of the workflow run, expect one PR per consumer that has
 
 ```bash
 gh search prs --repo Wizarck/iguanatrader \
-              --repo Wizarck/openTrattOS \
+              --repo Wizarck/nexandro \
               --repo Wizarck/eligia-core \
               --repo Wizarck/palafito-b2b \
               --label skills-bump --state open
