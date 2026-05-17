@@ -220,7 +220,7 @@ For the **iguanatrader v1** consumer (the spec's reference implementation):
 | L6 | ⏳ Planned for v0.10.1 | Extension of `scripts/opsx_apply_companion.py` (already exists per `release-management.md` §6.5) |
 | L7 | ⏳ Planned for Wave 3 | Modifies `skills/openspec-archive-change/SKILL.md` to invoke `verify_board_state.py` as Step 0 |
 
-Other consumers (openTrattOS, palafito-b2b future onboarding) adopt
+Other consumers (nexandro, palafito-b2b future onboarding) adopt
 opportunistically; the spec is normative but adoption is graded per
 `release-management.md` §5.6 visibility profile.
 

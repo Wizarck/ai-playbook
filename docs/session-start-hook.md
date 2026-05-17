@@ -34,7 +34,7 @@ Notes:
 - `2>/dev/null || true` suppresses stderr from the hook so a one-off Hindsight outage doesn't visually block session start. `inject_context.py` writes a `DEGRADED_CONTEXT` banner to `.claude/injected-context.md` instead.
 - `timeout: 60` covers cold recall (~30 s on the production deployment) plus sanitisation overhead. The script's internal `DEFAULT_TIMEOUT_SECS` is 45 s; the hook envelope adds 15 s buffer.
 - The output file (`.claude/injected-context.md`) is read by Claude Code's own bootstrap and surfaced alongside the project's `AGENTS.md`.
-- Replace `<project-bank>` with the project's bank id from [`../specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) §2 (e.g. `opentrattos`, `eligia`, `palafito`).
+- Replace `<project-bank>` with the project's bank id from [`../specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) §2 (e.g. `nexandro`, `eligia`, `palafito`).
 
 ## Gemini CLI / Antigravity
 

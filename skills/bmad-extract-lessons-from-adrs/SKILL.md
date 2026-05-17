@@ -164,6 +164,6 @@ The skill is validated by reproducing the v0.11.0 mining session:
 
 1. Ran against `eligia-core` (28 ADRs + gotchas.md + 19 runbooks).
 2. Ran against `palafito-b2b` (no ADRs; docs/archive only).
-3. Output: 3 NEW patterns + 2 reinforced patterns vs the prior iguanatrader+openTrattOS baseline. Direct input to v0.11.0 specs `multi-layer-defense-single-operator.md`, `cascade-failure-template.md`, and the HITL section in `hitl-approval-pattern.md`.
+3. Output: 3 NEW patterns + 2 reinforced patterns vs the prior iguanatrader+nexandro baseline. Direct input to v0.11.0 specs `multi-layer-defense-single-operator.md`, `cascade-failure-template.md`, and the HITL section in `hitl-approval-pattern.md`.
 
 Each subsequent ai-playbook release SHOULD invoke this skill against every consumer in [`consumers.yaml`](../../consumers.yaml) where `retros/` is empty.

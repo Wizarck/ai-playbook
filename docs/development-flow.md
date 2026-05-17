@@ -63,7 +63,7 @@ TAG  ◄────────────────────────
   See: runbooks/release.md, scripts/release_cut.py, scripts/propagate_bump.py
         │
         ▼
-CONSUMERS (eligia-core, openTrattOS, palafito-b2b, iguanatrader, livekit, …)
+CONSUMERS (eligia-core, nexandro, palafito-b2b, iguanatrader, livekit, …)
   • Auto-PR opens with submodule pin bump + AGENTS.md cross-ref refresh
   • Consumer mergers → consumer is on the new playbook version
   See: specs/projects-registry.md, consumers.yaml, scripts/bump_consumers.py

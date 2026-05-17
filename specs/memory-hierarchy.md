@@ -25,7 +25,7 @@ Arturo-private (per [dispatcher-chain.md](dispatcher-chain.md) level 3).
 
 | Project | Primary bank | Personal add-on bank |
 |---|---|---|
-| `openTrattOS` (public repo) | `opentrattos` | — (no personal layer; community repo) |
+| `nexandro` (public repo) | `nexandro` | — (no personal layer; community repo) |
 | `eligia-core` (personal infra) | `eligia` | `eligia-personal` (gotchas, ports, VPS-private knowledge) |
 | `eligia-rag` | `eligia-rag` | `eligia-personal` (shared with eligia-core personal layer) |
 | `palafito-b2b` | `palafito` | `palafito-personal` (tenant-private) |
@@ -110,7 +110,7 @@ input envelope declares:
 
 ```json
 "memory": {
-  "bank_id": "opentrattos",
+  "bank_id": "nexandro",
   "recall_depth": 5
 }
 ```
@@ -144,23 +144,23 @@ If Hindsight is unreachable, the session enters `DEGRADED_CONTEXT` per
 
 ## 10. Worked example
 
-**Scenario.** A reviewer subagent in openTrattOS is spawned for a proposal review on
+**Scenario.** A reviewer subagent in nexandro is spawned for a proposal review on
 `module-1-ingredients-implementation`.
 
 Spawn envelope's memory block:
 
 ```json
-"memory": { "bank_id": "opentrattos", "recall_depth": 5 }
+"memory": { "bank_id": "nexandro", "recall_depth": 5 }
 ```
 
-1. Child invokes `hindsight.recall(query="opentrattos ingredients categories", top_k=5)`.
+1. Child invokes `hindsight.recall(query="nexandro ingredients categories", top_k=5)`.
 2. Three lessons return (score ≥0.7):
    - "Categories use RESTRICT on delete; this bit us once in seed reload." (`kind=gotcha`)
    - "ADR-009 chose soft-delete with `isActive`; physical delete was rejected for audit." (`kind=decision`)
    - "Do NOT import `Category` entity directly from `Ingredient` module; use the port." (`kind=lesson`)
 3. Reviewer cites lesson 3 when catching a diff that imports the entity directly — S2 finding.
 4. After the review concludes, reviewer calls `hindsight.retain` with
-   `why="import-via-port rule recurred; add to readiness checklist"`, `tags=["opentrattos", "lesson"]`,
+   `why="import-via-port rule recurred; add to readiness checklist"`, `tags=["nexandro", "lesson"]`,
    and the OTel `trace_id`.
 5. Next sprint, the bootstrap recall surfaces the new lesson at the top of the retrieval for any
    reviewer touching cross-module imports.

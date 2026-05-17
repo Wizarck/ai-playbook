@@ -199,7 +199,7 @@ Inserted as the first step, before existing "Select the change":
 | `CHANGELOG.md` | ✅ EDIT (v0.14.0 entry) | — |
 | `VERSION` | ✅ EDIT (0.13.3 → 0.14.0) | — |
 | Adopting in `geeplo` | — | Follow-up PR in geeplo (this slice ships the template; geeplo copies it) |
-| Adopting in `eligia-core` / `palafito-b2b` / `openTrattOS` | — | Follow-up PR per consumer |
+| Adopting in `eligia-core` / `palafito-b2b` / `nexandro` | — | Follow-up PR per consumer |
 | Future: telemetry on `apply_phase_bypass` count | — | After 30 days of marker data; out of scope |
 
 ## 7 Risks

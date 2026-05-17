@@ -10,5 +10,5 @@ Until the first external dev lands (0–3 months horizon), Arturo is the single 
 
 ## Escalation
 
-- Blocking issue in a consuming repo (`openTrattOS`, `eligia-core`): open an issue in the consumer repo AND tag the playbook commit/tag that's pinned.
+- Blocking issue in a consuming repo (`nexandro`, `eligia-core`): open an issue in the consumer repo AND tag the playbook commit/tag that's pinned.
 - Security / secret exposure: do NOT open a public issue. Email the maintainer directly.

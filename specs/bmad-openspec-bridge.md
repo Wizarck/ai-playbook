@@ -1,6 +1,6 @@
 # bmad-openspec-bridge.md
 
-> **Status**: v1.0.0. New in ai-playbook v0.7.0. Defines the canonical handoff between Phase 2 (BMAD discovery + design) and Phase 3 (OpenSpec implementation) of [runbook-bmad-openspec.md](runbook-bmad-openspec.md). Resolves the v0.6.x drift where BMAD skills ended with "invoke `bmad-help`" and `openspec-propose` had no contract for reading the slicing output — leaving a manual gap that broke at scale (e.g. proposing 11 changes for openTrattOS Module 2).
+> **Status**: v1.0.0. New in ai-playbook v0.7.0. Defines the canonical handoff between Phase 2 (BMAD discovery + design) and Phase 3 (OpenSpec implementation) of [runbook-bmad-openspec.md](runbook-bmad-openspec.md). Resolves the v0.6.x drift where BMAD skills ended with "invoke `bmad-help`" and `openspec-propose` had no contract for reading the slicing output — leaving a manual gap that broke at scale (e.g. proposing 11 changes for nexandro Module 2).
 
 ## 1. Purpose
 

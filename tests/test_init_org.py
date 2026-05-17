@@ -20,7 +20,7 @@ def _make_fake_playbook(root: Path) -> None:
     )
     runbooks = root / "runbooks"
     runbooks.mkdir()
-    (runbooks / "release.md").write_text("Push to Wizarck/openTrattOS.\n", encoding="utf-8")
+    (runbooks / "release.md").write_text("Push to Wizarck/nexandro.\n", encoding="utf-8")
     (runbooks / "rotate-secrets.md").write_text("Wizarck/eligia-core secret rotation.\n", encoding="utf-8")
     (runbooks / "propagate-bump-troubleshooting.md").write_text("Wizarck/* fork pattern.\n", encoding="utf-8")
     (runbooks / "hindsight-retain.md").write_text("https://eligia-hindsight.palafitofood.com\n", encoding="utf-8")

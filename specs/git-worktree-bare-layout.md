@@ -1,6 +1,6 @@
 # git-worktree-bare-layout.md
 
-> **Status**: v1.0.0. New in ai-playbook v0.9.0-rc3 (2026-05-01). Codifies the bare-repo + per-branch-worktree directory pattern as the **default layout for every consumer project** of the playbook. Replaces the implicit "single working tree at `<repo>/`" assumption that broke down once OpenSpec changes started shipping in waves of 5–10 concurrent slices (e.g. openTrattOS Module 2). Existing projects on the legacy layout keep working — migration is opt-in via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §3.
+> **Status**: v1.0.0. New in ai-playbook v0.9.0-rc3 (2026-05-01). Codifies the bare-repo + per-branch-worktree directory pattern as the **default layout for every consumer project** of the playbook. Replaces the implicit "single working tree at `<repo>/`" assumption that broke down once OpenSpec changes started shipping in waves of 5–10 concurrent slices (e.g. nexandro Module 2). Existing projects on the legacy layout keep working — migration is opt-in via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §3.
 
 ## Purpose
 
@@ -35,7 +35,7 @@ The parent directory is purely organisational — it contains no working files o
 
 | Element | Rule | Example |
 |---|---|---|
-| Project root | Lowercase repo name, no suffix. | `openTrattOS/`, `eligia-core/` |
+| Project root | Lowercase repo name, no suffix. | `nexandro/`, `eligia-core/` |
 | Bare-repo dir | Always `.bare/`. | — |
 | `.git` pointer | Always file with content `gitdir: ./.bare`. | — |
 | Default branch worktree | Same name as the default branch (`master/` or `main/`). | `master/`, `main/` |
@@ -58,7 +58,7 @@ I5. **The pointer file `.git` is required.** Without it, commands run from the p
 
 ## Why bare + per-branch worktrees (vs alternatives)
 
-Three layout candidates were considered (research synthesis, openTrattOS migration 2026-05-01):
+Three layout candidates were considered (research synthesis, nexandro migration 2026-05-01):
 
 **A. Bare + per-branch siblings** (this spec). One database, every branch a peer subdir, atomic per-branch cleanup, no parent-dir pollution. Tradeoff: per-worktree `node_modules/` and build caches duplicate disk usage (acceptable cost for the isolation gain).
 

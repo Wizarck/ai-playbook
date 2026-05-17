@@ -10,16 +10,16 @@
 
 Today, every consumer project has a private copy of every skill it consumes:
 
-- `openTrattOS/.claude/skills/` — ~52 BMAD + 4 OpenSpec skills (~3.5k LOC)
+- `nexandro/.claude/skills/` — ~52 BMAD + 4 OpenSpec skills (~3.5k LOC)
 - `eligia-core/.claude/skills/` — 7 BMAD agents (subset of the above)
 - `iguanatrader/.claude/skills/` — 2 BMAD skills (just-copied snapshot)
 - `palafito-b2b/.claude/skills/` — empty
-- `eligia-skills/` (root, pre-`backend/`) — 75+ custom skills (overlap with openTrattOS for non-BMAD ones)
+- `eligia-skills/` (root, pre-`backend/`) — 75+ custom skills (overlap with nexandro for non-BMAD ones)
 - `Wizarck/skills-manager-personal` (frozen 2026-04-07) — predecessor of `eligia-skills`, identical content for shared skills, **no installer remaining** (CLI lived on a now-decommissioned PC)
 
 Three concrete failure modes today:
 
-1. **Drift.** A fix to `bmad-code-review` in openTrattOS does not propagate to eligia-core. Sessions in different consumers behave differently with no audit trail of "why."
+1. **Drift.** A fix to `bmad-code-review` in nexandro does not propagate to eligia-core. Sessions in different consumers behave differently with no audit trail of "why."
 2. **No reproducibility.** `git checkout <sha>` in any consumer does not restore the agent behaviour that was active when that commit landed: skills are floating local copies.
 3. **No canary or rollback.** Updating a skill is per-repo manual `cp -r`. A regressing skill change ships everywhere or nowhere; there is no equivalent to the `inherits_from: <playbook>@v0.3.1` semver pin we already enforce for the playbook itself.
 
@@ -180,12 +180,12 @@ The migration is **breaking but mechanical**: every consumer needs a single PR. 
 
 | Repo | Files removed | Files added | Submodules added | Estimated effort |
 |---|---|---|---|---|
-| `openTrattOS` | ~600 (52 bmad + 4 openspec, ~10 files each) | 1 (.gitmodules update), 4 (AGENTS.md/spec rows) | 1 (`ai-playbook/skills/`) | 30 min |
+| `nexandro` | ~600 (52 bmad + 4 openspec, ~10 files each) | 1 (.gitmodules update), 4 (AGENTS.md/spec rows) | 1 (`ai-playbook/skills/`) | 30 min |
 | `eligia-core` | ~140 (7 bmad agents) | same | 1 | 30 min |
 | `iguanatrader` | ~20 (2 bmad just copied) | same | 1 or 2 | 20 min |
 | `palafito-b2b` | 0 | same | 1 (opt-in) | 20 min |
 | `eligia-skills` | n/a (source repo, restructure into `skills/`) | n/a | n/a (no consumer change) | 1 h |
-| `ai-playbook` | n/a (source repo, populate `skills/` from openTrattOS canonical) | this RFC + new spec + new runbook + `propagate_skills_bump.py` + workflow | n/a | 2–3 h |
+| `ai-playbook` | n/a (source repo, populate `skills/` from nexandro canonical) | this RFC + new spec + new runbook + `propagate_skills_bump.py` + workflow | n/a | 2–3 h |
 
 ### Deprecations
 
@@ -223,7 +223,7 @@ Merge `ai-playbook/skills/`, `eligia-skills/skills/`, and any future skills repo
 Rejected because:
 
 - Methodology (BMAD upstream-tracked, AGPL-style community) and personal/custom (Arturo's playbook) have different audit trails, visibility, and release cadences. Coupling them couples decisions that should remain independent.
-- The two-repo split mirrors the existing public/private split (`openTrattOS` AGPL community vs. `palafito-b2b` enterprise). RFC-0001 just extends the same pattern to skills.
+- The two-repo split mirrors the existing public/private split (`nexandro` AGPL community vs. `palafito-b2b` enterprise). RFC-0001 just extends the same pattern to skills.
 
 ### D. NPM package per skill
 
@@ -248,7 +248,7 @@ Rejected because:
 7. `scripts/bootstrap.py` extension + `validate-skills-mirror.py` pre-commit hook.
 8. `consumers.yaml` schema bump (new `skills_pins` field).
 9. `eligia-skills v0.2.0` cut in parallel with the structural move from root → `skills/`.
-10. Per-consumer migration PRs, sequenced openTrattOS → eligia-core → iguanatrader → palafito-b2b.
+10. Per-consumer migration PRs, sequenced nexandro → eligia-core → iguanatrader → palafito-b2b.
 
 Semver impact: **minor** for `ai-playbook` (new optional schema field, all consumers continue working pre-migration); **minor** for `eligia-skills` (path restructure, but the FastAPI catalog endpoint remains backwards-compatible for a deprecation window).
 

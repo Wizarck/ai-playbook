@@ -180,7 +180,7 @@ Project board schema (Status options + custom fields) is canonical per [release-
 
 ### 3.7 On-disk layout for concurrent slices
 
-When a module ships in waves of 5–10 concurrent OpenSpec changes (the openTrattOS Module 2 cohort, for example), single-working-tree workflow saturates: one local checkout cannot service multiple in-flight slices without context-switching cost (stash thrash, dependency reinstalls per branch swap, build-cache contamination).
+When a module ships in waves of 5–10 concurrent OpenSpec changes (the nexandro Module 2 cohort, for example), single-working-tree workflow saturates: one local checkout cannot service multiple in-flight slices without context-switching cost (stash thrash, dependency reinstalls per branch swap, build-cache contamination).
 
 The canonical layout for that case is **bare repo + per-branch worktrees** per [git-worktree-bare-layout.md](git-worktree-bare-layout.md). Each OpenSpec change-id becomes a peer subdirectory of the project root, sharing one `.bare/` git database:
 
@@ -230,7 +230,7 @@ visualisation looks like the project, not a generic mock template.
 This pattern is **optional** — appropriate for slices that span ≥3
 bounded contexts or introduce a non-trivial schema. Trivial slices (one
 file, one bounded context) don't earn the overhead. Validated on
-openTrattOS Wave 1.9 (`m2-audit-log`) where the mock surfaced a
+nexandro Wave 1.9 (`m2-audit-log`) where the mock surfaced a
 column-name mismatch that would have cost a re-spin during
 implementation.
 
@@ -272,12 +272,12 @@ Concrete shape:
 When this earns its keep:
 
 - **New tech stack** (introducing React + Storybook + Tailwind 4 + Vite
-  in a previously-CLI-only project) — verified on openTrattOS
+  in a previously-CLI-only project) — verified on nexandro
   `m2-ui-foundation`.
 - **MCP server / agent integration** — the API surface design decisions
   cascade across all consumer slices.
 - **Cross-language tooling** (introducing a Python sidecar in a
-  TypeScript monorepo) — verified by openTrattOS `tools/rag-proxy`.
+  TypeScript monorepo) — verified by nexandro `tools/rag-proxy`.
 - **Major refactor** (extracting a shared library; renaming a public
   API; rewriting an event channel) — verified by iguanatrader
   `api-foundation-rfc7807`.
@@ -320,7 +320,7 @@ Author the per-slice retro **during** the slice's implementation phase, not
 after merge. The retro lands in the same commit as the archive, with the
 **squash SHA + merge date filled in post-merge during the archive step**.
 
-This pattern, validated across openTrattOS Wave 1.7-1.9 (PRs #87-#90, May
+This pattern, validated across nexandro Wave 1.7-1.9 (PRs #87-#90, May
 2026) and iguanatrader Wave 2 (slices R1, T1, K1, P1, O1, W1):
 
 - Reduces the "after-merge cognitive drop-off" failure mode where the AI

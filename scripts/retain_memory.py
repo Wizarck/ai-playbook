@@ -254,7 +254,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="scripts.retain_lesson",
         description="Retain a lesson/gotcha/decision/failure to Hindsight.",
     )
-    p.add_argument("--bank", required=True, help="Hindsight bank_id (e.g. eligia, opentrattos).")
+    p.add_argument("--bank", required=True, help="Hindsight bank_id (e.g. eligia, nexandro).")
 
     g = p.add_argument_group("single-item flags")
     g.add_argument("--content", help="Lesson body text (≥10 chars).")

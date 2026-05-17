@@ -52,8 +52,8 @@ Optionally followed by a blank line and an expanded multi-line detail block (for
 ### MCP SSOT drift
 
 ```
-❌ mcp-servers.yaml rendered output diverges from committed .mcp.json at C:/Projects/openTrattOS/.mcp.json
-   FIX: run `python .ai-playbook/scripts/mcp/render.py --project openTrattOS` and commit the regenerated file.
+❌ mcp-servers.yaml rendered output diverges from committed .mcp.json at C:/Projects/nexandro/.mcp.json
+   FIX: run `python .ai-playbook/scripts/mcp/render.py --project nexandro` and commit the regenerated file.
    OVERRIDE: python .ai-playbook/scripts/mcp/render.py --dry-run --force-with-reason="intentional local experiment before committing registry change"
 ```
 

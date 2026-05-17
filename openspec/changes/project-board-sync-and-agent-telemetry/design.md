@@ -75,7 +75,7 @@ one sitting.
 ## D4 — Why retro-proven patterns over speculative ones
 
 Every pattern + gotcha + rule in this PR has a **specific concrete
-incident** in the iguanatrader or openTrattOS retros. None are
+incident** in the iguanatrader or nexandro retros. None are
 speculative "this might happen". The cost of including a pattern that
 doesn't generalize is concrete confusion for future readers; the
 retro-proven filter prevents this.
@@ -118,7 +118,7 @@ immediately; adoption is graded per `release-management.md` §5.6
 visibility profile.
 
 iguanatrader will bump submodule to v0.10.0 as part of Wave 3 kickoff;
-openTrattOS + eligia + palafito-b2b adopt opportunistically.
+nexandro + eligia + palafito-b2b adopt opportunistically.
 
 ## Invariants
 

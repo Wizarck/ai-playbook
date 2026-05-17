@@ -26,7 +26,7 @@ notify(event, severity, summary, ...)
    │     └──────────────────────────────────────────────────┘
    │     ┌──────────────────────────────────────────────────┐
    │     │ §6 SMTP fallback  (queue disabled OR             │
-   │     │   not vendored — palafito-b2b, openTrattOS,      │
+   │     │   not vendored — palafito-b2b, nexandro,      │
    │     │   iguanatrader, livekit, dev laptops)            │
    │     └──────────────────────────────────────────────────┘
    │
@@ -75,7 +75,7 @@ Example:
   "severity": "info",
   "summary": "Created TRATT-42 for module-1-ingredients-impl",
   "detail": "",
-  "attrs": {"tracker_id": "TRATT-42", "change_id": "module-1-ingredients-impl", "project": "openTrattOS"},
+  "attrs": {"tracker_id": "TRATT-42", "change_id": "module-1-ingredients-impl", "project": "nexandro"},
   "trace_id": "0196f34a8c7e7b2f9d013e8a9b4c2f11",
   "actor": "arturo6ramirez@gmail.com"
 }
@@ -194,7 +194,7 @@ Two AND-gated conditions:
    sibling to the watchdog loop.
 
 When either condition is missing, `notify()` falls through to the legacy
-SMTP path (§6) without raising. Other consumers (palafito-b2b, openTrattOS,
+SMTP path (§6) without raising. Other consumers (palafito-b2b, nexandro,
 iguanatrader, livekit) are unaffected by this change.
 
 ### Storage

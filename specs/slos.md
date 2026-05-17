@@ -8,7 +8,7 @@ Service-level objectives for the `ai-playbook` repo itself — the shared norms 
 
 ## 1. What we measure (and what we don't)
 
-These SLOs apply to the **playbook**: its specs, scripts, docs, retros, and governance loop. They do NOT cover the runtime services that a consumer project ships (Hindsight memory plane, Hermes personal assistant, OpenTrattOS API, etc.) — those services carry their own SLOs in their own repos. Mixing the two planes inflates dashboards and hides real misses. Keep them separate.
+These SLOs apply to the **playbook**: its specs, scripts, docs, retros, and governance loop. They do NOT cover the runtime services that a consumer project ships (Hindsight memory plane, Hermes personal assistant, Nexandro API, etc.) — those services carry their own SLOs in their own repos. Mixing the two planes inflates dashboards and hides real misses. Keep them separate.
 
 The SLOs codified here answer one question: **"Is the playbook still a net win for the people consuming it?"** If drift, ambiguity, or flakiness erodes the signal, these numbers go red before the consumers lose trust.
 

@@ -1,6 +1,6 @@
 # cross-slice-additive-extension.md
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines the canonical pattern for **adding fields to a shared entity across multiple slices** without forcing a single slice to own the entity OR forcing the schema migration into a sequential bottleneck. Closes the gap surfaced by **4+ iguanatrader slices** (R2 dedupe_key, R5 audit_trail FK, R3 source_id extensions, T1 client_order_id) + openTrattOS Wave 1.7-1.9 (m2-data-model `text[]` allergens, `jsonb nutrition`, `NOT NULL DEFAULT '{}'`-style additive ALTERs).
+> **Status**: v1.0.0 (new in v0.11.0). Defines the canonical pattern for **adding fields to a shared entity across multiple slices** without forcing a single slice to own the entity OR forcing the schema migration into a sequential bottleneck. Closes the gap surfaced by **4+ iguanatrader slices** (R2 dedupe_key, R5 audit_trail FK, R3 source_id extensions, T1 client_order_id) + nexandro Wave 1.7-1.9 (m2-data-model `text[]` allergens, `jsonb nutrition`, `NOT NULL DEFAULT '{}'`-style additive ALTERs).
 
 ## 1. Why this spec
 
@@ -16,7 +16,7 @@ Three failed approaches:
 2. **Big-bang slice** — one slice owns "all schema changes for research_facts in Wave 2". Couples unrelated work (B's audit-trail design has nothing to do with A's idempotency); the slice is large, hard to review, and breaks Wave-N parallelism.
 3. **Per-slice tables** — each slice creates a sister table (`research_facts_dedupe`, `research_facts_audit`, `research_facts_temporal`). Joins multiply; the canonical entity is fragmented; queries become 4-way joins.
 
-The pattern that has **emerged organically** across iguanatrader Wave 2-3 + openTrattOS Wave 1.7-1.9 is:
+The pattern that has **emerged organically** across iguanatrader Wave 2-3 + nexandro Wave 1.7-1.9 is:
 
 > Each slice ships its OWN additive migration that adds ITS field(s) to the shared entity, with the field declared as **nullable OR `NOT NULL DEFAULT <sentinel>`**, claimed in the slicing artefact's slot reservations table. Migration order is determined by the slot reservation, not by inter-slice coordination.
 
@@ -72,7 +72,7 @@ Use when:
 - Read code expects a non-null value but can interpret the sentinel as "pre-feature row".
 
 Reference implementations:
-- openTrattOS m2-data-model: added `text[] NOT NULL DEFAULT '{}'` for `allergens` and `categories` on the recipes table. Pre-feature rows read as "no allergens declared" (truthful, since the feature didn't exist).
+- nexandro m2-data-model: added `text[] NOT NULL DEFAULT '{}'` for `allergens` and `categories` on the recipes table. Pre-feature rows read as "no allergens declared" (truthful, since the feature didn't exist).
 - iguanatrader R5: added `audit_trail_id UUID NULL` (not Shape B because the FK can't have a sentinel — see Shape C limitations below).
 
 **Caveat**: on Postgres < 11 (and on most other RDBMS), `ADD COLUMN ... NOT NULL DEFAULT <volatile>` rewrites the entire table. For tables > a few million rows, prefer Shape A + a follow-up backfill in a later migration.
@@ -90,7 +90,7 @@ Use when:
 - Reads can tolerate a JSON-roundtrip cost (single-row reads are fine; bulk analytics over `extension_payload->>'key'` are slower than indexed columns).
 
 Reference implementations:
-- openTrattOS m2-cost-rollup-and-audit: `nutrition` JSONB column on recipes — sub-keys vary by recipe type (Spanish-only recipes ship `kcal` + `proteins`; international recipes ship the full Open Food Facts payload). Promoting sub-keys to columns would have produced 30+ mostly-NULL columns.
+- nexandro m2-cost-rollup-and-audit: `nutrition` JSONB column on recipes — sub-keys vary by recipe type (Spanish-only recipes ship `kcal` + `proteins`; international recipes ship the full Open Food Facts payload). Promoting sub-keys to columns would have produced 30+ mostly-NULL columns.
 - eligia-core ADR-014 multi-tenant plugin pattern: per-tenant config payload is JSONB, not a wide column set, because the tenant schema is open-ended.
 
 **Caveat**: JSONB is the wrong call when the extension is structurally fixed and analytics-heavy. Use Shape A or B for "this slice adds 1 column with a known shape"; reserve Shape C for "N slices add disjoint sub-payloads we don't want to coordinate".
@@ -214,6 +214,6 @@ The gate template ships in `templates/new-project/tests/test_migration_chain_wal
 | iguanatrader | R3 (research-news-catalysts-adapters) | `research_facts` | extends R2's `dedupe_key` index | (no DDL change) |
 | iguanatrader | R5 (research-brief-synthesis) | `research_facts` | `audit_trail_id UUID NULL` | A |
 | iguanatrader | T1 (trading-models-interfaces) | `orders` | `client_order_id UUID NULL` | A |
-| openTrattOS | m2-data-model | `recipes` | `allergens TEXT[] NOT NULL DEFAULT '{}'` | B |
-| openTrattOS | m2-cost-rollup-and-audit | `recipes` | `nutrition JSONB NOT NULL DEFAULT '{}'` | C |
-| openTrattOS | m2-ingredients-extension | `ingredients` | `categories TEXT[] NOT NULL DEFAULT '{}'` | B |
+| nexandro | m2-data-model | `recipes` | `allergens TEXT[] NOT NULL DEFAULT '{}'` | B |
+| nexandro | m2-cost-rollup-and-audit | `recipes` | `nutrition JSONB NOT NULL DEFAULT '{}'` | C |
+| nexandro | m2-ingredients-extension | `ingredients` | `categories TEXT[] NOT NULL DEFAULT '{}'` | B |

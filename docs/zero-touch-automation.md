@@ -10,7 +10,7 @@ This doc describes the **zero-touch loop** that takes OpenSpec changes and semve
 
 ```
            ┌───────────────────────────────────────────────────────────┐
-           │                 CONSUMER REPO (e.g. openTrattOS)           │
+           │                 CONSUMER REPO (e.g. nexandro)           │
            │                                                             │
            │   /opsx:propose  →  openspec/changes/<id>/proposal.md      │
            │                                                             │

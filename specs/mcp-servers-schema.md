@@ -104,7 +104,7 @@ skills-registry:
 
 Layer-specific overrides:
 
-- **Project layer (e.g. `openTrattOS/mcp-servers.yaml`)**: MAY pin
+- **Project layer (e.g. `nexandro/mcp-servers.yaml`)**: MAY pin
   `endpoint` to the production URL and leave `auth: none` if only
   `scope=public` skills are consumed. `env.required` MAY add
   `SKILLS_REGISTRY_API_KEY` if the project needs `scope=<project-slug>` entries.
@@ -214,7 +214,7 @@ These will be rejected by the validator, or by review:
 - **Duplicate canonical IDs across layers.** This is not a duplicate — this
   is override. But two servers with the same ID in a **single** layer is a
   schema violation.
-- **Prefixing IDs with a consumer name** (`opentrattos-guardrails-mcp`).
+- **Prefixing IDs with a consumer name** (`nexandro-guardrails-mcp`).
   The point of the 3-layer model is that the canonical ID stays the same;
   the project layer overrides fields, not the name.
 - **Inlining secrets in YAML.** Secrets live in SOPS-encrypted `secrets.env`
