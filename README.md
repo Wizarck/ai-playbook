@@ -1,6 +1,6 @@
 # ai-playbook
 
-Universal AI-dev norms, specs, scripts, and templates consumed via **git submodule** by every project under Arturo / Wizarck org (consumer-c-legacy, consumer-d, consumer-b, future projects).
+Universal AI-dev norms, specs, scripts, and templates consumed via **git submodule** by every project under Arturo / Wizarck org (consumer-c, consumer-d, consumer-b, future projects).
 
 ## Purpose
 
@@ -159,7 +159,7 @@ ai-playbook/
 
 | Repo | How it consumes |
 |---|---|
-| `consumer-c-legacy` | `.ai-playbook/` as git submodule, semver-pinned. |
+| `consumer-c` | `.ai-playbook/` as git submodule, semver-pinned. |
 | `consumer-d` | `.ai-playbook/` as git submodule + `consumer-d.md` personal add-on. |
 | New projects | Run `python <playbook>/scripts/bootstrap.py --project-name X --owner Y` from a fresh repo. |
 
@@ -189,4 +189,4 @@ See [`MAINTAINERS.md`](MAINTAINERS.md).
 
 ## License
 
-Internal to Wizarck org. Content may be relicensed (MIT or compatible) once a public release is cut; consumers that ship under AGPL-3.0 (`consumer-c-legacy`) receive only the submodule snapshot, which is compatible with AGPL so long as the playbook is permissively licensed at public-release time.
+Internal to Wizarck org. Content may be relicensed (MIT or compatible) once a public release is cut; consumers that ship under AGPL-3.0 (`consumer-c`) receive only the submodule snapshot, which is compatible with AGPL so long as the playbook is permissively licensed at public-release time.

@@ -124,7 +124,7 @@ def test_autofix_preserves_valid_slug(tmp_path: Path) -> None:
 schema: agents-md/v1
 version: 1.0.0
 updated: 2026-04-23
-project: consumer-c-legacy
+project: consumer-c
 owner: owner@example.com
 capabilities_map: true
 inherits_from:
@@ -135,8 +135,8 @@ inherits_from:
     p = _write(tmp_path / "AGENTS.md", content)
     fm = sv.parse_frontmatter(p.read_text(encoding="utf-8"))
     new_fm, fixes = sv.apply_autofix(fm, file_path=p)
-    # consumer-c-legacy is a valid slug (camelCase allowed). Must NOT be rewritten.
-    assert new_fm.data["project"] == "consumer-c-legacy"
+    # consumer-c is a valid slug (camelCase allowed). Must NOT be rewritten.
+    assert new_fm.data["project"] == "consumer-c"
     # No project-related fix should be in the list.
     assert not any("slugified" in f for f in fixes)
 

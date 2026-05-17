@@ -263,7 +263,7 @@ def _propagate_one(
     # `.skills-sources/<source>/` submodule pointer + tracked `skills/`
     # mirror stay at the old tag. The propagation is half-baked: every
     # consumer would need a manual `bootstrap.py --refresh-skills` after
-    # merging the bump PR. Surfaced 2026-05-01 in consumer-c-legacy — AGENTS.md
+    # merging the bump PR. Surfaced 2026-05-01 in consumer-c — AGENTS.md
     # said `Wizarck/ai-playbook@v0.8.6` but `.skills-sources/ai-playbook`
     # was still pinned to v0.7.1. Fix: run the materialiser now so the bot
     # ships the fully-propagated state in one PR.

@@ -14,7 +14,7 @@ Two adjacent retros surfaced complementary gaps in the playbook:
    progression. The "AI should remember to update the board" expectation
    is unenforceable.
 
-2. **consumer-c-legacy Wave 1.7-1.9** (2026-05-06, 3 slices merged):
+2. **consumer-c Wave 1.7-1.9** (2026-05-06, 3 slices merged):
    ~14 cross-project patterns + gotchas surfaced (event-bus translation,
    migration backfill discipline, cross-language tooling layout, Windows
    dev-loop quirks, gitleaks history-scan + markdown style trap, BMAD
@@ -111,7 +111,7 @@ Land **v0.10.0** as an additive minor release that:
   `retros/approval-channels-multichannel.md`,
   `retros/observability-cost-meter.md`,
   `retros/dashboard-svelte-skeleton.md`.
-- consumer-c-legacy retros: `retros/m2-ai-yield-corpus.md`,
+- consumer-c retros: `retros/m2-ai-yield-corpus.md`,
   `retros/m2-wrap-up.md`, `retros/m2-audit-log.md`.
 - External research:
   - [GitHub Projects v2 built-in automations](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-built-in-automations)

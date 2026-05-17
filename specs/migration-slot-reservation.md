@@ -1,6 +1,6 @@
 # migration-slot-reservation.md
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines the universal contract for **how monotonic / append-only namespace slots are reserved across parallel slices** — covering DB migration revision numbers, append-only doc IDs (gotchas, ADRs), seed entity IDs, and any other monotonic-counter resource that multiple parallel-wave slices write into. Closes the gap surfaced by **6 consecutive migration-slot collisions in consumer-e Wave 2-3** (R1/R2/R5/R3/T2/O2 all picked slot `0007`/`0008` independently and collided at rebase) and parallel m2 collisions in consumer-c-legacy.
+> **Status**: v1.0.0 (new in v0.11.0). Defines the universal contract for **how monotonic / append-only namespace slots are reserved across parallel slices** — covering DB migration revision numbers, append-only doc IDs (gotchas, ADRs), seed entity IDs, and any other monotonic-counter resource that multiple parallel-wave slices write into. Closes the gap surfaced by **6 consecutive migration-slot collisions in consumer-e Wave 2-3** (R1/R2/R5/R3/T2/O2 all picked slot `0007`/`0008` independently and collided at rebase) and parallel m2 collisions in consumer-c.
 >
 > **Companion to**: [release-management.md](release-management.md) §6.4.1 (gotcha numbering ranges) and §6.4.2 (verbose-form revision strings) — this spec subsumes and generalises both.
 
@@ -12,7 +12,7 @@ Reality from 2026-04-29 → 2026-05-06 (consumer-e Wave 2 + Wave 3):
 
 - **6 consecutive migration revision collisions**: R1, R2, R5, R3, T2, O2 each chose `0007_*` (then `0008_*`, `0009_*`...) independently because each slice was scaffolded in isolation off `main`. By the time slice N rebased, N-1 had already taken N-1's expected slot. The visible artefact in retros: `0010_research_sources_tier_b_c.py` had a header note "tasks.md called for 0004; ended up at 0010 due to 4 prior collisions".
 - **Each retro flagged it as a carry-forward**: by retro #4, the carry-forward read "ai-playbook v0.11 should reserve slots at scaffold time". The slicing artefact was modified retroactively after each collision, but the cost was real (rebase tax: ~10 min/slice × 6 slices + cognitive overhead).
-- **Same pattern in consumer-c-legacy**: m2-data-model + cost-rollup retros document parallel m2 schema-slot races, resolved by hand each time.
+- **Same pattern in consumer-c**: m2-data-model + cost-rollup retros document parallel m2 schema-slot races, resolved by hand each time.
 
 The cost of **getting the slot reserved at scaffold time** is one CLI flag. The cost of **resolving the collision at rebase time** is bigger every iteration.
 

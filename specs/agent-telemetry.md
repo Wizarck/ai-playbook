@@ -139,7 +139,7 @@ For the Arturo-personal stack: the consumer-d infrastructure already operates a
 Langfuse Cloud project with keys in
 `C:/Projects/consumer-d/secrets/secrets.env` (`LANGFUSE_PUBLIC_KEY` /
 `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST`). Every Arturo-owned consumer
-(consumer-e, consumer-c-legacy, consumer-b, consumer-d-rag, consumer-d-skills) reuses
+(consumer-e, consumer-c, consumer-b, consumer-d-rag, consumer-d-skills) reuses
 that project. The `consumer-d/dashboard` already renders 4 Langfuse-backed
 widgets (`cost-estimate`, `top-models`, `traces-today`, `error-rate`); these
 widgets surface Claude Code agent activity once OTLP export is enabled,

@@ -84,7 +84,7 @@ discovered" warning.
 ```
 fatal: could not read Username for 'https://github.com': No such device or address
 fatal: clone of 'https://github.com/Wizarck/ai-playbook.git' into submodule path '...'
-❌ consumer-c-legacy   error   clone failed: ...
+❌ consumer-c   error   clone failed: ...
 ```
 
 **Root cause**

@@ -1,6 +1,6 @@
 # ux-track.md
 
-> **Status**: v2.0.0. Substantially expanded from v1.0.0 based on consumer learnings (consumer-c-legacy M2). Codifies the three-step order (inspiration → palette → variants), self-documenting deliverables, palette decoupling as an intermediate visual step, bones+layer remix iteration, OKLCH-canonical colour rule, per-journey docs format, Storybook-style components catalogue with a stewardship clause, an anti-patterns checklist baked into the audit, and a WCAG-AA verification ritual. Removed the v1.0.0 license-attribution section as unnecessary scaffolding — the curated engines are now listed plainly with a one-line "check the licenses for your use case" reminder. Additive against v1.0.0; existing consumers may migrate at their own pace.
+> **Status**: v2.0.0. Substantially expanded from v1.0.0 based on consumer learnings (consumer-c M2). Codifies the three-step order (inspiration → palette → variants), self-documenting deliverables, palette decoupling as an intermediate visual step, bones+layer remix iteration, OKLCH-canonical colour rule, per-journey docs format, Storybook-style components catalogue with a stewardship clause, an anti-patterns checklist baked into the audit, and a WCAG-AA verification ritual. Removed the v1.0.0 license-attribution section as unnecessary scaffolding — the curated engines are now listed plainly with a one-line "check the licenses for your use case" reminder. Additive against v1.0.0; existing consumers may migrate at their own pace.
 
 ## 1 Purpose
 
@@ -128,7 +128,7 @@ A short `<div class="provenance">` at the top of the body stating what surface t
 
 ```html
 <div class="provenance" role="note" aria-label="Screen context">
-  <b>consumer-c-legacy · Recipe edit · Module 2 / Journey 1</b>
+  <b>consumer-c · Recipe edit · Module 2 / Journey 1</b>
   <span class="note">Tablet-first kitchen surface. AA-verified contrast on every text pair, ≥48px touch targets, prefers-reduced-motion respected, no hover-only affordances on pointer:coarse.</span>
 </div>
 ```
@@ -187,7 +187,7 @@ If the user likes the structure of one variant but wants a different colour laye
 3. User picks the palette.
 4. Produce one new variant: `mock-X2-<palette-name>.html` where X is the structural variant the user picked. The naming records the lineage: bones X + new layer.
 
-This pattern fired in the consumer-c-legacy M2 work: the user picked Mock G's discipline but wanted the Pulcinella palette over G's clay/terracotta. Result was `mock-G2-trattoria.html`. Both files coexist; the original G is preserved as a fallback.
+This pattern fired in the consumer-c M2 work: the user picked Mock G's discipline but wanted the Pulcinella palette over G's clay/terracotta. Result was `mock-G2-trattoria.html`. Both files coexist; the original G is preserved as a fallback.
 
 ### 8.2 Layer-only iteration (smaller drift)
 
@@ -500,7 +500,7 @@ The head-comment audit (§6.2) ends with an explicit "anti-patterns avoided" lis
 
 `side-tab` (border-accent-on-rounded), `nested-cards`, `monotonous-spacing`, `everything-centered`, `bounce-easing`, `dark-glow`, `icon-tile-stack` (rounded-square icon tiles above headings), `pure-black-white`, `gray-on-color`, `ai-color-palette` (tech-blue / teal / purple reflex), `glassmorphism`, `gradient-text`, `flat-type-hierarchy`, `tiny-text` (< 13 px), `all-caps-body`, `wide-tracking` on body, `justified-text`, `tight-leading`, `cramped-padding`, `layout-transition` (animating `width` / `height`), `hero-metric` template, `identical card grids`, `modal-as-first-thought`, `em dashes`.
 
-Plus absolute bans for consumer-c-legacy-style products (food / regulated / professional surfaces): emoji icons in critical paths, decorative gradients, illustrative SVG imagery in non-marketing surfaces.
+Plus absolute bans for consumer-c-style products (food / regulated / professional surfaces): emoji icons in critical paths, decorative gradients, illustrative SVG imagery in non-marketing surfaces.
 
 The audit lists which of these were considered and avoided; if a variant uses one of these patterns deliberately, the comment must justify the exception with a project-specific rationale.
 

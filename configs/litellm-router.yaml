@@ -8,7 +8,7 @@
 # PRODUCTION DEPLOY — IMPORTANT
 # ===========================================================================
 # LiteLLM accepts only ONE --config file at startup. Each consumer of this
-# playbook (consumer-d, consumer-c-legacy, consumer-b, ...) deploys LiteLLM
+# playbook (consumer-d, consumer-c, consumer-b, ...) deploys LiteLLM
 # with a project-local ConfigMap (or docker-compose volume mount) that
 # MUST mirror the `model_list:` task-class entries below.
 #

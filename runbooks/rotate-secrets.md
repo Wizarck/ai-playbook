@@ -44,7 +44,7 @@ https://github.com/settings/personal-access-tokens/new. Set:
 | Description | `Used by Wizarck/ai-playbook propagate-playbook-bump.yml to open bump PRs across consumers in consumers.yaml` |
 | Resource owner | `Wizarck` |
 | Expiration | 90 days (calendar-rotated; or 1 year if Wizarck policy allows) |
-| Repository access | "Only select repositories" → check **every active row in `consumers.yaml`** (today: `Wizarck/consumer-c-legacy`, `Wizarck/consumer-d`, `Wizarck/consumer-b`) |
+| Repository access | "Only select repositories" → check **every active row in `consumers.yaml`** (today: `Wizarck/consumer-c`, `Wizarck/consumer-d`, `Wizarck/consumer-b`) |
 | Repository permissions | `Contents: Read and write`, `Pull requests: Read and write`, `Metadata: Read-only` (auto). All other permissions stay at "No access". |
 | Account permissions | None. |
 
@@ -93,7 +93,7 @@ Three surfaces — keep them consistent:
 1. **SOPS-encrypted** in `consumer-d/secrets/secrets.env`:
    `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`.
 2. **GitHub repo secrets** on all 3 workflow repos (`ai-playbook`,
-   `consumer-c-legacy`, `consumer-d`) — same 4 keys.
+   `consumer-c`, `consumer-d`) — same 4 keys.
 3. **k8s Secret** `consumer-d-secrets` in `consumer-d` namespace on the VPS —
    stringData fields for the 4 keys.
 
@@ -114,7 +114,7 @@ Three surfaces — keep them consistent:
    (the direct `gh secret set` has been flaky — wrap in retry):
    ```bash
    NEW_PW="<new-16-char-no-spaces>"
-   for repo in Wizarck/ai-playbook Wizarck/consumer-c-legacy Wizarck/consumer-d; do
+   for repo in Wizarck/ai-playbook Wizarck/consumer-c Wizarck/consumer-d; do
      for i in 1 2 3 4 5; do
        gh secret set SMTP_PASSWORD --repo "$repo" --body "$NEW_PW" && break
        sleep 2

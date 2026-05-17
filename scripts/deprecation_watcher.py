@@ -8,7 +8,7 @@ Populated in T22i. Surfaces the following deprecation signals:
    ``ANTHROPIC_CACHE_TOKENS_MIN`` without ``AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN``
    (see ``specs/env-vars.md`` resolution order).
 3. **Deprecated MCP server IDs** in consumer ``mcp-servers.yaml`` / ``.mcp.json``
-   — first entry: ``consumer-c-legacy-guardrails-mcp`` → canonical ``guardrails-mcp``.
+   — first entry: ``consumer-c-guardrails-mcp`` → canonical ``guardrails-mcp``.
    Configurable via ``specs/deprecations.yaml``; falls back to a hardcoded
    minimal list if that file is absent.
 4. **Stale retro-archive entries** flagged by ``scripts/lifecycle_check.py``
@@ -62,7 +62,7 @@ STALE_RETRO_DAYS = 180
 
 DEFAULT_MCP_DEPRECATIONS: dict[str, str] = {
     # deprecated_id → canonical_id
-    "consumer-c-legacy-guardrails-mcp": "guardrails-mcp",
+    "consumer-c-guardrails-mcp": "guardrails-mcp",
 }
 
 DEFAULT_ENV_ALIASES: dict[str, str] = {

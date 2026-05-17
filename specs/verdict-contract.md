@@ -158,7 +158,7 @@ Telemetry: bank_id=acme, trace_id=0196f34a-8c7e-7b2f-9d01-3e8a9b4c2f11
   Detail: `clearCart(orgId)` dereferences `cart.items[0].id` when the cart has zero rows.
           Repro: POST /cart/clear on a fresh org. FIX: early-return when `items.length === 0`.
 
-- [S3] Repository name drifts from `@consumer-c-legacy/types` Supplier naming
+- [S3] Repository name drifts from `@consumer-c/types` Supplier naming
   Location: apps/api/src/cart/cart.repository.ts:18
   Detail: `findVendorById` should be `findSupplierById` to match the shared DTO. No behaviour
           change. FIX: rename method + call sites.

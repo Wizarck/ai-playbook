@@ -132,18 +132,18 @@ def test_env_alias_quiet_when_canonical_present() -> None:
 def test_mcp_deprecated_id_detected_in_yaml(tmp_path: Path) -> None:
     proj = tmp_path / "p"
     proj.mkdir()
-    _make_mcp_yaml(proj / "mcp-servers.yaml", "consumer-c-legacy-guardrails-mcp")
+    _make_mcp_yaml(proj / "mcp-servers.yaml", "consumer-c-guardrails-mcp")
     findings = dw.scan_mcp_deprecations(proj, "p", dw.DEFAULT_MCP_DEPRECATIONS)
     assert len(findings) == 1
     assert findings[0].kind == "mcp_deprecated_id"
-    assert "consumer-c-legacy-guardrails-mcp" in findings[0].subject
+    assert "consumer-c-guardrails-mcp" in findings[0].subject
 
 
 def test_mcp_deprecated_id_detected_in_json(tmp_path: Path) -> None:
     proj = tmp_path / "p"
     proj.mkdir()
     (proj / ".mcp.json").write_text(
-        '{\n  "mcpServers": {\n    "consumer-c-legacy-guardrails-mcp": {"command": "x"}\n  }\n}\n',
+        '{\n  "mcpServers": {\n    "consumer-c-guardrails-mcp": {"command": "x"}\n  }\n}\n',
         encoding="utf-8",
     )
     findings = dw.scan_mcp_deprecations(proj, "p", dw.DEFAULT_MCP_DEPRECATIONS)
@@ -205,7 +205,7 @@ def test_load_deprecations_yaml_merges_with_defaults(tmp_path: Path) -> None:
     mcp, env = dw.load_deprecations_yaml(tmp_path)
     # Merged: defaults + the yaml additions.
     assert "extra-old-id" in mcp
-    assert "consumer-c-legacy-guardrails-mcp" in mcp  # still present
+    assert "consumer-c-guardrails-mcp" in mcp  # still present
     assert env == dw.DEFAULT_ENV_ALIASES
 
 
@@ -222,7 +222,7 @@ def test_collect_findings_end_to_end(tmp_path: Path) -> None:
     proj_v1 = tmp_path / "modern"
     proj_v1.mkdir()
     _make_v1_agents_md(proj_v1 / "AGENTS.md")
-    _make_mcp_yaml(proj_v1 / "mcp-servers.yaml", "consumer-c-legacy-guardrails-mcp")
+    _make_mcp_yaml(proj_v1 / "mcp-servers.yaml", "consumer-c-guardrails-mcp")
 
     registry = _write_registry(tmp_path, {"legacy": proj_v0, "modern": proj_v1})
     config = dw.WatcherConfig(

@@ -12,7 +12,7 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 |---|---|---|---|
 | `AIPLAYBOOK_` | This repo's scripts. | `AIPLAYBOOK_PROJECTS_FILE` | Runtime env. |
 | `consumer-d_` | consumer-d (personal). | `consumer-d_CORE_DIR`, `consumer-d_VPS_HOST` | SOPS-decrypted + shell env. |
-| `consumer-c-legacy_` | consumer-c-legacy consumer. | `consumer-c-legacy_DATABASE_URL` | `.env` + secret store. |
+| `consumer-c_` | consumer-c consumer. | `consumer-c_DATABASE_URL` | `.env` + secret store. |
 | `HINDSIGHT_` | Hindsight MCP credentials. | `HINDSIGHT_API_KEY` | SOPS-decrypted. |
 | `LANGFUSE_` | Langfuse tracing. | `LANGFUSE_HOST` | SOPS-decrypted. |
 | `OTEL_` | OpenTelemetry SDK. | `OTEL_EXPORTER_OTLP_ENDPOINT` | Local Collector or VPS pointer. |
@@ -22,7 +22,7 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 ## Rules
 
 - **No plaintext secrets in git.** Always via SOPS -> decrypted at runtime.
-- **No cross-prefix reads.** A playbook script does not read `consumer-d_*` or `consumer-c-legacy_*` directly; those flow through explicit CLI args.
+- **No cross-prefix reads.** A playbook script does not read `consumer-d_*` or `consumer-c_*` directly; those flow through explicit CLI args.
 - **Every prefix's vars are enumerated below.** Adding a new var = updating this spec in the same PR.
 - **Canonical name wins over alias.** Where a var has a back-compat alias (see `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` below), the canonical name is preferred; `scripts/doctor.py` emits a warning when the alias is the only value set.
 

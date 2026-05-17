@@ -9,7 +9,7 @@
 ## Scope
 
 This runbook covers Windows + WSL2 dev-loop gotchas surfaced during
-2026-Q2 across consumer-c-legacy (Node 24+ Jest, Python tools), consumer-e
+2026-Q2 across consumer-c (Node 24+ Jest, Python tools), consumer-e
 (git worktrees, Python venv), and consumer-d (poetry, MS Store Python).
 
 If you're on Linux or macOS, ignore this file.

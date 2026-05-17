@@ -304,7 +304,7 @@ def _parse_required_env_vars(spec_text: str) -> list[str]:
             continue
         name = m.group(1)
         # Only probe vars that live in a prefix a playbook consumer would set
-        # from their shell/SOPS env. Cross-prefix vars (consumer-d_, consumer-c-legacy_)
+        # from their shell/SOPS env. Cross-prefix vars (consumer-d_, consumer-c_)
         # flow through CLI args per env-vars.md Rules; doctor doesn't probe them.
         if name not in out:
             out.append(name)

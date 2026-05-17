@@ -1,7 +1,7 @@
 # event-and-data-patterns.md
 
 > **Status**: v1.0.0. New in ai-playbook v0.10.0. Codifies cross-project
-> patterns surfaced by consumer-c-legacy Wave 1.7-1.9 (rag-proxy + ai-suggestions
+> patterns surfaced by consumer-c Wave 1.7-1.9 (rag-proxy + ai-suggestions
 > + audit-log) and consumer-e Wave 1-2 (shared kernel + 6 bounded
 > contexts). The patterns are **stack-agnostic** (NestJS event-emitter,
 > Python message bus, Go channels — same shapes apply).
@@ -13,7 +13,7 @@
 ## 1. Why this spec
 
 Three event-driven and data-shape patterns appeared independently in
-consumer-c-legacy and consumer-e during 2026-Q2. Each pattern paid off enough
+consumer-c and consumer-e during 2026-Q2. Each pattern paid off enough
 that the *next* slice in the same project reused it without re-discovery,
 and each is **the kind of decision the spec layer should anchor** so future
 consumer projects don't reinvent it.
@@ -92,7 +92,7 @@ events get translated until migrated".
 
 ### 2.4 Reference implementation
 
-consumer-c-legacy `m2-audit-log` (PR #90, 2026-05-06):
+consumer-c `m2-audit-log` (PR #90, 2026-05-06):
 `apps/api/src/audit-log/application/audit-log.subscriber.ts` — single
 class with 9 `@OnEvent` handlers (3 envelope-shape passthroughs + 6
 legacy translators). 27 tests across 3 spec files validate every
@@ -185,7 +185,7 @@ migration's docstring + ADR.
 
 ### 4.4 Reference implementations
 
-- consumer-c-legacy `m2-audit-log` migration `0017_audit_log.ts` — 4 backfill
+- consumer-c `m2-audit-log` migration `0017_audit_log.ts` — 4 backfill
   sources in one transaction.
 - consumer-e `0003_research_tables` (R1 slice, 2026-05-06) — bitemporal
   fact table created with the same atomic pattern (no backfill in R1
@@ -333,7 +333,7 @@ stays small (mock the proxy, not the underlying service).
 
 ### 7.4 Reference implementation
 
-consumer-c-legacy `tools/rag-proxy/` (Wave 1.8, PR #88, 2026-05-06): FastAPI
+consumer-c `tools/rag-proxy/` (Wave 1.8, PR #88, 2026-05-06): FastAPI
 service translating LightRAG (RAG over corpus) prose responses into the
 canonical `{value, citationUrl, snippet}` contract that
 `GptOssRagProvider` already expects in `apps/api`. Net TypeScript LOC
@@ -392,7 +392,7 @@ for the user-facing flow, which doesn't need it.
 
 ## 9. Async event-emission ordering (tap vs mergeMap) — added v0.11.0
 
-Cross-cutting pattern surfaced by consumer-c-legacy m2-mcp-write-capabilities (RxJS `tap()` race) and m2-cost-rollup-and-audit (immediate read-after-write hazard from acceptance tests reading `audit_log` post-response). Applies to **any framework** with side-effect emission inside a request handler — RxJS `tap()` (NestJS), Phoenix `Process.send/3` from a controller, Python `asyncio.create_task` in a route handler, Node Express middleware that emits via `EventEmitter`.
+Cross-cutting pattern surfaced by consumer-c m2-mcp-write-capabilities (RxJS `tap()` race) and m2-cost-rollup-and-audit (immediate read-after-write hazard from acceptance tests reading `audit_log` post-response). Applies to **any framework** with side-effect emission inside a request handler — RxJS `tap()` (NestJS), Phoenix `Process.send/3` from a controller, Python `asyncio.create_task` in a route handler, Node Express middleware that emits via `EventEmitter`.
 
 ### 9.1 The hazard
 
@@ -454,7 +454,7 @@ Use `mergeMap + emitAsync` for **read-after-write coherence** requirements:
 
 ### 9.5 Anti-pattern: cascade events without self-emission guard
 
-When `@OnEvent('entity.updated')` triggers `events.emit('entity.cascade_updated')` and a sibling listener consumes the cascade event AND re-emits `entity.updated` (e.g. for downstream notification), the loop is infinite. Cross-validated by consumer-c-legacy m2-cost-rollup-and-audit (cascade across BCs) + m2-mcp-write-capabilities.
+When `@OnEvent('entity.updated')` triggers `events.emit('entity.cascade_updated')` and a sibling listener consumes the cascade event AND re-emits `entity.updated` (e.g. for downstream notification), the loop is infinite. Cross-validated by consumer-c m2-cost-rollup-and-audit (cascade across BCs) + m2-mcp-write-capabilities.
 
 The fix is a **one-line self-emission guard**:
 
@@ -478,5 +478,5 @@ The guard is **structural** (compare entity IDs), not behavioural (rely on liste
 - [dependency-injection-patterns.md](dependency-injection-patterns.md) (sister spec for DI seams that frequently emit/consume events)
 - [taxonomy.md](taxonomy.md) (event-bus / channel / envelope canonical names)
 - [enforcement-status.md](enforcement-status.md) (live adoption matrix)
-- External: consumer-c-legacy retros `m2-audit-log` (Wave 1.9), `m2-ai-yield-corpus` (Wave 1.8), `m2-ai-yield-suggestions` (Wave 1.7), `m2-mcp-write-capabilities` (Wave 1.10), `m2-cost-rollup-and-audit` (Wave 1.9) — case studies for §2-§9.
+- External: consumer-c retros `m2-audit-log` (Wave 1.9), `m2-ai-yield-corpus` (Wave 1.8), `m2-ai-yield-suggestions` (Wave 1.7), `m2-mcp-write-capabilities` (Wave 1.10), `m2-cost-rollup-and-audit` (Wave 1.9) — case studies for §2-§9.
 - External: consumer-e retros `risk-engine-protections`, `approval-channels-multichannel` — pure-engine + canonical-contract case studies for §7-§8.

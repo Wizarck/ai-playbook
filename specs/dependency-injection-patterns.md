@@ -1,6 +1,6 @@
 # dependency-injection-patterns.md
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines two cross-language DI patterns surfaced as recurring failures across projects: (1) **provider deduplication** (NestJS `@Global()` doesn't prevent re-declaration in `TestingModule` overrides; Python equivalent: re-binding `Depends(...)` in test fixtures shadows the global), and (2) **seam-then-consume DI tokens** (slice A introduces a DI token + binding; slice B implements without editing slice A). Cross-validated by consumer-c-legacy m2-mcp-write-capabilities (`payload_before: null` bug), m2-cost-rollup-and-audit (`INVENTORY_COST_RESOLVER` token pattern), and consumer-d ADR-028 (singleton-per-action-class for `request_approval(mode=apply)`).
+> **Status**: v1.0.0 (new in v0.11.0). Defines two cross-language DI patterns surfaced as recurring failures across projects: (1) **provider deduplication** (NestJS `@Global()` doesn't prevent re-declaration in `TestingModule` overrides; Python equivalent: re-binding `Depends(...)` in test fixtures shadows the global), and (2) **seam-then-consume DI tokens** (slice A introduces a DI token + binding; slice B implements without editing slice A). Cross-validated by consumer-c m2-mcp-write-capabilities (`payload_before: null` bug), m2-cost-rollup-and-audit (`INVENTORY_COST_RESOLVER` token pattern), and consumer-d ADR-028 (singleton-per-action-class for `request_approval(mode=apply)`).
 
 ## 1. Why this spec
 
@@ -8,7 +8,7 @@ DI is not a language-specific concept; the same hazards appear in NestJS, FastAP
 
 ### 1.1 Failure 1: silent provider duplication
 
-consumer-c-legacy m2-mcp-write-capabilities had a `SharedModule` marked `@Global()` exporting `AuditResolverRegistry`. A `TestAppModule` (used in integration tests) re-declared the registry in its `providers` array — the local declaration won, creating two instances. The MCP server registered handlers to instance A, but route handlers read from instance B. Result: `payload_before: null` for every agent mutation, with no error. Surfaced only when an integration test asserted on the audit row's content.
+consumer-c m2-mcp-write-capabilities had a `SharedModule` marked `@Global()` exporting `AuditResolverRegistry`. A `TestAppModule` (used in integration tests) re-declared the registry in its `providers` array — the local declaration won, creating two instances. The MCP server registered handlers to instance A, but route handlers read from instance B. Result: `payload_before: null` for every agent mutation, with no error. Surfaced only when an integration test asserted on the audit row's content.
 
 Lesson: **`@Global()` makes the export visible everywhere but does NOT prevent re-declaration**. The same hazard exists in Python (re-binding a `Depends` callable in `app.dependency_overrides` for tests + forgetting to clear it leaks into adjacent tests) and Phoenix (re-defining a behaviour adapter at runtime via `Application.put_env/3`).
 
@@ -16,7 +16,7 @@ Lesson: **`@Global()` makes the export visible everywhere but does NOT prevent r
 
 A common cross-slice pattern: slice A introduces a service that slice B will need to extend. The naive approach — "slice A defines the class; slice B inherits + overrides" — produces hard coupling: B can't ship without editing A.
 
-The fluent approach is to ship a **DI token + factory** in slice A, and have slice B provide its own implementation bound to the same token. consumer-c-legacy m2-cost-rollup-and-audit shipped this as the `INVENTORY_COST_RESOLVER` DI token: m1 introduced the token + a default `M1InventoryCostResolver` implementation; m2 dropped a new `M2InventoryCostResolver` into the cost BC and rebound the token via `useExisting`, with **zero edits to m1's code**.
+The fluent approach is to ship a **DI token + factory** in slice A, and have slice B provide its own implementation bound to the same token. consumer-c m2-cost-rollup-and-audit shipped this as the `INVENTORY_COST_RESOLVER` DI token: m1 introduced the token + a default `M1InventoryCostResolver` implementation; m2 dropped a new `M2InventoryCostResolver` into the cost BC and rebound the token via `useExisting`, with **zero edits to m1's code**.
 
 This spec codifies both patterns + their cross-language equivalents.
 
@@ -294,8 +294,8 @@ This pattern combines [hitl-approval-pattern.md](hitl-approval-pattern.md) (the 
 
 | Project | Surface | Pattern | Notes |
 |---|---|---|---|
-| consumer-c-legacy | `AuditResolverRegistry` | Pattern A (provider dedup) | `@Global()` + `imports: [SharedModule]` discipline; `payload_before:null` bug fixed v0.11 |
-| consumer-c-legacy | `INVENTORY_COST_RESOLVER` | Pattern B (token rebinding) | m1 default → m2 BOM-walking impl; m1 untouched |
+| consumer-c | `AuditResolverRegistry` | Pattern A (provider dedup) | `@Global()` + `imports: [SharedModule]` discipline; `payload_before:null` bug fixed v0.11 |
+| consumer-c | `INVENTORY_COST_RESOLVER` | Pattern B (token rebinding) | m1 default → m2 BOM-walking impl; m1 untouched |
 | consumer-e | `LLMClient` | Both | Protocol per `protocol-fake-deferred-install`; `@lru_cache` factory in FastAPI |
 | consumer-d | ADR-028 `request_approval` | §4 (singleton-per-action-class) | Action-class-keyed dispatcher dict; routes per class |
 | consumer-e | (P1) `ApprovalChannel` | §4 (singleton-per-channel) | Same pattern, applied to multi-channel HITL routing |

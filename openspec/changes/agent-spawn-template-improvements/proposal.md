@@ -60,4 +60,4 @@ Reason: agents imitate shape, not contract. The §4.5.3 markers are regex-valida
 
 - `specs/release-management.md` gains §4.5.5 + §4.5.6 (~30 lines added).
 - `CHANGELOG.md` gains a `[0.13.4]` entry.
-- Consumers (consumer-e, consumer-b, consumer-d, consumer-c-legacy) bump submodule to v0.13.4 in follow-up bump PRs (handled by `propagate_bump.py`, mechanical).
+- Consumers (consumer-e, consumer-b, consumer-d, consumer-c) bump submodule to v0.13.4 in follow-up bump PRs (handled by `propagate_bump.py`, mechanical).

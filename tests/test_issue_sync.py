@@ -183,13 +183,13 @@ def test_decide_surface_personal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 def test_decide_surface_github_from_registry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root = _make_consumer(tmp_path, project="consumer-c-legacy", personal=False)
+    root = _make_consumer(tmp_path, project="consumer-c", personal=False)
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: True)
-    monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/consumer-c-legacy")
+    monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/consumer-c")
     monkeypatch.setenv("AIPLAYBOOK_GH_PROJECT_NUMBER", "42")
     _make_registry(
         tmp_path, monkeypatch,
-        {"consumer-c-legacy": {"status": "active", "tracker_kind": "github"}},
+        {"consumer-c": {"status": "active", "tracker_kind": "github"}},
     )
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "github"
@@ -260,10 +260,10 @@ def test_decide_surface_jira_without_project_raises(
 def test_jira_project_for_returns_none_for_github(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root = _make_consumer(tmp_path, project="consumer-c-legacy", personal=False)
+    root = _make_consumer(tmp_path, project="consumer-c", personal=False)
     _make_registry(
         tmp_path, monkeypatch,
-        {"consumer-c-legacy": {"status": "active", "tracker_kind": "github"}},
+        {"consumer-c": {"status": "active", "tracker_kind": "github"}},
     )
     assert issue_sync.jira_project_for(root) is None
 

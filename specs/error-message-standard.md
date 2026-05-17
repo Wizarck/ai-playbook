@@ -52,8 +52,8 @@ Optionally followed by a blank line and an expanded multi-line detail block (for
 ### MCP SSOT drift
 
 ```
-❌ mcp-servers.yaml rendered output diverges from committed .mcp.json at C:/Projects/consumer-c-legacy/.mcp.json
-   FIX: run `python .ai-playbook/scripts/mcp/render.py --project consumer-c-legacy` and commit the regenerated file.
+❌ mcp-servers.yaml rendered output diverges from committed .mcp.json at C:/Projects/consumer-c/.mcp.json
+   FIX: run `python .ai-playbook/scripts/mcp/render.py --project consumer-c` and commit the regenerated file.
    OVERRIDE: python .ai-playbook/scripts/mcp/render.py --dry-run --force-with-reason="intentional local experiment before committing registry change"
 ```
 

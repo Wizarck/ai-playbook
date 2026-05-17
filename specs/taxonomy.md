@@ -14,7 +14,7 @@ Things that exist at execution time, inside or alongside an agent session.
 
 | Term | Definition | Example | Scope |
 |---|---|---|---|
-| Agent | An LLM-driven entity with a system prompt, a tool set, a session context, and a goal. | Claude Sonnet instance running via Claude Code CLI in `C:\Projects\consumer-c-legacy`. | runtime |
+| Agent | An LLM-driven entity with a system prompt, a tool set, a session context, and a goal. | Claude Sonnet instance running via Claude Code CLI in `C:\Projects\consumer-c`. | runtime |
 | Subagent | Agent spawned by another agent with a fresh context window and a bounded brief; returns a single structured result to the parent. | Reviewer invoked via the `Task` tool in `bmad-code-review` to run the Blind Hunter pass. | runtime |
 | Tool | Machine-callable function with a typed JSON Schema I/O contract the agent invokes deterministically. | `Read`, `Bash`, `hindsight.recall`, `mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql`. | runtime |
 | MCP server | Tool-providing network service following the Model Context Protocol; exposes one or more tools over stdio or HTTP. | `hindsight` (project memory), `litellm` on `localhost:4000`, `guardrails-mcp` (planned T10). | infra |

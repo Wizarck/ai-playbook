@@ -20,7 +20,7 @@ consumer=WORKFLOWS
 
 Asking *"which subsystem is driving Opus cost?"* with only `consumer` collapses these into one bucket. Cost attribution downstream (per-app dashboards, per-workflow budgets, debugging *"Hermes ran up the bill, but which Hermes path?"*) becomes unanswerable.
 
-Surfaced 2026-05-11 while scoping the cost-by-tag dashboard project in consumer-d (Phase 1 of 3). Will impact every consumer of this playbook that runs LLM calls: consumer-c-legacy, consumer-b, plus consumer-d.
+Surfaced 2026-05-11 while scoping the cost-by-tag dashboard project in consumer-d (Phase 1 of 3). Will impact every consumer of this playbook that runs LLM calls: consumer-c, consumer-b, plus consumer-d.
 
 ## Proposed change
 

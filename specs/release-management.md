@@ -230,7 +230,7 @@ The shell-syntax form (`KEY=<value>`) triggers gitleaks's
 matches the regex for "looks like a placeholder for a real key value".
 The bullet-list and narrative forms don't trigger the matcher.
 
-This rule was retro-proven on consumer-c-legacy PR #89 (`m2-wrap-up`,
+This rule was retro-proven on consumer-c PR #89 (`m2-wrap-up`,
 2026-05-06) where the `<your Brave Search API subscription key>` line in
 a runbook fired gitleaks on first push and required a force-push to
 clear the history.
@@ -624,7 +624,7 @@ The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `releas
 
 **When it applies.** The slice contains ≥2 task groups with disjoint write-paths. The canonical example is a slice that scaffolds N bounded contexts in one shot (e.g. `module-1-ingredients-implementation` covering `iam/`, `ingredients/`, `suppliers/`, `cost/`, `shared/uom/` — 5 disjoint roots under `apps/api/src/`). Sequential implementation works fine; intra-slice parallelism just shortens wall-clock.
 
-**When it does NOT apply.** Single-bounded-context slices, slices with TDD-tight ordering (e.g. interface → impl → consumer), slices small enough that spawning + coordination overhead exceeds the savings (rule of thumb: <3 task groups, or any group <10 tasks). **Also explicitly NOT applied** to slices with **cross-BC verification gates** — i.e. acceptance criteria that require state from BC-A to be observed by BC-B during the same execution. Examples: cost ↔ allergens ↔ labels ↔ audit cross-checks (consumer-c-legacy Wave 1.9), or trading service → risk engine → kill-switch state propagation (consumer-e Wave 2 K1). The serial verification path is structurally simpler than coordinating subagent recombination *plus* cross-BC test orchestration; the parallelism win is eaten by the coordination overhead.
+**When it does NOT apply.** Single-bounded-context slices, slices with TDD-tight ordering (e.g. interface → impl → consumer), slices small enough that spawning + coordination overhead exceeds the savings (rule of thumb: <3 task groups, or any group <10 tasks). **Also explicitly NOT applied** to slices with **cross-BC verification gates** — i.e. acceptance criteria that require state from BC-A to be observed by BC-B during the same execution. Examples: cost ↔ allergens ↔ labels ↔ audit cross-checks (consumer-c Wave 1.9), or trading service → risk engine → kill-switch state propagation (consumer-e Wave 2 K1). The serial verification path is structurally simpler than coordinating subagent recombination *plus* cross-BC test orchestration; the parallelism win is eaten by the coordination overhead.
 
 **Pre-conditions** (before spawning subagents):
 
@@ -668,7 +668,7 @@ The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `releas
 
 #### 6.6.1 Subagent prompt template + verification commands (added v0.11.0)
 
-Cross-validated by consumer-c-legacy Wave 1.7-1.9 (`m2-mcp-server` + `m2-recipes-core`): a parallel slice with a **canonical subagent prompt template** + **mandatory verification commands** produced **0 boundary violations** across 3 subagent slices and saved ~22 min wall-clock per slice. The discipline that earned that result is now normative.
+Cross-validated by consumer-c Wave 1.7-1.9 (`m2-mcp-server` + `m2-recipes-core`): a parallel slice with a **canonical subagent prompt template** + **mandatory verification commands** produced **0 boundary violations** across 3 subagent slices and saved ~22 min wall-clock per slice. The discipline that earned that result is now normative.
 
 The main agent's spawn prompt to each subagent MUST contain these five sections, in order:
 
@@ -795,7 +795,7 @@ For Arturo's current consumer constellation (May 2026):
 | Project | Visibility | Profile | Migration owner | Notes |
 |---|---|---|---|---|
 | `consumer-e` | PUBLIC | A | partial migration in v0.8.0-rc6→stable | Already on v0.8.0-rc6; first dogfood. Re-run bootstrap with `--profile auto` after stable. |
-| `consumer-c-legacy` | PUBLIC | A | full migration | OSS BOH project; description already reads "Open Source". |
+| `consumer-c` | PUBLIC | A | full migration | OSS BOH project; description already reads "Open Source". |
 | `consumer-d-skills` | PUBLIC (flipped 2026-05-01) | A | full migration | Skills are commodity; no IP concern. |
 | `consumer-d` | PRIVATE | B | full migration | Personal infra; contains private endpoints. Stays private. |
 | `consumer-d-rag` | PRIVATE | B | full migration | Personal data over RAG. Stays private. |

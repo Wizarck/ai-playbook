@@ -4,11 +4,11 @@
 
 How user stories, features, bugs, and releases flow through **two** tracker surfaces:
 
-- **Jira** — enterprise / private work (Paperclip tenants, consumer-c-legacy Enterprise, any closed-source SaaS).
-- **GitHub Projects + Issues** — community / open-source work (consumer-c-legacy, awesome-paperclip, any public repo under `Wizarck`).
+- **Jira** — enterprise / private work (Paperclip tenants, consumer-c Enterprise, any closed-source SaaS).
+- **GitHub Projects + Issues** — community / open-source work (consumer-c, awesome-paperclip, any public repo under `Wizarck`).
 
 The split is intentional and mirrors the dual-repo strategy already documented in
-`consumer-c-legacy/AGENTS.md` §4 and ADR-010 (community AGPL-3.0 vs enterprise private). This spec
+`consumer-c/AGENTS.md` §4 and ADR-010 (community AGPL-3.0 vs enterprise private). This spec
 extends that split from **issues** to full **product planning** (user stories → features →
 releases) so the two audiences stay on surfaces they expect.
 
@@ -20,8 +20,8 @@ Decision rule (apply to every repo under `Wizarck`):
 
 | Repo class | Examples | Planning surface | Release surface | Ticket prefix |
 |---|---|---|---|---|
-| Public AGPL-3.0 (community) | `consumer-c-legacy`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
-| Private with public OS counterpart (dual-repo) | `consumer-c-legacy Enterprise` (mirrors consumer-c-legacy), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-consumer-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
+| Public AGPL-3.0 (community) | `consumer-c`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
+| Private with public OS counterpart (dual-repo) | `consumer-c Enterprise` (mirrors consumer-c), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-consumer-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
 | Private standalone (no public counterpart) | `consumer-d`, `consumer-b`, `consumer-b-hub`, `ESILDA`, future closed-source SaaS without an OSS half | **GitHub Project** (per-repo board) + GitHub Issues | git tag + optional GitHub Release | `#<issue-number>` |
 | Tooling / lightweight | `ai-playbook`, `consumer-d-skills`, `skills-manager-personal`, `diakopa`, `GTM-Helper` | GitHub Issues (no project board) | git tag only | `#<issue-number>` |
 
@@ -29,7 +29,7 @@ Decision rule (apply to every repo under `Wizarck`):
 
 Mixed-mode repos (Arturo runs some public + some private inside the same org) follow the
 visibility of the repo where the work lands; never straddle. A feature that ships in
-`consumer-c-legacy` (public) AND `consumer-c-legacy Enterprise` (private) gets two tickets — one per surface —
+`consumer-c` (public) AND `consumer-c Enterprise` (private) gets two tickets — one per surface —
 linked to each other by URL in the description.
 
 ---
@@ -81,7 +81,7 @@ commit-message` lands later if friction warrants.
 - **Trigger**: merge to `main` that bumps semver tag.
 - **Surface**: GitHub Release auto-generated from the tag. Release notes = relevant
   `CHANGELOG.md` section.
-- **Assets**: `consumer-c-legacy` publishes `@consumer-c-legacy/types` to npm from the release; `ai-playbook`
+- **Assets**: `consumer-c` publishes `@consumer-c/types` to npm from the release; `ai-playbook`
   publishes nothing (consumed via git submodule).
 - **Timeline**: semver discipline — breaking change needs major bump; `rollout-strategy.md`
   applies to every public repo too.
@@ -157,7 +157,7 @@ From `mcp-servers-base.yaml` + what's live on the VPS:
 - `gh` CLI (not MCP; wrapped by `scripts/openspec_validate.py`, `scripts/skills_registry.py`,
   and any contributor). Has `repo`, `issue`, `pr`, `search`, and `project` subcommands.
 
-For public-repo issue creation: `gh issue create --repo Wizarck/consumer-c-legacy --title ... --body
+For public-repo issue creation: `gh issue create --repo Wizarck/consumer-c --title ... --body
 ...` + `gh project item-add <project-number> --owner Wizarck --url <issue-url>`.
 
 ---
@@ -184,5 +184,5 @@ For public-repo issue creation: `gh issue create --repo Wizarck/consumer-c-legac
 - `specs/retrospective-cadence.md` — monthly lifecycle check flags orphan tickets.
 - `specs/verdict-contract.md` — QA verdict → ticket transition mapping.
 - `docs/fork-inventory.md` — determines which repos are public vs private.
-- `consumer-c-legacy/AGENTS.md` §4 + ADR-010 — dual-repo strategy (origin of the split this spec
+- `consumer-c/AGENTS.md` §4 + ADR-010 — dual-repo strategy (origin of the split this spec
   extends).

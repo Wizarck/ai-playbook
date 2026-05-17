@@ -797,7 +797,7 @@ def detect_default_branch(repo: str) -> str:
     """Return the repo's default branch name (e.g. 'main', 'master').
 
     Per gotcha #13 (consumer-e/docs/gotchas.md): hardcoding 'main' breaks
-    consumers on legacy 'master' defaults (consumer-c-legacy). This helper queries
+    consumers on legacy 'master' defaults (consumer-c). This helper queries
     `gh repo view` for `defaultBranchRef.name` instead.
     """
     result = _gh(["repo", "view", repo, "--json", "defaultBranchRef"])

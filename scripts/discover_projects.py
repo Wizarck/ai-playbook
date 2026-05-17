@@ -2,7 +2,7 @@
 the projects registry (~/.ai-playbook/projects.yaml by default).
 
 The registry decouples dispatchers from hardcoded paths. Moving a project from
-C:\\consumer-c-legacy to C:\\Projects\\consumer-c-legacy only requires re-running this script —
+C:\\consumer-c to C:\\Projects\\consumer-c only requires re-running this script —
 no markdown edits.
 
 See `specs/projects-registry.md` for the registry format and resolution rules.

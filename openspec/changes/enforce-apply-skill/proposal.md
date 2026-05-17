@@ -55,7 +55,7 @@ Three-layer enforcement (L1 doc + L2 skill marker + L3 blocking hook), shipped t
 
 ## Consumer adoption (downstream, in a follow-up)
 
-After this slice merges and v0.14.0 is cut, each consumer (`consumer-a`, `consumer-d`, `consumer-c-legacy`, `consumer-b`) adopts in its own PR:
+After this slice merges and v0.14.0 is cut, each consumer (`consumer-a`, `consumer-d`, `consumer-c`, `consumer-b`) adopts in its own PR:
 1. Bump `.ai-playbook` submodule.
 2. Copy `.claude/hooks/openspec-apply-enforce.py` from template to project.
 3. Update `.claude/settings.json` to register the hook.
