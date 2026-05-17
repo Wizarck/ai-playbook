@@ -23,7 +23,7 @@ facts (those live in the code or in `docs/`). Per memory-hierarchy.md §5:
 
 | Event | Kind | Bank |
 |---|---|---|
-| ADR chosen over a named alternative | `decision` | project bank (`project-c-legacy`, `project-d`, `project-b`) |
+| ADR chosen over a named alternative | `decision` | project bank (`project-c`, `project-d`, `project-b`) |
 | Gotcha discovered (wrong port, weird env, breaking API quirk) | `gotcha` | project bank |
 | Agentic-failure mode fired and was resolved | `failure` | project bank |
 | Retro extracted a pattern worth reusing | `lesson` | project bank |
@@ -60,7 +60,7 @@ retain in one round-trip:
 ```bash
 cat > /tmp/lessons.jsonl <<'EOF'
 {"content": "Lesson 1 body...", "kind": "decision", "project": "ai-playbook", "why": "..."}
-{"content": "Lesson 2 body...", "kind": "gotcha", "project": "project-c-legacy", "tags": ["build", "ci"]}
+{"content": "Lesson 2 body...", "kind": "gotcha", "project": "project-c", "tags": ["build", "ci"]}
 EOF
 
 sops exec-env ../project-d/secrets/secrets.env -- \

@@ -1,10 +1,10 @@
 # database-numeric-boundaries.md
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines the canonical rule for **money / quantity / decimal column boundaries** between the database and the application: explicit coercion at the ORM boundary, never per-call. Surfaced by project-c-legacy m2-cost-rollup-and-audit (`numeric` columns serialised as strings; multiplication produced `"1000NaN"`; required scattered `Number(...)` calls). Reinforces and generalises AGENTS.md universal rule "**no float for money**".
+> **Status**: v1.0.0 (new in v0.11.0). Defines the canonical rule for **money / quantity / decimal column boundaries** between the database and the application: explicit coercion at the ORM boundary, never per-call. Surfaced by project-c m2-cost-rollup-and-audit (`numeric` columns serialised as strings; multiplication produced `"1000NaN"`; required scattered `Number(...)` calls). Reinforces and generalises AGENTS.md universal rule "**no float for money**".
 
 ## 1. Why this spec
 
-A recurring data-integrity hazard surfaced in project-c-legacy m2-cost-rollup-and-audit:
+A recurring data-integrity hazard surfaced in project-c m2-cost-rollup-and-audit:
 
 > Postgres `numeric` columns deserialise to **strings** through TypeORM (default behaviour); JavaScript multiplication of strings produces NaN if non-numeric chars are present, or string concatenation if both are strings. `'10' * '5' === 50` (coerced) but `'10.50' * '5' === 52.5` and `'10' + '5' === '105'` and `'10.5' + 0.1 === '10.50.1'`. Subtle, deterministic, silent.
 
@@ -32,7 +32,7 @@ If the conversion is needed, it lives in **one place** — a column transformer 
 
 ## 3. Per-stack recipes
 
-### 3.1 TypeORM (the project-c-legacy hazard)
+### 3.1 TypeORM (the project-c hazard)
 
 ```ts
 // ❌ Forbidden: column declared without transformer; consumer code calls Number()
@@ -158,8 +158,8 @@ A "money" column is **numeric + a currency code**. Don't store the currency in t
 
 | Project | Surface | Recipe |
 |---|---|---|
-| project-c-legacy | `recipes.cost`, `ingredients.unit_cost` | TypeORM `@Column('numeric', { transformer })` with decimal.js |
-| project-c-legacy | `cost_history.value` | Same pattern; aggregations inside SQL with `numeric` casts |
+| project-c | `recipes.cost`, `ingredients.unit_cost` | TypeORM `@Column('numeric', { transformer })` with decimal.js |
+| project-c | `cost_history.value` | Same pattern; aggregations inside SQL with `numeric` casts |
 | project-e | `orders.quantity`, `orders.limit_price` | SQLAlchemy `Numeric(18, 8)` → Python `Decimal` |
 | project-e | `equity_snapshots.equity_usd` | Same; `Decimal` arithmetic in `BrokerService` |
 | project-d | `whatsapp_invoice_lines.amount` | Ecto `:decimal` → `Decimal` struct in service |

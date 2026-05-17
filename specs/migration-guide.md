@@ -83,7 +83,7 @@ Ordered steps. Do NOT skip or reorder.
    - §7 Overrides inherited from playbook
    - §8 Gotchas
 
-   Reference: `C:\Projects\project-c-legacy\AGENTS.md` for a populated example.
+   Reference: `C:\Projects\project-c\AGENTS.md` for a populated example.
 
 4. **Validate.** Run:
    ```bash

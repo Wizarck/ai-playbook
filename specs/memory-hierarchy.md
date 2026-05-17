@@ -25,7 +25,7 @@ Arturo-private (per [dispatcher-chain.md](dispatcher-chain.md) level 3).
 
 | Project | Primary bank | Personal add-on bank |
 |---|---|---|
-| `project-c-legacy` (public repo) | `project-c-legacy` | — (no personal layer; community repo) |
+| `project-c` (public repo) | `project-c` | — (no personal layer; community repo) |
 | `project-d` (personal infra) | `project-d` | `project-d-personal` (gotchas, ports, VPS-private knowledge) |
 | `project-d-rag` | `project-d-rag` | `project-d-personal` (shared with project-d personal layer) |
 | `project-b` | `project-b` | `project-b-personal` (tenant-private) |
@@ -110,7 +110,7 @@ input envelope declares:
 
 ```json
 "memory": {
-  "bank_id": "project-c-legacy",
+  "bank_id": "project-c",
   "recall_depth": 5
 }
 ```
@@ -144,23 +144,23 @@ If Hindsight is unreachable, the session enters `DEGRADED_CONTEXT` per
 
 ## 10. Worked example
 
-**Scenario.** A reviewer subagent in project-c-legacy is spawned for a proposal review on
+**Scenario.** A reviewer subagent in project-c is spawned for a proposal review on
 `module-1-ingredients-implementation`.
 
 Spawn envelope's memory block:
 
 ```json
-"memory": { "bank_id": "project-c-legacy", "recall_depth": 5 }
+"memory": { "bank_id": "project-c", "recall_depth": 5 }
 ```
 
-1. Child invokes `hindsight.recall(query="project-c-legacy ingredients categories", top_k=5)`.
+1. Child invokes `hindsight.recall(query="project-c ingredients categories", top_k=5)`.
 2. Three lessons return (score ≥0.7):
    - "Categories use RESTRICT on delete; this bit us once in seed reload." (`kind=gotcha`)
    - "ADR-009 chose soft-delete with `isActive`; physical delete was rejected for audit." (`kind=decision`)
    - "Do NOT import `Category` entity directly from `Ingredient` module; use the port." (`kind=lesson`)
 3. Reviewer cites lesson 3 when catching a diff that imports the entity directly — S2 finding.
 4. After the review concludes, reviewer calls `hindsight.retain` with
-   `why="import-via-port rule recurred; add to readiness checklist"`, `tags=["project-c-legacy", "lesson"]`,
+   `why="import-via-port rule recurred; add to readiness checklist"`, `tags=["project-c", "lesson"]`,
    and the OTel `trace_id`.
 5. Next sprint, the bootstrap recall surfaces the new lesson at the top of the retrieval for any
    reviewer touching cross-module imports.

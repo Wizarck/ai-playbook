@@ -7,7 +7,7 @@
 A **per-dev, gitignored YAML file** mapping project logical names to absolute paths on the current machine. Dispatchers resolve project locations through the registry, NOT through hardcoded paths.
 
 Benefit:
-- Arturo moves `project-c-legacy` from `C:\project-c-legacy` to `C:\Projects\project-c-legacy` → rerun discovery → dispatchers keep working. No markdown edits.
+- Arturo moves `project-c` from `C:\project-c` to `C:\Projects\project-c` → rerun discovery → dispatchers keep working. No markdown edits.
 - A second dev clones projects under `/Users/jane/code/` → same dispatcher files work.
 - Mac / Linux / Windows / WSL coexist with the same sources.
 
@@ -25,8 +25,8 @@ The file lives in the **user's home** (not in any repo) because it encodes local
 ```yaml
 schema: ai-playbook/projects-registry/v1
 projects:
-  project-c-legacy:
-    path: C:/Projects/project-c-legacy
+  project-c:
+    path: C:/Projects/project-c
     owner: 23051550+Wizarck@users.noreply.github.com
     version: 1.0.0
     inherits_from:

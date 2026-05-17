@@ -9,7 +9,7 @@
 ## Scope
 
 This runbook covers Windows + WSL2 dev-loop gotchas surfaced during
-2026-Q2 across project-c-legacy (Node 24+ Jest, Python tools), project-e
+2026-Q2 across project-c (Node 24+ Jest, Python tools), project-e
 (git worktrees, Python venv), and project-d (poetry, MS Store Python).
 
 If you're on Linux or macOS, ignore this file.

@@ -156,7 +156,7 @@ Within ~5 minutes of the workflow run, expect one PR per consumer that has
 
 ```bash
 gh search prs --repo Wizarck/project-e \
-              --repo Wizarck/project-c-legacy \
+              --repo Wizarck/project-c \
               --repo Wizarck/project-d \
               --repo Wizarck/project-b \
               --label skills-bump --state open

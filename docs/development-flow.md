@@ -63,7 +63,7 @@ TAG  ◄────────────────────────
   See: runbooks/release.md, scripts/release_cut.py, scripts/propagate_bump.py
         │
         ▼
-CONSUMERS (project-d, project-c-legacy, project-b, project-e, gamma, …)
+CONSUMERS (project-d, project-c, project-b, project-e, gamma, …)
   • Auto-PR opens with submodule pin bump + AGENTS.md cross-ref refresh
   • Consumer mergers → consumer is on the new playbook version
   See: specs/projects-registry.md, consumers.yaml, scripts/bump_consumers.py

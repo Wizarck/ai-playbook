@@ -306,7 +306,7 @@ def _send_email(
 # `langgraph-aiops/notifications/`. When it's importable AND
 # `project-d_NOTIFICATIONS_QUEUE_ENABLED=1`, warn/error notifications are
 # enqueued to a SQLite-backed retry layer instead of fired through SMTP
-# synchronously. Other consumers (project-b, project-c-legacy, project-e,
+# synchronously. Other consumers (project-b, project-c, project-e,
 # gamma) that lack the queue package fall through to SMTP unchanged.
 
 # Default channel per severity per `notification-policy.md` §3.1 + Change B

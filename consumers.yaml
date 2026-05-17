@@ -58,8 +58,8 @@ schema: ai-playbook/consumers/v1
 version: 1
 
 consumers:
-  project-c-legacy:
-    repo: Wizarck/project-c-legacy
+  project-c:
+    repo: Wizarck/project-c
     default_branch: master
     visibility: public
     status: active

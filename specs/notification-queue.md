@@ -26,7 +26,7 @@ notify(event, severity, summary, ...)
    │     └──────────────────────────────────────────────────┘
    │     ┌──────────────────────────────────────────────────┐
    │     │ §6 SMTP fallback  (queue disabled OR             │
-   │     │   not vendored — project-b, project-c-legacy,      │
+   │     │   not vendored — project-b, project-c,      │
    │     │   project-e, gamma, dev laptops)            │
    │     └──────────────────────────────────────────────────┘
    │
@@ -75,7 +75,7 @@ Example:
   "severity": "info",
   "summary": "Created TRATT-42 for module-1-ingredients-impl",
   "detail": "",
-  "attrs": {"tracker_id": "TRATT-42", "change_id": "module-1-ingredients-impl", "project": "project-c-legacy"},
+  "attrs": {"tracker_id": "TRATT-42", "change_id": "module-1-ingredients-impl", "project": "project-c"},
   "trace_id": "0196f34a8c7e7b2f9d013e8a9b4c2f11",
   "actor": "23051550+Wizarck@users.noreply.github.com"
 }
@@ -194,7 +194,7 @@ Two AND-gated conditions:
    sibling to the watchdog loop.
 
 When either condition is missing, `notify()` falls through to the legacy
-SMTP path (§6) without raising. Other consumers (project-b, project-c-legacy,
+SMTP path (§6) without raising. Other consumers (project-b, project-c,
 project-e, gamma) are unaffected by this change.
 
 ### Storage

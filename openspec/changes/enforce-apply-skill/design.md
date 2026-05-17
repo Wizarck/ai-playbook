@@ -199,7 +199,7 @@ Inserted as the first step, before existing "Select the change":
 | `CHANGELOG.md` | ✅ EDIT (v0.14.0 entry) | — |
 | `VERSION` | ✅ EDIT (0.13.3 → 0.14.0) | — |
 | Adopting in `project-a` | — | Follow-up PR in project-a (this slice ships the template; project-a copies it) |
-| Adopting in `project-d` / `project-b` / `project-c-legacy` | — | Follow-up PR per consumer |
+| Adopting in `project-d` / `project-b` / `project-c` | — | Follow-up PR per consumer |
 | Future: telemetry on `apply_phase_bypass` count | — | After 30 days of marker data; out of scope |
 
 ## 7 Risks

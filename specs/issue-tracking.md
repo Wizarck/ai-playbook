@@ -4,11 +4,11 @@
 
 How user stories, features, bugs, and releases flow through **two** tracker surfaces:
 
-- **Jira** — enterprise / private work (Paperclip tenants, project-c-legacy Enterprise, any closed-source SaaS).
-- **GitHub Projects + Issues** — community / open-source work (project-c-legacy, awesome-paperclip, any public repo under `Wizarck`).
+- **Jira** — enterprise / private work (Paperclip tenants, project-c Enterprise, any closed-source SaaS).
+- **GitHub Projects + Issues** — community / open-source work (project-c, awesome-paperclip, any public repo under `Wizarck`).
 
 The split is intentional and mirrors the dual-repo strategy already documented in
-`project-c-legacy/AGENTS.md` §4 and ADR-010 (community AGPL-3.0 vs enterprise private). This spec
+`project-c/AGENTS.md` §4 and ADR-010 (community AGPL-3.0 vs enterprise private). This spec
 extends that split from **issues** to full **product planning** (user stories → features →
 releases) so the two audiences stay on surfaces they expect.
 
@@ -20,8 +20,8 @@ Decision rule (apply to every repo under `Wizarck`):
 
 | Repo class | Examples | Planning surface | Release surface | Ticket prefix |
 |---|---|---|---|---|
-| Public AGPL-3.0 (community) | `project-c-legacy`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
-| Private with public OS counterpart (dual-repo) | `project-c-legacy Enterprise` (mirrors project-c-legacy), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-project-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
+| Public AGPL-3.0 (community) | `project-c`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
+| Private with public OS counterpart (dual-repo) | `project-c Enterprise` (mirrors project-c), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-project-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
 | Private standalone (no public counterpart) | `project-d`, `project-b`, `project-b-hub`, `EPSILON`, future closed-source SaaS without an OSS half | **GitHub Project** (per-repo board) + GitHub Issues | git tag + optional GitHub Release | `#<issue-number>` |
 | Tooling / lightweight | `ai-playbook`, `project-d-skills`, `skills-manager-personal`, `zeta`, `GTM-Helper` | GitHub Issues (no project board) | git tag only | `#<issue-number>` |
 
@@ -29,7 +29,7 @@ Decision rule (apply to every repo under `Wizarck`):
 
 Mixed-mode repos (Arturo runs some public + some private inside the same org) follow the
 visibility of the repo where the work lands; never straddle. A feature that ships in
-`project-c-legacy` (public) AND `project-c-legacy Enterprise` (private) gets two tickets — one per surface —
+`project-c` (public) AND `project-c Enterprise` (private) gets two tickets — one per surface —
 linked to each other by URL in the description.
 
 ---
@@ -81,7 +81,7 @@ commit-message` lands later if friction warrants.
 - **Trigger**: merge to `main` that bumps semver tag.
 - **Surface**: GitHub Release auto-generated from the tag. Release notes = relevant
   `CHANGELOG.md` section.
-- **Assets**: `project-c-legacy` publishes `@project-c-legacy/types` to npm from the release; `ai-playbook`
+- **Assets**: `project-c` publishes `@project-c/types` to npm from the release; `ai-playbook`
   publishes nothing (consumed via git submodule).
 - **Timeline**: semver discipline — breaking change needs major bump; `rollout-strategy.md`
   applies to every public repo too.
@@ -157,7 +157,7 @@ From `mcp-servers-base.yaml` + what's live on the VPS:
 - `gh` CLI (not MCP; wrapped by `scripts/openspec_validate.py`, `scripts/skills_registry.py`,
   and any contributor). Has `repo`, `issue`, `pr`, `search`, and `project` subcommands.
 
-For public-repo issue creation: `gh issue create --repo Wizarck/project-c-legacy --title ... --body
+For public-repo issue creation: `gh issue create --repo Wizarck/project-c --title ... --body
 ...` + `gh project item-add <project-number> --owner Wizarck --url <issue-url>`.
 
 ---
@@ -184,5 +184,5 @@ For public-repo issue creation: `gh issue create --repo Wizarck/project-c-legacy
 - `specs/retrospective-cadence.md` — monthly lifecycle check flags orphan tickets.
 - `specs/verdict-contract.md` — QA verdict → ticket transition mapping.
 - `docs/fork-inventory.md` — determines which repos are public vs private.
-- `project-c-legacy/AGENTS.md` §4 + ADR-010 — dual-repo strategy (origin of the split this spec
+- `project-c/AGENTS.md` §4 + ADR-010 — dual-repo strategy (origin of the split this spec
   extends).
