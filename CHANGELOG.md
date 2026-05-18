@@ -6,6 +6,20 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ### Known gaps still pending (target: v0.15.0+)
 
+## [0.14.1] — 2026-05-18 — finish consumer-c-legacy → consumer-c rename (templates + schema)
+
+Additive PATCH. Bundles PR #59 (already merged but untagged) plus stragglers it missed in two templates and the AGENTS.md JSON schema example. No spec/script/runbook contract changes — docs/examples only.
+
+### Changed
+
+- **`templates/gotcha.md.tmpl`**: example gotcha now references `consumer-c-api` instead of `consumer-c-legacy-api` so consumers copy a current project name.
+- **`templates/projects.yaml.example`**: example registry entry now shows the canonical `consumer-c` slug + nested bare-worktree path `C:/Projects/consumer-c/master` (per the rename layout adopted 2026-05-18).
+- **`specs/agents-md-v1.schema.json`**: `examples[0].project` is now `consumer-c` (was `consumer-c-legacy`); the camelCase justification `$comment` no longer cites the renamed repo — reworded to generic historical framing.
+
+### Notes
+
+CHANGELOG entries from prior releases that reference `consumer-c-legacy` are intentionally left as historical record. GitHub redirects the renamed repo URL so no link rot.
+
 ## [0.14.0] — 2026-05-15 — apply-phase orchestration enforcement (L1+L2+L3)
 
 Additive MINOR. Closes a real failure mode observed in consumer-a's Revalid v1.0 epic (2026-05-14, PRs #1-#4): four slices implemented with manual `Edit`/`Write` on declared `write_paths` instead of through the `openspec-apply-change` skill. Symptoms — tests appended at end (not TDD-red-first), citation-drift preflight (skill §4b, v0.11.0) skipped, self-validation gates (runbook §3.4) silent. The work landed but retros could not distinguish skill-orchestrated work from manual work.

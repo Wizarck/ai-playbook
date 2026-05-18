@@ -5,8 +5,8 @@
 schema: ai-playbook/projects-registry/v1
 
 projects:
-  consumer-c-legacy:
-    path: C:/Projects/consumer-c-legacy
+  consumer-c:
+    path: C:/Projects/consumer-c/master
     owner: 23051550+Wizarck@users.noreply.github.com
     version: 1.0.0
     inherits_from:

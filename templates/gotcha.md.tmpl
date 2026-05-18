@@ -16,7 +16,7 @@
 
 ```markdown
 - 2026-04-23 — **NestJS `@ApiOperation` missing on DELETE endpoints breaks MCP
-  tool discovery.** Missing decorators cause the `consumer-c-legacy-api` MCP server
+  tool discovery.** Missing decorators cause the `consumer-c-api` MCP server
   to skip the route; agents see fewer tools than expected. Always decorate
   with `summary` + `description` (ADR-002). Caught by Acceptance Auditor on
   change `module-1-ingredients-implementation`. See

@@ -39,7 +39,7 @@
       "minLength": 1,
       "maxLength": 64,
       "description": "Project slug. MUST match the repository directory name and the key used in the projects registry (~/.ai-playbook/projects.yaml). No spaces, no path separators, no leading punctuation.",
-      "$comment": "Enforced as a slug so the registry can round-trip cwd -> project -> registry entry without ambiguity. Mixed case is allowed because existing repos (e.g. consumer-c-legacy) use camelCase."
+      "$comment": "Enforced as a slug so the registry can round-trip cwd -> project -> registry entry without ambiguity. Mixed case is allowed for flexibility (some historical repos used camelCase before being renamed to kebab-case)."
     },
     "owner": {
       "type": "string",
@@ -71,7 +71,7 @@
       "version": "1.0.0",
       "inherits_from": ["github.com/Wizarck/ai-playbook@v0.1.0"],
       "updated": "2026-04-23",
-      "project": "consumer-c-legacy",
+      "project": "consumer-c",
       "owner": "23051550+Wizarck@users.noreply.github.com",
       "capabilities_map": true
     },
