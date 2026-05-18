@@ -5,8 +5,8 @@
 schema: ai-playbook/projects-registry/v1
 
 projects:
-  openTrattOS:
-    path: C:/Projects/openTrattOS
+  nexandro:
+    path: C:/Projects/nexandro/master
     owner: arturo6ramirez@gmail.com
     version: 1.0.0
     inherits_from:
