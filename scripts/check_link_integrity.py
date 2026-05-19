@@ -11,12 +11,17 @@ Skips:
 
 CLI:
 
-    python -m scripts.check_link_integrity          # defaults to docs/
+    python -m scripts.check_link_integrity              # default: STRICT (5.F)
+    python -m scripts.check_link_integrity --warn-only  # legacy WARN-only mode
     python -m scripts.check_link_integrity docs/ README.md
 
 Exit codes:
-    0 — all links resolve
+    0 — all links resolve (or --warn-only with warnings)
     2 — at least one dead link (prints file:line target)
+
+Default mode flipped to STRICT in Slice 5.F (v0.18.1). `--warn-only` is the
+Slice-4 lifeline mode — kept available for callers that need to triage
+content debt without failing the job.
 """
 from __future__ import annotations
 
@@ -31,6 +36,23 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Capture markdown links: [text](path) — but ignore image syntax ![alt](path)
 # because images live outside the link-integrity scope (handled by mkdocs).
 _LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\(([^)]+)\)")
+
+# Fenced code blocks: ``` ... ``` or ~~~ ... ~~~ (multi-line, dot matches newline).
+_FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
+# Inline code: `...` — single backtick spans.
+_INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+
+
+def _strip_code(text: str) -> str:
+    """Replace fenced and inline code with newline-preserving blanks so line
+    numbers stay accurate while the link regex no longer hits code-block
+    examples (e.g. `[#NN](...)` inside a markdown template fence)."""
+    def _blank(m: re.Match[str]) -> str:
+        # Preserve line count so reported line numbers stay correct.
+        return "\n" * m.group(0).count("\n")
+    text = _FENCE_RE.sub(_blank, text)
+    text = _INLINE_CODE_RE.sub(_blank, text)
+    return text
 
 
 def is_external(target: str) -> bool:
@@ -57,6 +79,7 @@ def find_dead_links(paths: list[Path], repo_root: Path) -> list[tuple[Path, int,
             text = md.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        text = _strip_code(text)
         for lineno, line in enumerate(text.splitlines(), start=1):
             for match in _LINK_RE.finditer(line):
                 target = match.group(2).strip()
@@ -91,11 +114,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--root", default=str(REPO_ROOT))
     parser.add_argument(
+        "--warn-only",
+        action="store_true",
+        help=(
+            "Exit 0 even on dead links, printing them as WARN. Legacy mode "
+            "kept for callers that need to triage content debt without "
+            "failing the job. Default is strict (Slice 5.F)."
+        ),
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
         help=(
-            "Exit 2 on any dead link. Without --strict, exit 0 and print warnings "
-            "— Slice 4 ships content debt that Slice 5 resolves."
+            "Deprecated no-op — strict is the default since Slice 5.F. Kept "
+            "for backward compatibility with older CI workflows; ignored."
         ),
     )
     parser.add_argument(
@@ -114,12 +146,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{md}:{lineno}: dead link -> {target}", file=sys.stderr)
         if len(dead) > args.max_warnings:
             print(f"  ... ({len(dead) - args.max_warnings} more)", file=sys.stderr)
-        if args.strict:
+        if not args.warn_only:
             print(f"FAIL: {len(dead)} dead link(s) in {len(files)} file(s)", file=sys.stderr)
             return 2
         print(
             f"WARN: {len(dead)} dead link(s) in {len(files)} file(s) — "
-            f"non-strict, exit 0. Run with --strict to fail.",
+            f"--warn-only, exit 0. Drop the flag to fail.",
             file=sys.stderr,
         )
         return 0
