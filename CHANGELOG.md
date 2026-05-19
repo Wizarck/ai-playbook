@@ -4,7 +4,43 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.15.0+)
+### Known gaps still pending (target: v0.16.0+)
+
+## [0.15.0] — 2026-05-19 — consumer-side zombie cleanup hook (declarative manifest + auto-fire)
+
+Additive MINOR. Solves a long-standing hygiene gap: bumping `.ai-playbook` advances the submodule pin but never cleans what prior pins deposited in consumer trees. Patterns observed in `geeplo` (PR #125, 2026-05-18): orphan `.skills-sources/` submodule + `.git/modules/.skills-sources/` metadata after a single-source simplification, stale `openTrattOS` literals in MCP YAMLs after the v0.14.1 rename, drained-but-fat `hindsight-queue.jsonl` files, orphan `<!-- BEGIN auto-managed: <source> -->` markdown blocks.
+
+This release ships a **declarative zombie manifest** + a **single cleanup script** that consumers invoke automatically from their `post-merge` / `post-checkout` hooks (same pattern as `sync_skills_local.py`).
+
+### Added
+
+- **`specs/cleanup-zombies.md`** (NEW, v1.0.0). Full contract: manifest schema (§2), three-tier policy (§3), six safety checks catalogue (§4), three-channel report contract (§5), exit-code policy (§6 — default invocation NEVER exits non-zero), break-glass clause (§7, `AIPLAYBOOK_CLEANUP_SKIP=1`), consumer adoption checklist (§8).
+- **`specs/zombies-manifest.yaml`** (NEW). Rolling declarative inventory. v1 ships with 10 entries — 4 × Tier 1 (safe-delete), 1 × Tier 2 (literal rename), 5 × Tier 3 (advisory-only). Schema validation enforced via `cleanup_zombies.py validate` (exit 2 on schema break — the ONLY non-zero exit in the tool).
+- **`scripts/cleanup_zombies.py`** (NEW): default invocation is dry-run; `--apply` executes Tier 1+2; `--quiet` for hook context; `validate` for the manifest schema pre-commit gate; `version` prints the manifest_version. 31 tests in [`tests/test_cleanup_zombies.py`](tests/test_cleanup_zombies.py) covering: manifest schema (9), each safety check (8), decision flow + channels (8), exit-code policy + break-glass (5), idempotency (1).
+- **`templates/new-project/scripts/git-hooks/post-merge.tmpl`** (NEW). Two-step bash: skills sync → playbook zombie cleanup. Always exits 0 (`|| true` after cleanup). Activates via existing `scripts/install-skills-hooks.sh` pattern (sets `git config core.hooksPath scripts/git-hooks`).
+- **`templates/new-project/scripts/git-hooks/post-checkout.tmpl`** (NEW). Analogous, gated on `$3 == "1"` (branch-checkout flag) so file checkouts don't re-fire.
+
+### Changed
+
+- **`specs/enforcement-status.md`**: new row for `cleanup-zombies.md` at ✅ wired (script + 31 tests + 2 hook templates + manifest schema validator).
+- **`docs/development-flow.md`** §5 enforcement table: new row for "Consumer-side playbook zombie cleanup" at 🟡 partial (auto-fires per hook; promotion to ✅ when ≥ 1 real consumer adopts and reports a quiet quarter).
+- **`runbooks/release.md`** §2: pre-cut checklist gains "If this release REMOVED or RENAMED any consumer-surface artefact (template file, frontmatter field, literal identifier consumers wire against), append an entry to `specs/zombies-manifest.yaml` and bump `manifest_version`."
+
+### Consumer adoption (per consumer, in a follow-up PR)
+
+1. Bump `.ai-playbook` submodule to v0.15.0.
+2. Append one line to existing `scripts/git-hooks/post-merge` AND `scripts/git-hooks/post-checkout`:
+   ```bash
+   python "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" --apply --quiet || true
+   ```
+3. Append `.ai-playbook/zombie-report.md` to `.gitignore`.
+
+First adoption: `geeplo` (already has `scripts/git-hooks/` from PR #125; single-line addition).
+
+### Notes
+
+- Manifest is **rolling**: future releases that remove/rename consumer-surface artefacts MUST append an entry here. The release.md checklist now gates this.
+- No breaking changes. Consumers that don't bump remain unaffected. Consumers that bump but don't wire the hook keep running but accumulate (the script never auto-installs).
 
 ## [0.14.1] — 2026-05-18 — finish openTrattOS → nexandro rename (templates + schema)
 

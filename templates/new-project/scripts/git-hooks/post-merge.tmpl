@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Post-merge hook — re-materialise skills + cleanup playbook zombies.
+#
+# Triggers after every successful merge (including fast-forward from `git pull`).
+# Covers the submodule-bump scenario where the playbook pin advances.
+#
+# Activation (one-time per clone):
+#     bash scripts/install-skills-hooks.sh
+# which sets `git config core.hooksPath scripts/git-hooks` so this file fires
+# automatically — `.git/hooks/` is NOT distributed via git, so it can't be the
+# canonical home.
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# 1) Skills sync (only if the consumer adopted single-source pattern; safe no-op otherwise)
+if [ -f "$REPO_ROOT/scripts/sync_skills_local.py" ]; then
+    python "$REPO_ROOT/scripts/sync_skills_local.py" --quiet || {
+        echo "warn: skills sync failed (post-merge); run manually: python scripts/sync_skills_local.py" >&2
+    }
+fi
+
+# 2) Playbook zombie cleanup (Tier 1+2 auto-apply; exit 0 always per specs/cleanup-zombies.md §6)
+if [ -f "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" ]; then
+    python "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" --apply --quiet || true
+fi
