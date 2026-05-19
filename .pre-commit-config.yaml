@@ -53,12 +53,12 @@ repos:
         files: ^openspec/changes/.*/(review|reviews/.*|qa/.*|readiness).*\.md$
         pass_filenames: true
 
-      - id: validate-skills-mirror
-        name: validate-skills-mirror (RFC-0001 drift guard)
-        entry: python -m scripts.validate_skills_mirror
-        language: system
-        pass_filenames: false
-        files: ^(skills|\.claude/skills|\.gemini/skills)/
+      # validate-skills-mirror REMOVED in v0.17.0 (slice
+      # single-source-skills-reset). The new single-source materialiser at
+      # `scripts/materialise_skills.py` performs a fingerprint-equality
+      # short-circuit that obsoletes the drift-detection pre-commit gate.
+      # Mirror trees (skills/, .claude/skills/, .gemini/skills/) are now
+      # gitignored at consumer side; nothing to drift-check.
 
       - id: verify-llm-routing
         name: verify-llm-routing (Change C drift detector — direct-SDK callers)

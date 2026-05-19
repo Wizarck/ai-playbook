@@ -5,7 +5,7 @@
 # Covers the submodule-bump scenario where the playbook pin advances.
 #
 # Activation (one-time per clone):
-#     bash scripts/install-skills-hooks.sh
+#     bash scripts/install-playbook-hooks.sh
 # which sets `git config core.hooksPath scripts/git-hooks` so this file fires
 # automatically — `.git/hooks/` is NOT distributed via git, so it can't be the
 # canonical home.
@@ -14,8 +14,15 @@ set -e
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# 1) Skills sync (only if the consumer adopted single-source pattern; safe no-op otherwise)
-if [ -f "$REPO_ROOT/scripts/sync_skills_local.py" ]; then
+# 1) Skills sync — single-source materialiser (v0.17.0+).
+#    Per D2, the script is invoked directly from the playbook submodule;
+#    no consumer-side copy. Falls back to legacy local copy for consumers
+#    that haven't bumped past v0.16.x.
+if [ -f "$REPO_ROOT/.ai-playbook/scripts/materialise_skills.py" ]; then
+    python "$REPO_ROOT/.ai-playbook/scripts/materialise_skills.py" --quiet || {
+        echo "warn: skills materialiser failed (post-merge); run manually: python .ai-playbook/scripts/materialise_skills.py" >&2
+    }
+elif [ -f "$REPO_ROOT/scripts/sync_skills_local.py" ]; then
     python "$REPO_ROOT/scripts/sync_skills_local.py" --quiet || {
         echo "warn: skills sync failed (post-merge); run manually: python scripts/sync_skills_local.py" >&2
     }

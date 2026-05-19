@@ -20,7 +20,7 @@
 #     (not playbook-driven).
 
 version: 1
-manifest_version: "2026-05-19.1"
+manifest_version: "2026-05-19.2"
 
 entries:
   # -------------------------------------------------------------------------
@@ -33,11 +33,13 @@ entries:
     safety: check_gitmodules_first
     path: .skills-sources
     introduced_in: v0.4.0
-    removed_in: deprecation_only   # consumers may still opt into multi-source
+    removed_in: v0.17.0  # v0.17.0 dropped RFC-0001; submodule has no upstream use
     reason: >
-      RFC-0001 multi-source pattern. When a consumer simplifies to single-source
-      (per consumer-a §7.6 / 2026-05-18), the `.skills-sources/` directory is
-      deregistered from `.gitmodules` but the directory often lingers.
+      RFC-0001 multi-source pattern, removed upstream in ai-playbook v0.17.0
+      (slice single-source-skills-reset). The `.skills-sources/` directory is
+      always orphan now — no upstream code references it. Safety check
+      `check_gitmodules_first` still applies (avoid deleting an active submodule
+      a consumer somehow re-added).
     evidence: github.com/consumer-a/consumer-a/pull/125
 
   - id: skills-sources-git-modules-orphan
@@ -114,12 +116,12 @@ entries:
     safety: report_only
     path: AGENTS.md
     introduced_in: v0.4.0
-    removed_in: deprecation_only
+    removed_in: v0.17.0  # multi-source pattern dropped upstream
     reason: >
-      `AGENTS.md` declares `skills_sources:` with a single entry that mirrors
-      `inherits_from:`. This is the multi-source overhead with no benefit —
-      see consumer-a §7.6 simplification. Drop the field + run a local skills
-      sync script (`scripts/sync_skills_local.py` pattern).
+      `AGENTS.md` declares any `skills_sources:` block. v0.17.0 removed RFC-0001
+      entirely — the field is now dead text. Drop the block and use the
+      single-source materialiser
+      (`.ai-playbook/scripts/materialise_skills.py`).
     evidence: github.com/consumer-a/consumer-a/pull/125
 
   - id: inherits-from-too-old
@@ -171,10 +173,134 @@ entries:
     safety: report_only
     path: .pre-commit-config.yaml
     introduced_in: v0.4.0
-    removed_in: deprecation_only
+    removed_in: v0.17.0  # both scripts deleted upstream in v0.17.0
     reason: >
       Pre-commit entries invoking `propagate_skills_bump.py` or
-      `validate_skills_mirror.py` when the consumer no longer carries
-      `skills_sources:` in `AGENTS.md` (i.e. dropped multi-source). These
-      hooks become no-ops at best and confusing CI noise at worst.
+      `validate_skills_mirror.py`. v0.17.0 deleted both scripts upstream
+      (slice single-source-skills-reset); any consumer entry referencing them
+      breaks `pre-commit run` with `command not found`.
     evidence: github.com/consumer-a/consumer-a/pull/125
+
+  # -------------------------------------------------------------------------
+  # v2 entries — added by ai-playbook v0.17.0
+  # (slice single-source-skills-reset; RFC-0001 multi-source pattern removal)
+  # -------------------------------------------------------------------------
+
+  - id: propagate-skills-bump-script
+    tier: 3
+    action: report
+    safety: report_only
+    path: scripts/propagate_skills_bump.py
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      `scripts/propagate_skills_bump.py` was deleted from the playbook in
+      v0.17.0 (slice single-source-skills-reset). Any consumer-side wrapper
+      that invokes this script as `.ai-playbook/scripts/propagate_skills_bump.py`
+      will fail with `FileNotFoundError`. Remove the wrapper or migrate to the
+      single-source pattern (no per-source propagation needed any more).
+    evidence: ai-playbook v0.17.0 CHANGELOG
+
+  - id: validate-skills-mirror-script
+    tier: 3
+    action: report
+    safety: report_only
+    path: scripts/validate_skills_mirror.py
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      `scripts/validate_skills_mirror.py` was deleted from the playbook in
+      v0.17.0. The new materialiser's fingerprint-equality short-circuit
+      obsoletes the drift check. Any consumer-side direct invocation
+      (`python .ai-playbook/scripts/validate_skills_mirror.py`) will fail.
+    evidence: ai-playbook v0.17.0 CHANGELOG
+
+  - id: propagate-skills-bump-workflow
+    tier: 3
+    action: report
+    safety: report_only
+    path: .github/workflows/propagate-skills-bump.yml
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      `.github/workflows/propagate-skills-bump.yml` was deleted from the
+      playbook in v0.17.0. The workflow fanned out per-consumer PRs on every
+      tag push of a skills source repo; with single-source the playbook tag
+      IS the skills tag, so the existing `propagate-playbook-bump.yml`
+      already covers the propagation. Consumer copies of this workflow
+      (uncommon — never templated) should be removed.
+    evidence: ai-playbook v0.17.0 CHANGELOG
+
+  - id: rfcs-folder-removed
+    tier: 3
+    action: report
+    safety: report_only
+    path: rfcs
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      The `rfcs/` folder (housing RFC-0001-skills-distribution.md and its
+      README) was deleted entirely in v0.17.0. Markdown cross-references to
+      `rfcs/RFC-0001-skills-distribution.md` now return 404 on the rendered
+      mkdocs site. Migrate prose references to `specs/skills-distribution.md`
+      v2.0.0.
+    evidence: ai-playbook v0.17.0 CHANGELOG
+
+  - id: skills-sources-submodule-v2
+    tier: 1
+    action: delete
+    safety: check_gitmodules_first
+    path: .skills-sources
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      Tightens the v1 entry `skills-sources-submodule`. Post-v0.17.0 the
+      upstream playbook has zero use for `.skills-sources/` — the directory
+      is always orphan. Safety check still verifies the consumer has
+      deregistered the submodule via `.gitmodules`; once that holds, the
+      directory is safe-delete.
+    evidence: ai-playbook v0.17.0 CHANGELOG; consumer-a PR #125
+
+  - id: skills-sources-frontmatter
+    tier: 3
+    action: report
+    safety: report_only
+    path: AGENTS.md
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      Expansion of v1 entry `skills-sources-frontmatter-simplify`. Now flags
+      ANY `skills_sources:` block in AGENTS.md (previously only flagged
+      single-entry blocks). Post-v0.17.0 the field is dead text; no upstream
+      code reads it.
+    evidence: ai-playbook v0.17.0 CHANGELOG
+
+  - id: skills-pins-consumers-yaml
+    tier: 3
+    action: report
+    safety: report_only
+    path: consumers.yaml
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      `consumers.yaml.<name>.skills_pins:` keys are stale post-v0.17.0. The
+      propagator that consumed them (`propagate_skills_bump.py`) was deleted;
+      the schema's `additionalProperties: true` keeps the keys valid, but
+      they are no-ops. Remove on the next consumers.yaml edit.
+    evidence: ai-playbook v0.17.0 CHANGELOG
+
+  - id: validate-skills-mirror-precommit-hook
+    tier: 3
+    action: report
+    safety: report_only
+    path: .pre-commit-config.yaml
+    introduced_in: v0.4.0
+    removed_in: v0.17.0
+    reason: >
+      Pre-commit hook entries with `id: validate-skills-mirror`. v0.17.0
+      removed both the script (`scripts/validate_skills_mirror.py`) and the
+      hook export (`.pre-commit-hooks.yaml`). Any consumer entry referencing
+      the local script breaks `pre-commit run` with `command not found`;
+      entries referencing the remote `repo: <ai-playbook>` hook get a missing-hook
+      error.
+    evidence: ai-playbook v0.17.0 CHANGELOG
