@@ -1,4 +1,15 @@
-# architecture-diagrams.md
+---
+schema: concept/v1
+slug: architecture-diagrams
+title: Architecture Diagrams
+summary: |
+  Mermaid diagrams visualising how the 3-level dispatcher, OpenSpec flow, and
+  pre-commit gates compose at runtime. Populated in T02h. Three canonical
+  flows below; add more as complexity grows.
+last_validated: "2026-05-19"
+---
+
+# Architecture Diagrams
 
 Mermaid diagrams visualising how the 3-level dispatcher, OpenSpec flow, and pre-commit gates compose at runtime. Populated in **T02h**. Three canonical flows below; add more as complexity grows.
 

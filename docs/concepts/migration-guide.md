@@ -1,6 +1,15 @@
-# migration-guide.md
+---
+schema: concept/v1
+slug: migration-guide
+title: Migration Guide
+summary: |
+  Procedure for migrating an existing AGENTS.md (or equivalent ad-hoc
+  dispatcher file) from v0 (pre-schema) to v1 (compliant with
+  C:\Projects\ai-playbook\specs\agents-md-v1.schema.json).
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Migration Guide
 
 Procedure for migrating an existing `AGENTS.md` (or equivalent ad-hoc dispatcher file) from **v0** (pre-schema) to **v1** (compliant with `C:\Projects\ai-playbook\specs\agents-md-v1.schema.json`).
 
@@ -193,7 +202,7 @@ acme-shop — Next.js 14 storefront backed by Prisma and Supabase Postgres.
 
 | Topic | Pointer |
 |---|---|
-| Playbook norms | [.ai-playbook/specs/](.ai-playbook/specs/) |
+| Playbook norms | .ai-playbook/specs/ |
 
 ## 3 Active work
 
@@ -234,17 +243,17 @@ Empty at v0.1.0.
 ## Common pitfalls
 
 1. **`inherits_from` pin format wrong.** `github.com/Wizarck/ai-playbook@main` or
-   `@0.1` both fail. It MUST be `github.com/<org>/<repo>@v?<MAJOR>.<MINOR>.<PATCH>` —
+   `@0.1` both fail. It must be `github.com/<org>/<repo>@v?<MAJOR>.<MINOR>.<PATCH>` —
    a real semver tag, not a branch, not a truncated version.
 
 2. **`updated` in wrong format.** `2026-4-23` (no leading zero) fails `format: date`.
    Use exactly `YYYY-MM-DD` with zero-padding: `2026-04-23`.
 
 3. **`project` has spaces or path separators.** `"Acme Shop"` or `"acme/shop"` fail the
-   slug pattern. Use `acme-shop`. The slug MUST match the repo directory name too, or the
+   slug pattern. Use `acme-shop`. The slug must match the repo directory name too, or the
    projects registry won't resolve `cwd`.
 
-4. **Frontmatter delimiters missing or misplaced.** The `---` lines MUST be on their own
+4. **Frontmatter delimiters missing or misplaced.** The `---` lines must be on their own
    line, at column 0, with the opening `---` on line 1. A BOM, leading whitespace, or
    anything (even a blank line) before the opening `---` breaks YAML parsers.
 

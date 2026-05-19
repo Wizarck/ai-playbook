@@ -1,10 +1,20 @@
-# agent-contract.md
+---
+schema: concept/v1
+slug: agent-contract
+title: Agent Contract
+summary: |
+  Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an
+  advisor — carries an explicit identity, scope, memory binding, and budget.
+  This spec defines the input envelope the parent agent MUST send when
+  spawning, and the return envelope the child MUST emit.…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md). The JSON Schema is published at [`agent-contract.schema.json`](agent-contract.schema.json) but no harness validates spawn envelopes today. Activation: when a real `Task`-tool harness ships, wire `jsonschema.validate` at spawn time.
+# Agent Contract
 
 Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an advisor — carries an
 explicit identity, scope, memory binding, and budget. This spec defines the **input envelope** the
-parent agent MUST send when spawning, and the **return envelope** the child MUST emit. Together they
+parent agent must send when spawning, and the **return envelope** the child must emit. Together they
 are the machine-readable contract that lets traces correlate, RBAC hold, budgets stop runaway, and
 parallel review (see [parallel-review.md](parallel-review.md)) stay auditable.
 
@@ -20,7 +30,7 @@ parallel review (see [parallel-review.md](parallel-review.md)) stay auditable.
   `untracked_state_mutation` failure (see [agentic-failures.md](agentic-failures.md)).
 - Budgets: runaway loops (`infinite_loop`) are caught deterministically by the harness, not by
   hoping the model stops.
-- Verdicts: every return carries a verdict per [verdict-contract.md](verdict-contract.md), so the
+- Verdicts: every return carries a verdict per [verdict-contract.md](../rules/verdict-contract.rule.md), so the
   parent's triage logic is uniform across agent types.
 
 ## 2. Input envelope
@@ -74,7 +84,7 @@ validates it against the JSON Schema (§5) before the child's prompt is sent.
 
 ## 3. Return envelope
 
-The child MUST return a single JSON document shaped as below. Free-form narrative goes into the
+The child must return a single JSON document shaped as below. Free-form narrative goes into the
 findings' `detail` fields; the envelope itself is machine-parsable.
 
 ```json
@@ -116,13 +126,13 @@ findings' `detail` fields; the envelope itself is machine-parsable.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `agent_id` | UUIDv7 | yes | Echoes the spawn envelope. |
-| `verdict` | enum string | yes | Exactly one of the literals in [verdict-contract.md](verdict-contract.md) §1. |
+| `verdict` | enum string | yes | Exactly one of the literals in [verdict-contract.md](../rules/verdict-contract.rule.md) §1. |
 | `findings` | array | yes | Empty `[]` iff verdict is `✅ APPROVED`. |
 | `findings[].severity` | `S1`..`S4` | yes | `S0` rejected per verdict-contract §2.1. |
 | `findings[].title` | string | yes | ≤80 chars; identity used by the max-2-rework rule. |
 | `findings[].location` | string | yes | `path:line` or symbolic (e.g. `mcp-servers.yaml:servers.hindsight`). |
-| `findings[].detail` | string | yes | WHY / WHERE / FIX per [error-message-standard.md](error-message-standard.md). |
-| `telemetry` | object | yes | OTel span attributes the parent MUST carry forward. |
+| `findings[].detail` | string | yes | WHY / WHERE / FIX per [error-message-standard.md](../rules/error-message-standard.rule.md). |
+| `telemetry` | object | yes | OTel span attributes the parent must carry forward. |
 | `budget_consumed` | object | yes | Actuals; used by retros to tune budgets. |
 
 ### 3.2 Special verdict `budget_exhausted`
@@ -246,9 +256,9 @@ regardless of what it self-reported.
 
 ## 5. JSON Schema (draft 2020-12)
 
-The canonical JSON Schema file lives at [agent-contract.schema.json](agent-contract.schema.json).
+The canonical JSON Schema file lives at [agent-contract.schema.json](../../schemas/schema-agent-contract.json).
 The inline copy below is for reading convenience; the `.json` file is authoritative. Linters
-and the harness MUST validate against the `.json` file, not the inline block.
+and the harness must validate against the `.json` file, not the inline block.
 
 ```json
 {
@@ -379,8 +389,8 @@ authority is the harness — never the model's self-report.
 
 ## 8. See also
 
-- [verdict-contract.md](verdict-contract.md) — the `verdict` field and severity rubric.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — the `verdict` field and severity rubric.
 - [parallel-review.md](parallel-review.md) — the 3-layer consumer of this envelope.
 - [memory-hierarchy.md](memory-hierarchy.md) — `memory.bank_id` semantics.
 - [agentic-failures.md](agentic-failures.md) — failure kinds that piggyback on `telemetry.ai_playbook.failure.kind`.
-- [error-message-standard.md](error-message-standard.md) — shape of `findings[].detail`.
+- [error-message-standard.md](../rules/error-message-standard.rule.md) — shape of `findings[].detail`.

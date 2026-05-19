@@ -1,11 +1,21 @@
-# parallel-review.md
+---
+schema: concept/v1
+slug: parallel-review
+title: Parallel Review
+summary: |
+  For high-stakes artefacts — code review on a non-trivial diff, proposal
+  review, implementation readiness check, retrospective — the playbook spawns
+  three orthogonal subagents in parallel. Each receives a bounded, LEAN brief.
+  Each returns an independent verdict per
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md). The 3-layer pattern is documented and the BMAD review skills exist (`bmad-code-review`, `bmad-review-edge-case-hunter`, `bmad-review-adversarial-general`). No coordinator script verifies all 3 layers ran on a given artefact today.
+# Parallel Review
 
 For high-stakes artefacts — code review on a non-trivial diff, proposal review, implementation
 readiness check, retrospective — the playbook spawns **three orthogonal subagents in parallel**.
 Each receives a bounded, LEAN brief. Each returns an independent verdict per
-[verdict-contract.md](verdict-contract.md) using the envelope in
+[verdict-contract.md](../rules/verdict-contract.rule.md) using the envelope in
 [agent-contract.md](agent-contract.md). The main agent then triages the three reports.
 
 The three layers are intentionally **orthogonal and isolated**: a finding missed by one is likely
@@ -46,7 +56,7 @@ For diffs ≤50 LOC that touch no boundary, a single `bmad-code-review` subagent
 ## 3. Canonical prompts
 
 Each prompt is embedded into the subagent's `brief` field of the [agent-contract.md](agent-contract.md)
-input envelope. Each prompt is ≥30 lines. The parent SHOULD template it (substitute `$VAR`s) rather
+input envelope. Each prompt is ≥30 lines. The parent should template it (substitute `$VAR`s) rather
 than hand-edit per call.
 
 ### 3.1 Blind Hunter
@@ -183,7 +193,7 @@ The parent agent receives up to three envelopes. It performs triage **before** t
    - S3 + S4 → **batched** cleanup queue (separate commit or follow-up change).
 2. **Dedupe across layers**: same `title` + `location` prefix from two layers counts as one
    finding (higher severity wins).
-3. **Dismiss with rationale**: a finding may be a false positive. The parent agent MUST emit a
+3. **Dismiss with rationale**: a finding may be a false positive. The parent agent must emit a
    one-sentence rationale into the retro log (via `scripts/log_event.py`); "LGTM" is not a
    rationale. A dismissal without rationale is an `over_confidence` failure.
 4. **If any layer emitted `❓ CLARIFICATION NEEDED`**: the track halts regardless of the other
@@ -237,7 +247,7 @@ its own span, and emits a single JSONL record via `scripts/log_event.py`.
 4. **Return via the [agent-contract.md](agent-contract.md) envelope.** A layer that free-forms
    narrative without the envelope is malformed; the linter and the parent reject it.
 5. **Respect max-2-rework.** If the parent is about to spawn iter-3 with the same finding, it
-   MUST instead escalate per [verdict-contract.md](verdict-contract.md) §3.
+   must instead escalate per [verdict-contract.md](../rules/verdict-contract.rule.md) §3.
 
 ## 8. Worked example — `acme-shop` cart diff
 
@@ -274,7 +284,7 @@ incremented by the parent. All three return `✅ APPROVED`. Parent commits with
 
 ## 9. See also
 
-- [verdict-contract.md](verdict-contract.md) — verdicts + severities emitted by each layer.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — verdicts + severities emitted by each layer.
 - [agent-contract.md](agent-contract.md) — envelope that carries the report.
 - [agentic-failures.md](agentic-failures.md) — `hallucination`, `over_confidence`,
   `cascade_failure` — the three layers are the main defence against these.

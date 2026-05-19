@@ -1,6 +1,16 @@
-# v0.8.0-roadmap.md
+---
+schema: concept/v1
+slug: v080-roadmap
+title: v0.8.0 Roadmap
+summary: |
+  v0.7.0 was scoped as "alignment + bridges + audit incorporation": resolve
+  the BMAD↔OpenSpec drift, lift two patterns from the taste-skill /
+  superpowers audits as new specs, add a soft-warn lint for SKILL.md
+  description quality, and ship the slicing artefact contract. Master's…
+last_validated: "2026-05-19"
+---
 
-> **Status**: in flight. v0.8.0-rc1 (2026-04-30) shipped item 11 (release management contract). Items 1-10 still tracked for v0.8.0 stable. Each item carries enough context that whoever picks it up can act without re-discovering the rationale.
+# v0.8.0 Roadmap
 
 ## Why deferred
 
@@ -119,7 +129,7 @@ When v0.8.0 opens, this file becomes the working backlog. Each item that ships g
 ## Cross-references
 
 - [bmad-openspec-bridge.md](bmad-openspec-bridge.md) — v0.7.0 deliverable that this roadmap builds on.
-- [output-completeness.md](output-completeness.md) — v0.7.0 spec; v0.8.0 ships the linter.
-- [verification-before-completion.md](verification-before-completion.md) — v0.7.0 spec; v0.8.0 ships the linter.
-- [verdict-contract.md](verdict-contract.md) v1.1.0 — `⛔ ARCHITECTURE QUESTIONED` literal that item 3 emits.
+- [output-completeness.md](../rules/output-completeness.rule.md) — v0.7.0 spec; v0.8.0 ships the linter.
+- [verification-before-completion.md](../rules/verification-before-completion.rule.md) — v0.7.0 spec; v0.8.0 ships the linter.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) v1.1.0 — `⛔ ARCHITECTURE QUESTIONED` literal that item 3 emits.
 - [skills-distribution.md](skills-distribution.md) — schema where item 1 (single-versioning) lands.

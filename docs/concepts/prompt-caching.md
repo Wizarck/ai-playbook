@@ -1,6 +1,16 @@
-# prompt-caching.md
+---
+schema: concept/v1
+slug: prompt-caching
+title: Prompt Caching
+summary: |
+  Prompt caching is the single largest cost and latency lever in this stack. A
+  well-ordered prompt on a multi-turn dev session can recover 70%+ of its
+  input-token cost from the provider's cache, and knock seconds off
+  time-to-first-token. This spec defines the ordering rule,…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Prompt Caching
 
 Prompt caching is **the single largest cost and latency lever** in this stack. A well-ordered prompt on a multi-turn dev session can recover 70%+ of its input-token cost from the provider's cache, and knock seconds off time-to-first-token. This spec defines the ordering rule, provider-specific mechanics, anti-patterns, and the telemetry + config knobs that make cache behavior observable.
 

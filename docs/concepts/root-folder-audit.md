@@ -1,3 +1,15 @@
+---
+schema: concept/v1
+slug: root-folder-audit
+title: Root folder audit (v0.17.1)
+summary: |
+  Critical-eye review of every file at the playbook repo root as of
+  2026-05-19, before the v0.20.0 architectural reset enters slice 4
+  (filesystem reorg). For each file: KEEP, DELETE, or MOVE, with a one-line
+  rationale. Companion to slice 3.5 of
+last_validated: "2026-05-19"
+---
+
 # Root folder audit (v0.17.1)
 
 Critical-eye review of every file at the playbook repo root as of

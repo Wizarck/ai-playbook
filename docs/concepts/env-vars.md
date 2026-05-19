@@ -1,6 +1,14 @@
-# env-vars.md
+---
+schema: concept/v1
+slug: env-vars
+title: Env Vars
+summary: |
+  Single source of truth for every env var the playbook (or a playbook script)
+  reads. Adding a new var = updating this spec in the same commit.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Env Vars
 
 Single source of truth for every env var the playbook (or a playbook script) reads. Adding a new var = updating this spec in the same commit.
 
@@ -53,7 +61,7 @@ When both canonical and alias are set, the canonical value wins and the alias is
 | `PROJECT_D_CORE_DIR` | `project-d_` | Path to project-d checkout. | yes (if project-d consumer) | unset | project-d dispatchers, not playbook scripts |
 | `PROJECT_D_VPS_HOST` | `project-d_` | SSH target for VPS k3s. | yes (project-d ops) | unset | project-d runbooks |
 
-Playbook scripts MUST NOT read these directly — they flow through the project-d dispatcher (see `C:\Projects\project-d\project-d.md`).
+Playbook scripts must not read these directly — they flow through the project-d dispatcher (see `C:\Projects\project-d\project-d.md`).
 
 ---
 

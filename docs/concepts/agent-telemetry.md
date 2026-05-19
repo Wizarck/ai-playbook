@@ -1,15 +1,16 @@
-# agent-telemetry.md
+---
+schema: concept/v1
+slug: agent-telemetry
+title: Agent Telemetry
+summary: |
+  Three forces converged in early 2026 that change the cost-benefit of agent
+  telemetry from "nice to have" to "default-on": 1. Claude Code native OTLP
+  support: Anthropic shipped first-class OpenTelemetry export from Claude Code
+  via four environment variables
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. New in ai-playbook v0.10.0. Companion to
-> [project-board-sync.md](project-board-sync.md) — defines layer L5 of the
-> 7-layer enforcement contract and the broader pattern for emitting
-> agent-runtime telemetry from a Claude Code session into a project's existing
-> observability stack.
->
-> **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md).
-> The pattern is plug-and-play (4 environment variables) but adoption is
-> opt-in per consumer; no harness validates that traces are actually being
-> emitted today.
+# Agent Telemetry
 
 ## 1. Why this spec
 
@@ -215,7 +216,7 @@ this spec for any work falling under `release-management.md` §4.5
 
 - [project-board-sync.md](project-board-sync.md) §2 (this spec is L5 of that contract)
 - [release-management.md](release-management.md) §6.5 (companion script integration point)
-- [verification-before-completion.md](verification-before-completion.md) §4.1 (tool-exit-code-over-text rule that L5 enables auditing of)
+- [verification-before-completion.md](../rules/verification-before-completion.rule.md) §4.1 (tool-exit-code-over-text rule that L5 enables auditing of)
 - [data-retention.md](data-retention.md) (L5 trace retention expectations)
 - [env-vars.md](env-vars.md) (canonical names for the 4 OTLP env vars)
 - External: [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage)

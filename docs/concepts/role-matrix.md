@@ -1,6 +1,15 @@
-# role-matrix.md
+---
+schema: concept/v1
+slug: role-matrix
+title: Role Matrix
+summary: |
+  Four people-roles govern who can do what in the ai-playbook repo. The roles
+  are orthogonal to the process-roles named in agent-contract.md (k8s
+  ServiceAccounts, subagent contracts) — see §5 for the mapping.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Formalises the 4-role matrix sketched in [../docs/concepts/contributing.md](../docs/concepts/contributing.md) §2. This spec is normative; `contributing.md` is the friendly summary.
+# Role Matrix
 
 Four people-roles govern who can do what in the ai-playbook repo. The roles are orthogonal to the process-roles named in [agent-contract.md](agent-contract.md) (k8s ServiceAccounts, subagent contracts) — see §5 for the mapping.
 
@@ -15,7 +24,7 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 - Merge to `master` / cut releases / pin semver tags.
 - RFC final say — write the `Decided:` line that closes an RFC.
 - Unilateral docs-only / typo-fix merges without RFC (per `contributing.md` §3.1).
-- Bypass PR review on hotfixes tagged `fix!` with a `Why:` line in the commit body (rare; break-glass still applies per [break-glass.md](break-glass.md)).
+- Bypass PR review on hotfixes tagged `fix!` with a `Why:` line in the commit body (rare; break-glass still applies per [break-glass.md](../rules/break-glass.rule.md)).
 
 **Responsibilities.**
 
@@ -54,13 +63,13 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 
 - Review within 7 days of PR-request or RFC-request tag.
 - Cite sources on every structural comment per global CLAUDE.md principle #7 (`Jira: PROJ-N`, `GH: #N`, ADR reference — not intermediaries).
-- Use the verdict contract ([verdict-contract.md](verdict-contract.md)) for formal reviews of artefacts.
+- Use the verdict contract ([verdict-contract.md](../rules/verdict-contract.rule.md)) for formal reviews of artefacts.
 - Flag scope creep in PRs rather than silently approving.
 
 **Audit trail.**
 
 - Every review is a GitHub PR review record (timestamped, attributed).
-- Formal review artefacts (worker→QA loops, parallel review) follow [verdict-contract.md](verdict-contract.md) and produce committed markdown under `reports/reviews/` on the consumer repo.
+- Formal review artefacts (worker→QA loops, parallel review) follow [verdict-contract.md](../rules/verdict-contract.rule.md) and produce committed markdown under `reports/reviews/` on the consumer repo.
 
 **How to become this role.**
 
@@ -77,7 +86,7 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 **Rights.**
 
 - Open issues, open RFCs, submit PRs against `master`.
-- Append bullets to [../FEEDBACK.md](../FEEDBACK.md) without ceremony.
+- Append bullets to ../FEEDBACK.md without ceremony.
 - Ask for clarification in any thread.
 
 **Responsibilities.**
@@ -85,7 +94,7 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 - Follow `contributing.md` §4 code style (Conventional Commits, Ruff, type hints, pathlib).
 - Ship tests with every script (`contributing.md` §5; no untested script merges).
 - Stay in scope per the OpenSpec proposal or RFC driving the work — do not gold-plate.
-- Use `--force-with-reason` responsibly if an override is needed; the log is audited monthly per [break-glass.md](break-glass.md) §4.
+- Use `--force-with-reason` responsibly if an override is needed; the log is audited monthly per [break-glass.md](../rules/break-glass.rule.md) §4.
 
 **Audit trail.**
 
@@ -154,9 +163,9 @@ Until then, Arturo is sole cluster admin. Break-glass for `kubectl` access is lo
 
 ## 6. Cross-references
 
-- [../docs/concepts/contributing.md](../docs/concepts/contributing.md) — friendly summary; this file is normative.
+- [../docs/concepts/contributing.md](contributing.md) — friendly summary; this file is normative.
 - [agent-contract.md](agent-contract.md) — process-role model for subagents (not people).
-- [break-glass.md](break-glass.md) — override contract applies equally across roles; no role is exempt from logging.
+- [break-glass.md](../rules/break-glass.rule.md) — override contract applies equally across roles; no role is exempt from logging.
 - [incident-response.md](incident-response.md) — activation triggers that expand §5 into a real mapping.
 - [data-retention.md](data-retention.md) §"Right to deletion" — how contributor identity is handled when they leave.
 - [post-mortem.md](post-mortem.md) — review-flow after SEV0/SEV1 incidents names responder + reviewer roles.

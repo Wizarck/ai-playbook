@@ -1,43 +1,34 @@
 ---
 schema: concept/v1
 slug: style
-title: Writing style guide (Slice 5 authors)
+title: Concept-doc writing style
 summary: |
-  Voice, tense, vocabulary, link syntax, example structure. Authored in
-  Slice 4 as a placeholder; ratified by Slice 5.A canonical-rule rewrite
-  before the 5.A-E parallel rewrites kick off.
+  Authoritative style guide for docs/concepts/*.md. Locked by Slice 5.B,
+  read by sub-slices 5.A/5.C/5.D/5.E before they rewrite their categories.
+last_validated: "2026-05-19"
 ---
 
-# Writing style guide
+# Concept-doc writing style
 
-> Authoritative source for Slice 5 doc rewrites. ≤30 lines body per D14
-> convention.
+Declarative, present tense, third person. Concept docs explain; they do not bind.
 
-## Voice
+## RFC 2119 vocabulary — banned in body prose
 
-- Imperative, second person ("YOU MUST", "Run...", "Verify..."), not first ("we", "I").
-- Present tense; avoid future ("will fail") and past ("has failed").
+`MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT`, `MAY` belong in `docs/rules/`. In concept bodies use lowercase (`must`, `should`, `can`) or rephrase. Code fences and quoted spec excerpts are exempt.
 
-## Vocabulary (RFC 2119)
+## Section structure (minimum)
 
-- `MUST` / `MUST NOT` — binding hard requirement (enforced by hook or CI).
-- `SHOULD` / `SHOULD NOT` — strong recommendation; deviation requires justification.
-- `MAY` — permissive option.
-- Never use "please" or "try to" — they soften binding clauses.
+1. `## Why` — motivation, the problem the concept addresses.
+2. `## What` — definition / explanation.
+3. `## How it relates to other concepts` — cross-refs to sibling concept slugs and to rule / runbook / tutorial docs.
+4. `## Concrete example` — at least one worked example.
 
-## Example structure (rules)
+`## Further reading` is optional. Sub-sections of any depth are allowed inside these four.
 
-Every rule body has these sections in order:
+## Anchor + link convention
 
-1. **Trigger** — explicit when-clause (tools / paths / events).
-2. **Binding clause** — single RFC 2119 sentence.
-3. **Trust boundary** — only when the rule touches tool output (data ≠ instructions).
-4. **Process supervision** — paired hook CLI invocation + expected exit code.
-5. **Examples** — one preferred, one avoided.
-6. **Break-glass** — only when the rule has a bypass env var.
+Frontmatter `slug:` (D3) is authoritative and matches the filename stem. Cross-doc citations: `docs/concepts/<slug>.md`. Relative paths only inside `docs/` — for example, `[label](../rules/cleanup-zombies.rule.md)`. External URLs use full `https://`.
 
-## Link syntax
+## Length cap (D7)
 
-- Within `docs/`: relative paths only — `[name](../runbooks/foo.md)`.
-- To repo root: prefix with `../../` (relative to docs/concepts/).
-- External URLs: full https://; mark provider in parentheses when not obvious.
+≤300 body lines per concept doc. Oversized docs are flagged for split during harmonisation.

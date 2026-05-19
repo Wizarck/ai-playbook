@@ -1,6 +1,15 @@
-# data-retention.md
+---
+schema: concept/v1
+slug: data-retention
+title: Data Retention
+summary: |
+  Retention is a safety surface. Too little retention makes audits impossible;
+  too much creates a GDPR liability. This spec names the defaults and the
+  deletion paths.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Defines what the playbook and consumer projects retain, where, for how long, who reads it, and how it is deleted. The spec is normative; per-project deviations require an override under [../docs/concepts/contributing.md](../docs/concepts/contributing.md) §6 (backwards compatibility) + an entry in the project's AGENTS.md §7.
+# Data Retention
 
 Retention is a safety surface. Too little retention makes audits impossible; too much creates a GDPR liability. This spec names the defaults and the deletion paths.
 
@@ -80,7 +89,7 @@ Anonymisation is irreversible. Contributors are told this before they file the r
 ## 6. Cross-references
 
 - [memory-hierarchy.md](memory-hierarchy.md) §retention — authoritative for Hindsight bank decay rules.
-- [break-glass.md](break-glass.md) §4 — `overrides.log` is kept forever; retention rationale.
+- [break-glass.md](../rules/break-glass.rule.md) §4 — `overrides.log` is kept forever; retention rationale.
 - [retrospective-cadence.md](retrospective-cadence.md) — retros are retained forever; monthly retention subsection surfaces anonymisations.
 - [post-mortem.md](post-mortem.md) — post-mortems retained forever.
 - [incident-response.md](incident-response.md) — a retention-related incident (leak in logs) triggers the IR path.
