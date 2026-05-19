@@ -4,6 +4,12 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+> **Convention** — additive internal helpers (new private/internal functions
+> that do not change any existing public CLI flag, env var, or event-schema
+> field) ride the next v0.19.x patch without their own version bump. The
+> `try_opportunistic_drain` helper below is an example: new module-level
+> symbol, but no breaking change, no new CLI surface, no schema change.
+
 ### Added
 
 - **Opportunistic queue drain** — `scripts/retain_memory.py` and
@@ -11,12 +17,22 @@ All notable changes to `ai-playbook` are documented here. Semver.
   automatically after any code path that has just proven Hindsight reachable
   for the relevant bank (a successful `POST /retain` or a successful `POST /recall`
   during the `SessionStart` hook). No daemon, no scheduler — the drain piggybacks
-  on existing call sites. Failure during drain is swallowed silently; the
-  primary action is never blocked. New helper:
+  on existing call sites. Failure during drain is logged at WARNING level (the
+  primary action is never blocked, but ops gets a signal). New helper:
   `retain_memory.try_opportunistic_drain(consumer_root, bank)` — wraps the
-  existing `_drain_queue` in `try/except Exception` and returns `(0, 0)` on any
-  failure. Stderr notices: `📤 opportunistically drained N …` (retain path) and
+  existing `_drain_queue` in `try/except Exception`, logs via
+  `_logger.warning(...)`, and returns `(0, 0)` on any failure. Stderr notices:
+  `📤 opportunistically drained N …` (retain path) and
   `📤 SessionStart drain: replayed N …` (recall path).
+- **Atomic queue rewrite** — `_drain_queue` now rewrites the queue via a
+  sibling `.tmp` + `Path.replace()` (atomic on POSIX and NTFS), eliminating
+  the Windows `ERROR_SHARING_VIOLATION` race when retain_memory.main() is
+  mid-rewrite and a SessionStart drain fires concurrently.
+- **Visibility logs** — `scripts/rules/_telemetry.py::cli_emit` and
+  `scripts/mcp/validate.py::resolve_personal_file` no longer fail silently:
+  the former emits a WARNING when the rule-event logger drops an event,
+  the latter emits a WARNING listing the three searched paths when no
+  personal-layer file is found.
 - **Docs**: `docs/concepts/degradation-modes.md` §8 "Reconciling
   `DEGRADED_CONTEXT` writes" + `docs/runbooks/hindsight-retain.md`
   Troubleshooting block updated to describe the new auto-drain behaviour and

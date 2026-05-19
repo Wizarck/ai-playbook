@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -79,6 +80,8 @@ from scripts._hindsight import (  # noqa: E402
     load_credentials,
     post_retain,
 )
+
+_logger = logging.getLogger(__name__)
 
 SCRIPT_BASENAME = "retain_lesson.py"
 QUEUE_FILE = ".ai-playbook/hindsight-queue.jsonl"
@@ -240,7 +243,16 @@ def _drain_queue(consumer_root: Path, bank: str, dry_run: bool) -> tuple[int, in
             else:
                 kept.append(raw)
     if not dry_run:
-        qp.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+        # Atomic rewrite: write to a sibling .tmp then replace the queue in one
+        # step. Plain `write_text` on the live file would leave a partial buffer
+        # visible to a concurrent reader (SessionStart-triggered drain firing
+        # while retain_memory.main() is still rewriting), which on Windows
+        # surfaces as ERROR_SHARING_VIOLATION → PermissionError. Path.replace
+        # is atomic on POSIX and NTFS when src/dst live on the same filesystem.
+        new_text = "\n".join(kept) + ("\n" if kept else "")
+        tmp = qp.parent / (qp.name + ".tmp")
+        tmp.write_text(new_text, encoding="utf-8")
+        tmp.replace(qp)
     return sent, len(kept)
 
 
@@ -258,6 +270,11 @@ def try_opportunistic_drain(consumer_root: Path, bank: str) -> tuple[int, int]:
             return 0, 0
         return _drain_queue(consumer_root, bank, dry_run=False)
     except Exception:  # noqa: BLE001 — drain is best-effort.
+        _logger.warning(
+            "try_opportunistic_drain(bank=%r) failed; queue left intact",
+            bank,
+            exc_info=True,
+        )
         return 0, 0
 
 
