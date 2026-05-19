@@ -4,10 +4,28 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (post-v0.19.1, post-review gate)
+### Added
+
+- **Opportunistic queue drain** — `scripts/retain_memory.py` and
+  `scripts/inject_context.py` now drain `<consumer>/.ai-playbook/hindsight-queue.jsonl`
+  automatically after any code path that has just proven Hindsight reachable
+  for the relevant bank (a successful `POST /retain` or a successful `POST /recall`
+  during the `SessionStart` hook). No daemon, no scheduler — the drain piggybacks
+  on existing call sites. Failure during drain is swallowed silently; the
+  primary action is never blocked. New helper:
+  `retain_memory.try_opportunistic_drain(consumer_root, bank)` — wraps the
+  existing `_drain_queue` in `try/except Exception` and returns `(0, 0)` on any
+  failure. Stderr notices: `📤 opportunistically drained N …` (retain path) and
+  `📤 SessionStart drain: replayed N …` (recall path).
+- **Docs**: `docs/concepts/degradation-modes.md` §8 "Reconciling
+  `DEGRADED_CONTEXT` writes" + `docs/runbooks/hindsight-retain.md`
+  Troubleshooting block updated to describe the new auto-drain behaviour and
+  the manual `--replay-queue` flag as the escape hatch.
+
+### Known gaps still pending (post-v0.19.2, post-review gate)
 
 - **v0.19.x (subsequent post-review fix iterations)**: reserved for any
-  further user-review feedback after v0.19.1.
+  further user-review feedback after v0.19.2.
 - **v0.20.0 (final cut)**: visible milestone PR; tagged only on explicit
   user approval.
 

@@ -244,6 +244,23 @@ def _drain_queue(consumer_root: Path, bank: str, dry_run: bool) -> tuple[int, in
     return sent, len(kept)
 
 
+def try_opportunistic_drain(consumer_root: Path, bank: str) -> tuple[int, int]:
+    """Best-effort drain of the queue. Returns (sent, kept). Never raises.
+
+    Call after any code path that has just proven Hindsight reachable for this
+    bank (a successful POST /retain or POST /recall). If the queue is empty or
+    Hindsight fails mid-drain, returns (0, 0) silently — the primary action
+    must never be blocked by drain failures.
+    """
+    qp = _resolve_queue_path(consumer_root)
+    try:
+        if not qp.is_file() or qp.stat().st_size == 0:
+            return 0, 0
+        return _drain_queue(consumer_root, bank, dry_run=False)
+    except Exception:  # noqa: BLE001 — drain is best-effort.
+        return 0, 0
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -404,6 +421,12 @@ def main() -> int:
             f"to bank={args.bank}; usage="
             f"{(body.get('usage') or {}).get('total_tokens', '?')} tokens"
         )
+        drained, _ = try_opportunistic_drain(args.consumer_root, args.bank)
+        if drained:
+            print(
+                f"📤 opportunistically drained {drained} previously queued item(s).",
+                file=sys.stderr,
+            )
         return 0
 
     # Hindsight reachable but call failed — queue if allowed.

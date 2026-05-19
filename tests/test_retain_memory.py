@@ -220,3 +220,70 @@ def test_replay_queue_drains(
     remaining = queue.read_text(encoding="utf-8").strip()
     assert "other-bank" in remaining
     assert "queued" not in remaining  # the consumer-d entry was drained
+
+
+# ---------------------------------------------------------------------------
+# Opportunistic drain
+# ---------------------------------------------------------------------------
+
+
+def test_opportunistic_drain_no_queue(tmp_path: Path) -> None:
+    """Missing or empty queue → noop, no exception."""
+    sent, kept = rl.try_opportunistic_drain(tmp_path, "consumer-d")
+    assert (sent, kept) == (0, 0)
+
+    queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
+    queue.parent.mkdir(parents=True)
+    queue.write_text("", encoding="utf-8")
+    sent, kept = rl.try_opportunistic_drain(tmp_path, "consumer-d")
+    assert (sent, kept) == (0, 0)
+
+
+def test_post_success_drains_queued_items(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """After a successful POST /retain, queued items for the same bank are drained."""
+    _wire_creds(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
+    queue.parent.mkdir(parents=True)
+    queue.write_text(
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+                    "item": {"content": "previously queued"}}) + "\n",
+        encoding="utf-8",
+    )
+
+    _patch_urlopen(monkeypatch, lambda req, timeout: _resp(
+        b'{"success":true,"items_count":1,"usage":{"total_tokens":50}}'))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["retain_memory", "--bank", "consumer-d", "--content", "new lesson body"],
+    )
+    rc = rl.main()
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert "retained 1 item(s) to bank=consumer-d" in captured.out
+    assert "opportunistically drained 1" in captured.err
+    # Queue should now be empty.
+    assert queue.read_text(encoding="utf-8") == ""
+
+
+def test_opportunistic_drain_swallows_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If _drain_queue raises, try_opportunistic_drain returns (0, 0) silently."""
+    queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
+    queue.parent.mkdir(parents=True)
+    queue.write_text(
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+                    "item": {"content": "queued"}}) + "\n",
+        encoding="utf-8",
+    )
+
+    def _explode(*a, **kw):  # noqa: ANN001
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(rl, "_drain_queue", _explode)
+    sent, kept = rl.try_opportunistic_drain(tmp_path, "consumer-d")
+    assert (sent, kept) == (0, 0)
