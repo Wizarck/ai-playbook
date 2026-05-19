@@ -1,187 +1,139 @@
-# cascade-failure-template.md
-
-> **Status**: v1.0.0 (new in v0.11.0). Template runbook for **service-dependency cascade failures** — when one service going down triggers exponential downstream impact and the root cause is masked by cascade depth. Cross-validated by consumer-d `runbook-litellm-down-cascade.md` (LiteLLM → Hindsight → Hermes memory → Paperclip cascade) and consumer-b's gotchas (LiteLLM startup ordering + Paperclip port-mapping confusion). Use this template to author per-service cascade runbooks for any consumer with non-trivial service-dependency graphs.
-
-## When to use this template
-
-Author a per-service cascade runbook when:
-
-1. The service has **≥2 downstream consumers** that fail closed (refuse to serve when the dep is down).
-2. Recovery from a partial outage is **non-trivial** (not "restart and pray" — there's a sequence of checks).
-3. The service's failure has a **history of cascading impact** in retros / postmortems.
-
-Don't author one for:
-
-- Idempotent leaf services (a stateless cache that downstream callers tolerate missing).
-- Services with auto-failover that's been verified in DR drills.
-
+---
+schema: runbook/v1
+slug: cascade-failure-template
+description: Template for authoring a per-service cascade-failure recovery runbook when one service going down triggers exponential downstream impact.
+audience: developer
+estimated_time: 30-60 min (authoring); 5-15 min (recovery, when instantiated)
+last_validated: "2026-05-19"
 ---
 
-## Template structure
+# Author a per-service cascade-failure runbook
 
-Replace `<SERVICE>` with the service name. Keep all five sections; they map to the failure-mode taxonomy below.
+## Outcome
 
-```markdown
-# runbook-<service>-down-cascade.md
+A new `runbook-<service>-down-cascade.md` exists in the consumer's runbooks tree, structured around the five canonical sections below. Operators discovering a cascade involving `<SERVICE>` can walk the recovery sequence without re-deriving the dependency graph each incident.
 
-> **Status**: v1.0.0. Cascade-failure runbook for `<SERVICE>` — what
-> downstream is impacted, how to confirm scope, and the recovery
-> sequence.
+## When to use this
 
-## 1. Symptom list (what the operator sees first)
+Author a per-service cascade runbook when all three hold:
 
-The operator typically discovers the cascade via a downstream
-notification. Common surface symptoms:
+1. The service has ≥2 downstream consumers that fail closed (refuse to serve when the dependency is down).
+2. Recovery from a partial outage is non-trivial (more than a single restart).
+3. The service's failure has a history of cascading impact captured in retros or postmortems.
 
-- **<symptom 1>**: e.g. "Hermes message replies with `503 Service
-  Unavailable` for any LLM-touching tool call".
-- **<symptom 2>**: e.g. "Paperclip POST /webhooks returns immediately
-  with HMAC validation failure" (because the secret cache is empty).
-- **<symptom 3>**: e.g. "Dashboard shows N consecutive `agent.error`
-  events of class `ConnectError`".
+Skip authoring for:
 
-The list is empirical: every retro / postmortem touching this cascade
-adds one row.
+- Idempotent leaf services downstream callers tolerate missing.
+- Services with auto-failover verified in DR drills.
 
-## 2. Precondition check (is it really <SERVICE>?)
+## Prerequisites
 
-Before triaging the cascade, confirm `<SERVICE>` itself is the root
-cause:
+- Write access to the consumer's `runbooks/` directory: `ls <consumer>/runbooks/`.
+- A list of every downstream of `<SERVICE>`, derived from service mesh or code grep: `grep -rl "<SERVICE>" --include='*.py' --include='*.yaml' .`.
+- At least one prior incident report or retro entry that the new runbook can cite as its evidence base.
 
-```bash
-# Health probe (HTTP)
-curl -fsS https://<service-host>/health || echo "DOWN"
+## Steps
 
-# Process check (k8s)
-kubectl -n <namespace> get pods -l app=<service> -o wide
+1. **Copy the template structure.** Create `<consumer>/runbooks/runbook-<service>-down-cascade.md` with the five sections below pre-stubbed.
 
-# Recent error log (last 100 lines)
-kubectl -n <namespace> logs -l app=<service> --tail=100 | grep -i "error\|fatal\|panic"
+2. **Author §1 Symptom list — what the operator sees first.**
+   The cascade is typically discovered via a downstream notification, not via the root service. Examples to seed:
+   ```markdown
+   - **<symptom 1>**: e.g. "Hermes message replies with `503 Service Unavailable` for any LLM-touching tool call".
+   - **<symptom 2>**: e.g. "Paperclip POST /webhooks returns immediately with HMAC validation failure".
+   - **<symptom 3>**: e.g. "Dashboard shows N consecutive `agent.error` events of class `ConnectError`".
+   ```
+   The list is empirical: every retro or postmortem touching this cascade adds a row.
 
-# Network connectivity from a known consumer
-kubectl -n <namespace> exec -it <consumer-pod> -- curl -fsS https://<service-host>/health
-```
-
-**If `<SERVICE>` is up**: the cascade is somewhere else. Walk
-downstream from the operator-visible symptom; this runbook does not
-apply.
-
-**If `<SERVICE>` is down**: continue.
-
-## 3. Downstream impact map
-
-Document the cascade dependency graph as a YAML or tree. Each
-downstream consumer's behaviour-on-failure is explicit:
-
-```yaml
-service: <SERVICE>
-downstream:
-  - name: <consumer-1>
-    impact: "fails closed; clients see 503"
-    proof_of_life: "GET /<consumer-1>/health returns 200 only when <SERVICE> is up"
-
-  - name: <consumer-2>
-    impact: "degrades to last cached value; clients see stale data for <TTL> seconds"
-    proof_of_life: "log line 'CACHE_MISS_FALLBACK <SERVICE> last_value=...'"
-
-  - name: <consumer-3>
-    impact: "infinite restart loop; PVC fills with crash dumps"
-    proof_of_life: "kubectl get pods -l app=<consumer-3> shows CrashLoopBackOff"
-```
-
-Every consumer added by a future slice extends this section. Keep it
-in sync; cascade depth grows silently otherwise.
-
-## 4. Recovery sequence (in order)
-
-> **Each step is gated**: do not advance until the prior step's proof
-> succeeds. Cascade recovery is not parallel.
-
-1. **<step 1>** — bring `<SERVICE>` itself back. Cite the specific
-   recovery command (`kubectl rollout restart`, `helm upgrade`,
-   `systemctl restart`) and the proof:
+3. **Author §2 Precondition check — is it really `<SERVICE>`?**
+   Before triaging the cascade, confirm `<SERVICE>` itself is the root cause:
    ```bash
+   curl -fsS https://<service-host>/health || echo "DOWN"
+   kubectl -n <namespace> get pods -l app=<service> -o wide
+   kubectl -n <namespace> logs -l app=<service> --tail=100 | grep -i "error\|fatal\|panic"
+   ```
+   If `<SERVICE>` is up, the cascade root is elsewhere; the runbook does not apply.
+
+4. **Author §3 Downstream impact map.** Document the cascade as YAML. Each consumer's behaviour-on-failure must be explicit and observable:
+   ```yaml
+   service: <SERVICE>
+   downstream:
+     - name: <consumer-1>
+       impact: "fails closed; clients see 503"
+       proof_of_life: "GET /<consumer-1>/health returns 200 only when <SERVICE> is up"
+     - name: <consumer-2>
+       impact: "degrades to last cached value; clients see stale data for <TTL>s"
+       proof_of_life: "log line 'CACHE_MISS_FALLBACK <SERVICE> last_value=...'"
+     - name: <consumer-3>
+       impact: "infinite restart loop; PVC fills with crash dumps"
+       proof_of_life: "kubectl get pods -l app=<consumer-3> shows CrashLoopBackOff"
+   ```
+   Every consumer added by a future slice extends this section.
+
+5. **Author §4 Recovery sequence — in order, gated.**
+   ```bash
+   # 4.1 Bring <SERVICE> back.
    kubectl rollout restart deployment/<service> -n <namespace>
    kubectl rollout status deployment/<service> -n <namespace> --timeout=120s
-   curl -fsS https://<service-host>/health  # MUST return 200
-   ```
+   curl -fsS https://<service-host>/health   # MUST return 200
 
-2. **<step 2>** — for each downstream that fails closed, force a
-   reconnect or restart in dependency order (closest to `<SERVICE>`
-   first):
-   ```bash
+   # 4.2 Restart each downstream that fails closed, in dependency order.
    kubectl rollout restart deployment/<consumer-1> -n <namespace>
-   # Wait for ready; then
    kubectl rollout restart deployment/<consumer-2> -n <namespace>
-   ```
 
-3. **<step 3>** — for stateful consumers (caches, message queues),
-   verify state coherence:
-   ```bash
-   # E.g. drain the consumer's stale-value cache
+   # 4.3 For stateful consumers, drain stale state.
    kubectl exec -it <consumer-2-pod> -- redis-cli FLUSHDB
+
+   # 4.4 Verify proof-of-life on every consumer (one check per §3 row).
+
+   # 4.5 Emit a <SERVICE>.recovered telemetry event with operator timestamp + duration.
    ```
+   Each step is gated: do not advance until the prior step's proof succeeds.
 
-4. **<step 4>** — verify proof-of-life on every downstream listed in
-   §3. Each `proof_of_life` line in §3 is a check command.
+6. **Author §5 Postmortem trigger.** If recovery took >15 minutes OR any downstream lost data, the runbook MUST require a postmortem in `docs/postmortems/<YYYY-MM-DD>-<service>-cascade.md` per the [post-mortem](../concepts/post-mortem.md) concept. Mandatory fields: cascade depth, T_detect, T_recover, did §4 work as written.
 
-5. **<step 5>** — emit a `<SERVICE>.recovered` telemetry event with
-   the operator's runbook-execution timestamp + the duration. Feeds
-   the postmortem.
+7. **Link the new runbook back to this template** in its first paragraph. Example wording: a blockquote stating "Structure rationale: Runbook cascade-failure-template (in `.ai-playbook/docs/runbooks/cascade-failure-template.md`)". The exact link target depends on the consumer's submodule layout.
 
-## 5. Postmortem trigger
+## Verification
 
-If recovery took >15 minutes OR if any downstream's data was lost (not
-just delayed): file a postmortem in `docs/postmortems/<YYYY-MM-DD>-<service>-cascade.md`
-per [post-mortem.md](../docs/concepts/post-mortem.md). Include:
+The new runbook satisfies all five gates:
 
-- Cascade depth (how many services restarted).
-- Operator-time to detect (T_detect = first symptom → confirmed root).
-- Operator-time to recover (T_recover = root identified → all green).
-- Did the recovery sequence in §4 work as written? If not, file an
-  amendment to this runbook.
-```
+- §1 lists ≥3 symptoms with concrete log lines or HTTP responses.
+- §2 contains an executable health probe whose exit code distinguishes up/down.
+- §3 has a `proof_of_life` row for every downstream consumer.
+- §4 lists every command an operator runs, in order, with gating between steps.
+- §5 names the postmortem trigger thresholds explicitly.
 
----
+## Troubleshooting
 
-## Anti-patterns
+### Symptom: cascade depth keeps growing as new consumers ship
+**Cause**: §3 was not updated alongside the new consumer's PR.
+**Fix**: add a checklist item to the consumer's PR template requiring §3 update when a new dependency on `<SERVICE>` is introduced. Track the depth in retros.
 
-- **Restarting the entire stack as the first step**: forbidden. Walk
-  the cascade in dependency order; restarting a healthy downstream can
-  mask the real problem.
-- **Skipping the precondition check**: forbidden. The operator may be
-  responding to a downstream alert that has nothing to do with
-  `<SERVICE>` (different root cause, same symptom).
-- **Cascade runbook with no `proof_of_life` per downstream**: forbidden.
-  Without proof-of-life commands, recovery verification is "did the
-  pod come up" — which may be true even when the consumer's contract
-  with `<SERVICE>` is broken.
-- **Hardcoding hostnames / namespaces in the runbook**: forbidden.
-  Parameterise via env vars or CLI flags so the runbook works across
-  staging / prod / DR environments.
+### Symptom: recovery sequence in §4 worked once and now fails
+**Cause**: a downstream service changed its startup contract (e.g., now requires `<SERVICE>` warm cache, not just liveness).
+**Fix**: re-run the recovery on a staging incident, update §4 to reflect the new ordering, and file an amendment PR. Cite the incident.
 
----
+### Symptom: operator restarts the entire stack as the first step
+**Cause**: §2 precondition check was skipped or unclear.
+**Fix**: rewrite §2 as a single shell command whose output makes the decision (no human interpretation). Add a "do not restart downstream first" warning at the top of §4.
 
-## Reference implementations
+### Symptom: hostnames or namespaces are hardcoded in the runbook
+**Cause**: original author copied from one environment without parameterising.
+**Fix**: replace literals with env vars (`<SERVICE>`, `<NAMESPACE>`) and document the substitution at the top. The runbook must work across staging, prod, and DR.
+
+## Related
+
+- [Runbook: runbook-vps-down](runbook-vps-down.md) — VPS-class outage; cascade is often a downstream effect.
+- [Concept: post-mortem](../concepts/post-mortem.md) — postmortem ritual triggered by §5.
+- [Concept: degradation-modes](../concepts/degradation-modes.md) — canonical taxonomy the §3 `impact` field draws from.
+- [Concept: incident-response](../concepts/incident-response.md) — incident-class ladder; cascades are S2 unless data loss → S1.
+- [Rule: hitl-approval-pattern](../rules/hitl-approval-pattern.rule.md) — when a recovery step requires HITL gating.
+
+### Reference implementations
 
 | Project | Runbook | Cascade depth | Notes |
 |---|---|---|---|
-| consumer-d | [`runbook-litellm-down-cascade.md`](https://github.com/Wizarck/consumer-d/blob/master/runbooks/runbook-litellm-down-cascade.md) | 4 (LiteLLM → Hindsight → Hermes memory → Paperclip) | Original; this template extracted from its structure |
-| consumer-b | (gotchas.md captures startup ordering) | 2 | Promote to runbook when cascade depth grows |
-| consumer-e | (TBD; deployment-foundation slice will introduce) | TBD | Likely candidates: `litellm-down`, `ibkr-down`, `openbb-down` |
-
-When a project adopts this template, link the resulting runbook back to this template via `> See [cascade-failure-template.md](../../.ai-playbook/docs/runbooks/cascade-failure-template.md) for the structure rationale.`
-
----
-
-## Cross-references
-
-- [post-mortem.md](../docs/concepts/post-mortem.md) — postmortem ritual triggered by §5.
-- [degradation-modes.md](../docs/concepts/degradation-modes.md) — the canonical
-  taxonomy of how services degrade; the cascade map's `impact` field
-  picks values from this taxonomy.
-- [incident-response.md](../docs/concepts/incident-response.md) — incident-class
-  ladder; cascades are typically S2 unless data loss → S1.
-- [hitl-approval-pattern.md](../docs/rules/hitl-approval-pattern.rule.md) — when
-  a recovery step requires HITL gating (e.g. failover to backup) the
-  approval pattern applies.
+| consumer-d | `runbook-litellm-down-cascade.md` | 4 (LiteLLM → Hindsight → Hermes memory → Paperclip) | Original; this template extracted from its structure. |
+| consumer-b | `gotchas.md` captures startup ordering | 2 | Promote to runbook when cascade depth grows. |
+| consumer-e | TBD (deployment-foundation slice) | TBD | Likely candidates: `litellm-down`, `ibkr-down`, `openbb-down`. |
