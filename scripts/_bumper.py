@@ -1,8 +1,7 @@
-"""Shared submodule-bump helpers used by both `bump_consumers.py` (manual,
-local-only, reads ``~/.ai-playbook/projects.yaml``) and `propagate_bump.py`
-(CI-side, reads ``consumers.yaml`` + clones via PAT).
+"""Shared submodule-bump helpers used by `bump_consumers.py` (manual,
+local-only, reads ``~/.ai-playbook/projects.yaml``).
 
-This module factors out the things that BOTH flows need:
+This module factors out the things needed to bump submodules:
 
 1. ``resolve_target_sha(submodule_path, tag)`` — the SHA the consumer's
    submodule pointer should be set to.
@@ -12,17 +11,12 @@ This module factors out the things that BOTH flows need:
    commit the submodule pointer change in the parent repo.
 4. ``bump_agents_md_pin(agents_md, source_repo, new_tag)`` — surgical
    line-level rewrite of ``inherits_from:`` and ``skills_sources:`` items in
-   the frontmatter. Per v0.9.0 followup #1: ``propagate_bump.py`` previously
-   only wrote the submodule pointer; ``AGENTS.md inherits_from`` was only
-   rewritten by ``propagate_skills_bump.py``, which skipped consumers
-   without ``skills_pins:`` (e.g. livekit), leaving stale frontmatter pins.
+   the frontmatter.
 5. ``supersede_open_bump_prs(...)`` — close prior open bump PRs on the same
    logical change-stream. Now semver-aware (per v0.9.0 followup #2): only
    closes a PR if the new bump's version is ``>=`` than the open PR's.
 
-The two CLIs differ in HOW they get the consumer checkout (local filesystem
-vs ``git clone --recurse-submodules``) and HOW they push the result (local
-commit vs branch + PR), but converge here for the "bump the pointer" core.
+Stdlib-only.
 
 Stdlib-only.
 """
@@ -130,12 +124,6 @@ def bump_agents_md_pin(
     ``- github.com/<owner>/<repo>@<tag>`` (the prefix is optional). Both
     ``inherits_from:`` and ``skills_sources:`` use the same item shape, so
     a single regex covers both blocks.
-
-    Per v0.9.0 followup #1 (livekit kept ``inherits_from`` stale at
-    ``v0.9.0-rc2`` after the v0.9.0 cascade because ``propagate_bump.py``
-    didn't touch frontmatter): this helper is shared between both
-    propagation scripts. ``propagate_bump.py`` calls it for every consumer;
-    ``propagate_skills_bump.py`` calls it for consumers with ``skills_pins:``.
 
     Args:
         agents_md: Path to ``AGENTS.md`` in the consumer's working tree.

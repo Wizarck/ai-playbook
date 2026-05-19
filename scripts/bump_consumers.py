@@ -22,7 +22,7 @@ Usage
     python -m scripts.bump_consumers --tag v0.2.1 --push --open-pr
 
     # Restrict to specific projects:
-    python -m scripts.bump_consumers --tag v0.2.1 --only consumer-c,consumer-d
+    python -m scripts.bump_consumers --tag v0.2.1 --only consumer-c,acme-corp
 
 Skips
 -----

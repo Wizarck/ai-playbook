@@ -33,19 +33,19 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 
 | Secret | Where stored | Used by | Rotation cadence | Owner |
 |---|---|---|---|---|
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | GH repo secrets on all 3 workflow repos + k8s Secret `consumer-d-secrets` | `scripts/notify.py` SMTP fan-out | On Gmail app-password rotation (~annual or loss) | Arturo |
-| `AIPLAYBOOK_NOTIFICATIONS_TO` | GH repo secrets + k8s Secret | `scripts/notify.py` | On email change | Arturo |
-| `ATLASSIAN_URL`, `ATLASSIAN_USERNAME`, `ATLASSIAN_API_TOKEN` | GH repo secrets + k8s Secret | `scripts/issue_sync.py`, `scripts/release_cut.py` | On Atlassian API token expiry (~1 yr) | Arturo |
-| `GITHUB_TOKEN` | SOPS `secrets/secrets.env` in `consumer-d` | Local dev + ad-hoc direct push fallback | 30 d (god-mode) / 90 d (scoped) | Arturo |
-| `AI_PLAYBOOK_AGE_KEY` | `~/.config/sops/age/keys.txt` per dev machine | SOPS decrypt of all encrypted secrets | Never (root of trust) | Arturo personal |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | GH repo secrets on all 3 workflow repos + k8s Secret `consumer-d-secrets` | `scripts/notify.py` SMTP fan-out | On Gmail app-password rotation (~annual or loss) | maintainer |
+| `AIPLAYBOOK_NOTIFICATIONS_TO` | GH repo secrets + k8s Secret | `scripts/notify.py` | On email change | maintainer |
+| `ATLASSIAN_URL`, `ATLASSIAN_USERNAME`, `ATLASSIAN_API_TOKEN` | GH repo secrets + k8s Secret | `scripts/issue_sync.py`, `scripts/release_cut.py` | On Atlassian API token expiry (~1 yr) | maintainer |
+| `GITHUB_TOKEN` | SOPS `secrets/secrets.env` in `consumer-d` | Local dev + ad-hoc direct push fallback | 30 d (god-mode) / 90 d (scoped) | maintainer |
+| `AI_PLAYBOOK_AGE_KEY` | `~/.config/sops/age/keys.txt` per dev machine | SOPS decrypt of all encrypted secrets | Never (root of trust) | maintainer personal |
 
-> **v0.19.0 update**: `PLAYBOOK_PROPAGATION_TOKEN` was retired alongside the push pipeline. The playbook no longer holds any PAT with write access to consumer repos. Consumers manage their own bump credentials (Dependabot, Renovate, or local cron). If your fork still has the secret set, revoke it at <https://github.com/settings/tokens>.
+> The playbook does not hold any PAT with write access to consumer repos. Consumers manage their own bump credentials (Dependabot, Renovate, or local cron).
 
 ## Steps
 
 ### A. Rotate SMTP credentials (Gmail app-password)
 
-1. **Generate a new app password** at <https://myaccount.google.com/apppasswords> (account `23051550+Wizarck@users.noreply.github.com`; 2-Step Verification must be enabled). Name it `ai-playbook-notifications-<YYYY-MM-DD>`. Copy the 16-char value (no spaces) and revoke the old entry.
+1. **Generate a new app password** at <https://myaccount.google.com/apppasswords> (account: the maintainer's notification email; 2-Step Verification must be enabled). Name it `ai-playbook-notifications-<YYYY-MM-DD>`. Copy the 16-char value (no spaces) and revoke the old entry.
 
 2. **Update SOPS**:
    ```bash

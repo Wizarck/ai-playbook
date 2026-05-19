@@ -4,7 +4,7 @@ slug: model-migration
 title: Model Migration
 summary: |
   A pinned model retiring is not an incident — it is a planned, telegraphed
-  event. This runbook turns it from "Anthropic emails Arturo on a Tuesday"
+  event. This runbook turns it from "Anthropic emails the maintainer on a Tuesday"
   into a mechanical procedure: detector fires → call sites enumerated →
   substitute proposed → CI canary → human review → merge. No…
 last_validated: "2026-05-19"
@@ -12,7 +12,7 @@ last_validated: "2026-05-19"
 
 # Model Migration
 
-A pinned model retiring is **not** an incident — it is a planned, telegraphed event. This runbook turns it from "Anthropic emails Arturo on a Tuesday" into a mechanical procedure: detector fires → call sites enumerated → substitute proposed → CI canary → human review → merge. No improvisation.
+A pinned model retiring is **not** an incident — it is a planned, telegraphed event. This runbook turns it from "Anthropic emails the maintainer on a Tuesday" into a mechanical procedure: detector fires → call sites enumerated → substitute proposed → CI canary → human review → merge. No improvisation.
 
 ---
 
@@ -53,7 +53,7 @@ Operator sets:
 MODEL_MIGRATION_REQUESTED=<from-model-id>:<to-model-id>
 ```
 
-Used when (a) provider sent direct email outside the retirement list, (b) Arturo wants to migrate proactively for cost or quality reasons, (c) testing the playbook before a real retirement lands. The simulator (`scripts/telemetry/report.py (absorbed in Slice 6)`) accepts this env var and runs the full procedure dry.
+Used when (a) provider sent direct email outside the retirement list, (b) the maintainer wants to migrate proactively for cost or quality reasons, (c) testing the playbook before a real retirement lands. The simulator (`scripts/telemetry/report.py (absorbed in Slice 6)`) accepts this env var and runs the full procedure dry.
 
 State stored in `~/.ai-playbook/state/triggers.json` to avoid double-fire. Idempotent across runs in the same window.
 
@@ -123,7 +123,7 @@ Canary prompts live in `tests/fixtures/model-migration-canary/<task-class>.json`
 
 ### Step 6 — Human review + merge
 
-Arturo (or successor) reviews. Approval criteria:
+The maintainer (or successor) reviews. Approval criteria:
 
 - Canary passed (no hard block, soft warns annotated).
 - Rollback procedure makes sense.

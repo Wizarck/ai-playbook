@@ -367,7 +367,7 @@ def test_sync_all_skips_when_tracker_present(
     )
     monkeypatch.setattr(
         issue_sync, "decide_surface",
-        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="consumer-a"),
+        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="acme-corp"),
     )
     outcome = issue_sync.sync_all(consumer_root=root)
     assert outcome.skipped == 1
@@ -429,7 +429,7 @@ def test_sync_all_dry_run_does_not_write(
     )
     monkeypatch.setattr(
         issue_sync, "decide_surface",
-        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="consumer-a"),
+        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="acme-corp"),
     )
     outcome = issue_sync.sync_all(consumer_root=root, dry_run=True)
     assert outcome.created == 1
@@ -512,7 +512,7 @@ def test_cli_dry_run_succeeds(
     )
     monkeypatch.setattr(
         issue_sync, "decide_surface",
-        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="consumer-a"),
+        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="acme-corp"),
     )
     rc = issue_sync.main(["--consumer-root", str(root), "--dry-run"])
     assert rc == 0

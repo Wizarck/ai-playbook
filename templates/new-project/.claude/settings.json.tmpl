@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sops exec-env ../consumer-d/secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id {{PROJECT_BANK}} 2>/dev/null || true",
+            "command": "sops exec-env ../consumer-a/secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id {{PROJECT_BANK}} 2>/dev/null || true",
             "timeout": 60
           }
         ]

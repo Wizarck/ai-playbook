@@ -55,7 +55,7 @@
     "personal": {
       "type": "boolean",
       "default": false,
-      "description": "True if this is Arturo's personal (non-team) repo. Consumed by scripts/discover_projects.py so the global dispatcher loads the matching personal add-on (see personal_addon). Team repos MUST keep this false."
+      "description": "True if this is the maintainer's personal (non-team) repo. Consumed by scripts/discover_projects.py so the global dispatcher loads the matching personal add-on (see personal_addon). Team repos MUST keep this false."
     },
     "personal_addon": {
       "type": "string",

@@ -402,7 +402,7 @@ def test_queue_package_missing_falls_through_to_smtp(
     smtp_enabled: type[_FakeSMTP],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Env var set but the consumer-side package is absent (e.g. a non-consumer-d
+    """Env var set but the consumer-side package is absent (e.g. a non-acme-corp
     consumer with the env var inadvertently exported) — must NOT crash; falls
     through to SMTP."""
     monkeypatch.setenv("CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED", "1")

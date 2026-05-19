@@ -62,10 +62,10 @@ jobs:
           # PRIVATE Wizarck/ai-playbook repo. The default GITHUB_TOKEN scope
           # is consumer-repo only; cross-repo submodule clone needs Contents:R
           # on the playbook + skills repos. Mirrors ci.yml — store the PAT as
-          # `consumer-d_GOD_MODE` repo secret. If the playbook is public OR not
+          # `consumer-a_GOD_MODE` repo secret. If the playbook is public OR not
           # used as a submodule, drop the `token:` line. Per gotchas #7.
           submodules: true
-          token: ${{ secrets.consumer-d_GOD_MODE }}
+          token: ${{ secrets.consumer-a_GOD_MODE }}
           ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/setup-python@v5

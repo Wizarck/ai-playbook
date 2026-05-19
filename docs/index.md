@@ -1,6 +1,6 @@
 # ai-playbook
 
-> Universal AI-dev norms, specs, scripts, and templates consumed via **git submodule** by every Wizarck project — LLM-agnostic, dogfooded, and dispatch-file shaped.
+> Universal AI-dev norms, specs, scripts, and templates consumed via **git submodule** by every consumer project — LLM-agnostic, dogfooded, and dispatch-file shaped.
 
 === "Start here"
 
@@ -14,9 +14,8 @@
     Stand up a new consumer repo or a fresh machine.
 
     - [tutorials/03-quickstart.md](tutorials/03-quickstart.md) — 25–40 min bootstrap of `acme-shop` end-to-end.
-    - [tutorials/05-quickstart-lessons.md](tutorials/05-quickstart-lessons.md) — real friction recorded from dry-runs.
     - [concepts/session-start-hook.md](concepts/session-start-hook.md) — wire `SessionStart` context injection.
-    - [concepts/contributing.md](concepts/contributing.md) — how PRs land; governance for the 0–3 month horizon.
+    - [CONTRIBUTING.md](../CONTRIBUTING.md) — how PRs land.
 
 === "Specs"
 
@@ -42,7 +41,7 @@ Four of the eight universal principles the playbook is built on (the full list l
 - [AGENTS.md](https://github.com/Wizarck/ai-playbook/blob/master/AGENTS.md) — the self-hosted dispatcher for agents editing THIS repo.
 - [tutorials/02-start-here.md](tutorials/02-start-here.md) — the 60-second pitch, with the first 5 commands and the situation → reading matrix.
 - [concepts/architecture-diagrams.md](concepts/architecture-diagrams.md) — Mermaid views of the dispatcher chain and pre-commit gates.
-- [tutorials/07-why-these-choices.md](tutorials/07-why-these-choices.md) — the rationale behind every load-bearing decision.
+- [tutorials/06-why-these-choices.md](tutorials/06-why-these-choices.md) — the rationale behind every load-bearing decision.
 
 ## Status
 

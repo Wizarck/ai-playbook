@@ -32,7 +32,7 @@ available to its `.claude/skills/` directory. That model:
 
 - **Drifts silently.** Skill X updated in consumer-d-skills master → stale copies
   everywhere else for weeks.
-- **Mixes scopes.** A personal skill (Arturo-only, e.g. consumer-d infra) leaking
+- **Mixes scopes.** A personal skill (maintainer-only, e.g. consumer-d infra) leaking
   into a shared consumer repo is an information-leakage risk.
 - **Has no catalog surface.** The agent cannot "ask what exists"; it must
   enumerate the directory manually.
@@ -113,7 +113,7 @@ it remains optional for minimum-viable implementations.
 | Scope | Visibility | Auth required |
 |---|---|---|
 | `public` | All consumers. | No (CF Tunnel already gates network access). |
-| `personal` | Arturo-only (see `docs/concepts/dispatcher-chain.md` level 3). | Yes — bearer token. |
+| `personal` | Maintainer-only (see `docs/concepts/dispatcher-chain.md` level 3). | Yes — bearer token. |
 | `<project-slug>` | Callers working in a specific project. | Conditional — see projects registry. |
 
 Scope resolution on the consumer side mirrors `dispatcher-chain.md`:

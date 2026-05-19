@@ -3,7 +3,7 @@ schema: concept/v1
 slug: upstream-sync
 title: Upstream Sync
 summary: |
-  Fork governance for upstream-tracked projects. Arturo runs forks of a
+  Fork governance for upstream-tracked projects. The maintainer runs forks of a
   handful of fast-moving upstream repos (Hindsight, Hermes, Paperclip,
   LightRAG, and others). Upstream commits land at hundreds-per-day rates in
   some of them; a naive git pull upstream main silently clobbers…
@@ -12,7 +12,7 @@ last_validated: "2026-05-19"
 
 # Upstream Sync
 
-Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving
+Fork governance for upstream-tracked projects. The maintainer runs forks of a handful of fast-moving
 upstream repos (Hindsight, Hermes, Paperclip, LightRAG, and others). Upstream commits land at
 hundreds-per-day rates in some of them; a naive `git pull upstream main` silently clobbers local
 patches. This spec defines how forks are tracked, how local patches are inventoried, and how the
@@ -202,7 +202,7 @@ DIGEST=$(curl -s "https://hub.docker.com/v2/repositories/<owner>/<image>/tags/${
 
 The rule is conditional on the fork using the overlay pattern. Forks that build entirely from
 source (no pinned base image; the runtime image IS the fork tree compiled fresh) skip §9 entirely.
-The fork inventory in [`../tutorials/08-fork-inventory.md`](../tutorials/08-fork-inventory.md) should mark which
+The fork inventory in [`../tutorials/07-fork-inventory.md`](../tutorials/07-fork-inventory.md) should mark which
 forks use the overlay pattern so this rule is auto-discoverable.
 
 ### Memory retention
@@ -219,7 +219,7 @@ workflow itself.
   commits on `main`.
 - [verdict-contract.md](../rules/verdict-contract.rule.md) — HITL uses verdicts.
 - [memory-hierarchy.md](memory-hierarchy.md) — retain on every merge / lost event.
-- [`../tutorials/08-fork-inventory.md`](../tutorials/08-fork-inventory.md) — the authoritative catalog of forks.
+- [`../tutorials/07-fork-inventory.md`](../tutorials/07-fork-inventory.md) — the authoritative catalog of forks.
 - `../templates/PATCHES.md.tmpl` — per-fork manifest template.
 - `../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py` —
   the workflow.

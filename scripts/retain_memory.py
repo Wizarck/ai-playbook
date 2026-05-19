@@ -24,20 +24,20 @@ CLI
 Single retain, project + kind from flags:
 
     python -m scripts.retain_lesson \\
-        --bank consumer-d \\
+        --bank acme-corp \\
         --kind decision \\
         --project ai-playbook \\
-        --content "Rotated PAT scope from full repo to fine-grained scoped to consumers.yaml" \\
+        --content "Rotated PAT scope from full repo to fine-grained scoped to acme-corp" \\
         --why "least-privilege; god-mode PAT was a 1-week stop-gap" \\
         --tag rotation --tag security
 
 Bulk retain from a JSONL file (one item per line, same field shape as flags):
 
-    python -m scripts.retain_lesson --bank consumer-d --bulk lessons.jsonl
+    python -m scripts.retain_lesson --bank acme-corp --bulk lessons.jsonl
 
 Degraded queue replay (when Hindsight comes back after an outage):
 
-    python -m scripts.retain_lesson --bank consumer-d --replay-queue
+    python -m scripts.retain_lesson --bank acme-corp --replay-queue
 
 Required env (typically supplied via ``sops exec-env secrets/secrets.env -- ...``):
 
@@ -288,7 +288,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="scripts.retain_lesson",
         description="Retain a lesson/gotcha/decision/failure to Hindsight.",
     )
-    p.add_argument("--bank", required=True, help="Hindsight bank_id (e.g. consumer-d, consumer-c).")
+    p.add_argument("--bank", required=True, help="Hindsight bank_id (e.g. acme-corp, consumer-c).")
 
     g = p.add_argument_group("single-item flags")
     g.add_argument("--content", help="Lesson body text (≥10 chars).")

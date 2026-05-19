@@ -279,7 +279,7 @@ def _parse_required_env_vars(spec_text: str) -> list[str]:
     ``Var | Prefix | Purpose | Required? | Default | Where read``.
     We scan data rows (skip header + separator) and emit the Var-cell name
     whenever the Required? cell contains the word ``yes`` (case-insensitive,
-    allowing annotations like ``yes (if consumer-d consumer)``).
+    allowing annotations like ``yes (if acme-corp consumer)``).
     """
     out: list[str] = []
     for line in spec_text.splitlines():
@@ -304,7 +304,7 @@ def _parse_required_env_vars(spec_text: str) -> list[str]:
             continue
         name = m.group(1)
         # Only probe vars that live in a prefix a playbook consumer would set
-        # from their shell/SOPS env. Cross-prefix vars (consumer-d_, consumer-c_)
+        # from their shell/SOPS env. Cross-prefix vars (acme-corp_, consumer-c_)
         # flow through CLI args per env-vars.md Rules; doctor doesn't probe them.
         if name not in out:
             out.append(name)

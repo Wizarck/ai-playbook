@@ -149,7 +149,7 @@ Auto-generated PRs (dependabot, renovate, any in-consumer scheduled-job that ope
 
 The opening workflow finds previous open PRs whose head branch shares the same prefix, closes them with a `superseded by #<N>` comment, and deletes the source branch. This prevents the pile-up pattern observed during ai-playbook v0.8.0-rc1→rc6 dogfooding (10 stacked bump PRs, each pairwise-conflicting on the same submodule SHA, none individually mergeable).
 
-**v0.19.0 update**: the playbook no longer ships a centralised push-pipeline that opens bump PRs across consumers. Each consumer manages its own pull cadence via Dependabot / Renovate / local cron. The supersede semantics above still apply *within each consumer's own CI* whenever multiple bump PRs collide on the same branch prefix.
+The playbook does not ship a centralised push-pipeline that opens bump PRs across consumers; each consumer manages its own pull cadence (Dependabot / Renovate / local cron). The supersede semantics above apply *within each consumer's own CI* whenever multiple bump PRs collide on the same branch prefix.
 
 ---
 
@@ -795,7 +795,7 @@ Consumer projects on v0.8.0+ inherit this spec automatically; new consumers boot
 
 ### 8.1 Migration matrix (v0.7.x → v0.8.0)
 
-For Arturo's current consumer constellation (May 2026):
+For the maintainer's current consumer constellation (May 2026):
 
 | Project | Visibility | Profile | Migration owner | Notes |
 |---|---|---|---|---|

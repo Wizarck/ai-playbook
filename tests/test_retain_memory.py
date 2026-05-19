@@ -50,7 +50,7 @@ def _wire_creds(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_retain_item_to_hindsight_minimal() -> None:
-    item = rl.RetainItem(content="hello world", bank="consumer-d")
+    item = rl.RetainItem(content="hello world", bank="acme-corp")
     out = item.to_hindsight()
     assert out["content"] == "hello world"
     # `kind` defaults to lesson, becomes context + tag
@@ -61,7 +61,7 @@ def test_retain_item_to_hindsight_minimal() -> None:
 def test_retain_item_to_hindsight_full() -> None:
     item = rl.RetainItem(
         content="rotated PAT to fine-grained scope",
-        bank="consumer-d",
+        bank="acme-corp",
         kind="decision",
         project="ai-playbook",
         why="least-privilege",
@@ -102,15 +102,15 @@ def test_cli_single_item_retain_ok(
     _patch_urlopen(monkeypatch, _cap)
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--content", "Test lesson here",
+        ["retain_memory", "--bank", "acme-corp", "--content", "Test lesson here",
          "--why", "Because reasons", "--kind", "decision", "--project", "ai-playbook"],
     )
     rc = rl.main()
     assert rc == 0
     out = capsys.readouterr().out
-    assert "retained 1 item(s) to bank=consumer-d" in out
+    assert "retained 1 item(s) to bank=acme-corp" in out
     assert "100" in out  # token usage echoed
-    assert "/banks/consumer-d/memories" in captured["url"]
+    assert "/banks/acme-corp/memories" in captured["url"]
 
 
 def test_cli_dry_run_does_not_post(
@@ -126,7 +126,7 @@ def test_cli_dry_run_does_not_post(
     _patch_urlopen(monkeypatch, _spy)
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--content", "x" * 50, "--dry-run"],
+        ["retain_memory", "--bank", "acme-corp", "--content", "x" * 50, "--dry-run"],
     )
     rc = rl.main()
     assert rc == 0
@@ -157,7 +157,7 @@ def test_cli_bulk_jsonl(
     _patch_urlopen(monkeypatch, _cap)
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--bulk", str(bulk)],
+        ["retain_memory", "--bank", "acme-corp", "--bulk", str(bulk)],
     )
     rc = rl.main()
     assert rc == 0
@@ -179,7 +179,7 @@ def test_cli_queues_on_unreachable(
     monkeypatch.delenv("HINDSIGHT_URL", raising=False)  # forces HindsightUrlMissing
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--content", "queued lesson"],
+        ["retain_memory", "--bank", "acme-corp", "--content", "queued lesson"],
     )
     rc = rl.main()
     assert rc == 0
@@ -189,7 +189,7 @@ def test_cli_queues_on_unreachable(
     assert queue.is_file()
     rec = json.loads(queue.read_text(encoding="utf-8").strip())
     assert rec["item"]["content"] == "queued lesson"
-    assert rec["bank"] == "consumer-d"
+    assert rec["bank"] == "acme-corp"
 
 
 def test_replay_queue_drains(
@@ -200,7 +200,7 @@ def test_replay_queue_drains(
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     queue.write_text(
-        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme-corp",
                     "item": {"content": "queued"}}) + "\n" +
         json.dumps({"ts": "2026-04-24T00:01:00", "bank": "other-bank",
                     "item": {"content": "skip me"}}) + "\n",
@@ -210,7 +210,7 @@ def test_replay_queue_drains(
     _patch_urlopen(monkeypatch, lambda req, timeout: _resp(b'{"items_count":1}'))
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--replay-queue"],
+        ["retain_memory", "--bank", "acme-corp", "--replay-queue"],
     )
     rc = rl.main()
     assert rc == 0
@@ -220,7 +220,7 @@ def test_replay_queue_drains(
     # The other-bank entry stays in the queue.
     remaining = queue.read_text(encoding="utf-8").strip()
     assert "other-bank" in remaining
-    assert "queued" not in remaining  # the consumer-d entry was drained
+    assert "queued" not in remaining  # the acme-corp entry was drained
 
 
 # ---------------------------------------------------------------------------
@@ -230,13 +230,13 @@ def test_replay_queue_drains(
 
 def test_opportunistic_drain_no_queue(tmp_path: Path) -> None:
     """Missing or empty queue → noop, no exception."""
-    sent, kept = rl.try_opportunistic_drain(tmp_path, "consumer-d")
+    sent, kept = rl.try_opportunistic_drain(tmp_path, "acme-corp")
     assert (sent, kept) == (0, 0)
 
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     queue.write_text("", encoding="utf-8")
-    sent, kept = rl.try_opportunistic_drain(tmp_path, "consumer-d")
+    sent, kept = rl.try_opportunistic_drain(tmp_path, "acme-corp")
     assert (sent, kept) == (0, 0)
 
 
@@ -249,7 +249,7 @@ def test_post_success_drains_queued_items(
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     queue.write_text(
-        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme-corp",
                     "item": {"content": "previously queued"}}) + "\n",
         encoding="utf-8",
     )
@@ -258,13 +258,13 @@ def test_post_success_drains_queued_items(
         b'{"success":true,"items_count":1,"usage":{"total_tokens":50}}'))
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--content", "new lesson body"],
+        ["retain_memory", "--bank", "acme-corp", "--content", "new lesson body"],
     )
     rc = rl.main()
     assert rc == 0
 
     captured = capsys.readouterr()
-    assert "retained 1 item(s) to bank=consumer-d" in captured.out
+    assert "retained 1 item(s) to bank=acme-corp" in captured.out
     assert "opportunistically drained 1" in captured.err
     # Queue should now be empty.
     assert queue.read_text(encoding="utf-8") == ""
@@ -277,7 +277,7 @@ def test_opportunistic_drain_swallows_errors(
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     queue.write_text(
-        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme-corp",
                     "item": {"content": "queued"}}) + "\n",
         encoding="utf-8",
     )
@@ -286,7 +286,7 @@ def test_opportunistic_drain_swallows_errors(
         raise RuntimeError("boom")
 
     monkeypatch.setattr(rl, "_drain_queue", _explode)
-    sent, kept = rl.try_opportunistic_drain(tmp_path, "consumer-d")
+    sent, kept = rl.try_opportunistic_drain(tmp_path, "acme-corp")
     assert (sent, kept) == (0, 0)
 
 
@@ -298,13 +298,13 @@ def test_drain_skips_malformed_jsonl_line(
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     good = json.dumps(
-        {"ts": "2026-04-24T00:00:00", "bank": "consumer-d", "item": {"content": "good entry"}}
+        {"ts": "2026-04-24T00:00:00", "bank": "acme-corp", "item": {"content": "good entry"}}
     )
     malformed = "{not-json-at-all"
     queue.write_text(good + "\n" + malformed + "\n", encoding="utf-8")
 
     _patch_urlopen(monkeypatch, lambda req, timeout: _resp(b'{"success":true,"items_count":1}'))
-    sent, kept = rl._drain_queue(tmp_path, "consumer-d", dry_run=False)
+    sent, kept = rl._drain_queue(tmp_path, "acme-corp", dry_run=False)
 
     assert sent == 1
     assert kept == 1  # the malformed line is preserved
@@ -332,7 +332,7 @@ def test_drain_only_other_bank_leaves_queue_intact(
         raise AssertionError("urlopen called despite only-other-bank queue")
 
     _patch_urlopen(monkeypatch, _must_not_call)
-    sent, kept = rl._drain_queue(tmp_path, "consumer-d", dry_run=False)
+    sent, kept = rl._drain_queue(tmp_path, "acme-corp", dry_run=False)
 
     assert (sent, kept) == (0, 2)
     # Original entries are preserved (order may be reserialised but content matches).
@@ -352,7 +352,7 @@ def test_opportunistic_drain_logs_warning_on_unreadable_queue(
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     queue.write_text(
-        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme-corp",
                     "item": {"content": "queued"}}) + "\n",
         encoding="utf-8",
     )
@@ -363,10 +363,10 @@ def test_opportunistic_drain_logs_warning_on_unreadable_queue(
     monkeypatch.setattr(rl, "_drain_queue", _explode)
     caplog.set_level(logging.WARNING, logger="scripts.retain_memory")
 
-    sent, kept = rl.try_opportunistic_drain(tmp_path, "consumer-d")
+    sent, kept = rl.try_opportunistic_drain(tmp_path, "acme-corp")
     assert (sent, kept) == (0, 0)
     assert any(
-        "try_opportunistic_drain" in rec.message and "consumer-d" in rec.message
+        "try_opportunistic_drain" in rec.message and "acme-corp" in rec.message
         for rec in caplog.records
     ), f"expected WARNING log; got {[r.message for r in caplog.records]}"
 
@@ -380,7 +380,7 @@ def test_drain_atomic_rewrite_preserves_original_on_rename_failure(
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     original = (
-        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme-corp",
                     "item": {"content": "should survive rename failure"}}) + "\n"
     )
     queue.write_text(original, encoding="utf-8")
@@ -397,7 +397,7 @@ def test_drain_atomic_rewrite_preserves_original_on_rename_failure(
     monkeypatch.setattr(Path, "replace", _explode_on_tmp_rename)
 
     with pytest.raises(PermissionError):
-        rl._drain_queue(tmp_path, "consumer-d", dry_run=False)
+        rl._drain_queue(tmp_path, "acme-corp", dry_run=False)
 
     # Original file must be untouched (POST succeeded but rewrite failed).
     assert queue.read_text(encoding="utf-8") == original

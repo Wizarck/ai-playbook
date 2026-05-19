@@ -17,7 +17,7 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 
 ## 1. Maintainer
 
-**Today:** Arturo Ramírez, sole maintainer.
+**Today:** sole maintainer (see [`CONTRIBUTING.md`](../../CONTRIBUTING.md) for identity).
 
 **Rights.**
 
@@ -42,7 +42,7 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 
 **How to become this role.**
 
-- At v0.1.0, closed set (Arturo only).
+- At v0.1.0, closed set (the maintainer only).
 - v0.2+: the maintainer may nominate a second maintainer via RFC. RFC must pass with explicit maintainer approval (solo majority at first) and a 7-day public comment window. Once 2+ maintainers exist, nominations require consensus.
 - When the team grows past ~5 active contributors, the role splits into a **standing maintainer committee** with quorum rules (`contributing.md` §1).
 
@@ -146,24 +146,24 @@ This spec names **people-roles** (humans with repo-level rights). The ServiceAcc
 - A maintainer (people-role) is not automatically a k8s cluster-admin (process-role).
 - A `hermes` ServiceAccount (process-role) has no corresponding people-role.
 
-Mapping specifics are deferred until a second human has production cluster access. At v0.1.0, Arturo is the sole cluster-admin on every cluster; the mapping question does not arise.
+Mapping specifics are deferred until a second human has production cluster access. At v0.1.0, the maintainer is the sole cluster-admin on every cluster; the mapping question does not arise.
 
-When IR activates (see [incident-response.md](incident-response.md) triggers) or the first non-Arturo operator lands, this section expands into a real table:
+When IR activates (see [incident-response.md](incident-response.md) triggers) or the first non-maintainer operator lands, this section expands into a real table:
 
 | People-role | k8s role(s) | Namespaces | Status |
 |---|---|---|---|
-| Maintainer | `cluster-admin` | `*` | active (Arturo only at v1.0.0) |
+| Maintainer | `cluster-admin` | `*` | active (maintainer only at v1.0.0) |
 | Reviewer | `view` on prod + `edit` on staging | `prod-*`, `staging-*` | spec-only; activates when a Reviewer lands |
 | Contributor | `view` on dev | `dev-*` | spec-only; activates when a Contributor lands |
 | Consumer-only | none | none | spec-only |
 
-Until then, Arturo is sole cluster admin. Break-glass for `kubectl` access is logged outside this repo per the ops runbook in `consumer-d/docs/operations/`.
+Until then, the maintainer is sole cluster admin. Break-glass for `kubectl` access is logged outside this repo per the ops runbook in `consumer-d/docs/operations/`.
 
 ---
 
 ## 6. Cross-references
 
-- [../docs/concepts/contributing.md](contributing.md) — friendly summary; this file is normative.
+- [../../CONTRIBUTING.md](../../CONTRIBUTING.md) — public-facing contribution summary; this file is normative.
 - [agent-contract.md](agent-contract.md) — process-role model for subagents (not people).
 - [break-glass.md](../rules/break-glass.rule.md) — override contract applies equally across roles; no role is exempt from logging.
 - [incident-response.md](incident-response.md) — activation triggers that expand §5 into a real mapping.

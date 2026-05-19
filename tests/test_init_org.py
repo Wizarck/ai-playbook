@@ -25,21 +25,21 @@ def _make_fake_playbook(root: Path) -> None:
     runbooks = root / "docs" / "runbooks"
     runbooks.mkdir(parents=True)
     (runbooks / "release.md").write_text("Push to Wizarck/consumer-c.\n", encoding="utf-8")
-    (runbooks / "rotate-secrets.md").write_text("Wizarck/consumer-d secret rotation.\n", encoding="utf-8")
-    (runbooks / "hindsight-retain.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
+    (runbooks / "rotate-secrets.md").write_text("Wizarck/acme-corp secret rotation.\n", encoding="utf-8")
+    (runbooks / "hindsight-retain.md").write_text("https://acme-corp-hindsight.consumer-bfood.com\n", encoding="utf-8")
     concepts = root / "docs" / "concepts"
     concepts.mkdir(parents=True)
-    (concepts / "env-vars.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
+    (concepts / "env-vars.md").write_text("https://acme-corp-hindsight.consumer-bfood.com\n", encoding="utf-8")
     (concepts / "session-start-hook.md").write_text(
-        "https://consumer-d-hindsight.consumer-bfood.com\n",
+        "https://acme-corp-hindsight.consumer-bfood.com\n",
         encoding="utf-8",
     )
     templates = root / "templates" / "new-project"
     templates.mkdir(parents=True)
     (templates / "AGENTS.md.tmpl").write_text(
         "owner: 23051550+Wizarck@users.noreply.github.com\n"
-        "https://consumer-d-hindsight.consumer-bfood.com\n"
-        "../consumer-d/secrets/secrets.env\n",
+        "https://acme-corp-hindsight.consumer-bfood.com\n"
+        "../acme-corp/secrets/secrets.env\n",
         encoding="utf-8",
     )
 

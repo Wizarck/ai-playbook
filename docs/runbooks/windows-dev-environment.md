@@ -163,4 +163,4 @@ For each gotcha:
 - [Runbook: git-worktree-bare-setup](git-worktree-bare-setup.md) — bare-repo + per-branch worktree layout that mitigates §4.
 - [Runbook: onboard-new-project](onboard-new-project.md) — first-day setup; this runbook supplements with Windows-specific gotchas.
 - [Concept: git-worktree-bare-layout](../concepts/git-worktree-bare-layout.md) — canonical layout.
-- [Concept: contributing](../concepts/contributing.md) — `--runInBand` workaround for Windows test scripts.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — PR + test expectations.

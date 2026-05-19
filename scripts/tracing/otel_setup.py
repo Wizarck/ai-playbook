@@ -10,7 +10,7 @@ Environment variables
 - ``LANGFUSE_PUBLIC_KEY``, ``LANGFUSE_SECRET_KEY``, ``LANGFUSE_HOST`` — Langfuse
   SDK credentials. If either key is missing, the Langfuse exporter is skipped
   silently.
-- ``OTEL_EXPORTER_OTLP_ENDPOINT`` — OTLP Collector endpoint (e.g. the consumer-d
+- ``OTEL_EXPORTER_OTLP_ENDPOINT`` — OTLP Collector endpoint (e.g. the acme-corp
   Collector sidecar). If unset, the OTLP exporter is skipped.
 - ``OTEL_EXPORTER_OTLP_HEADERS`` — optional OTLP headers, ``k1=v1,k2=v2`` form.
 - ``AIPLAYBOOK_TRACING_DISABLED=1`` — hard short-circuit; ``init_tracing()``
@@ -156,7 +156,7 @@ def init_tracing(
     Safe to call multiple times; OTel's ``TracerProvider`` is process-global
     and subsequent calls rebind ``service.name`` attributes on a fresh provider
     only when none has been installed yet. If one is already installed we reuse
-    it — this matches the common pattern in the consumer-d telemetry wrappers.
+    it — this matches the common pattern in the acme-corp telemetry wrappers.
     """
     if _tracing_disabled():
         return _NoOpTracer()
