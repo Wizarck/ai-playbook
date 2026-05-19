@@ -43,7 +43,7 @@ Skip retain when the content is already trivially recoverable from `git log`, `g
        --bank consumer-d \
        --kind decision \
        --project ai-playbook \
-       --content "Rotated PLAYBOOK_PROPAGATION_TOKEN from god-mode PAT to fine-grained scoped to consumers.yaml" \
+       --content "Rotated GITHUB_TOKEN from god-mode PAT to fine-grained scoped" \
        --why "Least-privilege; god-mode PAT was a 1-week stop-gap" \
        --tag rotation --tag security
    ```
@@ -112,7 +112,6 @@ The script POSTs each queued item, removes it on success, and keeps it for the n
 ## Related
 
 - [Runbook: release](release.md) — when retain is part of the release flow.
-- [Runbook: propagate-bump-troubleshooting](propagate-bump-troubleshooting.md) — when retain is part of a fix.
 - [Concept: memory-hierarchy](../concepts/memory-hierarchy.md) — write rules and bank conventions.
 - [Concept: env-vars](../concepts/env-vars.md) — `HINDSIGHT_*` and `CF_ACCESS_*` env contract.
 - [Concept: session-start-hook](../concepts/session-start-hook.md) — the read side; the partner hook recalls memory at session start.

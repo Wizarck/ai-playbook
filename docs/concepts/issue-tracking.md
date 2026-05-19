@@ -115,14 +115,30 @@ code is truly shared.
 
 ---
 
-## 4. Automation (LIVE as of 2026-04-23)
+## 4. Automation (LIVE as of 2026-04-23; pull-model contract from v0.19.0+)
 
 Zero-touch automation — no human intervention in the happy path. See
 [docs/concepts/zero-touch-automation.md](zero-touch-automation.md) for the end-to-end flow.
 
+**Configuration source (v0.19.0+)**: each consumer declares its tracker in
+its OWN `AGENTS.md` frontmatter. The playbook holds no central registry of
+consumers — that registry (`consumers.yaml`) was retired with the push
+pipeline. Required frontmatter keys:
+
+```yaml
+---
+schema: agents-md/v1
+project: <consumer-name>
+tracker_kind: github | jira     # required
+jira_project: PROJ              # required iff tracker_kind == jira
+personal: true | false          # optional; always GH Issues regardless of tracker_kind
+---
+```
+
 - **`scripts/issue_sync.py`** — scans `openspec/changes/*/proposal.md`, creates Jira issues
   (private repos via Atlassian REST / `atlassian-consumer-a` tenant) OR GH Issues + optional GH
-  Project add (public repos). Embeds `tracker_id: PROJ-42` (Jira) or `tracker_issue: 42`
+  Project add (public repos). Reads `tracker_kind`/`jira_project` from the consumer's
+  own AGENTS.md frontmatter. Embeds `tracker_id: PROJ-42` (Jira) or `tracker_issue: 42`
   (GitHub) in the proposal frontmatter via a follow-up commit. Idempotent; failed creates
   queue to `.ai-playbook/issue_sync_queue.jsonl` for retry. Wired as
   `.github/workflows/issue-sync.yml` firing on PR merge into main/master.

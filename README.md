@@ -56,10 +56,37 @@ To consume the playbook as a submodule from your own project:
 git submodule add https://github.com/Wizarck/ai-playbook.git .ai-playbook
 git submodule update --init --recursive
 # pin to a release tag (semver — never track main)
-cd .ai-playbook && git checkout v0.18.3 && cd ..
+cd .ai-playbook && git checkout v0.19.0 && cd ..
 ```
 
 For the full guided 15-minute walkthrough, see [docs/tutorials/01-architecture-tour.md](docs/tutorials/01-architecture-tour.md).
+
+## Consumers: how to bump (pull model)
+
+The playbook itself runs **no automation against consumer repos**. Each consumer absorbs new tags at its own pace. Manual one-shot:
+
+```bash
+cd <your-project>/.ai-playbook
+git fetch origin
+git checkout vX.Y.Z          # the new tag you want to absorb
+cd ..
+git add .ai-playbook
+git commit -m "chore(playbook): bump .ai-playbook to vX.Y.Z"
+git push
+```
+
+For automated bump PRs, add a Dependabot config to your repo:
+
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule: { interval: "weekly" }
+```
+
+Or use Renovate, or a scheduled GitHub Action — whatever fits your stack. The playbook holds no registry of who consumes it, so no central pipeline ever opens PRs on your behalf. (This is the pull-model contract introduced in **v0.19.0**, retiring the prior `propagate-playbook-bump.yml` push pipeline.)
 
 ## Scope
 
@@ -102,14 +129,15 @@ The published site lives at <https://wizarck.github.io/ai-playbook/>.
 
 ## Versioning
 
-Semver on the `main` branch. Consumers pin to a released tag, never `main`. Breaking changes require an RFC and a major bump. Current version: see [`VERSION`](VERSION) (`v0.18.3`). The v0.20.0 milestone is reserved for the final public reference cut on explicit maintainer approval; intermediate versions (v0.19.x) absorb post-review fix iterations.
+Semver on the `main` branch. Consumers pin to a released tag, never `main`. Breaking changes require an RFC and a major bump. Current version: see [`VERSION`](VERSION) (`v0.19.0`). The v0.20.0 milestone is reserved for the final public reference cut on explicit maintainer approval; intermediate versions (v0.19.x) absorb post-review fix iterations.
 
 ## Status
 
-**v0.18.3 — polish for showcase + 10 deferred hardrules.** Slice 7 of the v0.15.0 → v0.20.0 architectural reset. This is the **last slice** of the v0.18.x reset arc; the next gate is a user review pause.
+**v0.19.0 — pull-model migration (BREAKING).** Retires the centralised `propagate-playbook-bump.yml` push pipeline, deletes the `consumers.yaml` registry, refactors `issue_sync.py` to read `tracker_kind` from each consumer's own AGENTS.md frontmatter. Each consumer now owns its tracker config + bump cadence; the playbook holds no consumer registry.
 
 Prior milestones:
 
+- v0.18.3 — polish for showcase + 10 deferred hardrules (Slice 7).
 - v0.18.2 — telemetry pipeline + 5-CLI absorption + 14 deferred hardrules (Slice 6).
 - v0.18.1 — Slice 5 doc content rewrite complete; strict-by-default validators.
 - v0.18.0 — filesystem reorg + paired-enforcement tooling (BREAKING).

@@ -9,7 +9,6 @@
 | [git-worktree-bare-setup.md](git-worktree-bare-setup.md) | — | The consumer project sits under `<project-root>/` with this canonical layout (per [Concept: git-wor… |
 | [hindsight-retain.md](hindsight-retain.md) | — | A lesson is durably stored in the chosen Hindsight bank with the right `kind`, `project`, and tags.… |
 | [onboard-new-project.md](onboard-new-project.md) | — | The new repo has: |
-| [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md) | — | The failing propagate workflow's root cause is identified and one of the canonical fix patterns is… |
 | [release.md](release.md) | — | A new semver tag exists on `Wizarck/ai-playbook` with a matching `VERSION` file and a CHANGELOG ent… |
 | [rotate-secrets.md](rotate-secrets.md) | — | The old credential is revoked at the vendor side; the new credential is set on every consuming surf… |
 | [run-telemetry-report.md](run-telemetry-report.md) | — | A markdown (or JSON) report summarising the playbook's behaviour over the last 7, 30, or N days, co… |
@@ -17,5 +16,4 @@
 | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) | — | Every leaked credential is revoked at the vendor side, replaced with a narrower-scoped credential,… |
 | [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) | — | The compromise vector is isolated; every credential potentially reachable from that vector is rotat… |
 | [runbook-vps-down.md](runbook-vps-down.md) | — | The VPS is reachable again (ping, SSH, HTTPS all succeed), every expected service is `active (runni… |
-| [skills-version-bump.md](skills-version-bump.md) | — | A new semver tag exists on the chosen skills source repo (`ai-playbook` itself, `consumer-d-skills`… |
 | [windows-dev-environment.md](windows-dev-environment.md) | — | The Windows-specific failure pattern has been identified and the canonical fix applied. The local d… |

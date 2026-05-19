@@ -39,7 +39,7 @@ schema: agents-md/v1
 version: 1.0.0
 project: {project}
 personal: {personal}
----
+{tracker_block}---
 # body
 """
 
@@ -63,12 +63,22 @@ def jsonl_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _make_consumer(
     tmp_path: Path, *, project: str = "acme", personal: bool = False,
+    tracker_kind: str | None = None, jira_project: str | None = None,
     proposals: dict[str, str] | None = None,
 ) -> Path:
     root = tmp_path / project
     root.mkdir()
+    tracker_lines: list[str] = []
+    if tracker_kind is not None:
+        tracker_lines.append(f"tracker_kind: {tracker_kind}")
+    if jira_project is not None:
+        tracker_lines.append(f"jira_project: {jira_project}")
+    tracker_block = ("\n".join(tracker_lines) + "\n") if tracker_lines else ""
     (root / "AGENTS.md").write_text(
-        AGENTS_MD.format(project=project, personal=str(personal).lower()),
+        AGENTS_MD.format(
+            project=project, personal=str(personal).lower(),
+            tracker_block=tracker_block,
+        ),
         encoding="utf-8",
     )
     changes = root / "openspec" / "changes"
@@ -137,109 +147,68 @@ def test_proposal_has_tracker() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Surface decision
+# Surface decision  (v0.19.0+: tracker_kind read from AGENTS.md frontmatter)
 # ---------------------------------------------------------------------------
 
 
-def _make_registry(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    consumers: dict[str, dict],
-) -> Path:
-    """Write a consumers.yaml fixture and point AIPLAYBOOK_CONSUMERS_YAML at it."""
-    import yaml
-
-    path = tmp_path / "consumers.yaml"
-    path.write_text(
-        yaml.safe_dump(
-            {
-                "schema": "ai-playbook/consumers/v1",
-                "version": 1,
-                "consumers": consumers,
-            }
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("AIPLAYBOOK_CONSUMERS_YAML", str(path))
-    issue_sync._reset_registry_cache()
-    return path
-
-
 def test_decide_surface_personal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # personal flag in AGENTS.md wins over registry tracker_kind — personal
-    # repos never publish externally regardless of tracker_kind.
-    root = _make_consumer(tmp_path, project="ai-playbook", personal=True)
+    # personal flag in AGENTS.md wins over tracker_kind — personal repos never
+    # publish externally regardless of tracker_kind.
+    root = _make_consumer(
+        tmp_path, project="ai-playbook", personal=True, tracker_kind="github",
+    )
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: True)
     monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/ai-playbook")
-    _make_registry(
-        tmp_path, monkeypatch,
-        {"ai-playbook": {"status": "active", "tracker_kind": "github"}},
-    )
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "github-personal"
     assert decision.gh_repo == "Wizarck/ai-playbook"
 
 
-def test_decide_surface_github_from_registry(
+def test_decide_surface_github_from_frontmatter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root = _make_consumer(tmp_path, project="consumer-c", personal=False)
+    root = _make_consumer(
+        tmp_path, project="consumer-c", personal=False, tracker_kind="github",
+    )
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: True)
     monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/consumer-c")
     monkeypatch.setenv("AIPLAYBOOK_GH_PROJECT_NUMBER", "42")
-    _make_registry(
-        tmp_path, monkeypatch,
-        {"consumer-c": {"status": "active", "tracker_kind": "github"}},
-    )
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "github"
     assert decision.gh_project_number == "42"
     assert "tracker_kind=github" in decision.reason
 
 
-def test_decide_surface_jira_from_registry(
+def test_decide_surface_jira_from_frontmatter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root = _make_consumer(tmp_path, project="future-jira-consumer", personal=False)
-    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
-    _make_registry(
-        tmp_path, monkeypatch,
-        {
-            "future-jira-consumer": {
-                "status": "active",
-                "tracker_kind": "jira",
-                "jira_project": "consumer-c-legacy",
-            },
-        },
+    root = _make_consumer(
+        tmp_path, project="future-jira-consumer", personal=False,
+        tracker_kind="jira", jira_project="consumer-c-legacy",
     )
+    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "jira"
     assert decision.jira_project == "consumer-c-legacy"
     assert "tracker_kind=jira" in decision.reason
 
 
-def test_decide_surface_missing_from_registry_raises(
+def test_decide_surface_missing_tracker_kind_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _make_consumer(tmp_path, project="undeclared", personal=False)
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
-    _make_registry(
-        tmp_path, monkeypatch,
-        {"someone-else": {"status": "active", "tracker_kind": "github"}},
-    )
-    with pytest.raises(RuntimeError, match=r"undeclared.*consumers\.yaml"):
+    with pytest.raises(RuntimeError, match=r"no tracker_kind"):
         issue_sync.decide_surface(root)
 
 
 def test_decide_surface_invalid_tracker_kind_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root = _make_consumer(tmp_path, project="bad-config", personal=False)
-    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
-    _make_registry(
-        tmp_path, monkeypatch,
-        {"bad-config": {"status": "active", "tracker_kind": "atlassian"}},
+    root = _make_consumer(
+        tmp_path, project="bad-config", personal=False, tracker_kind="atlassian",
     )
+    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
     with pytest.raises(RuntimeError, match=r"invalid tracker_kind"):
         issue_sync.decide_surface(root)
 
@@ -247,40 +216,25 @@ def test_decide_surface_invalid_tracker_kind_raises(
 def test_decide_surface_jira_without_project_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root = _make_consumer(tmp_path, project="missing-jira-key", personal=False)
-    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
-    _make_registry(
-        tmp_path, monkeypatch,
-        {"missing-jira-key": {"status": "active", "tracker_kind": "jira"}},
+    root = _make_consumer(
+        tmp_path, project="missing-jira-key", personal=False, tracker_kind="jira",
     )
-    with pytest.raises(RuntimeError, match=r"no jira_project key"):
+    monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
+    with pytest.raises(RuntimeError, match=r"no jira_project"):
         issue_sync.decide_surface(root)
 
 
-def test_jira_project_for_returns_none_for_github(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    root = _make_consumer(tmp_path, project="consumer-c", personal=False)
-    _make_registry(
-        tmp_path, monkeypatch,
-        {"consumer-c": {"status": "active", "tracker_kind": "github"}},
+def test_jira_project_for_returns_none_for_github(tmp_path: Path) -> None:
+    root = _make_consumer(
+        tmp_path, project="consumer-c", personal=False, tracker_kind="github",
     )
     assert issue_sync.jira_project_for(root) is None
 
 
-def test_jira_project_for_returns_key_for_jira(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    root = _make_consumer(tmp_path, project="some-jira-consumer", personal=False)
-    _make_registry(
-        tmp_path, monkeypatch,
-        {
-            "some-jira-consumer": {
-                "status": "active",
-                "tracker_kind": "jira",
-                "jira_project": "FOO",
-            },
-        },
+def test_jira_project_for_returns_key_for_jira(tmp_path: Path) -> None:
+    root = _make_consumer(
+        tmp_path, project="some-jira-consumer", personal=False,
+        tracker_kind="jira", jira_project="FOO",
     )
     assert issue_sync.jira_project_for(root) == "FOO"
 
@@ -524,7 +478,8 @@ def test_cli_errors_when_no_openspec_dir(
     jsonl_path: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
     (tmp_path / "AGENTS.md").write_text(
-        AGENTS_MD.format(project="x", personal="false"), encoding="utf-8",
+        AGENTS_MD.format(project="x", personal="false", tracker_block=""),
+        encoding="utf-8",
     )
     rc = issue_sync.main(["--consumer-root", str(tmp_path)])
     assert rc == 2
@@ -538,7 +493,8 @@ def test_cli_break_glass_accepts_missing_openspec(
     jsonl_path: Path, tmp_path: Path,
 ) -> None:
     (tmp_path / "AGENTS.md").write_text(
-        AGENTS_MD.format(project="x", personal="false"), encoding="utf-8",
+        AGENTS_MD.format(project="x", personal="false", tracker_block=""),
+        encoding="utf-8",
     )
     rc = issue_sync.main([
         "--consumer-root", str(tmp_path),

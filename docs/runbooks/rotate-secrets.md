@@ -33,58 +33,17 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 
 | Secret | Where stored | Used by | Rotation cadence | Owner |
 |---|---|---|---|---|
-| `PLAYBOOK_PROPAGATION_TOKEN` | GH repo secret on `Wizarck/ai-playbook` | `.github/workflows/propagate-playbook-bump.yml` → `scripts/propagate_bump.py` | 90 d or on compromise | Arturo |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | GH repo secrets on all 3 workflow repos + k8s Secret `consumer-d-secrets` | `scripts/notify.py` SMTP fan-out | On Gmail app-password rotation (~annual or loss) | Arturo |
 | `AIPLAYBOOK_NOTIFICATIONS_TO` | GH repo secrets + k8s Secret | `scripts/notify.py` | On email change | Arturo |
 | `ATLASSIAN_URL`, `ATLASSIAN_USERNAME`, `ATLASSIAN_API_TOKEN` | GH repo secrets + k8s Secret | `scripts/issue_sync.py`, `scripts/release_cut.py` | On Atlassian API token expiry (~1 yr) | Arturo |
-| `GITHUB_TOKEN` | SOPS `secrets/secrets.env` in `consumer-d` | Local dev + propagate-bump-troubleshooting Pattern H escape hatch | 30 d (god-mode) / 90 d (scoped) | Arturo |
+| `GITHUB_TOKEN` | SOPS `secrets/secrets.env` in `consumer-d` | Local dev + ad-hoc direct push fallback | 30 d (god-mode) / 90 d (scoped) | Arturo |
 | `AI_PLAYBOOK_AGE_KEY` | `~/.config/sops/age/keys.txt` per dev machine | SOPS decrypt of all encrypted secrets | Never (root of trust) | Arturo personal |
+
+> **v0.19.0 update**: `PLAYBOOK_PROPAGATION_TOKEN` was retired alongside the push pipeline. The playbook no longer holds any PAT with write access to consumer repos. Consumers manage their own bump credentials (Dependabot, Renovate, or local cron). If your fork still has the secret set, revoke it at <https://github.com/settings/tokens>.
 
 ## Steps
 
-### A. Rotate `PLAYBOOK_PROPAGATION_TOKEN`
-
-1. **Generate a new fine-grained PAT** at <https://github.com/settings/personal-access-tokens/new> (preferred over classic):
-
-   | Field | Value |
-   |---|---|
-   | Token name | `playbook-propagation` |
-   | Description | `Used by Wizarck/ai-playbook propagate-playbook-bump.yml to open bump PRs across consumers in consumers.yaml` |
-   | Resource owner | `Wizarck` |
-   | Expiration | 90 days |
-   | Repository access | "Only select repositories" → check every active row in `consumers.yaml` (today: `Wizarck/consumer-c`, `Wizarck/consumer-d`, `Wizarck/consumer-b`) |
-   | Repository permissions | `Contents: Read and write`, `Pull requests: Read and write`, `Metadata: Read-only`. All others stay `No access`. |
-   | Account permissions | None. |
-
-   Copy the `github_pat_…` value.
-
-2. **Set the repo secret**:
-   ```bash
-   gh secret set PLAYBOOK_PROPAGATION_TOKEN --repo Wizarck/ai-playbook --body "<new-pat>"
-   gh secret list --repo Wizarck/ai-playbook | grep PLAYBOOK_PROPAGATION_TOKEN
-   # `updated` timestamp must be now.
-   ```
-
-3. **Trigger a dry-run verification** by re-tagging the current VERSION:
-   ```bash
-   cd C:/Projects/ai-playbook
-   CURRENT=v$(cat VERSION)
-   git tag -d "$CURRENT"
-   git push origin --delete "$CURRENT"
-   git tag -a "$CURRENT" -m "re-tag after PAT rotation"
-   git push origin "$CURRENT"
-   gh run watch --repo Wizarck/ai-playbook
-   ```
-   The propagate workflow must complete success.
-
-4. **Revoke the old PAT** at <https://github.com/settings/tokens> once the new run succeeds. Do NOT leave overlapping PATs alive beyond 24 h.
-
-5. **Log the rotation** in `.ai-playbook/overrides.log`:
-   ```
-   <ISO-ts> 23051550+Wizarck@users.noreply.github.com rotate-secrets PLAYBOOK_PROPAGATION_TOKEN "scheduled 90d rotation"
-   ```
-
-### B. Rotate SMTP credentials (Gmail app-password)
+### A. Rotate SMTP credentials (Gmail app-password)
 
 1. **Generate a new app password** at <https://myaccount.google.com/apppasswords> (account `23051550+Wizarck@users.noreply.github.com`; 2-Step Verification must be enabled). Name it `ai-playbook-notifications-<YYYY-MM-DD>`. Copy the 16-char value (no spaces) and revoke the old entry.
 
@@ -123,11 +82,11 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 
 6. **Log rotation** in `.ai-playbook/overrides.log`.
 
-### C. Rotate `ATLASSIAN_API_TOKEN`
+### B. Rotate `ATLASSIAN_API_TOKEN`
 
-Same 3-surface pattern (SOPS + GH secrets + k8s Secret). Generate a new token at <https://id.atlassian.com/manage-profile/security/api-tokens>, update the 3 surfaces using the §B template, revoke the old.
+Same 3-surface pattern (SOPS + GH secrets + k8s Secret). Generate a new token at <https://id.atlassian.com/manage-profile/security/api-tokens>, update the 3 surfaces using the §A template, revoke the old.
 
-### D. Rotate `GITHUB_TOKEN` (dev-side, SOPS)
+### C. Rotate `GITHUB_TOKEN` (dev-side, SOPS)
 
 This is the PAT for local ops (direct push fallback, `gh` when `gh auth` is not configured).
 
@@ -144,9 +103,9 @@ This is the PAT for local ops (direct push fallback, `gh` when `gh auth` is not 
    ```
 4. Revoke the old PAT.
 
-### E. God-mode PAT caveat
+### D. God-mode PAT caveat
 
-A temporary god-mode PAT (e.g. one issued with 1-week expiry) MUST be tracked separately. Do NOT set it as `PLAYBOOK_PROPAGATION_TOKEN` long-term. Use it only for the bootstrap session, then rotate to a scoped fine-grained PAT within 24 h.
+A temporary god-mode PAT (e.g. one issued with 1-week expiry) MUST be tracked separately. Use it only for the bootstrap session, then rotate to a scoped fine-grained PAT within 24 h.
 
 ## Verification
 
@@ -181,7 +140,6 @@ For every rotation:
 
 ## Related
 
-- [Runbook: propagate-bump-troubleshooting](propagate-bump-troubleshooting.md) Pattern D — when the workflow fails with `Authentication failed`.
 - [Runbook: runbook-key-rotation-emergency](runbook-key-rotation-emergency.md) — emergency variant when leak is suspected or confirmed.
 - [Runbook: runbook-secrets-leak-containment](runbook-secrets-leak-containment.md) — wide-scope leak containment.
 - [Concept: data-retention](../concepts/data-retention.md) — retention and deletion contract.

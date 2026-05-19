@@ -66,15 +66,16 @@ MAIN (accumulating PRs for the next release tag)
         ▼
 TAG  ◄──────────────────────────────── THE RELEASE EVENT
   • git tag -a vX.Y.Z + push tag
-  • Triggers .github/workflows/propagate-playbook-bump.yml
-  • Which opens `chore(playbook): bump to vX.Y.Z` PRs in every consumer
-  See: docs/runbooks/release.md, scripts/release_cut.py, scripts/propagate_bump.py
+  • GitHub auto-creates a Release from the tag (CHANGELOG = release notes)
+  • Playbook is done — no push to consumers (pull model, v0.19.0+)
+  See: docs/runbooks/release.md, scripts/release_cut.py
         │
         ▼
-CONSUMERS (consumer-d, consumer-c, consumer-b, consumer-e, livekit, …)
-  • Auto-PR opens with submodule pin bump + AGENTS.md cross-ref refresh
-  • Consumer mergers → consumer is on the new playbook version
-  See: docs/concepts/projects-registry.md, consumers.yaml, scripts/bump_consumers.py
+CONSUMERS (pull at their own pace)
+  • Each consumer decides when to absorb the new tag:
+      cd .ai-playbook && git fetch && git checkout vX.Y.Z
+    or via Dependabot/Renovate submodule-update PRs.
+  See: docs/concepts/projects-registry.md (local dev registry, gitignored)
 ```
 
 The hierarchy is **strict**: every commit is inside a branch, every branch is inside a PR, every PR maps to one OpenSpec change, every change is part of a slice/wave/phase in the roadmap. CI gates enforce each level (see §5).
@@ -186,11 +187,11 @@ Merge release-prep      to main
                           ▼
 Tag + push:             git tag -a vX.Y.Z -m "..." + git push origin vX.Y.Z
                           ▼
-Workflow fires:         .github/workflows/propagate-playbook-bump.yml
+GitHub auto-creates a Release from the tag (CHANGELOG = release notes).
                           ▼
-Per-consumer PRs:       chore(playbook): bump to vX.Y.Z
-                        - submodule pin updated
-                        - AGENTS.md cross-refs auto-migrated (if applicable)
+Consumers pull at their own pace:
+                        cd .ai-playbook && git fetch && git checkout vX.Y.Z
+                        (or via Dependabot/Renovate submodule-update PRs)
                           ▼
 Consumers merge         to land on the new playbook version
                           ▼
@@ -233,7 +234,7 @@ Following [`docs/concepts/enforcement-status.md`](enforcement-status.md) shape:
 |---|---|---|
 | 1 PR = 1 OpenSpec change | ✅ wired | `.github/workflows/branch-name-validator.yml` (validates `<type>/<change-id>` + `openspec/changes/<change-id>/` exists) |
 | `tasks.md` boxes ticked on archive | 🟡 partial | (1) `scripts/auto_tick_tasks.py` invoked by `prepare-commit-msg` hook auto-ticks from conventional commit subject; (2) `.github/workflows/check-tasks-checkboxes.yml` warns at PR-open if `<X> of N` unchecked. Hard `openspec archive --strict` deferred per Followup #4 §3 |
-| AGENTS.md cross-ref to dev-flow | 🟠 wired-pending-trigger | `agents-md-v1.schema.json` flag `dev_flow_cross_ref` (warn-only initially, promote to required after 30d green per change C pattern). Migration via `propagate_bump.py` extended (Opción 1) |
+| AGENTS.md cross-ref to dev-flow | 🟠 wired-pending-trigger | `agents-md-v1.schema.json` flag `dev_flow_cross_ref` (warn-only initially, promote to required after 30d green per change C pattern). Initial migration (Opción 1, via the retired `propagate_bump.py`) completed before v0.19.0; the schema validator is the surviving guarantee. |
 | Branch naming | ✅ wired | `branch-name-validator.yml` |
 | Conventional commits | 📋 spec-only | Convention; commit-lint hook recommended but not enforced |
 | Merge style (squash vs merge-commit) | 🟡 partial | `pr-merge-style.yml` advisor comments on PRs; no hard block. See `merge-policy.md` |

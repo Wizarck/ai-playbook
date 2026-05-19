@@ -140,16 +140,16 @@ Per [issue-tracking.md](issue-tracking.md) §2.2, the change's `proposal.md` car
 
 ### 3.4 Bump-bot supersede expectation
 
-Auto-generated PRs (e.g. `chore/bump-playbook-v<tag>`, `chore/bump-skills-ai-playbook-v<tag>`, dependabot, renovate) must close any prior open PR on the same logical change-stream when a newer one opens. A "logical change-stream" is identified by the branch-name prefix:
+Auto-generated PRs (dependabot, renovate, any in-consumer scheduled-job that opens submodule-bump PRs) SHOULD close any prior open PR on the same logical change-stream when a newer one opens. A "logical change-stream" is identified by the branch-name prefix:
 
-- `chore/bump-playbook-v*` — playbook submodule bumps
+- `chore/bump-playbook-v*` — playbook submodule bumps (consumer-side conventional name)
 - `chore/bump-skills-ai-playbook-v*` — skills-side playbook bumps
 - `chore/bump-skills-consumer-d-skills-v*` — consumer-d-skills bumps
-- Future bot streams: declare prefix in `.github/workflows/<bot>.yml`
+- Future bot streams: declare prefix in the consumer's `.github/workflows/<bot>.yml`
 
 The opening workflow finds previous open PRs whose head branch shares the same prefix, closes them with a `superseded by #<N>` comment, and deletes the source branch. This prevents the pile-up pattern observed during ai-playbook v0.8.0-rc1→rc6 dogfooding (10 stacked bump PRs, each pairwise-conflicting on the same submodule SHA, none individually mergeable).
 
-The `propagate-{playbook,skills}-bump.yml` templates in `templates/new-project/.github/workflows/` ship this logic as of v0.8.0.
+**v0.19.0 update**: the playbook no longer ships a centralised push-pipeline that opens bump PRs across consumers. Each consumer manages its own pull cadence via Dependabot / Renovate / local cron. The supersede semantics above still apply *within each consumer's own CI* whenever multiple bump PRs collide on the same branch prefix.
 
 ---
 
@@ -320,7 +320,7 @@ The full canonical structure is documented in [`docs/runbooks/coderabbit-fallbac
 
 ### 4.5.4 Auto-generated bump PRs must pre-populate §4.5 (chore-archive PRs included)
 
-Introduced in v0.11.0. Every PR opened by an *automation* (not a worker AI session) — including `propagate_bump.py` (playbook submodule bumps), `propagate_skills_bump.py` (skills bumps), and the new `propagate-archive.yml` workflow (post-merge OpenSpec archive — see §6.7) — must emit a §4.5 "AI-reviewer signoff" section in the auto-generated PR body, pre-populated with the schema markers from §4.5.3, before the L2 fallback check fires.
+Introduced in v0.11.0. Every PR opened by an *automation* (not a worker AI session) — including third-party bots (Dependabot, Renovate) and any in-consumer scheduled-job that opens submodule-bump PRs, plus the `propagate-archive.yml` workflow (post-merge OpenSpec archive — see §6.7) — must emit a §4.5 "AI-reviewer signoff" section in the auto-generated PR body, pre-populated with the schema markers from §4.5.3, before the L2 fallback check fires.
 
 The minimum viable pre-population for a bump / chore-archive PR is:
 
@@ -336,7 +336,7 @@ Failure mode this prevents: surfaced 2026-05-06 during ai-playbook v0.10.0 propa
 
 The contract is **strict** on Profile A repos. Profile B repos may opt out of the L2 check entirely; Profile A repos cannot — branch protection assumes the marker is present.
 
-Reference implementation: `scripts/propagate_bump.py` and `scripts/propagate_skills_bump.py` updated in v0.11 to emit the §4.5 block as part of `_render_pr_body()`. The new `propagate-archive.yml.tmpl` (added in v0.11; see §6.7) ships the same block in its job's `gh pr create --body` heredoc.
+Reference implementation: pre-v0.19.0 the `scripts/propagate_bump.py` and `scripts/propagate_skills_bump.py` scripts emitted the §4.5 block as part of `_render_pr_body()`. Those scripts were retired with the push pipeline in v0.19.0; the contract now applies to whichever bump-bot a consumer adopts. The `propagate-archive.yml.tmpl` (added in v0.11; see §6.7) still ships the same block in its job's `gh pr create --body` heredoc.
 
 #### `bootstrap_gh_project.py` does NOT auto-merge
 
@@ -789,7 +789,7 @@ Existing consumer projects on ai-playbook v0.7.x → v0.8.0 follow:
 3. **Run bootstrap**: `python .ai-playbook/scripts/bootstrap_gh_project.py --owner <user> --project-number <existing> --profile auto --no-create-items` (no-create-items mode aligns just the schema, not the items).
 4. **Update consumer's `AGENTS.md`**: add `release_management: .ai-playbook/docs/concepts/release-management.md` to the inherited specs list. If on v0.7.x, also bump `inherits_from` to `@v0.8.0`.
 5. **Update consumer's `.github/workflows/ci.yml`**: switch the pre-commit step to diff-mode invocation per §4.4. The template at `templates/new-project/.github/workflows/ci.yml.tmpl` ships the canonical form.
-6. **Bump submodule pointer** to v0.8.0 (the propagate-bump bot opens the PR automatically per §3.4 once the playbook tag lands).
+6. **Bump submodule pointer** to the target tag manually or via Dependabot/Renovate (per the pull-model contract introduced in v0.19.0 — see §3.4).
 
 Consumer projects on v0.8.0+ inherit this spec automatically; new consumers bootstrapped via `scripts/bootstrap.py` get the AGENTS.md template that already references it.
 
@@ -874,4 +874,4 @@ adoption status.
 - `templates/new-project/.coderabbit.yaml.tmpl` — CodeRabbit config template applied in Profile A.
 - `templates/new-project/.github/workflows/project-status.yml.tmpl` — auto-transition `Blocked → Todo` workflow (§6.3).
 - `templates/new-project/.github/workflows/dep-check.yml.tmpl` — optional hard dependency enforcement (§6.2).
-- [`.github/workflows/propagate-playbook-bump.yml`](../../.github/workflows/propagate-playbook-bump.yml) — bump-bot with supersede logic (§3.4). Lives in the playbook repo itself (not a consumer template).
+- *(retired in v0.19.0)* `propagate-playbook-bump.yml` — the playbook's centralised push-bump workflow. Removed when the pull-model contract landed (§3.4). Each consumer now manages bumps via Dependabot/Renovate or manual `git submodule update` per [Runbook: release](../runbooks/release.md) "Consumer-side bump" section.
