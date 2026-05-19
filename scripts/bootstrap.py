@@ -52,7 +52,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
-from scripts._skills_materialiser import materialise_skills  # noqa: E402
+from scripts.materialise_skills import materialise_skills  # noqa: E402
 
 SCRIPT_BASENAME = "bootstrap.py"
 GATE_NAME = "submodule-unreachable"
@@ -500,7 +500,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         result = materialise_skills(target_dir, dry_run=args.dry_run)
         if not result.ok:
-            return 2 if any("git not on PATH" in e for e in result.errors) else 1
+            # v0.17.0 single-source materialiser: exit 2 only when the source
+            # is missing (consumer needs `git submodule update --init`); any
+            # other failure is exit 1.
+            return 2 if any(e.startswith("source missing:") for e in result.errors) else 1
         return 0
 
     validate_slug(args.project_name)
