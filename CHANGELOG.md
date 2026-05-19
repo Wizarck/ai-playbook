@@ -4,7 +4,47 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.16.0+)
+### Known gaps still pending (target: v0.17.0+)
+
+## [0.16.0] — 2026-05-19 — doc-drift CI enforcement + audit drift fixes
+
+Additive MINOR. Slice 2 of the architectural reset plan v0.15.0 → v0.20.0 (see `~/.claude/plans/vamos-a-identificar-los-elegant-marshmallow.md` §"Slice 2"). Ships a declarative co-edit-pairs manifest + a PR-time CI check that fails when one side of a known (code, doc) pair is modified without the other, with a documented `[no-doc-impact]` PR-title escape hatch. Also clears 3 long-standing test failures and 8 dead cross-references that were left over from prior renames.
+
+### Added
+
+- **`specs/doc-drift-enforcement.md`** (NEW, v1.0.0). Full contract: manifest schema (§2), CI gate behaviour (§3), canonical block message shape (§4 — per `specs/error-message-standard.md`), escape-hatch contract (§5 — `[no-doc-impact]` case-insensitive substring in PR title), adoption checklist (§6), invariants (§7), open questions (§8). Future tiers (2 = soft / warn, 3 = informational / telemetry-only) are reserved in the schema; only Tier 1 (strict) is enforced in v0.16.0.
+- **`specs/co-edit-pairs.yaml`** (NEW). v1 ships with 12 hand-curated pairs grounded in the real `scripts/` ↔ `specs/` topology: `cleanup-zombies`, `zombies-manifest`, `apply-skill-enforcement-hook`, `apply-skill-enforcement-marker`, `git-worktree-bare-layout`, `auto-managed-sections`, `break-glass`, `verdict-contract`, `error-message-standard`, `doc-drift-enforcement` (self-reference — the rule eats its own dogfood), `doc-drift-manifest`, `mcp-servers-schema`. Schema validation enforced via `check_doc_drift.py validate` (exit 2 on schema break).
+- **`scripts/check_doc_drift.py`** (NEW): argparse-driven CLI with two subcommands. `check` (default) reads `git diff --name-only origin/main...HEAD` (triple-dot to capture only THIS branch's changes), evaluates each Tier 1 pair, and either passes (exit 0) or emits a canonical WHY/FIX/OVERRIDE error and exits 1. Honours `--pr-title` for the escape hatch. `validate` runs schema-only check. `--diff-files` flag bypasses git for tests / synthetic probes. 28 tests in [`tests/test_check_doc_drift.py`](tests/test_check_doc_drift.py) covering: 11 schema-validation paths (exit 2), 9 drift-detection paths (exit 0/1), 5 escape-hatch behaviours, and 3 smoke probes against the real shipped manifest.
+- **`.github/workflows/doc-drift-check.yml`** (NEW). Triggers on `pull_request: [opened, synchronize, reopened, edited]` — the `edited` trigger is critical so adding `[no-doc-impact]` to the PR title re-runs without a code push. Sticky PR comment pattern (one comment per PR, updated on each run) mirrors `branch-name-validator.yml`. Hard-fails the check on drift; passes when the manifest is clean OR the escape hatch is honoured.
+
+### Changed
+
+- **`specs/enforcement-status.md`**: new row for `doc-drift-enforcement.md` at ✅ wired (script + 28 tests + CI workflow + manifest schema validator).
+- **`docs/development-flow.md`** §5 enforcement table: new row "Doc-drift on paired (code, doc) tuples" at ✅ wired.
+- **`README.md`** status section bumped to v0.16.0 with the new doc-drift summary.
+
+### Fixed
+
+- **`tests/test_apply_enforce_hook_template.py`**: 3 long-standing failing tests (`test_hook_blocks_when_no_marker`, `test_hook_handles_glob_in_write_paths`, `test_hook_writes_canonical_error_shape`) now pass. Root cause was a test-fixture issue, not a template bug: `_invoke_hook` copied `os.environ` whole, leaking the parent harness's `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` env var into the child process. The hook (correctly per `specs/apply-skill-enforcement.md` §3) treated the inherited override as a legitimate break-glass and returned exit 0 instead of the expected block (exit 2). Fix: scrub `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` from the fixture env unless the test explicitly sets it via the `override` kwarg.
+- **`specs/project-board-sync.md`** × 5 dead cross-refs: `templates/workflows/project-*.yml` (path never existed) → `templates/new-project/.github/workflows/project-*.yml.tmpl` (canonical location).
+- **`specs/release-management.md`** × 1: `templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl` (does not exist; bump-bot is a playbook-internal workflow) → `.github/workflows/propagate-playbook-bump.yml` (correct location) + clarifying note.
+- **`docs/curriculum.md`** × 1: `../CLAUDE.md` (playbook itself does not ship a `CLAUDE.md`) → consumer-side guidance with explicit note that the playbook dogfoods AGENTS.md only.
+- **`runbooks/coderabbit-fallback.md`** × 1: `../../iguanatrader/docs/gotchas.md` (cross-repo broken relative path) → generic consumer-side reference.
+
+### Validation
+
+- `pytest tests/test_check_doc_drift.py` — 28 / 28 green.
+- `pytest tests/test_apply_enforce_hook_template.py` — 10 / 10 green (was 7 / 10).
+- `python scripts/check_doc_drift.py validate` — exit 0.
+- Synthetic probe: `python scripts/check_doc_drift.py --diff-files scripts/cleanup_zombies.py` → exit 1 (drift detected).
+- Synthetic escape-hatch probe: same diff + `--pr-title "feat: bump [no-doc-impact]"` → exit 0.
+- `python scripts/cleanup_zombies.py validate` — exit 0.
+
+### Notes
+
+- Tier 2 (soft / warn) and Tier 3 (informational / telemetry-only) are reserved in the schema but NOT enforced in v0.16.0. Activation planned for slice 5+ (doc rewrites; may surface many transient pair violations) and slice 6 (telemetry pipeline) per the reset plan.
+- Slice 6 will extend the workflow to emit a `rule_event` per check fire with `escape_hatch: true|false`, enabling monthly reports to flag escape-hatch abuse (> 20% / month) or specific pairs that are always escape-hatched (candidates for tier downgrade).
+- This slice is concurrent with Slice 3 (`feat/single-source-skills-reset`, target v0.17.0); ownership matrix in `~/.claude/plans/vamos-a-identificar-los-elegant-marshmallow-handover.md`. Whichever lands first; the other rebases through `CHANGELOG.md` + `VERSION`.
 
 ## [0.15.0] — 2026-05-19 — consumer-side zombie cleanup hook (declarative manifest + auto-fire)
 

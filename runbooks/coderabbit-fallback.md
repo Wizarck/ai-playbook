@@ -43,7 +43,7 @@ Don't skip categories you think don't apply; mark them "n/a" instead of silently
 
 - New `mypy --strict` errors masked with `# type: ignore`? Each one needs justification.
 - `Any` slipped in where a concrete type was possible?
-- Generic types narrowed unsafely (e.g. literal narrowing across method calls — see [`docs/gotchas.md`](../../iguanatrader/docs/gotchas.md#15) #15 for the canonical case)?
+- Generic types narrowed unsafely (e.g. literal narrowing across method calls — consumer-side `docs/gotchas.md` #15 is the canonical case, e.g. in `iguanatrader`)?
 - New public symbols missing type annotations?
 - Frozen dataclasses with wide-input/narrow-storage semantics — handled correctly via `init=False` + custom `__init__`? (See gotcha #18.)
 
