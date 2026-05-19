@@ -1,13 +1,27 @@
-# fork-inventory.md
+---
+schema: tutorial/v1
+slug: fork-inventory
+title: Fork inventory — walk the upstream-tracked forks Arturo maintains
+description: A guided walk through the upstream-tracked forks the playbook touches. Read the catalog, then practise the 5-step onboarding checklist by mentally adding a sixth fork.
+estimated_time: "10 min"
+prerequisite_concepts: [upstream-sync]
+audience: developer
+order: 8
+---
 
-> **Status**: v1.0.0. Companion to [`../docs/concepts/upstream-sync.md`](../docs/concepts/upstream-sync.md).
+# Fork inventory — walk the upstream-tracked forks Arturo maintains
 
-The authoritative list of upstream-tracked forks Arturo maintains. Each entry links to its local
-clone and the in-repo `PATCHES.md` that enumerates its local patches.
+> **What you'll learn**: How the playbook keeps track of upstream-tracked forks, what each row in the inventory means, and how to onboard a new fork end-to-end via the 5-step checklist. By the end you will be able to read a row of the table aloud and explain why each column exists.
+> **Estimated time**: 10 min
+> **Prerequisites**:
+> - [01-architecture-tour.md](01-architecture-tour.md) — feel the repo shape
+> - [Concept: upstream-sync](../concepts/upstream-sync.md) — the governance contract this catalog implements
+
+This tutorial is intentionally short. Treat it as a guided read of the fork catalog plus a thought experiment: at the end you mentally onboard a sixth fork using the checklist.
 
 ---
 
-## 1. Purpose
+## 1. Why the inventory exists (≤2 min)
 
 - **Discoverability.** A single-file answer to "which forks do we run, and who owns them?"
 - **Onboarding.** Every new fork follows the same 5-step checklist (§3).
@@ -43,7 +57,7 @@ Follow in order. Do not skip.
    git branch --set-upstream-to=upstream/main main
    ```
 3. **Add `PATCHES.md` at the fork root.** Copy from
-   [`../templates/PATCHES.md.tmpl`](../templates/PATCHES.md.tmpl); fill `{{FORK_NAME}}`,
+   [`../../templates/PATCHES.md.tmpl`](../../templates/PATCHES.md.tmpl); fill `{{FORK_NAME}}`,
    `{{UPSTREAM_URL}}`, `{{LAST_REFRESH_ISO}}`, and `{{TODAY}}`. Commit.
 4. **Add an entry to this inventory.** Append a new row to §2 with the correct prefix
    (`consumer-d/...` or `consumer-b/...`) and a one-line Purpose.
@@ -67,12 +81,12 @@ If we stop tracking a fork (upstream dead, we no longer use it, we vendored perm
 3. Remove the entry from `~/.ai-playbook/forks.yaml`.
 4. `hindsight.retain` a decision entry in the `ops-forks` bank explaining the retirement.
 
-## 5. Cross-references
+## 5. What's next
 
-- [`../docs/concepts/upstream-sync.md`](../docs/concepts/upstream-sync.md) — the governance spec.
-- [`../templates/PATCHES.md.tmpl`](../templates/PATCHES.md.tmpl) — per-fork manifest template.
-- `scripts/upstream_sync.py` — CLI inspection + triage.
-- `consumer-d/langgraph-aiops/workflows/upstream_refresher.py` — weekly refresh workflow.
+- [Concept: upstream-sync](../concepts/upstream-sync.md) — the governance spec this catalog implements.
+- [`../../templates/PATCHES.md.tmpl`](../../templates/PATCHES.md.tmpl) — per-fork manifest template you use in §3 step 3.
+- `scripts/upstream_sync.py` — CLI inspection + triage tool that reads `~/.ai-playbook/forks.yaml`.
+- [06-curriculum.md](06-curriculum.md) — fork onboarding sits inside the week-3 contributor scope.
 
 ---
 

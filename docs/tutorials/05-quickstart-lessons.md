@@ -1,8 +1,23 @@
-# quickstart-lessons.md
+---
+schema: tutorial/v1
+slug: quickstart-lessons
+title: Per-OS friction — what tends to break and how to fix it
+description: A companion to the quickstart that walks you through the most common per-OS friction (Windows, macOS, Linux, WSL2) so you can resolve issues without leaving the tutorial.
+estimated_time: "10 min"
+prerequisite_concepts: []
+audience: operator
+order: 5
+---
 
-> **Status**: v1.0.0. macOS / Linux / WSL2 sections carry **predicted** friction derived from static analysis; real dry-runs on those platforms will refine them.
+# Per-OS friction — what tends to break and how to fix it
 
-This file records what actually went wrong when running the [quickstart](quickstart.md) on real hardware. `quickstart.md` tells you what to do; this file tells you what to expect to break and how to fix it.
+> **What you'll learn**: The friction points the quickstart can hit on each OS and exactly how to resolve them. Read your OS section before you start the quickstart; refer back if a step fails.
+> **Estimated time**: 10 min (read your section + scan the others)
+> **Prerequisites**:
+> - You are about to run, or are in the middle of running, [03-quickstart.md](03-quickstart.md)
+> - A terminal open at your platform
+
+This file is the field guide. The quickstart tells you what to do; this file tells you what to expect to break and how to fix it. Skim your OS section first; come back here whenever a step misbehaves.
 
 ---
 
@@ -107,15 +122,15 @@ Fastest of the four environments once prereqs are installed. Tests ≤1s. Steps 
 If you hit a friction NOT listed above:
 
 - **Append a bullet** under the relevant OS section AND open a PR.
-- **Low-friction alternative**: add a bullet to [FEEDBACK.md](../FEEDBACK.md) with the date + handle. The weekly retro (see [docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md)) will triage it.
+- Reference the friction in the retro that follows your first archive — the cadence is documented in [retrospective-cadence.md](../concepts/retrospective-cadence.md).
 
 Do NOT edit Windows-baseline timings after the fact to match your experience — file a PR to update the whole table so the lineage is clear.
 
 ---
 
-## Cross-references
+## What's next
 
-- [quickstart.md](quickstart.md) — the 8-step walkthrough this doc validates.
-- [FEEDBACK.md](../FEEDBACK.md) — low-friction gripe channel.
-- [docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md) — where these findings feed back into the playbook.
-- [scripts/doctor.py](../scripts/doctor.py) — run this first on any new machine; it catches most of the predicted frictions above.
+- [03-quickstart.md](03-quickstart.md) — the 8-step walkthrough this doc validates. Return there if you bailed out mid-step.
+- [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — if the manual quickstart is taking too long on your OS, switch to the one-shot script.
+- [Concept: retrospective-cadence](../concepts/retrospective-cadence.md) — where these findings feed back into the playbook.
+- [Runbook: windows-dev-environment](../runbooks/windows-dev-environment.md) — the canonical Windows recovery procedure when something deeper than friction goes wrong.
