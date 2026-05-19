@@ -1,8 +1,16 @@
-# agentic-failures.md
+---
+schema: concept/v1
+slug: agentic-failures
+title: Agentic Failures
+summary: |
+  This catalog enumerates the failure modes an agent can enter, with a
+  detectable signal, a first-response playbook, a pointer to the detector
+  (script or OTel attribute), and a plausible example. Every detectable
+  failure carries the OTel attribute ai_playbook.failure.kind=<id> so
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Draws from Google Agentic Design
-> Patterns (failure modes chapter) plus practical incidents logged by playbook consumers.
-> **Enforcement**: 📋 spec-only with 🟡 partial detectors — see [enforcement-status.md](enforcement-status.md). Active detectors: `prompt_injection_filter.py` (mode 2.3 partial), `secrets_scan.py` (mode 2.11 wired). Modes 2.1, 2.2, 2.4–2.10, 2.12 are documented but no automated detector runs in real time; retros surface them retrospectively.
+# Agentic Failures
 
 This catalog enumerates the failure modes an agent can enter, with a detectable signal, a
 first-response playbook, a pointer to the detector (script or OTel attribute), and a plausible
@@ -104,7 +112,7 @@ The catalog is deliberately open — if you observe a new mode, add a row via RF
      expanding the current one.
 - **Detector.** `telemetry.write_paths_touched` from [agent-contract.md](agent-contract.md) §3
   compared against `scope.write_paths` from the input envelope. Superset diff = drift. The
-  harness MUST refuse writes outside `scope.write_paths` (that's `untracked_state_mutation`),
+  harness must refuse writes outside `scope.write_paths` (that's `untracked_state_mutation`),
   but "inside scope" drift still needs review.  
   OTel: `ai_playbook.failure.kind=goal_drift`.
 - **Example.** Builder asked to implement `CreateIngredient` use-case also "cleaned up" the
@@ -170,7 +178,7 @@ The catalog is deliberately open — if you observe a new mode, add a row via RF
      unfinished task.
   3. Re-spawn the builder with the unfinished list.
 - **Detector.** `scripts/openspec_validate.py` (exists as a script in `scripts/`; enforces
-  change-level completeness). Parent MUST invoke before accepting a builder's `✅`.  
+  change-level completeness). Parent must invoke before accepting a builder's `✅`.  
   OTel: `ai_playbook.failure.kind=premature_completion`.
 - **Example.** Builder wrote the entity and use case but skipped the repository adapter; said
   "APPROVED, task 3.2 complete". `openspec_validate.py` flagged the missing adapter; builder
@@ -246,7 +254,7 @@ The catalog is deliberately open — if you observe a new mode, add a row via RF
 - **First-response playbook.**
   1. The PreToolUse hook blocks the call with the canonical error
      (`❌ apply phase bypass detected ...`) per
-     [error-message-standard.md](error-message-standard.md).
+     [error-message-standard.md](../rules/error-message-standard.rule.md).
   2. The agent invokes the skill (`/openspec-apply-change <id>`) which writes
      step 0's marker and re-tries the edit.
   3. If the edit is legitimately out-of-band (post-review fix days later,
@@ -266,7 +274,7 @@ The catalog is deliberately open — if you observe a new mode, add a row via RF
 
 ## 3. Universal OTel contract
 
-All failure-carrying spans MUST include:
+All failure-carrying spans must include:
 
 | Attribute | Value |
 |---|---|
@@ -280,11 +288,11 @@ aggregates weekly.
 
 ## 4. See also
 
-- [verdict-contract.md](verdict-contract.md) — how these failures become findings on verdicts.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — how these failures become findings on verdicts.
 - [agent-contract.md](agent-contract.md) — envelope fields the harness checks.
 - [parallel-review.md](parallel-review.md) — the main defence against `hallucination`,
   `over_confidence`, and `cascade_failure`.
-- [error-message-standard.md](error-message-standard.md) — shape of any error surfaced here.
-- [break-glass.md](break-glass.md) — overrides still emit failure telemetry.
+- [error-message-standard.md](../rules/error-message-standard.rule.md) — shape of any error surfaced here.
+- [break-glass.md](../rules/break-glass.rule.md) — overrides still emit failure telemetry.
 - [degradation-modes.md](degradation-modes.md) — infrastructure-level degradation, distinct from
   agent-level failures catalogued here.

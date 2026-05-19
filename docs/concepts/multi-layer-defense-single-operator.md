@@ -1,6 +1,16 @@
-# multi-layer-defense-single-operator.md
+---
+schema: concept/v1
+slug: multi-layer-defense-single-operator
+title: Multi Layer Defense Single Operator
+summary: |
+  Multi-tenant SaaS with N customers absorbs operator mistakes via the law of
+  large numbers — a botched mutation affects one tenant; the rest are
+  insulated. Single-operator AI systems do not have that luxury: a botched
+  mutation by the AI affects the operator's only environment.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines the canonical layered-defense pattern for **single-operator AI-driven systems where the operator IS the only safety net**. Cross-validated by consumer-d ADRs 017 (single PAT), 018 (sidecar HMAC), 019 (ServiceAccount RBAC), 020 (NetworkPolicy egress), 024 (no-undo-restart) + consumer-b `MERGE-ORDERS-SECURITY-AUDIT.md` (zero-permission plugin fork).
+# Multi Layer Defense Single Operator
 
 ## 1. Why this spec
 
@@ -10,7 +20,7 @@ The pattern that has emerged across consumer-d (5 ADRs about defense-in-depth) a
 
 This spec captures the canonical 5-layer pattern for **operator-gated AI infrastructure**: identity → ingress → network → state → ergonomic. Each layer is independently meaningful (dropping one doesn't degrade the others' value); together they form the practical security floor for single-operator AI systems.
 
-This spec **complements** [hitl-approval-pattern.md](hitl-approval-pattern.md) (which gates the runtime mutation itself) by codifying the *infrastructure* gates that keep the AI in scope before any mutation request reaches the operator.
+This spec **complements** [hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md) (which gates the runtime mutation itself) by codifying the *infrastructure* gates that keep the AI in scope before any mutation request reaches the operator.
 
 ---
 
@@ -91,7 +101,7 @@ Not every system needs all 5 layers. The decision matrix:
 | ...is a one-shot CLI tool (no daemon) | ✅ (host auth) | (skip) | (skip) | (skip — implicit via shell user) | ✅ for irreversibles |
 | ...is a fully-static dashboard | ✅ | (skip) | (skip) | (skip) | (skip) |
 
-The systems that need all 5 layers are **the same systems that warrant a HITL gating spec** ([hitl-approval-pattern.md](hitl-approval-pattern.md)) — both kick in for "irreversible state mutation in a single-operator AI system".
+The systems that need all 5 layers are **the same systems that warrant a HITL gating spec** ([hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md)) — both kick in for "irreversible state mutation in a single-operator AI system".
 
 ---
 
@@ -107,8 +117,8 @@ The systems that need all 5 layers are **the same systems that warrant a HITL ga
 
 ## 7. Cross-references
 
-- [hitl-approval-pattern.md](hitl-approval-pattern.md) — runtime gating (sister spec).
-- [break-glass.md](break-glass.md) — the operator's escape valve when defenses interfere with a genuine emergency.
+- [hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md) — runtime gating (sister spec).
+- [break-glass.md](../rules/break-glass.rule.md) — the operator's escape valve when defenses interfere with a genuine emergency.
 - [post-mortem.md](post-mortem.md) — when a defense layer fails, postmortem.
 - [security-policy.md](data-retention.md) (related) — data-retention rules; a layer above is "what data even exists for the AI to mutate".
 - External: consumer-d ADRs 017/018/019/020/024 (one ADR per layer in the original analysis).

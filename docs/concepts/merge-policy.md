@@ -1,8 +1,16 @@
-# merge-policy.md
+---
+schema: concept/v1
+slug: merge-policy
+title: Merge Policy
+summary: |
+  This spec codifies when to use squash-merge vs merge-commit vs rebase-merge
+  when landing PRs to main. The choice affects git log readability, git blame
+  quality, and audit trail of authorial intent. Wrong default = either lost
+  history (over-squashing) or noisy log…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Authored under OpenSpec change `industrialize-dev-flow` (Phase 5 wave 2) on 2026-05-05. Referenced from [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) §1 and §5.
->
-> **Enforcement**: 🟡 partial. Soft enforcement via `.github/workflows/pr-merge-style.yml` advisor (comments on PRs recommending the right style). No hard block — the maintainer ultimately decides. The decision rules below are the contract; the advisor surfaces them.
+# Merge Policy
 
 This spec codifies when to use **squash-merge** vs **merge-commit** vs **rebase-merge** when landing PRs to `main`. The choice affects `git log` readability, `git blame` quality, and audit trail of authorial intent. Wrong default = either lost history (over-squashing) or noisy log (under-squashing).
 
@@ -93,10 +101,10 @@ These settings are documented here for reference; they are NOT enforced via this
 
 ## 5. Cross-references
 
-- [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) §1 (hierarchy) and §5 (industrialisation) — referrer.
+- [`docs/concepts/development-flow.md`](development-flow.md) §1 (hierarchy) and §5 (industrialisation) — referrer.
 - [`docs/concepts/release-management.md`](release-management.md) — section §4 PR shape.
-- [`.github/workflows/pr-merge-style.yml`](../.github/workflows/pr-merge-style.yml) — the advisor implementation.
-- [`docs/runbooks/release.md`](../docs/runbooks/release.md) — the release-cut PR uses merge-commit (semantic checkpoints).
+- [`.github/workflows/pr-merge-style.yml`](../../.github/workflows/pr-merge-style.yml) — the advisor implementation.
+- [`docs/runbooks/release.md`](../runbooks/release.md) — the release-cut PR uses merge-commit (semantic checkpoints).
 
 ---
 

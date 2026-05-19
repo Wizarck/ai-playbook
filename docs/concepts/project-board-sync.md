@@ -1,18 +1,16 @@
-# project-board-sync.md
+---
+schema: concept/v1
+slug: project-board-sync
+title: Project Board Sync
+summary: |
+  release-management.md §5 codifies the schema of the GH Project board
+  (Status, custom fields, item-per-change). It does not codify the transitions
+  between Status values, the proof that a transition happened, or the audit of
+  the worker AI's compliance with the contract.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. New in ai-playbook v0.10.0. Authored 2026-05-06 after the
-> consumer-e Wave 2 retro surfaced that the AI agent silently drifted from the
-> GH Project board state — slices merged with `Status=Backlog`, `Branch` field
-> empty, no audit trail of progression. This spec codifies a defense-in-depth
-> contract that makes board drift **structurally impossible** rather than
-> "the AI should remember to update it".
->
-> **Enforcement**: 🟡 partial — L1 (built-in workflows) and L2 (custom Actions
-> workflow) ship as templates; L3 (required status check), L4 (state machine
-> validator), and L7 (skill-level archive gate) ship as templates pending
-> consumer adoption; L5 (telemetry) ships as a separate spec
-> ([agent-telemetry.md](agent-telemetry.md)); L6 (companion script extension)
-> ships as a v0.10.1 follow-up. See `enforcement-status.md` for the live matrix.
+# Project Board Sync
 
 ## 1. Why this spec
 
@@ -49,12 +47,12 @@ AI's text output — produces the verdict).
 | Layer | Mechanism | Independence | Failure mode caught |
 |---|---|---|---|
 | **L1** | GH Projects v2 **built-in workflows** ([GitHub docs](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-built-in-automations)): Auto-add → `Status=Todo`; PR-merged → `Status=Done`; Issue-closed → `Status=Done` | Server-side autonomous | Item never on board; Status not `Done` post-merge |
-| **L2** | Custom Actions workflow `project-status.yml` (per [`templates/new-project/.github/workflows/project-status.yml.tmpl`](../templates/new-project/.github/workflows/project-status.yml.tmpl)): `push slice/**` → set `Branch` field, `Base SHA`, `Status=In Progress`; `pr.opened` → `Status=Review`; `pr.synchronize` → refresh `Base SHA` | Server-side autonomous | Custom fields drift; In-Progress / Review transitions skipped |
-| **L3** | New required status check `project-board-synced` (per [`templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl`](../templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl)): GraphQL query verifies Status / Branch / Base SHA match git state, fails CI if invalid | Server-side, **physical merge enforcement** via branch protection | Drift between branch state and board; bypass attempt blocked at the GH UI merge button |
+| **L2** | Custom Actions workflow `project-status.yml` (per `templates/new-project/.github/workflows/project-status.yml.tmpl`): `push slice/**` → set `Branch` field, `Base SHA`, `Status=In Progress`; `pr.opened` → `Status=Review`; `pr.synchronize` → refresh `Base SHA` | Server-side autonomous | Custom fields drift; In-Progress / Review transitions skipped |
+| **L3** | New required status check `project-board-synced` (per `templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl`): GraphQL query verifies Status / Branch / Base SHA match git state, fails CI if invalid | Server-side, **physical merge enforcement** via branch protection | Drift between branch state and board; bypass attempt blocked at the GH UI merge button |
 | **L4** | State-machine validator workflow `project-state-machine.yml` (gh-aw [ProjectOps pattern](https://github.github.com/gh-aw/patterns/projectops/)): listens on `project_v2_item.edited`, validates transition graph (Backlog → Todo → In Progress → Review → Done; no skipping), reverts illegal transitions and posts an audit comment | Server-side autonomous | Status set to a value that violates the transition graph |
 | **L5** | Agent telemetry — Claude Code OTLP exporter → existing project Langfuse instance (per [agent-telemetry.md](agent-telemetry.md)). Every tool call becomes a span with `slice=<id>` tag; the entire `/opsx:apply` lifecycle is one trace | Independent (collector outside the AI process) | Post-hoc audit "did the AI run companion before first commit?" without relying on AI testimony |
 | **L6** | `opsx_apply_companion.py --enforce-board` flag: script queries GraphQL for the project item, exits non-zero if Status != In Progress or Branch field unset. AI invokes the script; the script — not AI text — produces the verdict | Tool-level (AI runs, script decides) | "AI claims it updated board" without proof; pre-flight rebase didn't fire |
-| **L7** | `openspec-archive-change` skill Step 0 invokes `verify_board_state.py` (per [`scripts/verify_board_state.py`](../scripts/verify_board_state.py)): refuses archive if Status != Done; exit-code semantic, not skill-instruction language | Tool-level (script invoked by skill) | Archive with stale board (e.g. PR merged but L1 workflow failed silently) |
+| **L7** | `openspec-archive-change` skill Step 0 invokes `verify_board_state.py` (per [`scripts/verify_board_state.py`](../../scripts/verify_board_state.py)): refuses archive if Status != Done; exit-code semantic, not skill-instruction language | Tool-level (script invoked by skill) | Archive with stale board (e.g. PR merged but L1 workflow failed silently) |
 
 **Truly independent layers**: L1, L2, L3, L4, L5 (5 layers, exceeds OWASP ≥3).
 **Tool-level reinforcers**: L6, L7 (defense in depth — even if AI ignores the
@@ -95,7 +93,7 @@ L4 reverts and comments.
 
 The skip-detection rule has one exception: an emergency hot-fix that bypasses
 slice convention (per §6.4 of `release-management.md` "anti-patterns")
-explicitly carries `--break-glass=<reason>` (per [break-glass.md](break-glass.md))
+explicitly carries `--break-glass=<reason>` (per [break-glass.md](../rules/break-glass.rule.md))
 and the L4 workflow whitelists items with the `break-glass` label.
 
 ## 4. Why this layered approach (research justifications)
@@ -248,14 +246,14 @@ opportunistically; the spec is normative but adoption is graded per
 
 - [release-management.md](release-management.md) §5 (project board schema), §6.4-§6.5 (anti-collision + pre-flight rebase)
 - [agent-telemetry.md](agent-telemetry.md) — L5 OTLP-to-Langfuse pattern (sibling spec)
-- [verification-before-completion.md](verification-before-completion.md) §4.1 (broadest-scope rule + tool-exit-code-over-text)
-- [verdict-contract.md](verdict-contract.md) (verdict canonical literals)
-- [break-glass.md](break-glass.md) (L4 emergency-bypass exception)
+- [verification-before-completion.md](../rules/verification-before-completion.rule.md) §4.1 (broadest-scope rule + tool-exit-code-over-text)
+- [verdict-contract.md](../rules/verdict-contract.rule.md) (verdict canonical literals)
+- [break-glass.md](../rules/break-glass.rule.md) (L4 emergency-bypass exception)
 - [enforcement-status.md](enforcement-status.md) (live adoption matrix)
-- [`templates/new-project/.github/workflows/project-status.yml.tmpl`](../templates/new-project/.github/workflows/project-status.yml.tmpl) (L2 reference implementation)
-- [`templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl`](../templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl) (L3 reference implementation)
-- [`templates/new-project/.github/workflows/project-state-machine.yml.tmpl`](../templates/new-project/.github/workflows/project-state-machine.yml.tmpl) (L4 reference implementation)
-- [`scripts/verify_board_state.py`](../scripts/verify_board_state.py) (L7 helper script)
+- `templates/new-project/.github/workflows/project-status.yml.tmpl` (L2 reference implementation)
+- `templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl` (L3 reference implementation)
+- `templates/new-project/.github/workflows/project-state-machine.yml.tmpl` (L4 reference implementation)
+- [`scripts/verify_board_state.py`](../../scripts/verify_board_state.py) (L7 helper script)
 - External: [GitHub Projects v2 built-in automations](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-built-in-automations)
 - External: [gh-aw ProjectOps pattern](https://github.github.com/gh-aw/patterns/projectops/)
 - External: [OWASP AI Security and Privacy Guide](https://owasp.org/www-project-ai-security-and-privacy-guide/)

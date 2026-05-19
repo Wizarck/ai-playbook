@@ -1,6 +1,16 @@
-# projects-registry.md
+---
+schema: concept/v1
+slug: projects-registry
+title: Projects Registry
+summary: |
+  A per-dev, gitignored YAML file mapping project logical names to absolute
+  paths on the current machine. Dispatchers resolve project locations through
+  the registry, NOT through hardcoded paths. Benefit: - Arturo moves
+  consumer-c from C:\consumer-c to C:\Projects\consumer-c →…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. The registry is load-bearing for dispatcher resolution across CLIs.
+# Projects Registry
 
 ## Purpose
 
@@ -83,7 +93,7 @@ Given a current working directory `cwd`:
 
 ## Gitignore
 
-`projects.yaml` MUST NOT be committed to any repo. It's per-dev truth. The root `.gitignore` of this playbook excludes `.ai-playbook/` (Arturo's local registry dir if ever placed inside a repo). Consumers SHOULD add `projects.yaml` to their own `.gitignore` too.
+`projects.yaml` must not be committed to any repo. It's per-dev truth. The root `.gitignore` of this playbook excludes `.ai-playbook/` (Arturo's local registry dir if ever placed inside a repo). Consumers should add `projects.yaml` to their own `.gitignore` too.
 
 ## Maintenance
 

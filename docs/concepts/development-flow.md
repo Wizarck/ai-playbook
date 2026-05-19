@@ -1,8 +1,16 @@
-# development-flow.md
+---
+schema: concept/v1
+slug: development-flow
+title: Development Flow
+summary: |
+  The playbook formalises a development flow that scales from solo work to
+  multiple agents and humans collaborating on the same project without
+  coordination overhead. This document maps the canonical hierarchy, the
+  parallelism modes, and the entry/exit points so any actor…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Authored under OpenSpec change `industrialize-dev-flow` (Phase 5 wave 2) on 2026-05-05. **LLM-agnostic** — applies to Claude Code, Cursor, Antigravity, Gemini CLI, OpenCode, and humans equally.
->
-> This is the **canonical entry point** for "how do I make a change in any playbook-consuming project?". Every other doc / spec on the topic points HERE; this doc points OUT to specific specs for detail. If you read one document before starting work, read this one.
+# Development Flow
 
 The playbook formalises a development flow that scales from solo work to multiple agents and humans collaborating on the same project without coordination overhead. This document maps the canonical hierarchy, the parallelism modes, and the entry/exit points so any actor (human or LLM) can pick the right path the first time.
 
@@ -79,7 +87,7 @@ Three orthogonal mechanisms let multiple agents/humans work concurrently without
 
 ### Axis 1 — Wave-N (between independent OpenSpec changes)
 
-**Spec**: [release-management.md §6.4](../docs/concepts/release-management.md)
+**Spec**: [release-management.md §6.4](release-management.md)
 
 **When**: you have ≥ 3 OpenSpec changes that touch disjoint capabilities (e.g. `add-litellm-enforcement` + `complete-ir-and-model-migration-specs` + `extend-vps-maintainer` — none of them write to the same files).
 
@@ -89,7 +97,7 @@ Three orthogonal mechanisms let multiple agents/humans work concurrently without
 
 ### Axis 2 — Intra-slice (within one OpenSpec change)
 
-**Spec**: [release-management.md §6.6](../docs/concepts/release-management.md) + skill [`openspec-apply-parallel`](../skills/openspec-apply-parallel/SKILL.md) (added v0.9.2)
+**Spec**: [release-management.md §6.6](release-management.md) + skill [`openspec-apply-parallel`](../../skills/openspec-apply-parallel/SKILL.md) (added v0.9.2)
 
 **When**: a single OpenSpec change has `tasks.md` groups with disjoint write-paths (canonical example: a slice that scaffolds 5 bounded contexts under `apps/api/src/` — `iam/`, `ingredients/`, `suppliers/`, `cost/`, `shared/uom/`).
 
@@ -104,7 +112,7 @@ When the gating questions don't pass, fall back to `/opsx:apply` (sequential).
 
 ### Axis 3 — Worktrees (the operational base for both)
 
-**Spec**: [git-worktree-bare-layout.md](../docs/concepts/git-worktree-bare-layout.md) + [runbook git-worktree-bare-setup.md](../docs/runbooks/git-worktree-bare-setup.md) + script `scripts/wt_add.py`
+**Spec**: [git-worktree-bare-layout.md](git-worktree-bare-layout.md) + [runbook git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) + script `scripts/wt_add.py`
 
 **When**: ≥ 3 slices concurrent (axis 1) OR ≥ 4 groups in one slice (axis 2). Below those thresholds, single working tree is simpler.
 
@@ -132,7 +140,7 @@ When the gating questions don't pass, fall back to `/opsx:apply` (sequential).
 1. Is this change ≤ 5 lines + obvious + zero blast radius? → **trivial fix path**. `fix/<short-id>` branch, no OpenSpec change required, single commit, squash-merge to main.
 2. Otherwise: **OpenSpec change path** (the canonical flow).
 
-Any agent (LLM) following this doc that decides "trivial" path MUST justify in PR description; reviewer can require promotion to OpenSpec change if scope was misjudged.
+Any agent (LLM) following this doc that decides "trivial" path must justify in PR description; reviewer can require promotion to OpenSpec change if scope was misjudged.
 
 ### 3.2 OpenSpec change path
 
@@ -167,7 +175,7 @@ Branch deleted          (auto via gh pr merge --delete-branch)
 
 ### 3.3 Release path
 
-When the maintainer (Profile A — see [`docs/concepts/role-matrix.md`](../docs/concepts/role-matrix.md)) decides the accumulated PRs in main are a coherent release:
+When the maintainer (Profile A — see [`docs/concepts/role-matrix.md`](role-matrix.md)) decides the accumulated PRs in main are a coherent release:
 
 ```
 Release-prep PR:        chore(release): vX.Y.Z
@@ -190,7 +198,7 @@ OpenSpec archive:       in each consumer where the change applied,
                         `openspec archive <change-id>` retires the proposal
 ```
 
-Release timing is a **policy decision**, not auto-cut. See [release-management.md §3](../docs/concepts/release-management.md) for criteria (semver discipline, CHANGELOG quality, breaking-change review).
+Release timing is a **policy decision**, not auto-cut. See [release-management.md §3](release-management.md) for criteria (semver discipline, CHANGELOG quality, breaking-change review).
 
 ---
 
@@ -219,7 +227,7 @@ CLI-specific routers (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`) are **thin poi
 
 ## 5. Industrialisation — what's enforced vs what's convention
 
-Following [`docs/concepts/enforcement-status.md`](../docs/concepts/enforcement-status.md) shape:
+Following [`docs/concepts/enforcement-status.md`](enforcement-status.md) shape:
 
 | Discipline | Enforcement | Where |
 |---|---|---|
@@ -238,7 +246,7 @@ Following [`docs/concepts/enforcement-status.md`](../docs/concepts/enforcement-s
 | Consumer-side playbook zombie cleanup | 🟡 partial | `scripts/rules/cleanup-zombies.rule.py` + declarative manifest `specs/zombies-manifest.yaml` + hook templates `templates/new-project/scripts/git-hooks/{post-merge,post-checkout}.tmpl`. Auto-fires on consumer `git pull` / `git checkout`. Status flips ✅ when ≥ 1 consumer adopts and reports a quiet 30-day window. v0.15.0. |
 | Doc-drift on paired (code, doc) tuples | ✅ wired | `scripts/check_doc_drift.py` + declarative manifest `specs/co-edit-pairs.yaml` + CI workflow `.github/workflows/doc-drift-enforcement.rule.yml` (sticky PR comment + hard fail). Fires on every PR. Escape hatch: `[no-doc-impact]` (case-insensitive) anywhere in PR title; logged for slice 6 telemetry. v0.16.0. |
 
-**Status legend** (per [enforcement-status.md](../docs/concepts/enforcement-status.md)):
+**Status legend** (per [enforcement-status.md](enforcement-status.md)):
 - ✅ wired — code + tests + pre-commit/CI fires it
 - 🟡 partial — some enforcement, gaps named
 - 📋 spec-only — convention, no automation
@@ -270,20 +278,20 @@ Document these so future agents (and humans) recognise them:
 
 ## 8. Cross-references
 
-- [`docs/concepts/release-management.md`](../docs/concepts/release-management.md) — Sections §3 (semver), §4 (PR shape + AI-reviewer feedback loop), §5 (Profile A/B), §6.4 (Wave-N), §6.5 (pre-flight rebase), §6.6 (intra-slice).
-- [`docs/concepts/runbook-bmad-openspec.md`](../docs/concepts/runbook-bmad-openspec.md) — BMAD discovery → OpenSpec implementation flow.
-- [`docs/concepts/git-worktree-bare-layout.md`](../docs/concepts/git-worktree-bare-layout.md) — bare-repo + per-branch worktree layout.
-- [`docs/runbooks/git-worktree-bare-setup.md`](../docs/runbooks/git-worktree-bare-setup.md) — operational procedure for worktree management.
-- [`docs/concepts/merge-policy.md`](../docs/concepts/merge-policy.md) — squash vs merge-commit decision rules.
-- [`docs/rules/conflict-resolution-policy.rule.md`](../docs/rules/conflict-resolution-policy.rule.md) — what to do when two PRs collide.
-- [`docs/concepts/parallel-review.md`](../docs/concepts/parallel-review.md) — 3-layer review (blind / edge case / adversarial).
-- [`docs/concepts/enforcement-status.md`](../docs/concepts/enforcement-status.md) — what's wired vs spec-only.
-- [`specs/agents-md-v1.schema.json`](../specs/agents-md-v1.schema.json) — frontmatter contract.
-- [`docs/concepts/projects-registry.md`](../docs/concepts/projects-registry.md) — `~/.ai-playbook/projects.yaml` schema.
-- [`docs/concepts/v0.9.0-roadmap.md`](../docs/concepts/v0.9.0-roadmap.md) — Followup #4 (task-checkbox enforcement).
-- [`docs/runbooks/release.md`](../docs/runbooks/release.md) — release cut + propagation runbook.
-- [`docs/runbooks/onboard-new-project.md`](../docs/runbooks/onboard-new-project.md) — bootstrap a new playbook consumer.
-- [`skills/openspec-apply-parallel/SKILL.md`](../skills/openspec-apply-parallel/SKILL.md) — intra-slice parallelism (Axis 2).
+- [`docs/concepts/release-management.md`](release-management.md) — Sections §3 (semver), §4 (PR shape + AI-reviewer feedback loop), §5 (Profile A/B), §6.4 (Wave-N), §6.5 (pre-flight rebase), §6.6 (intra-slice).
+- [`docs/concepts/runbook-bmad-openspec.md`](runbook-bmad-openspec.md) — BMAD discovery → OpenSpec implementation flow.
+- [`docs/concepts/git-worktree-bare-layout.md`](git-worktree-bare-layout.md) — bare-repo + per-branch worktree layout.
+- [`docs/runbooks/git-worktree-bare-setup.md`](../runbooks/git-worktree-bare-setup.md) — operational procedure for worktree management.
+- [`docs/concepts/merge-policy.md`](merge-policy.md) — squash vs merge-commit decision rules.
+- [`docs/rules/conflict-resolution-policy.rule.md`](../rules/conflict-resolution-policy.rule.md) — what to do when two PRs collide.
+- [`docs/concepts/parallel-review.md`](parallel-review.md) — 3-layer review (blind / edge case / adversarial).
+- [`docs/concepts/enforcement-status.md`](enforcement-status.md) — what's wired vs spec-only.
+- [`specs/agents-md-v1.schema.json`](../../schemas/schema-agents-md-v1.json) — frontmatter contract.
+- [`docs/concepts/projects-registry.md`](projects-registry.md) — `~/.ai-playbook/projects.yaml` schema.
+- [`docs/concepts/v0.9.0-roadmap.md`](v090-roadmap.md) — Followup #4 (task-checkbox enforcement).
+- [`docs/runbooks/release.md`](../runbooks/release.md) — release cut + propagation runbook.
+- [`docs/runbooks/onboard-new-project.md`](../runbooks/onboard-new-project.md) — bootstrap a new playbook consumer.
+- [`skills/openspec-apply-parallel/SKILL.md`](../../skills/openspec-apply-parallel/SKILL.md) — intra-slice parallelism (Axis 2).
 
 ---
 
@@ -291,6 +299,6 @@ Document these so future agents (and humans) recognise them:
 
 - **D1.1** This doc lives in `docs/` (onboarding) not `specs/` (enforcement). Rationale: it's a navigational hub. Enforcement lives in the specs it points to.
 - **D1.2** LLM-agnostic — no `~/.claude/CLAUDE.md` or `~/.gemini/GEMINI.md` references. Pointers go through `AGENTS.md` (project) and `AGENTS.md.tmpl` (template). Rationale: per `README.md` ("LLM-agnostic. Norms live in AGENTS.md + specs/; CLI-specific routers are thin pointers"), CLI-home dispatchers are not the right surface.
-- **D1.3** Single canonical entry point. Other docs/specs MUST link here when discussing the dev flow; this doc points OUT to specifics. Rationale: readers shouldn't have to guess which of 5+ docs is the starting point.
+- **D1.3** Single canonical entry point. Other docs/specs must link here when discussing the dev flow; this doc points OUT to specifics. Rationale: readers shouldn't have to guess which of 5+ docs is the starting point.
 - **D1.4** Sequential is the default; parallelism is opt-in. Rationale: the cost of coordination overhead at low N exceeds the wall-clock savings; only graduate to parallel axes when scope justifies.
 - **D1.5** "Trivial fix" path documented but bounded. Rationale: a PR that bypasses OpenSpec ceremony for a 200-line refactor is a process violation; the threshold (≤ 5 lines + obvious + zero blast radius) is conservative on purpose.

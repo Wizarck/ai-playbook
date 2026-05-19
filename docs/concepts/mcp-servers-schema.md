@@ -1,7 +1,16 @@
-# mcp-servers-schema.md
+---
+schema: concept/v1
+slug: mcp-servers-schema
+title: Mcp Servers Schema
+summary: |
+  Single-source-of-truth contract for the 3-layer MCP server configuration
+  stack that all Wizarck-org consumers render from. Defines file shape, merge
+  semantics, validator rules, render rules, and the well-known-server
+  extension recipe.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Formal JSON Schema (`mcp-servers.schema.json`) tracks this
-> doc verbatim.
+# Mcp Servers Schema
 
 Single-source-of-truth contract for the 3-layer MCP server configuration
 stack that all Wizarck-org consumers render from. Defines file shape, merge
@@ -104,9 +113,9 @@ skills-registry:
 
 Layer-specific overrides:
 
-- **Project layer (e.g. `consumer-c/mcp-servers.yaml`)**: MAY pin
+- **Project layer (e.g. `consumer-c/mcp-servers.yaml`)**: may pin
   `endpoint` to the production URL and leave `auth: none` if only
-  `scope=public` skills are consumed. `env.required` MAY add
+  `scope=public` skills are consumed. `env.required` may add
   `SKILLS_REGISTRY_API_KEY` if the project needs `scope=<project-slug>` entries.
 - **Personal layer (e.g. `consumer-d/mcp-servers.yaml`)**: upgrades `auth` to
   `bearer` and adds `SKILLS_REGISTRY_API_KEY` to `env.required` because the
@@ -232,9 +241,9 @@ These will be rejected by the validator, or by review:
 - [`skills-registry.md`](skills-registry.md) — deep-dive on the
   `skills-registry` server's auth + scope model.
 - [`env-vars.md`](env-vars.md) — every env var the renderer may interpolate.
-- [`break-glass.md`](break-glass.md) — `--force-with-reason` contract for
+- [`break-glass.md`](../rules/break-glass.rule.md) — `--force-with-reason` contract for
   validator and renderer overrides.
-- [`error-message-standard.md`](error-message-standard.md) — canonical error
+- [`error-message-standard.md`](../rules/error-message-standard.rule.md) — canonical error
   shape the validator/renderer emits.
 - [`dispatcher-chain.md`](dispatcher-chain.md) — 3-level inheritance model
   the layer semantics mirror.

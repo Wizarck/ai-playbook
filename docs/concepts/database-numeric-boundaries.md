@@ -1,6 +1,16 @@
-# database-numeric-boundaries.md
+---
+schema: concept/v1
+slug: database-numeric-boundaries
+title: Database Numeric Boundaries
+summary: |
+  A recurring data-integrity hazard surfaced in consumer-c
+  m2-cost-rollup-and-audit: > Postgres numeric columns deserialise to strings
+  through TypeORM (default behaviour); JavaScript multiplication of strings
+  produces NaN if non-numeric chars are present, or string…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines the canonical rule for **money / quantity / decimal column boundaries** between the database and the application: explicit coercion at the ORM boundary, never per-call. Surfaced by consumer-c m2-cost-rollup-and-audit (`numeric` columns serialised as strings; multiplication produced `"1000NaN"`; required scattered `Number(...)` calls). Reinforces and generalises AGENTS.md universal rule "**no float for money**".
+# Database Numeric Boundaries
 
 ## 1. Why this spec
 
@@ -24,7 +34,7 @@ The fix is **the same in every stack**: declare the coercion at the ORM boundary
 
 ## 2. The rule
 
-> **Every monetary, quantity, or precision-sensitive column MUST declare its application-side type at the ORM column definition. The application code MUST NEVER call `Number(...)`, `parseFloat(...)`, `float(...)`, etc. on a value coming from this column.**
+> **Every monetary, quantity, or precision-sensitive column must declare its application-side type at the ORM column definition. The application code must NEVER call `Number(...)`, `parseFloat(...)`, `float(...)`, etc. on a value coming from this column.**
 
 If the conversion is needed, it lives in **one place** — a column transformer (TypeORM), a custom type (Prisma / SQLAlchemy), or a mapping layer (SQL).
 
@@ -150,7 +160,7 @@ A "money" column is **numeric + a currency code**. Don't store the currency in t
 
 - AGENTS.md universal rule: "no float for money" — generalised here.
 - [event-and-data-patterns.md](event-and-data-patterns.md) §6 (open-enum text columns + CHECK) — sister pattern for non-numeric column conventions.
-- [release-management.md](release-management.md) §6.4 — anti-collision contract; numeric column ADD-COLUMNS use Shape A or B per [cross-slice-additive-extension.md](cross-slice-additive-extension.md).
+- [release-management.md](release-management.md) §6.4 — anti-collision contract; numeric column ADD-COLUMNS use Shape A or B per [cross-slice-additive-extension.md](../rules/cross-slice-additive-extension.rule.md).
 
 ---
 

@@ -1,12 +1,20 @@
-# model-routing.md
+---
+schema: concept/v1
+slug: model-routing
+title: Model Routing
+summary: |
+  The routing matrix below is the canonical taxonomy every playbook consumer
+  uses to pick a model for a given task class. It is LLM-agnostic at the spec
+  layer: the primary and fallback columns name specific model IDs as of
+  2026-05, but the task classes and the fallback…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v2.1.0 — additive: §5 "Application tags" introduces a second observability dimension orthogonal to `consumer` (per OpenSpec change [`add-litellm-enforcement`](../../openspec/changes/add-litellm-enforcement/proposal.md) D3.8, 2026-05-11). `ai_playbook.application` OTel attr added to §4. No breaking changes.
->
-> v2.0.0 — added `safety_judge` and `conversational_agent` task classes; runtime enforcement wired via [`scripts/_llm.py`](../scripts/_llm.py) + [`configs/litellm-router.yaml`](../configs/litellm-router.yaml) by the same change (Phase 5 P5.4) on 2026-05-01.
+# Model Routing
 
 The routing matrix below is the canonical taxonomy every playbook consumer uses to pick a model for a given task class. It is **LLM-agnostic at the spec layer**: the primary and fallback columns name specific model IDs as of 2026-05, but the task classes and the fallback semantics are intended to outlive any specific generation of models. When a new family ships, bump IDs in the table; do not reshape the taxonomy lightly.
 
-**Runtime enforcement (v2.0.0)**: every LLM call MUST go through `scripts/_llm.py` → LiteLLM proxy. The proxy reads `configs/litellm-router.yaml` for the matrix. Direct provider-SDK calls outside the helper are caught by `scripts/verify_llm_routing.py` (pre-commit, warn-only initially per D3.5).
+**Runtime enforcement (v2.0.0)**: every LLM call must go through `scripts/_llm.py` → LiteLLM proxy. The proxy reads `configs/litellm-router.yaml` for the matrix. Direct provider-SDK calls outside the helper are caught by `scripts/verify_llm_routing.py` (pre-commit, warn-only initially per D3.5).
 
 Providers addressed here:
 
@@ -49,7 +57,7 @@ Latency tiers refer to **time-to-first-token for interactive tasks**, or **total
 ## 2. Fallback chain semantics
 
 1. **Try primary.** On hard failure (5xx, timeout past per-call budget, rate-limit error) or soft failure (quality-degraded signal from a health probe), move to the next element in the chain.
-2. **One step is silent, further steps are not.** A single-step fallback (primary → first element) is emitted as a span attribute but does not break the caller's flow. Falling back **two or more steps** MUST produce a user-visible notification per `notification-policy.md` and tag the session as `DEGRADED_QUALITY` per `degradation-modes.md`.
+2. **One step is silent, further steps are not.** A single-step fallback (primary → first element) is emitted as a span attribute but does not break the caller's flow. Falling back **two or more steps** must produce a user-visible notification per `notification-policy.md` and tag the session as `DEGRADED_QUALITY` per `degradation-modes.md`.
 3. **No cross-task-class promotion without a reason.** If a triage task falls all the way through and the router is tempted to ask Opus, it must refuse: downgrading is fine; upgrading a class silently is not. The caller can explicitly opt in with break-glass (`break-glass.md`).
 4. **Depth is tracked.** The router emits `ai_playbook.routing.fallback_depth` (int, 0 = primary). Alerts fire at depth ≥ 2 sustained for >5 minutes in a session.
 5. **Chain is evaluated per call, not per session.** A transient rate-limit on turn 3 does not pin subsequent turns to the fallback; it should probe the primary again on turn 4 (see circuit-breaker rules in `degradation-modes.md`).
@@ -111,7 +119,7 @@ These attribute names align with the OpenTelemetry Semantic Conventions for Gene
 
 ## 5. Application tags (v2.1.0)
 
-`ai_playbook.application` is a SEPARATE dimension from `ai_playbook.consumer` (the budget bucket). Per [`add-litellm-enforcement` D3.8](../../openspec/changes/add-litellm-enforcement/proposal.md):
+`ai_playbook.application` is a SEPARATE dimension from `ai_playbook.consumer` (the budget bucket). Per `add-litellm-enforcement` D3.8:
 
 | | `consumer` | `application` |
 |---|---|---|
@@ -188,5 +196,5 @@ The override produces the audit trail defined in `break-glass.md` and surfaces i
 - [degradation-modes.md](degradation-modes.md) — state machine the router feeds into.
 - [prompt-caching.md](prompt-caching.md) — cache ordering that applies regardless of provider.
 - [parallel-review.md](parallel-review.md) — consumer of the three "Code review" task classes.
-- [break-glass.md](break-glass.md) — `--force-with-reason` semantics referenced in §7.
+- [break-glass.md](../rules/break-glass.rule.md) — `--force-with-reason` semantics referenced in §7.
 - [notification-policy.md](notification-policy.md) — when and how user-visible fallback notifications are delivered.

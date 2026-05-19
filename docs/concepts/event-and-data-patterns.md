@@ -1,14 +1,16 @@
-# event-and-data-patterns.md
+---
+schema: concept/v1
+slug: event-and-data-patterns
+title: Event And Data Patterns
+summary: |
+  Three event-driven and data-shape patterns appeared independently in
+  consumer-c and consumer-e during 2026-Q2. Each pattern paid off enough that
+  the *next* slice in the same project reused it without re-discovery, and
+  each is the kind of decision the spec layer should anchor…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. New in ai-playbook v0.10.0. Codifies cross-project
-> patterns surfaced by consumer-c Wave 1.7-1.9 (rag-proxy + ai-suggestions
-> + audit-log) and consumer-e Wave 1-2 (shared kernel + 6 bounded
-> contexts). The patterns are **stack-agnostic** (NestJS event-emitter,
-> Python message bus, Go channels — same shapes apply).
->
-> **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md).
-> No automated linter detects departures; reviewer rejects on PR if a
-> proposal violates a pattern without explicit ADR justification.
+# Event And Data Patterns
 
 ## 1. Why this spec
 
@@ -385,7 +387,7 @@ for the user-facing flow, which doesn't need it.
 ### 8.4 When NOT to apply
 
 - **Critical paths** (payment confirmation, kill-switch deactivation):
-  the caller MUST distinguish "service unavailable" from "explicit no".
+  the caller must distinguish "service unavailable" from "explicit no".
 - **APIs that need retry-with-backoff**: the discriminator informs
   whether retry is correct (5xx retry, 4xx don't). Move the retry to
   the proxy if you want to keep the caller simple.
@@ -431,7 +433,7 @@ createOrder(@Body() dto: OrderDto) {
 
 ### 9.3 When `tap()` is correct
 
-Use `tap()` for **fire-and-forget** side effects where the response MUST not be gated:
+Use `tap()` for **fire-and-forget** side effects where the response must not be gated:
 
 - Telemetry traces (the response shouldn't slow down because Langfuse is slow).
 - Cache invalidation (the cache may settle async; the client tolerates re-fetch).

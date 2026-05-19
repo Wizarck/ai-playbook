@@ -1,6 +1,15 @@
-# session-start-hook.md
+---
+schema: concept/v1
+slug: session-start-hook
+title: Session Start Hook
+summary: |
+  How to wire scripts/inject_context.py into a consumer's Claude Code (or
+  equivalent) SessionStart hook so Hindsight memory lands in the agent's
+  context at every session.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Session Start Hook
 
 How to wire `scripts/inject_context.py` into a consumer's Claude Code (or equivalent) `SessionStart` hook so Hindsight memory lands in the agent's context at every session.
 
@@ -30,11 +39,11 @@ Add to the consumer's `.claude/settings.json` (project-level) OR the dev's `~/.c
 
 Notes:
 
-- `sops exec-env secrets/secrets.env --` decrypts `HINDSIGHT_URL`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` (and optionally `HINDSIGHT_API_KEY` for non-CF deployments) into the subprocess env. Without SOPS, set the vars in the shell profile instead. See [`../docs/concepts/env-vars.md`](../docs/concepts/env-vars.md) §HINDSIGHT_* for the full auth contract.
+- `sops exec-env secrets/secrets.env --` decrypts `HINDSIGHT_URL`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` (and optionally `HINDSIGHT_API_KEY` for non-CF deployments) into the subprocess env. Without SOPS, set the vars in the shell profile instead. See [`../docs/concepts/env-vars.md`](env-vars.md) §HINDSIGHT_* for the full auth contract.
 - `2>/dev/null || true` suppresses stderr from the hook so a one-off Hindsight outage doesn't visually block session start. `inject_context.py` writes a `DEGRADED_CONTEXT` banner to `.claude/injected-context.md` instead.
 - `timeout: 60` covers cold recall (~30 s on the production deployment) plus sanitisation overhead. The script's internal `DEFAULT_TIMEOUT_SECS` is 45 s; the hook envelope adds 15 s buffer.
 - The output file (`.claude/injected-context.md`) is read by Claude Code's own bootstrap and surfaced alongside the project's `AGENTS.md`.
-- Replace `<project-bank>` with the project's bank id from [`../docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) §2 (e.g. `consumer-c`, `consumer-d`, `consumer-b`).
+- Replace `<project-bank>` with the project's bank id from [`../docs/concepts/memory-hierarchy.md`](memory-hierarchy.md) §2 (e.g. `consumer-c`, `consumer-d`, `consumer-b`).
 
 ## Gemini CLI / Antigravity
 
@@ -49,7 +58,7 @@ The `.claude/injected-context.md` file is read by the Gemini router (via the dis
 
 ## Cursor
 
-Cursor reads `.cursor/rules/*.mdc` at session start; it does not run arbitrary hooks. Instead, the consumer's `.cursor/rules/00-dispatcher.mdc` (thin router) points at `AGENTS.md`, which in turn points at `.claude/injected-context.md`. The dev MUST manually run `python -m scripts.inject_context` before opening Cursor when Hindsight content matters for the session.
+Cursor reads `.cursor/rules/*.mdc` at session start; it does not run arbitrary hooks. Instead, the consumer's `.cursor/rules/00-dispatcher.mdc` (thin router) points at `AGENTS.md`, which in turn points at `.claude/injected-context.md`. The dev must manually run `python -m scripts.inject_context` before opening Cursor when Hindsight content matters for the session.
 
 ## Dry-run (validation, no write)
 
