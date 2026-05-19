@@ -42,6 +42,7 @@ plugins:
 nav:
   - Home: index.md
   - Start here: start-here.md
+  - Telemetry: telemetry.md
   - Onboarding:
       - Quickstart: quickstart.md
       - Quickstart lessons: quickstart-lessons.md

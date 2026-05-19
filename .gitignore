@@ -32,6 +32,7 @@ build/
 # Projects registry (per-dev, never committed)
 projects.yaml
 .ai-playbook/
+.ai-playbook-state/
 overrides.log
 
 # Consumers registry (per-org, never committed — see consumers.yaml.example
