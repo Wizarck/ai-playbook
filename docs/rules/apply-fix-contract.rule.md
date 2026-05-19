@@ -1,7 +1,7 @@
 ---
 schema: rule/v1
 slug: apply-fix-contract
-description: Workflow mutations of prod state (run command, restart container, edit file, call destructive API) outside the autonomous tier MUST go through `hitl.request_approval` with the full envelope, satisfy `verify_apply_safety` (exact-match + idempotency), and record the outcome to `.ai-playbook/incidents.jsonl`.
+description: Workflow mutations of prod state outside the autonomous tier MUST go through `hitl.request_approval` with the full envelope, pass `verify_apply_safety` (exact-match + idempotency), and record the outcome to `.ai-playbook/incidents.jsonl`.
 paired_hardrule: scripts/rules/apply-fix-contract.rule.py
 activation: agent
 status: enforced

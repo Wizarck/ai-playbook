@@ -1,7 +1,7 @@
 ---
 schema: rule/v1
 slug: cross-slice-additive-extension
-description: When multiple slices add fields to a shared entity in the same wave, each slice MUST ship its own additive migration (Shape A nullable / Shape B NOT NULL DEFAULT sentinel / Shape C JSONB) claiming a reserved slot per migration-slot-reservation — no big-bang ownership slice, no per-slice sister tables, no NOT NULL without default.
+description: Parallel slices adding fields to a shared entity MUST each ship their own additive migration (Shape A nullable / Shape B NOT NULL DEFAULT sentinel / Shape C JSONB) claiming a reserved slot; no big-bang ownership slice, no sister tables.
 paired_hardrule: scripts/rules/cross-slice-additive-extension.rule.py
 activation: agent
 status: enforced

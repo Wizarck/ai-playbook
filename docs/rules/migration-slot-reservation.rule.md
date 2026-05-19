@@ -1,7 +1,7 @@
 ---
 schema: rule/v1
 slug: migration-slot-reservation
-description: Monotonic / append-only slot resources (DB migration revisions, gotcha IDs, ADR numbers) MUST be reserved in `docs/openspec-slice.md` "Slot reservations" at Gate C; `openspec-propose` refuses to scaffold a slice that has no reserved slot for a resource it will write to; deleted slots are never recycled.
+description: Monotonic / append-only slot resources (DB migration revisions, gotcha IDs, ADR numbers) MUST be reserved in `docs/openspec-slice.md` Slot reservations at Gate C; `openspec-propose` refuses to scaffold without a slot; deleted slots are never recycled.
 paired_hardrule: scripts/rules/migration-slot-reservation.rule.py
 activation: agent
 status: enforced
