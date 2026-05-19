@@ -261,7 +261,7 @@ def test_force_with_reason_short_reason_rejected(
     )
     monkeypatch.chdir(tmp_path)
     # The shared `apply_break_glass` helper raises SystemExit(1) when the
-    # reason fails the length check (per specs/break-glass.md). Propagate.
+    # reason fails the length check (per docs/rules/break-glass.rule.md). Propagate.
     with pytest.raises(SystemExit) as exc:
         main([
             "--text", "benign doc",

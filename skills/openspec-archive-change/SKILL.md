@@ -15,9 +15,9 @@ Archive a completed change in the experimental workflow.
 
 **Steps**
 
-0. **Verify project board Status=Done before archiving** (per [project-board-sync.md](../../specs/project-board-sync.md) §2 L7)
+0. **Verify project board Status=Done before archiving** (per [project-board-sync.md](../../docs/concepts/project-board-sync.md) §2 L7)
 
-   Invoke `scripts/verify_board_state.py` BEFORE doing any archive work. The script queries the GH Project board and exits non-zero if the matching item's Status is not `Done`. Refuse to archive on non-zero exit — do NOT paraphrase the script's output, cite the exit code (per [verification-before-completion.md](../../specs/verification-before-completion.md) §4.1.2).
+   Invoke `scripts/verify_board_state.py` BEFORE doing any archive work. The script queries the GH Project board and exits non-zero if the matching item's Status is not `Done`. Refuse to archive on non-zero exit — do NOT paraphrase the script's output, cite the exit code (per [verification-before-completion.md](../../docs/rules/verification-before-completion.rule.md) §4.1.2).
 
    Required env / inputs:
    - `--change-id` — the OpenSpec change-id being archived
@@ -85,7 +85,7 @@ Archive a completed change in the experimental workflow.
    - Determine what changes would be applied (adds, modifications, removals, renames)
    - Show a combined summary so the user knows what an eventual sync would do.
 
-   Future enhancement: a dedicated spec-sync skill is planned for v0.8.0 (per `specs/v0.8.0-roadmap.md` item 10). For now, archive only does the move + retro — no automated sync is performed.
+   Future enhancement: a dedicated spec-sync skill is planned for v0.8.0 (per `docs/concepts/v0.8.0-roadmap.md` item 10). For now, archive only does the move + retro — no automated sync is performed.
 
 5. **Perform the archive**
 
@@ -106,7 +106,7 @@ Archive a completed change in the experimental workflow.
 
 6. **Chain a retrospective write to `retros/<change-id>.md`** (Gate F deliverable)
 
-   Per [runbook-bmad-openspec.md](../../specs/runbook-bmad-openspec.md) §3.1 and §4 + Gate F in §5, every archive MUST chain a retro write. Path: `retros/<change-id>.md` (relative to the project root). Create the `retros/` directory if it does not exist.
+   Per [runbook-bmad-openspec.md](../../docs/concepts/runbook-bmad-openspec.md) §3.1 and §4 + Gate F in §5, every archive MUST chain a retro write. Path: `retros/<change-id>.md` (relative to the project root). Create the `retros/` directory if it does not exist.
 
    - **If a `bmad-retrospective` skill is available**, invoke it via the Skill tool, passing the change-id and the archive path. It produces the retro per the BMAD retrospective format.
    - **Otherwise, write a stub markdown directly** with the following sections (the human fills them in):

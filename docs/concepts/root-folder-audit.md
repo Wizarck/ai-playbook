@@ -33,7 +33,7 @@ the next bump).
 | `README.md` | Public-facing readme | **KEEP** | Slice 7 rewrites it for v0.20.0 showcase. |
 | `VERSION` | Authoritative semver tag | **KEEP** | Required. Bumped to `0.17.1` in this slice. |
 | `CHANGELOG.md` | Release history | **KEEP** | Required. Slice 3.5 adds the `## [0.17.1]` entry. |
-| `MAINTAINERS.md` | Single maintainer + escalation contact | **KEEP** | 15 lines; legitimate root metadata; slice 5 refreshes the obsolete `rfcs/` and `docs/contributing.md` references in passing. |
+| `MAINTAINERS.md` | Single maintainer + escalation contact | **KEEP** | 15 lines; legitimate root metadata; slice 5 refreshes the obsolete `rfcs/` and `docs/concepts/contributing.md` references in passing. |
 | `mkdocs.yml` | MkDocs static site generator config | **KEEP** | Drives `docs/` → GitHub Pages; slice 7 polishes theme/search/navigation. |
 | `consumers.yaml` | Org-level registry of downstream consumers | **KEEP** | Consumed by `.github/workflows/propagate-playbook-bump.yml`; load-bearing. Stale `skills_pins:` keys already flagged by zombie entry `skills-pins-consumers-yaml` (slice 3, v0.17.0). |
 | `FEEDBACK.md` | Append-only gripe log for multi-contributor triage | **DELETE** | Sole consumer reality (Arturo only); never triaged; dead infrastructure. Error messages in `scripts/mcp/render.py` + `scripts/mcp/validate.py` that point here are rewritten to "open a GitHub issue". |

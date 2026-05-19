@@ -16,7 +16,7 @@ Checks (each emits a :class:`CheckResult`):
 - ``gitleaks``            — ``shutil.which("gitleaks")`` (warn if missing).
 - ``playbook-submodule``  — confirm ``<cwd>/.ai-playbook/`` has ``specs/`` + ``scripts/``.
 - ``projects-registry``   — parse ``~/.ai-playbook/projects.yaml``.
-- ``env-vars-required``   — parse ``specs/env-vars.md`` for ``Required? | yes`` rows.
+- ``env-vars-required``   — parse ``docs/concepts/env-vars.md`` for ``Required? | yes`` rows.
 - ``env-vars-alias-warning`` — warn when only the ``ANTHROPIC_CACHE_TOKENS_MIN``
   alias is set without the canonical ``AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN``.
 - ``context-budget``      — sum of ``specs/*.md`` bytes; warn if >100KB.
@@ -327,12 +327,12 @@ def check_env_vars_required(playbook_root: Path | None = None) -> CheckResult:
         return CheckResult(
             "env-vars-required",
             STATUS_OK,
-            f"all {len(required)} required env var(s) set (per specs/env-vars.md).",
+            f"all {len(required)} required env var(s) set (per docs/concepts/env-vars.md).",
         )
     return CheckResult(
         "env-vars-required",
         STATUS_WARN,
-        f"missing required env var(s): {', '.join(missing)} — see specs/env-vars.md.",
+        f"missing required env var(s): {', '.join(missing)} — see docs/concepts/env-vars.md.",
     )
 
 
@@ -340,7 +340,7 @@ def check_env_vars_alias_warning() -> CheckResult:
     """Warn when the deprecated ``ANTHROPIC_CACHE_TOKENS_MIN`` alias is set
     without the canonical ``AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN``.
 
-    Rule source: ``specs/env-vars.md`` §Resolution order.
+    Rule source: ``docs/concepts/env-vars.md`` §Resolution order.
     """
     alias = os.environ.get("ANTHROPIC_CACHE_TOKENS_MIN")
     canonical = os.environ.get("AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN")
@@ -381,7 +381,7 @@ def check_context_budget(playbook_root: Path | None = None) -> CheckResult:
             "context-budget",
             STATUS_WARN,
             f"{count} specs/*.md files = {kb:.1f} KB (>100 KB threshold); "
-            "prune per specs/taxonomy.md `Framework files lean` principle.",
+            "prune per docs/concepts/taxonomy.md `Framework files lean` principle.",
         )
     return CheckResult(
         "context-budget",

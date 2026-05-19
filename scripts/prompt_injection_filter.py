@@ -1,6 +1,6 @@
 """Filter tool outputs / user inputs for prompt-injection patterns.
 
-Two-layer defence per `specs/agentic-failures.md` §2.3:
+Two-layer defence per `docs/concepts/agentic-failures.md` §2.3:
 
   Layer 1 — regex for well-known injection templates. Fires synchronously,
              no network calls, always runs.
@@ -33,7 +33,7 @@ Importable API
     verdict = filter_text(text, layer="both")
     # -> InjectionVerdict(verdict, severity, layer1_match, layer2_verdict, reason, detail)
 
-Exit codes (per `specs/error-message-standard.md`)
+Exit codes (per `docs/rules/error-message-standard.rule.md`)
 ---------------------------------------------------
     0 = safe (layer 1 silent AND either layer 2 skipped or returned "safe")
         OR OVERRIDE APPLIED on a layer-2-only fire

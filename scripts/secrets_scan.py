@@ -1,7 +1,7 @@
 """Scan working tree / staged diff / literal text for plaintext secrets.
 
 This is the *non-overridable* credential-exposure gate per
-`specs/agentic-failures.md` §2.11 and `specs/break-glass.md` §"Scripts that MUST
+`docs/concepts/agentic-failures.md` §2.11 and `docs/rules/break-glass.rule.md` §"Scripts that MUST
 support break-glass" (where this row is listed with `OVERRIDE: none` ALWAYS).
 
 Modes
@@ -20,7 +20,7 @@ Importable API
     matches = scan(text)                       # list[Match]
     sanitised_text, kinds = sanitise(text)     # tuple[str, list[str]]
 
-Exit codes (per `specs/error-message-standard.md`)
+Exit codes (per `docs/rules/error-message-standard.rule.md`)
 ---------------------------------------------------
     0 = no matches (scan mode), or sanitise-for hindsight finished (always 0)
     2 = environment/setup problem (couldn't read a file, invalid CLI combo)
@@ -332,7 +332,7 @@ def _staged_files() -> list[Path]:
 
 
 # ---------------------------------------------------------------------------
-# Error output (per `specs/error-message-standard.md`)
+# Error output (per `docs/rules/error-message-standard.rule.md`)
 # ---------------------------------------------------------------------------
 
 

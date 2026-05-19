@@ -37,8 +37,8 @@ modes. Callers grep on exit code, not on stderr text.
 
 Cross-references
 ----------------
-- ``specs/project-board-sync.md`` §2 L7
-- ``specs/release-management.md`` §5 (project board schema)
+- ``docs/concepts/project-board-sync.md`` §2 L7
+- ``docs/concepts/release-management.md`` §5 (project board schema)
 - ``skills/openspec-archive-change/SKILL.md`` (caller)
 """
 

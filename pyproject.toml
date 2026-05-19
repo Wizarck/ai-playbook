@@ -3,10 +3,14 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-# Only package the importable Python trees; leave rfcs/specs/routers/templates/
-# alone (they are markdown + YAML, not Python packages).
+# Only package the importable Python trees. The .ai-playbook layout (v0.18.0):
+#   scripts/          — top-level tooling (validators, generators, dispatcher)
+#   scripts/rules/    — L1 hook implementations (subpackage)
+#   scripts/mcp/      — MCP subsystem
+#   scripts/tracing/  — OTel subsystem
+# Markdown, YAML, JSON, schema and template trees are not Python packages.
 include = ["scripts*"]
-exclude = ["rfcs*", "specs*", "routers*", "templates*", "docs*", "tests*"]
+exclude = ["specs*", "routers*", "templates*", "docs*", "tests*", "schemas*", "openspec*", "skills*", "configs*"]
 
 [project]
 name = "ai-playbook"
@@ -67,6 +71,11 @@ extend-exclude = [
     # Skills tree (RFC-0001) is content + assets, not playbook code.
     # Some assets are templates with placeholder syntax that trip lint.
     "skills",
+    # Slice 4 paired hooks under scripts/rules/ use the `.rule.py` filename
+    # convention (D5). The kebab-case slug in the filename violates PEP 8
+    # module naming (N999), but these files are invoked via subprocess
+    # (D2 — scripts not imported), so the naming is intentional.
+    "scripts/rules",
 ]
 
 [tool.ruff.lint]

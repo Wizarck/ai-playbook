@@ -13,7 +13,7 @@ Behaviour
   against `schemas/schema-agents-md-v1.json`.
 - On failure: emits a canonical error in WHY / WHERE / FIX / OVERRIDE shape and
   exits 1.
-- `--autofix`: applies the "WILL" list from `specs/migration-guide.md`:
+- `--autofix`: applies the "WILL" list from `docs/concepts/migration-guide.md`:
     * Missing frontmatter -> inject sensible defaults.
     * `updated` in near-ISO variants -> normalise to YYYY-MM-DD.
     * Invalid `project` slug -> slugify (valid slugs are left alone).
@@ -69,7 +69,7 @@ SCHEMA_RELPATH = Path("schemas") / "schema-agents-md-v1.json"
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-# Dev-flow cross-ref check (per specs/bootstrap-directive.md v1.2.0).
+# Dev-flow cross-ref check (per docs/rules/bootstrap-directive.rule.md v1.2.0).
 # AGENTS.md body MUST contain a link to development-flow.md somewhere.
 # Warn-only initially; promote to strict after 30d via --strict-dev-flow-cross-ref.
 DEV_FLOW_CROSS_REF_RE = re.compile(r"development-flow\.md")
@@ -471,7 +471,7 @@ def check_dev_flow_cross_ref(body: str) -> bool:
     sufficient (consumers SHOULD put it as the first row of §2 Dispatcher
     index, but the check is permissive — link presence is the contract).
 
-    Per specs/bootstrap-directive.md v1.2.0.
+    Per docs/rules/bootstrap-directive.rule.md v1.2.0.
     """
     return bool(DEV_FLOW_CROSS_REF_RE.search(body))
 
@@ -527,7 +527,7 @@ def validate_one(
 
     errors = validate_frontmatter(fm.data, schema)
 
-    # Dev-flow cross-ref check (specs/bootstrap-directive.md v1.2.0).
+    # Dev-flow cross-ref check (docs/rules/bootstrap-directive.rule.md v1.2.0).
     # Always evaluated; warn-only by default, error when --strict-dev-flow-cross-ref.
     cross_ref_ok = check_dev_flow_cross_ref(fm.body)
     cross_ref_failed = not cross_ref_ok
@@ -538,7 +538,7 @@ def validate_one(
             # Warn-only path: print to stderr but exit 0.
             print(
                 f"⚠️  {_format_path(file_path)} body lacks a link to "
-                f"development-flow.md (specs/bootstrap-directive.md v1.2.0). "
+                f"development-flow.md (docs/rules/bootstrap-directive.rule.md v1.2.0). "
                 f"Add it to §2 Dispatcher index. Will become an error in a "
                 f"future version (currently warn-only).",
                 file=sys.stderr,
@@ -568,9 +568,9 @@ def validate_one(
             where=f"{_format_path(file_path)}",
             fix=(
                 "add the row `| **How to make a change in this project (canonical "
-                "entry point)** | [.ai-playbook/docs/development-flow.md]"
-                "(.ai-playbook/docs/development-flow.md) |` to §2 Dispatcher "
-                "index. See specs/bootstrap-directive.md v1.2.0."
+                "entry point)** | [.ai-playbook/docs/concepts/development-flow.md]"
+                "(.ai-playbook/docs/concepts/development-flow.md) |` to §2 Dispatcher "
+                "index. See docs/rules/bootstrap-directive.rule.md v1.2.0."
             ),
             override_invocation=(
                 f"python -m scripts.schema_validate {file_path} "
@@ -590,7 +590,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="schema_validate",
         description=(
             "Validate AGENTS.md frontmatter against the v1 JSON schema. "
-            "See schemas/schema-agents-md-v1.json and specs/migration-guide.md."
+            "See schemas/schema-agents-md-v1.json and docs/concepts/migration-guide.md."
         ),
     )
     parser.add_argument(
@@ -611,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
             "Promote the development-flow.md cross-ref check from warn-only "
             "to error. Defaults to off during the v0.9.3+ rollout window; "
             "flip on after 30 days of green builds (per "
-            "specs/bootstrap-directive.md v1.2.0)."
+            "docs/rules/bootstrap-directive.rule.md v1.2.0)."
         ),
     )
     add_break_glass_flag(parser)

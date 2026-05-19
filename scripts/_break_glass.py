@@ -1,6 +1,6 @@
 """Shared break-glass helper for playbook scripts.
 
-Implements the `--force-with-reason="<text>"` contract from `specs/break-glass.md`.
+Implements the `--force-with-reason="<text>"` contract from `docs/rules/break-glass.rule.md`.
 Every blocking playbook check that can be overridden uses this helper so the contract
 is uniform: same flag, same minimum length, same log format, same exit codes.
 
@@ -27,7 +27,7 @@ Usage (caller pattern)
             return 0
         return 1
 
-Exit-code contract (per `specs/error-message-standard.md`)
+Exit-code contract (per `docs/rules/error-message-standard.rule.md`)
 ---------------------------------------------------------
     1 = reason provided but under MIN_REASON_LEN (or whitespace only)
     3 = reason provided but the gate declares OVERRIDE: none
@@ -171,7 +171,7 @@ def apply_break_glass(
 def _emit_override_span(
     *, script: str, gate: str, reason: str, actor: str, ts: str
 ) -> None:
-    """Emit `ai_playbook.override.*` span per `specs/break-glass.md`.
+    """Emit `ai_playbook.override.*` span per `docs/rules/break-glass.rule.md`.
 
     No-op safe — tracing must never block a legitimate override. The log file
     written above is the durable source of truth; the span is for dashboards.

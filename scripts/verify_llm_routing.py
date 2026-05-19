@@ -346,14 +346,14 @@ def _main() -> int:
             if direct_sdk:
                 print(
                     "\nDirect-SDK callers: migrate each to `from scripts._llm import call` "
-                    "and use `call(task_class, prompt, ...)`. See specs/model-routing.md §1 "
+                    "and use `call(task_class, prompt, ...)`. See docs/concepts/model-routing.md §1 "
                     "for the task-class taxonomy. Inline allow with `# llm-routing-allow: <reason>`.",
                     file=sys.stderr,
                 )
             if missing_app:
                 print(
                     "\nMissing-application: add an explicit `application=\"<canonical-name>\"` "
-                    "kwarg to each `_llm.call(...)` flagged above. See specs/model-routing.md §5 "
+                    "kwarg to each `_llm.call(...)` flagged above. See docs/concepts/model-routing.md §5 "
                     "for the canonical application roster. Callers that set `AIPLAYBOOK_APPLICATION` "
                     "at runtime can also annotate the call with `# llm-routing-allow: env-fallback`.",
                     file=sys.stderr,

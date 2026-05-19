@@ -21,7 +21,7 @@ Or, after `bash scripts/install-playbook-hooks.sh`, the
 consumer's own `scripts/gemini_start.py` so users invoke
 `python scripts/gemini_start.py`.
 
-Contract: specs/skills-distribution.md §5.1 (Gemini-specific start wrapper).
+Contract: docs/concepts/skills-distribution.md §5.1 (Gemini-specific start wrapper).
 """
 from __future__ import annotations
 

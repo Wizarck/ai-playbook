@@ -54,23 +54,23 @@ nav:
       - Model migration: model-migration.md
   - Specs:
       - Index: ../specs/INDEX.md
-      - Agent contract: ../specs/agent-contract.md
-      - Agentic failures: ../specs/agentic-failures.md
-      - Bootstrap directive: ../specs/bootstrap-directive.md
-      - Break-glass: ../specs/break-glass.md
-      - Degradation modes: ../specs/degradation-modes.md
-      - Dispatcher chain: ../specs/dispatcher-chain.md
-      - Env vars: ../specs/env-vars.md
-      - Error message standard: ../specs/error-message-standard.md
-      - MCP servers schema: ../specs/mcp-servers-schema.md
-      - Memory hierarchy: ../specs/memory-hierarchy.md
-      - Migration guide: ../specs/migration-guide.md
-      - Model routing: ../specs/model-routing.md
-      - Notification policy: ../specs/notification-policy.md
-      - Parallel review: ../specs/parallel-review.md
-      - Projects registry: ../specs/projects-registry.md
-      - Prompt caching: ../specs/prompt-caching.md
-      - Retrospective cadence: ../specs/retrospective-cadence.md
-      - Runbook (BMAD + OpenSpec): ../specs/runbook-bmad-openspec.md
-      - Taxonomy: ../specs/taxonomy.md
-      - Verdict contract: ../specs/verdict-contract.md
+      - Agent contract: ../docs/concepts/agent-contract.md
+      - Agentic failures: ../docs/concepts/agentic-failures.md
+      - Bootstrap directive: ../docs/rules/bootstrap-directive.rule.md
+      - Break-glass: ../docs/rules/break-glass.rule.md
+      - Degradation modes: ../docs/concepts/degradation-modes.md
+      - Dispatcher chain: ../docs/concepts/dispatcher-chain.md
+      - Env vars: ../docs/concepts/env-vars.md
+      - Error message standard: ../docs/rules/error-message-standard.rule.md
+      - MCP servers schema: ../docs/concepts/mcp-servers-schema.md
+      - Memory hierarchy: ../docs/concepts/memory-hierarchy.md
+      - Migration guide: ../docs/concepts/migration-guide.md
+      - Model routing: ../docs/concepts/model-routing.md
+      - Notification policy: ../docs/concepts/notification-policy.md
+      - Parallel review: ../docs/concepts/parallel-review.md
+      - Projects registry: ../docs/concepts/projects-registry.md
+      - Prompt caching: ../docs/concepts/prompt-caching.md
+      - Retrospective cadence: ../docs/concepts/retrospective-cadence.md
+      - Runbook (BMAD + OpenSpec): ../docs/concepts/runbook-bmad-openspec.md
+      - Taxonomy: ../docs/concepts/taxonomy.md
+      - Verdict contract: ../docs/rules/verdict-contract.rule.md

@@ -1,6 +1,6 @@
 """Bootstrap a consumer project's GitHub Project board with the canonical schema.
 
-Per ``specs/release-management.md`` §5 + §7, every consumer project that adopts
+Per ``docs/concepts/release-management.md`` §5 + §7, every consumer project that adopts
 the BMAD+OpenSpec hybrid flow needs a GitHub Project (V2) board with:
 
 - A ``Status`` field with **exactly five options** in canonical order:
@@ -15,7 +15,7 @@ on a board that already conforms is a no-op (notifications emit ``skipped``).
 Optional content seed
 ---------------------
 If ``--slicing-file docs/openspec-slice.md`` is passed, the script also reads
-the slicing artefact (per ``specs/bmad-openspec-bridge.md`` §3.1) and creates
+the slicing artefact (per ``docs/concepts/bmad-openspec-bridge.md`` §3.1) and creates
 **one draft project item per change row** with title = ``<change-id>`` and
 body = the scope note paragraph. Initial Status assignment follows the dep
 graph: the foundation slice (Wave 0 row 1, no ``Depends on``) gets ``Todo``;
@@ -86,7 +86,7 @@ def _emit(event: str, severity: str = "info", summary: str = "", **attrs: Any) -
 
 
 # ---------------------------------------------------------------------------
-# Canonical schema (per specs/release-management.md §5)
+# Canonical schema (per docs/concepts/release-management.md §5)
 # ---------------------------------------------------------------------------
 
 CANONICAL_STATUS_OPTIONS = ["Todo", "Blocked", "In Progress", "Review", "Done"]
@@ -1330,7 +1330,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description=(
             "Bootstrap a consumer's GitHub Project board with the canonical "
-            "schema per specs/release-management.md."
+            "schema per docs/concepts/release-management.md."
         )
     )
     p.add_argument("--owner", required=True, help="GH user or org login (e.g. 'Wizarck')")

@@ -48,7 +48,7 @@ entries:
 
 ### 1.4 Manifest validation
 
-`scripts/cleanup_zombies.py validate` runs `manifest validate`: checks every entry has required fields per `tier`, every `safety` value is a known check name, `manifest_version` parses, etc. Pre-commit gate added in this slice.
+`scripts/rules/cleanup-zombies.rule.py validate` runs `manifest validate`: checks every entry has required fields per `tier`, every `safety` value is a known check name, `manifest_version` parses, etc. Pre-commit gate added in this slice.
 
 ## 2 Script contract
 
@@ -123,7 +123,7 @@ if os.environ.get("AIPLAYBOOK_CLEANUP_SKIP", "").strip():
     sys.exit(0)
 ```
 
-Per [break-glass.md](../../../specs/break-glass.md): env var name in `AIPLAYBOOK_*` namespace. No audit log for this skip (the script doesn't have a writable audit channel beyond report file). Reasoning: cleanup is opportunistic; skipping has no compliance impact.
+Per [break-glass.md](../../../docs/rules/break-glass.rule.md): env var name in `AIPLAYBOOK_*` namespace. No audit log for this skip (the script doesn't have a writable audit channel beyond report file). Reasoning: cleanup is opportunistic; skipping has no compliance impact.
 
 ### 2.6 Exit codes
 
@@ -157,8 +157,8 @@ if [ -f "$REPO_ROOT/scripts/sync_skills_local.py" ]; then
 fi
 
 # Playbook zombie cleanup (Tier 1+2 auto-apply, exit 0 always per spec)
-if [ -f "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" ]; then
-    python "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" --apply --quiet || true
+if [ -f "$REPO_ROOT/.ai-playbook/scripts/rules/cleanup-zombies.rule.py" ]; then
+    python "$REPO_ROOT/.ai-playbook/scripts/rules/cleanup-zombies.rule.py" --apply --quiet || true
 fi
 ```
 
@@ -216,10 +216,10 @@ Based on archaeology of 152 commits + 50 tags (2026-05-19 audit). See `specs/zom
 
 This slice is the FIRST consumer of the doc-drift enforcement work landing in slice `add-doc-drift-gate` (separate proposal, follow-up). When that gate lands:
 
-- Editing `scripts/cleanup_zombies.py` will require touching `specs/cleanup-zombies.md` in the same PR (or marking `no-doc-impact`).
+- Editing `scripts/rules/cleanup-zombies.rule.py` will require touching `docs/rules/cleanup-zombies.rule.md` in the same PR (or marking `no-doc-impact`).
 - Editing `specs/zombies-manifest.yaml` will require bumping `manifest_version` and adding a `CHANGELOG.md` entry.
 
-Until that gate lands, doc updates are convention-only per [docs/development-flow.md](../../../docs/development-flow.md) §7.
+Until that gate lands, doc updates are convention-only per [docs/concepts/development-flow.md](../../../docs/concepts/development-flow.md) §7.
 
 ## 7 Rollout
 

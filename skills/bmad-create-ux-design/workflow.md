@@ -2,7 +2,7 @@
 
 **Goal:** Create comprehensive UX design specifications through collaborative visual exploration and informed decision-making, where the agent acts as a UX facilitator working with the product stakeholder. The workflow is **visual-first** at every step — text descriptions of design language never substitute for visual artefacts.
 
-This skill implements the three-step order specified in [`specs/ux-track.md`](../../specs/ux-track.md) §3.
+This skill implements the three-step order specified in [`docs/concepts/ux-track.md`](../../docs/concepts/ux-track.md) §3.
 
 ---
 
@@ -84,7 +84,7 @@ Each per-journey doc + mock goes through Author → Reviewer (PM + 1 design-awar
 - Audit cites `DESIGN.md §N`, not external repo paths.
 - Colour block declares OKLCH, not hex-only.
 
-Verdict literals from [`verdict-contract.md`](../../specs/verdict-contract.md). Max 2 rework cycles before escalation.
+Verdict literals from [`verdict-contract.md`](../../docs/rules/verdict-contract.rule.md). Max 2 rework cycles before escalation.
 
 ---
 

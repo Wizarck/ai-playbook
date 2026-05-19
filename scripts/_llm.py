@@ -66,7 +66,7 @@ import httpx
 _LOG = logging.getLogger(__name__)
 
 
-# Canonical task classes from `specs/model-routing.md` v2.0.0 §1.
+# Canonical task classes from `docs/concepts/model-routing.md` v2.0.0 §1.
 # Kept in sync via Task 8 of the OpenSpec change. The drift detector
 # `verify_llm_routing.py` reads from this list, so don't fork the source of truth.
 KNOWN_TASK_CLASSES: frozenset[str] = frozenset({
@@ -247,7 +247,7 @@ def call(
     if task_class not in KNOWN_TASK_CLASSES:
         raise ValueError(
             f"unknown task_class={task_class!r}; must be one of {sorted(KNOWN_TASK_CLASSES)}. "
-            "If this is a new class, add it to specs/model-routing.md AND configs/litellm-router.yaml first."
+            "If this is a new class, add it to docs/concepts/model-routing.md AND configs/litellm-router.yaml first."
         )
 
     consumer_resolved = _resolve_consumer(consumer)

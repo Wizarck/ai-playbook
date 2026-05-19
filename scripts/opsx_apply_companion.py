@@ -430,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
             "L6 enforcement: after setting Branch/Base SHA, verify the project "
             "item's Status='In Progress' (delegating to verify_board_state.py). "
             "Exits non-zero on mismatch — refuses to declare success without "
-            "board sync. See specs/project-board-sync.md §2 L6."
+            "board sync. See docs/concepts/project-board-sync.md §2 L6."
         ),
     )
     args = p.parse_args(argv)

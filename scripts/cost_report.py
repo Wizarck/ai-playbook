@@ -12,7 +12,7 @@ Only events that look like LLM calls are counted. An event qualifies if:
 Pricing is **not** hardcoded. When ``<playbook>/configs/pricing.yaml`` exists,
 its per-model ``input_per_1k`` / ``output_per_1k`` / ``cache_read_per_1k``
 numbers are applied; otherwise ``estimated_cost_usd`` is ``None`` and a note
-lands in the summary row (see ``specs/model-routing.md`` §Cost).
+lands in the summary row (see ``docs/concepts/model-routing.md`` §Cost).
 
 CLI
 ---
@@ -370,7 +370,7 @@ def render_table(rows: list[Aggregate], *, by: str, pricing_loaded: bool) -> str
     out.append("")
     if not pricing_loaded:
         out.append(
-            "Note: pricing catalog not configured — see specs/model-routing.md. "
+            "Note: pricing catalog not configured — see docs/concepts/model-routing.md. "
             "Populate <playbook>/configs/pricing.yaml to enable estimated_cost_usd."
         )
     if not rows:

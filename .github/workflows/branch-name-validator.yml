@@ -4,8 +4,8 @@
 # `<type>/<change-id>` AND that the corresponding `openspec/changes/<change-id>/`
 # directory exists in the PR's HEAD ref.
 #
-# Per docs/development-flow.md §1 (hierarchy) and §5 (industrialisation).
-# Spec: specs/release-management.md §6.5 (slice/<change-id> branch model).
+# Per docs/concepts/development-flow.md §1 (hierarchy) and §5 (industrialisation).
+# Spec: docs/concepts/release-management.md §6.5 (slice/<change-id> branch model).
 #
 # Allowed types: feat, fix, chore, docs, refactor, test, release.
 # Pattern:       <type>/<change-id> where change-id is [a-z0-9][a-z0-9-]*
@@ -75,7 +75,7 @@ jobs:
               # `feat/vX.Y.Z-...` (legacy), or `chore/release/vX.Y.Z`. The
               # version segment contains dots which would fail the kebab-case
               # change-id regex below — exemption is required for the canonical
-              # release-cut flow per runbooks/release.md §3.
+              # release-cut flow per docs/runbooks/release.md §3.
               echo "Exempt: release-prep branch."
               echo "verdict=exempt-release-prep" >> "$GITHUB_OUTPUT"
               exit 0
@@ -89,7 +89,7 @@ jobs:
             echo "::error::Branch name '$BRANCH' does not match the canonical pattern '<type>/<change-id>'."
             echo "Allowed types: feat, fix, chore, docs, refactor, test, release."
             echo "Change-id must be lowercase kebab-case (e.g. 'add-litellm-enforcement')."
-            echo "See docs/development-flow.md §1 and specs/release-management.md §6.5."
+            echo "See docs/concepts/development-flow.md §1 and docs/concepts/release-management.md §6.5."
             exit 1
           fi
 
@@ -144,7 +144,7 @@ jobs:
                 '- `fix/v0.9.1-followups`',
                 '- `chore/release-cut`',
                 '',
-                'See [docs/development-flow.md §1](../blob/main/docs/development-flow.md) for the canonical hierarchy.',
+                'See [docs/concepts/development-flow.md §1](../blob/main/docs/concepts/development-flow.md) for the canonical hierarchy.',
                 '',
                 '**To fix**: rename the branch (`git branch -m <new-name>`) and force-push, or close this PR and re-open from a properly-named branch.',
               ].join('\n');
@@ -162,7 +162,7 @@ jobs:
                 '2. Rename the branch to match an existing change-id under `openspec/changes/`.',
                 '3. If this is a genuine hot-fix outside the OpenSpec workflow, rename the branch to `chore/<short-id>` (chore branches are exempt from the OpenSpec directory requirement).',
                 '',
-                'See [docs/development-flow.md §3.1](../blob/main/docs/development-flow.md) for the trivial-fix vs OpenSpec decision rule.',
+                'See [docs/concepts/development-flow.md §3.1](../blob/main/docs/concepts/development-flow.md) for the trivial-fix vs OpenSpec decision rule.',
               ].join('\n');
             }
             // Find the previous comment by this bot to update it (sticky comment).

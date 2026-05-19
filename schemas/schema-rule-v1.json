@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wizarck.github.io/ai-playbook/schemas/schema-rule-v1.json",
+  "title": "ai-playbook rule frontmatter (v1)",
+  "description": "Frontmatter contract for docs/rules/<slug>.rule.md. Disjoint with schema-concept-v1.json per D9.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "slug",
+    "description",
+    "paired_hardrule",
+    "activation",
+    "status"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "rule/v1",
+      "description": "Schema versioning hook. MUST be 'rule/v1' for this version."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "description": "Authoritative identifier; filename derives from slug, not the reverse."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "One-line summary used as the routing key for Cursor agent-requested activation."
+    },
+    "paired_hardrule": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^scripts/rules/[a-z][a-z0-9-]{1,40}\\.rule\\.py$",
+          "description": "Path to the L1 Python hook implementing this rule."
+        },
+        {
+          "type": "null",
+          "description": "Advisory-only rule; justification REQUIRED in docs/concepts/enforcement-pairing-exceptions.md."
+        }
+      ]
+    },
+    "activation": {
+      "type": "string",
+      "enum": ["always", "auto", "agent", "manual"],
+      "description": "Cursor 4-mode loading semantics. See docs/concepts/cross-llm-activation.md for per-LLM degradation."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["enforced", "warn", "advisory", "deprecated"],
+      "description": "Declarative lifecycle state. 'deprecated' triggers a removal-window banner per D18."
+    },
+    "applies_to": {
+      "oneOf": [
+        {"type": "string", "const": "all"},
+        {"type": "array", "items": {"type": "string", "enum": ["claude", "gemini", "cursor"]}}
+      ],
+      "default": "all"
+    },
+    "globs": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "File-pattern scoping (Cursor co-constraint: REQUIRED when activation=auto)."
+    },
+    "triggers": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["Bash", "Edit", "Write", "Read", "Grep", "Glob", "Task", "PreToolUse", "PostToolUse", "SessionStart", "Stop"]},
+      "description": "Hook dispatcher routing key per D10. Empty = always fires."
+    },
+    "break_glass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["env"],
+      "properties": {
+        "env": {
+          "type": "string",
+          "pattern": "^AIPLAYBOOK_[A-Z0-9_]+_SKIP$",
+          "description": "Canonical bypass env var. Audited to <consumer>/.ai-playbook-state/break-glass-audit.jsonl."
+        }
+      }
+    },
+    "rule_bundle": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "description": "Optional bundle name for multi-step rules grouped under docs/rules/<bundle>/."
+    },
+    "last_validated": {
+      "type": "string",
+      "format": "date",
+      "description": "D21 — optional freshness signal (YYYY-MM-DD); >180d ago triggers a warn-only freshness check."
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["upstream", "local"],
+      "default": "upstream",
+      "description": "D13 — consumer-side local-rules/ contribution scope."
+    }
+  }
+}

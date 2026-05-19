@@ -181,7 +181,7 @@ def render(findings: list[Finding], *, root: Path) -> str:
         lines.append('      "Use when the user <trigger condition> and needs to <intent>"')
         lines.append("")
     lines.append(
-        "Reference: specs/skills-distribution.md §1 (Required SKILL.md sections, v0.7.0+)\n"
+        "Reference: docs/concepts/skills-distribution.md §1 (Required SKILL.md sections, v0.7.0+)\n"
         "Pattern source: obra/superpowers (MIT)\n"
     )
     return "\n".join(lines)

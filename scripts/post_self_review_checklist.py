@@ -8,7 +8,7 @@ diff-aware fallback checklist as a PR comment + marks the status check
 (not in branch-protection required-checks by default).
 
 If the §4.5 section is **already populated** (the worker AI ran L1
-in-session per `runbooks/coderabbit-fallback.md`), this script exits
+in-session per `docs/runbooks/coderabbit-fallback.md`), this script exits
 quietly without posting — L2 is a silent safety net for the case where
 L1 didn't run.
 
@@ -248,7 +248,7 @@ def render_checklist(
     lines.append(
         "The worker AI (or human reviewer) MUST address each category "
         "below + populate the **AI-reviewer signoff** section in the PR "
-        "body per [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md). "
+        "body per [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md). "
         "When §4.5 is populated, the `ai-self-review-required` status "
         "check turns ✅ on the next workflow run."
     )
@@ -285,7 +285,7 @@ def render_checklist(
     lines.append("### Categories to review")
     lines.append("")
     lines.append(
-        "Per [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md) §2, "
+        "Per [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md) §2, "
         "address every category — note `n/a` for those that don't apply. "
         "**Empty checks suggest the AI didn't actually look.**"
     )

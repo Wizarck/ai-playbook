@@ -2,7 +2,7 @@
 #
 # Curated list of LLM provider model retirements. Drives the
 # `model_retirement_detected` check in scripts/lifecycle_check.py
-# (see specs/lifecycle-check.md and docs/model-migration.md).
+# (see specs/lifecycle-check.md and docs/concepts/model-migration.md).
 #
 # Update protocol:
 #   1. Provider sends a deprecation announcement (email to API account, blog
@@ -11,7 +11,7 @@
 #   3. Detector picks up the new entry on next monthly run; emits warn
 #      notification when retirement_date - now <= 90 days.
 #
-# This file is curated by humans (D4.3 in docs/model-migration.md). No
+# This file is curated by humans (D4.3 in docs/concepts/model-migration.md). No
 # automated scraping. Cadence is ~2x per year per provider.
 #
 # Schema (one entry per retiring model):

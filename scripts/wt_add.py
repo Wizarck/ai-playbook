@@ -1,6 +1,6 @@
 """Add a git worktree for an OpenSpec change in the canonical bare layout.
 
-Per ``specs/git-worktree-bare-layout.md``, every consumer project that has
+Per ``docs/concepts/git-worktree-bare-layout.md``, every consumer project that has
 adopted the bare layout looks like::
 
     <project-root>/
@@ -103,8 +103,8 @@ def find_repo_root(start: Path) -> Path:
     print(
         f"❌ No .bare/ directory found in {start} or its parents.\n"
         f"   This script requires the bare worktree layout "
-        f"(specs/git-worktree-bare-layout.md).\n"
-        f"   Migrate via runbooks/git-worktree-bare-setup.md §3, or run from inside a bare-layout project.",
+        f"(docs/concepts/git-worktree-bare-layout.md).\n"
+        f"   Migrate via docs/runbooks/git-worktree-bare-setup.md §3, or run from inside a bare-layout project.",
         file=sys.stderr,
     )
     raise SystemExit(1)

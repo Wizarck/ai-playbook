@@ -5,7 +5,7 @@ Scans a consumer repo for ``openspec/changes/*/proposal.md`` files lacking a
 frontmatter, creates the ticket on the correct surface, and embeds the id back
 into the proposal.
 
-Surface choice (per ``specs/issue-tracking.md`` §1, v2.0.0+)
+Surface choice (per ``docs/concepts/issue-tracking.md`` §1, v2.0.0+)
 ------------------------------------------------------------
 The decision is **declarative** — driven by ``consumers.yaml``:
 

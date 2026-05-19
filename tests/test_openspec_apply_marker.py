@@ -5,7 +5,7 @@ Slice: enforce-apply-skill (v0.14.0). Phase A T1.
 Contracts:
 - design.md §1 (marker JSONL schema, location, lifecycle)
 - design.md §1.3 (CLI surface)
-- specs/error-message-standard.md (error shape on failure paths)
+- docs/rules/error-message-standard.rule.md (error shape on failure paths)
 """
 from __future__ import annotations
 

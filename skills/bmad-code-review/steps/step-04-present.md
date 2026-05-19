@@ -87,16 +87,16 @@ If `{spec_file}` is **not** set, present only options 1 and 3 (omit option 2 —
 
 #### 6a. Emit the canonical QA verdict (always — even if `{spec_file}` is not set)
 
-Code review is a QA-style artefact and MUST end with one of the canonical verdict literals from [verdict-contract.md](../../../specs/verdict-contract.md) §1. The literals (exact emoji, capitalisation, and spacing — checked by `scripts/verdict_lint.py`):
+Code review is a QA-style artefact and MUST end with one of the canonical verdict literals from [verdict-contract.md](../../../docs/rules/verdict-contract.rule.md) §1. The literals (exact emoji, capitalisation, and spacing — checked by `scripts/verdict_lint.py`):
 
 | Verdict | When to emit |
 |---|---|
 | `✅ APPROVED` | Zero blocking findings remain after triage (all `decision-needed` resolved; all `patch` either fixed or accepted as deferred; no unresolved HIGH/MEDIUM issues). |
-| `⚠️ ISSUES FOUND (iter N)` | Findings present that are not yet resolved (left as action items, or `patch` items the user chose not to fix this pass). For per-finding severity (S1–S4), see [verdict-contract.md](../../../specs/verdict-contract.md) §2. |
+| `⚠️ ISSUES FOUND (iter N)` | Findings present that are not yet resolved (left as action items, or `patch` items the user chose not to fix this pass). For per-finding severity (S1–S4), see [verdict-contract.md](../../../docs/rules/verdict-contract.rule.md) §2. |
 | `❓ CLARIFICATION NEEDED` | A `decision-needed` finding cannot be resolved because the spec or the rule is ambiguous and the user could not disambiguate. Halts the track until a human edits the spec. |
-| `⛔ ARCHITECTURE QUESTIONED` | Use ONLY when iter ≥ 2 and the same class of failure has recurred across iterations because the structural design (not the spec) is wrong. See [verdict-contract.md](../../../specs/verdict-contract.md) §4.1. Do not emit on iter 1. |
+| `⛔ ARCHITECTURE QUESTIONED` | Use ONLY when iter ≥ 2 and the same class of failure has recurred across iterations because the structural design (not the spec) is wrong. See [verdict-contract.md](../../../docs/rules/verdict-contract.rule.md) §4.1. Do not emit on iter 1. |
 
-**Iteration counter `N`**: tracked per `{spec_file}`. On the first review pass for a story, `N = 1`. On a re-review (option 2 from section 7 — "Re-run code review"), increment `N`. If `{spec_file}` is not set, treat each invocation as iter 1. Per the max-2-rework rule ([verdict-contract.md](../../../specs/verdict-contract.md) §3), iter 3 is not attempted; on a third recurrence of the same finding, escalate to `❓` or `⛔` instead.
+**Iteration counter `N`**: tracked per `{spec_file}`. On the first review pass for a story, `N = 1`. On a re-review (option 2 from section 7 — "Re-run code review"), increment `N`. If `{spec_file}` is not set, treat each invocation as iter 1. Per the max-2-rework rule ([verdict-contract.md](../../../docs/rules/verdict-contract.rule.md) §3), iter 3 is not attempted; on a third recurrence of the same finding, escalate to `❓` or `⛔` instead.
 
 Print the verdict line as the LAST line of the review summary message (a single literal on its own line).
 
@@ -110,7 +110,7 @@ The story-file `Status` field tracks sprint lifecycle (NOT a QA verdict):
 
 - Verdict `✅ APPROVED` → `{new_status}` = `done`. Update the story file Status section to `done`.
 - Verdict `⚠️ ISSUES FOUND (iter N)` → `{new_status}` = `in-progress`. Update the story file Status section to `in-progress`.
-- Verdict `❓ CLARIFICATION NEEDED` → `{new_status}` = `blocked-by-spec` (per [verdict-contract.md](../../../specs/verdict-contract.md) §4 and the runbook lifecycle).
+- Verdict `❓ CLARIFICATION NEEDED` → `{new_status}` = `blocked-by-spec` (per [verdict-contract.md](../../../docs/rules/verdict-contract.rule.md) §4 and the runbook lifecycle).
 - Verdict `⛔ ARCHITECTURE QUESTIONED` → `{new_status}` = `blocked-by-architecture`.
 
 Save the story file.
@@ -138,7 +138,7 @@ If `{sprint_status}` file does not exist, note that story status was updated in 
 > **Deferred:** <W>
 > **Dismissed:** <R>
 >
-> <verdict literal — exactly one of `✅ APPROVED`, `⚠️ ISSUES FOUND (iter N)`, `❓ CLARIFICATION NEEDED`, `⛔ ARCHITECTURE QUESTIONED` per [verdict-contract.md](../../../specs/verdict-contract.md) §1; this MUST be the last line of the artefact>
+> <verdict literal — exactly one of `✅ APPROVED`, `⚠️ ISSUES FOUND (iter N)`, `❓ CLARIFICATION NEEDED`, `⛔ ARCHITECTURE QUESTIONED` per [verdict-contract.md](../../../docs/rules/verdict-contract.rule.md) §1; this MUST be the last line of the artefact>
 
 ### 7. Next steps
 
