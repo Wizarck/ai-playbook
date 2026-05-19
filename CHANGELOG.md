@@ -4,17 +4,147 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.18.x post-Slice 6)
+### Known gaps still pending (post-Slice 7, post-review gate)
 
-- **Slice 7 (polish, v0.18.3)**: Mermaid diagrams in
-  `docs/concepts/enforcement-layers.md`; full content for
-  `docs/tutorials/01-architecture-tour.md`; retires the remaining ~10
-  deferred hardrules (migrations, notifications, apply/break-glass);
-  generator script `tools/render_telemetry_md.py` wiring `docs/telemetry.md`
-  from `report.py --json` output.
-- **Slice 8 (final cut, v0.20.0)**: visible milestone PR; tag pushed only on
-  explicit user OK. v0.19.x is reserved for post-review fix iterations
-  (versioning refined 2026-05-19).
+- **v0.19.x (post-review fix iterations)**: reserved for any user-review
+  feedback that lands after the v0.18.3 showcase pause; tagged on a
+  per-iteration basis.
+- **v0.20.0 (final cut)**: visible milestone PR; tagged only on explicit
+  user approval after the v0.18.3 review pause closes.
+
+## [0.18.3] — 2026-05-19 — Slice 7 polish for showcase + 10 remaining hardrules
+
+Closes the v0.18.x architectural reset arc. Slice 4 reorganised the filesystem;
+Slice 5 rewrote the doc content; Slice 6 instrumented the playbook with
+telemetry and retired 14 of 24 deferred hardrules; Slice 7 (this entry) ships
+the public-facing polish — a Mermaid-rich README, Mermaid diagrams in the
+enforcement-layers concept doc, a new academic-foundations reference doc, a
+Pagefind-aware mkdocs build, a per-rule use-cases matrix, and a polish pass
+on the 15-minute architecture tour — and retires the remaining 10 deferred
+hardrules (5 full implementations + 5 advisory downgrades into a new
+"consumer-side surface" pairing-exception condition).
+
+This is the **LAST** slice of the v0.18.x architectural reset arc. Per
+user-refined versioning 2026-05-19, the next gate is a user review pause;
+fix iterations ship as v0.19.x; v0.20.0 final cut on explicit user OK.
+
+### Why now
+
+The v0.20.0 "world reference" milestone needs a polished GitHub surface
+before any external eye looks at it. Slices 1–6 built the architecture;
+Slice 7 makes it presentable. The README is the first 30 seconds; the
+enforcement-layers diagrams are the visual anchor for the L1/L2/L3 model;
+the academic-foundations doc grounds every design decision in a citable
+source. The remaining 10 deferred hardrules close the strict-mode pairing
+gate so the validator exits 0 with no allowlist.
+
+### Added — 6 sub-deliverables
+
+- **7.A — `README.md` rewrite** (208 lines). Hero paragraph naming the
+  Diátaxis-inspired layout and the L1/L2/L3 paired-enforcement architecture;
+  Mermaid flow diagram of the three layers with one paired example
+  (`cleanup-zombies`); 60-second quickstart (`clone → pip install -e . → run
+  validators → pytest`); explicit scope table (Claude / Gemini / Cursor
+  supported; Copilot / Codex / Aider / Continue / Windsurf out of scope for
+  v0.20.0); doc map pointing at the four Diátaxis-inspired folders + the
+  new academic-foundations + rule-use-cases-matrix docs; six GitHub Actions
+  status badges (test / validate-pairing / check-link-integrity /
+  check-doc-language / check-rule-schemas / docs-deploy).
+- **7.B — `docs/concepts/enforcement-layers.md`** rewritten with three
+  Mermaid diagrams: (1) the L1/L2/L3 flow from tool call to PR merge; (2)
+  the paired-enforcement same-rubric-three-enforcers protocol with the
+  D8 tie-break arrow; (3) the cross-LLM degradation matrix
+  (Claude/Cursor/Gemini).
+- **7.C — `docs/concepts/academic-foundations.md`** (new, 13 citations).
+  Stable URLs/DOIs for: Constitutional AI (Bai 2022), PRM800K
+  (Cobbe 2023), IFEval (Zhou 2023), IFEval-Robust (2024), length-vs-
+  compliance, OWASP LLM Top 10, ChatInject (2024), Diátaxis (Procida),
+  AGENTS.md spec, Cursor `.mdc` spec, IBM Neuro-Symbolic AI, OpenTelemetry
+  GenAI semconv, LLM rule compliance under prompt injection
+  (arXiv 2310.13361). Each entry maps to a D-numbered architectural
+  decision in the plan.
+- **7.D — `mkdocs.yml` polish + Pagefind**. Refreshed `mkdocs-material`
+  theme (light/dark palette toggle, tabs / expand / suggest / highlight /
+  share features, Mermaid superfences). Navigation hierarchy now matches
+  the Diátaxis-inspired layout: Tutorials → Concepts → Rules → Runbooks →
+  Telemetry. `validation:` block softens cross-tree link warnings (many
+  docs intentionally cite `scripts/`, `schemas/`, `.github/`) so `--strict`
+  exits 0. New `scripts/build_docs.sh` one-shot helper runs
+  `mkdocs build --strict && npx pagefind --site site`. New
+  `docs/runbooks/docs-build-deploy.md` runbook documents both the local
+  and the deploy paths.
+- **7.E — `docs/concepts/rule-use-cases-matrix.md`** (new). One row per
+  rule under `docs/rules/` (38 rows). Columns: slug (linked to the rule
+  doc), status (enforced / warn / advisory), L1 trigger (first sentence
+  of the rule's `## Trigger` section), L2 binding clause (verb extracted
+  from the RFC 2119 imperative), L3 workflow (dedicated file or shared
+  `check-rule-schemas.rule.yml`), live obey-rate (placeholder `—` with
+  footnote "first real data lands v0.18.3 + 1 week of consumer adoption").
+- **7.F — `docs/tutorials/01-architecture-tour.md`** polish pass.
+  Refreshed test count (~1080 expected post-slice-7), added a "What you
+  can build next" section with 5 concrete next-steps (modify a rule and
+  watch CI catch you / generate a telemetry report on your own session /
+  add a concept doc / wire a Cursor mirror / add a smoke test). Length:
+  235 lines (under the 350 cap).
+
+### Added — 5 full hardrules (closing the deferred set)
+
+- `scripts/rules/alembic-migration-naming.rule.py` — AST extracts
+  `revision = "..."` literal; rejects bare-integer revisions and
+  revision/filename drift.
+- `scripts/rules/cross-slice-additive-extension.rule.py` — regex on
+  Alembic migration source; rejects `ALTER TABLE ... ADD COLUMN ...
+  NOT NULL` without `DEFAULT` (the Shape-B sentinel safeguard).
+- `scripts/rules/migration-slot-reservation.rule.py` — walks a migrations
+  directory; rejects duplicate `<NNNN>_` integer prefixes (slot
+  collisions).
+- `scripts/rules/agentic-failure-catalog-schema.rule.py` — validates
+  `docs/concepts/agentic-failures.md` has a `## 1. Failure catalog`
+  section with unique backticked `` `id` `` rows.
+- `scripts/rules/break-glass.rule.py` — detects blocking playbook scripts
+  (`sys.exit(1)` present) missing both the `scripts._break_glass` helper
+  import + `add_break_glass_flag` call and an `OVERRIDE: none` declaration.
+
+Each ships with `tests/test_<slug>_rule.py` covering ≥5 cases (happy path,
+each rejection class, missing-file → exit 2, SKIP env var).
+
+### Changed — 5 advisory downgrades (condition #3)
+
+- `docs/rules/notification-channel-adapter.rule.md`
+- `docs/rules/notification-level-declared.rule.md`
+- `docs/rules/notification-no-secrets.rule.md`
+- `docs/rules/apply-fix-contract.rule.md`
+- `docs/rules/hitl-approval-pattern.rule.md`
+
+All five rules now carry `paired_hardrule: null` + `status: advisory`. The
+runtime surface for each (`scripts/notifications/`, `langgraph-aiops/`,
+`hitl.request_approval`, mutation-class DTOs) lives in consumer projects,
+not in the playbook tree. A playbook-side hardrule would only see
+references that do not resolve here. Consumers MAY mirror the contract
+under their own `scripts/rules/` namespace.
+
+`docs/concepts/enforcement-pairing-exceptions.md` now defines a new
+condition #3 ("consumer-side surface") alongside the existing #1
+(non-deterministic), #2 (informational), and #4 (false-positive storm),
+and the pairing-exception register adds 5 rows for the downgraded rules.
+
+### Removed
+
+- `scripts/rules/deferred-hardrules.txt` — the strict-mode allowlist is
+  empty (24 → 14 → 10 → 0 over Slices 5.F, 6, 7). The validator now
+  rejects any new `paired_hardrule:` value pointing at a missing
+  `.rule.py` without an explicit `paired_hardrule: null` + register
+  entry.
+
+### Versioning note
+
+Bumps 0.18.2 → **0.18.3**. Per user-refined versioning 2026-05-19, Slice 7
+is the LAST slice of the v0.18.x architectural reset arc (Slices 4-7 share
+the v0.18.x band). The next gate is a user review pause; fix iterations
+ship as v0.19.x; v0.20.0 is the final cut on explicit user approval.
+
+**🛑 STOP-FOR-REVIEW**: post-merge, do not auto-tag v0.19.0 or v0.20.0.
+Hand the session back to the user for review.
 
 ## [0.18.2] — 2026-05-19 — Slice 6 telemetry pipeline + 5-CLI absorption + 14 hardrules
 
