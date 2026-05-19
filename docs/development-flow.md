@@ -235,6 +235,7 @@ Following [`specs/enforcement-status.md`](../specs/enforcement-status.md) shape:
 | Drift LLM routing | 🟡 warn-only | `verify_llm_routing.py` (warn-only window 30d → strict per D3.5) |
 | Notification policy 4 levels | ✅ wired | `notify.py` |
 | 7-day post-mortem trigger | 🟠 wired-pending-trigger | `lifecycle_check.py` |
+| Consumer-side playbook zombie cleanup | 🟡 partial | `scripts/cleanup_zombies.py` + declarative manifest `specs/zombies-manifest.yaml` + hook templates `templates/new-project/scripts/git-hooks/{post-merge,post-checkout}.tmpl`. Auto-fires on consumer `git pull` / `git checkout`. Status flips ✅ when ≥ 1 consumer adopts and reports a quiet 30-day window. v0.15.0. |
 
 **Status legend** (per [enforcement-status.md](../specs/enforcement-status.md)):
 - ✅ wired — code + tests + pre-commit/CI fires it

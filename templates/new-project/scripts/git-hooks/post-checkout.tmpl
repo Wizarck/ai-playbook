@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Post-checkout hook — re-materialise skills + cleanup playbook zombies.
+#
+# git passes 3 args: <prev-head> <new-head> <branch-checkout-flag>.
+# Only act on branch checkouts (flag=1) — file checkouts don't bump the
+# playbook submodule.
+
+set -e
+
+if [ "${3:-0}" != "1" ]; then
+    exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# 1) Skills sync
+if [ -f "$REPO_ROOT/scripts/sync_skills_local.py" ]; then
+    python "$REPO_ROOT/scripts/sync_skills_local.py" --quiet || {
+        echo "warn: skills sync failed (post-checkout); run manually" >&2
+    }
+fi
+
+# 2) Playbook zombie cleanup
+if [ -f "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" ]; then
+    python "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" --apply --quiet || true
+fi

@@ -79,6 +79,20 @@ Section header format:
 ## [X.Y.Z] — YYYY-MM-DD — <one-liner>
 ```
 
+#### 2.1 Zombie manifest gate (v0.15.0+)
+
+If this release REMOVED or RENAMED any **consumer-surface artefact** — a
+template file under `templates/new-project/`, a literal identifier consumers
+hard-code (e.g. project name, MCP server alias), a frontmatter field, a
+script consumers invoke — append an entry to
+[`specs/zombies-manifest.yaml`](../specs/zombies-manifest.yaml) AND bump its
+`manifest_version` (`YYYY-MM-DD.N` format, strictly monotonic).
+
+Reference: [`specs/cleanup-zombies.md`](../specs/cleanup-zombies.md) §2 schema +
+§3 tier semantics. Validation runs via `python scripts/cleanup_zombies.py
+validate` (pre-commit gate). Skip this step ONLY if the release is internal-only
+(playbook source changes that never touched consumer-facing surfaces).
+
 ### 3. Commit + tag
 
 #### Pre-tag chronology check (per v0.9.0 followup #2)
