@@ -1,15 +1,20 @@
-# ai-playbook consumers registry — committed, org-level source of truth.
+# ai-playbook consumers registry — EXAMPLE / TEMPLATE.
+#
+# This file is the schema template. Copy it to `consumers.yaml` (gitignored)
+# and fill in your actual downstream consumer repos. Automation never reads
+# `consumers.yaml.example`; it reads `consumers.yaml`. Missing -> automation
+# fails with a clear error pointing back here.
 #
 # Distinct from `~/.ai-playbook/projects.yaml` (per-dev, gitignored) which
 # maps project names to local filesystem paths for dispatcher resolution.
-# This file enumerates every downstream repo that consumes the playbook
+# `consumers.yaml` enumerates every downstream repo that consumes the playbook
 # as a git submodule, so automation (GitHub Actions, LangGraph workflows)
 # can open "bump playbook pin" PRs across the whole inventory when a new
 # tag is cut.
 #
-# Add a consumer: PR against this file.
-# Remove a consumer: PR against this file.
-# The per-dev projects.yaml continues to hold local paths independently.
+# Add a consumer: edit your local `consumers.yaml` (gitignored).
+# Remove a consumer: edit your local `consumers.yaml`.
+# The schema versioning lives here; bump `schema:` when fields evolve.
 #
 # Schema
 # ------
@@ -23,16 +28,12 @@
 #       visibility: public | private    # (optional, for audit)
 #       status: active | paused | archived  # paused = skip automation
 #       notes: free text                # (optional)
-#       skills_pins:                    # (optional, RFC-0001) per-source-repo
+#       skills_pins:                    # (optional) per-source-repo
 #         <source-repo-slug>: <semver>  # tag pin for skills materialisation.
-#                                       # Source slugs match the repo's bare
-#                                       # name (e.g. `ai-playbook`,
-#                                       # `consumer-d-skills`). Absence of a key
-#                                       # = consumer doesn't pull from that
-#                                       # source. propagate_skills_bump.py
-#                                       # only opens PRs for consumers that
-#                                       # already have a pin for the bumped
-#                                       # source.
+#                                       # Source slugs match the source repo's
+#                                       # bare name (e.g. `ai-playbook`).
+#                                       # Absence of a key = consumer doesn't
+#                                       # pull from that source.
 #       tracker_kind: github | jira     # REQUIRED — the issue-tracker surface
 #                                       # this consumer publishes change-tracking
 #                                       # tickets on. `github` = the consumer's
@@ -44,72 +45,50 @@
 #                                       # decide_surface() and validated by the
 #                                       # consumers-schema CI check.
 #       jira_project: <KEY>             # REQUIRED iff tracker_kind == jira.
-#                                       # The Jira project key (e.g. consumer-c-legacy).
-#                                       # Ignored when tracker_kind == github.
+#                                       # The Jira project key. Ignored when
+#                                       # tracker_kind == github.
 #
 # Automation consumers of this file:
 #   - .github/workflows/propagate-playbook-bump.yml (event-driven on tag push)
-#   - .github/workflows/propagate-skills-bump.yml   (RFC-0001 Phase 2b)
-#   - consumer-d/langgraph-aiops/workflows/playbook_bump_propagator.py (daily)
 #   - scripts/bump_consumers.py (manual CLI; merges with projects.yaml for
 #     resolution of local paths when run interactively)
 
 schema: ai-playbook/consumers/v1
 version: 1
 
+# Mock entries below illustrate the three common shapes. Replace with your own
+# in a local (gitignored) `consumers.yaml`. The mock data is NOT used by any
+# automation — it exists purely for new contributors to see the schema in
+# concrete form.
+
 consumers:
-  consumer-c:
-    repo: Wizarck/consumer-c
-    default_branch: master
+  consumer-a:
+    repo: <org>/consumer-a
+    default_branch: main
     visibility: public
     status: active
     tracker_kind: github
-    notes: OSS consumer. Designed with optional Jira routing for the
-      future; currently uses GH issues exclusively. To switch to Jira, set
-      tracker_kind=jira and jira_project=<KEY>.
+    notes: Example public OSS consumer.
     skills_pins:
       ai-playbook: v0.4.0
-      consumer-d-skills: v0.2.0
-
-  consumer-d:
-    repo: Wizarck/consumer-d
-    default_branch: master
-    visibility: private
-    personal: true
-    status: active
-    tracker_kind: github
-    notes: Personal add-on alongside the playbook submodule.
-    skills_pins:
-      ai-playbook: v0.4.0
-      consumer-d-skills: v0.2.0
 
   consumer-b:
-    repo: Wizarck/consumer-b
+    repo: <org>/consumer-b
     default_branch: master
     visibility: private
     status: active
     tracker_kind: github
-    notes: Internal product (description redacted). Onboarded 2026-04-25.
+    notes: Example private internal consumer.
     skills_pins:
       ai-playbook: v0.4.0
-      consumer-d-skills: v0.2.0
 
-  consumer-e:
-    repo: Wizarck/consumer-e
+  consumer-c:
+    repo: <org>/consumer-c
     default_branch: main
     visibility: private
     status: active
-    tracker_kind: github
-    notes: Internal product (description redacted). Onboarded 2026-04-26 via ai-playbook v0.3.1 bootstrap; first consumer to land with RFC-0001 skills_pins from day one.
+    tracker_kind: jira
+    jira_project: EXAMPLE
+    notes: Example consumer routing change-tracking through Jira.
     skills_pins:
       ai-playbook: v0.4.0
-      consumer-d-skills: v0.2.0
-  livekit:
-    repo: Wizarck/livekit
-    default_branch: master
-    visibility: private
-    personal: true
-    status: active
-    tracker_kind: github
-    notes: Personal infra.
-
