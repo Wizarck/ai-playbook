@@ -4,7 +4,7 @@ slug: v090-roadmap
 title: v0.9.0 Roadmap
 summary: |
   v0.8.x shipped the release-management contract (§4.5 codifies that the
-  worker AI MUST consume the AI reviewer's comments before declaring Gate F
+  worker AI must consume the AI reviewer's comments before declaring Gate F
   ready) but the §4.5 contract assumes CodeRabbit is available. In practice
   CodeRabbit's free-tier rate-limit burns through during…
 last_validated: "2026-05-19"
