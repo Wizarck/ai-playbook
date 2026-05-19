@@ -13,7 +13,7 @@ files present at a target but absent in the source are wiped (the target is
 fully regenerated via shutil.rmtree + shutil.copytree when fingerprints
 differ).
 
-Contract: `specs/skills-distribution.md` v2.0.0 (single-source design).
+Contract: `docs/concepts/skills-distribution.md` v2.0.0 (single-source design).
 Architectural decisions: D1 (single-source), D2 (scripts not mirrored),
 D17 (skills perpendicular rules).
 

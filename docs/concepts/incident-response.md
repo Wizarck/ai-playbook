@@ -53,9 +53,9 @@ Eight concrete scenarios across availability / data / security / capacity. Each 
 
 | # | Scenario | Sev | Detection signal | Immediate action (≤ 5 min) | Escalation | Artefact required |
 |---|---|---|---|---|---|---|
-| 1 | **VPS unreachable** | S1 | Uptime-Kuma probe failed ×3 OR SSH timeout > 30s. | SSH from secondary device. If unreachable, check Hetzner console + `journalctl -p err -n200`. | Solo (Arturo). | Post-mortem if downtime > 15 min. Runbook: [runbook-vps-down.md](../runbooks/runbook-vps-down.md). |
-| 2 | **Hindsight DB corruption** | S1 | `_hindsight.py::HttpResult.reason == "degraded:retain_failed"` rate > 5%/min in `events.jsonl`. | Stop retain workers (`kubectl scale deploy/hindsight --replicas=0`). Snapshot DB to `/opt/consumer-d/backups/hindsight-<ts>.db`. Replay from JSONL queue. | Solo. | Post-mortem mandatory (data integrity class). Runbook: [runbook-db-corruption.md](../runbooks/runbook-db-corruption.md). |
-| 3 | **Secrets leak in commit** | S1 | `secrets_scan.py` post-push CI fail OR external report (vendor email, GH advisory). | Rotate every leaked credential within 1h (per [rotate-secrets.md](../runbooks/rotate-secrets.md)). Force-push history rewrite. File CISA-style note. | Solo today; legal notify if customer data implicated. | Security post-mortem ≤ 48h. Runbook: [runbook-secrets-leak-containment.md](../runbooks/runbook-secrets-leak-containment.md). |
+| 1 | **VPS unreachable** | S1 | Uptime-Kuma probe failed ×3 OR SSH timeout > 30s. | SSH from secondary device. If unreachable, check Hetzner console + `journalctl -p err -n200`. | Solo (Arturo). | Post-mortem if downtime > 15 min. Runbook: [runbook-vps-down.md](../docs/runbooks/runbook-vps-down.md). |
+| 2 | **Hindsight DB corruption** | S1 | `_hindsight.py::HttpResult.reason == "degraded:retain_failed"` rate > 5%/min in `events.jsonl`. | Stop retain workers (`kubectl scale deploy/hindsight --replicas=0`). Snapshot DB to `/opt/consumer-d/backups/hindsight-<ts>.db`. Replay from JSONL queue. | Solo. | Post-mortem mandatory (data integrity class). Runbook: [runbook-db-corruption.md](../docs/runbooks/runbook-db-corruption.md). |
+| 3 | **Secrets leak in commit** | S1 | `secrets_scan.py` post-push CI fail OR external report (vendor email, GH advisory). | Rotate every leaked credential within 1h (per [rotate-secrets.md](../docs/runbooks/rotate-secrets.md)). Force-push history rewrite. File CISA-style note. | Solo today; legal notify if customer data implicated. | Security post-mortem ≤ 48h. Runbook: [runbook-secrets-leak-containment.md](../docs/runbooks/runbook-secrets-leak-containment.md). |
 | 4 | **Container OOM cascade** | S2 | Docker restart count > 3 in 5 min for any service (Docker stats). | Identify culprit via `docker stats --no-stream`. Either bump memory limit + recreate OR roll back the deploy that triggered it. | Solo. | Gotcha entry minimum. |
 | 5 | **Certificate expiry imminent** | S2 | Caddy probe reports any cert with `< 7d to expire`. Surfaced by Uptime-Kuma cert-monitor or `caddy validate` cron. | Trigger Caddy reload to fetch fresh ACME (`docker exec caddy caddy reload --config /etc/caddy/Caddyfile`). | Solo. | Gotcha entry. |
 | 6 | **Third-party LLM provider outage** | S2 | LiteLLM proxy logs `5xx` rate > 10%/min for one provider for ≥ 3 min. | Verify with provider status page. If confirmed, fallback fires automatically per [model-routing.md](model-routing.md) §3 fallback chain. Confirm via `scripts/_llm.py` smoke ping. | Solo. | Incident note in `incidents.jsonl`. |
@@ -177,10 +177,10 @@ The runbooks named below are stubs as of v1.0.0 (acceptance of OpenSpec change `
 
 | Scenario class | Runbook | Status |
 |---|---|---|
-| VPS unreachable | [runbook-vps-down.md](../runbooks/runbook-vps-down.md) | Stub v0.1.0 |
-| DB corruption (Hindsight) | [runbook-db-corruption.md](../runbooks/runbook-db-corruption.md) | Stub v0.1.0 |
-| Key rotation emergency | [runbook-key-rotation-emergency.md](../runbooks/runbook-key-rotation-emergency.md) | Stub v0.1.0 |
-| Secrets leak containment | [runbook-secrets-leak-containment.md](../runbooks/runbook-secrets-leak-containment.md) | Stub v0.1.0 |
+| VPS unreachable | [runbook-vps-down.md](../docs/runbooks/runbook-vps-down.md) | Stub v0.1.0 |
+| DB corruption (Hindsight) | [runbook-db-corruption.md](../docs/runbooks/runbook-db-corruption.md) | Stub v0.1.0 |
+| Key rotation emergency | [runbook-key-rotation-emergency.md](../docs/runbooks/runbook-key-rotation-emergency.md) | Stub v0.1.0 |
+| Secrets leak containment | [runbook-secrets-leak-containment.md](../docs/runbooks/runbook-secrets-leak-containment.md) | Stub v0.1.0 |
 
 Per-consumer richer runbooks (consumer-specific topology, e.g. `consumer-d/runbooks/runbook-vps-disaster-recovery.md`) cross-link from these stubs; the playbook stub names what every consumer must address, the consumer runbook fills in their own infra.
 

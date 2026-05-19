@@ -79,7 +79,7 @@ See [`templates/new-project/`](../templates/new-project/):
 
 ## Break-glass
 
-`--force-with-reason "<text>"` is accepted on the following sub-gates (see [break-glass.md](../specs/break-glass.md) for the full contract):
+`--force-with-reason "<text>"` is accepted on the following sub-gates (see [break-glass.md](../docs/rules/break-glass.rule.md) for the full contract):
 
 - `--playbook-path <local>` without a released tag → breaks pinning invariant.
 - Doctor failure → proceed anyway (discouraged; shows up in `overrides.log`).
@@ -96,5 +96,5 @@ See [`templates/new-project/`](../templates/new-project/):
 
 - [quickstart.md](quickstart.md) — the manual 25–40 min walkthrough; `bootstrap.py` replaces steps 2–5.
 - [quickstart-lessons.md](quickstart-lessons.md) — per-OS friction and workarounds discovered during T15 dry-runs.
-- [../specs/bootstrap-directive.md](../specs/bootstrap-directive.md) — the directive the generated AGENTS.md §0 carries.
-- [../specs/projects-registry.md](../specs/projects-registry.md) — format of the registry file bootstrap writes to.
+- [../docs/rules/bootstrap-directive.rule.md](../docs/rules/bootstrap-directive.rule.md) — the directive the generated AGENTS.md §0 carries.
+- [../docs/concepts/projects-registry.md](../docs/concepts/projects-registry.md) — format of the registry file bootstrap writes to.

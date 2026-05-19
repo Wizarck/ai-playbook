@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ai-playbook/specs/agent-contract.schema.json",
+  "$id": "https://ai-playbook/schemas/schema-agent-contract.json",
   "title": "Agent contract — input + return envelopes",
   "oneOf": [
     { "$ref": "#/$defs/input" },

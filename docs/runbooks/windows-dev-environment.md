@@ -1,4 +1,4 @@
-# runbooks/windows-dev-environment.md
+# docs/runbooks/windows-dev-environment.md
 
 > **Status**: v1.0.0. New in ai-playbook v0.10.0. Surfaces non-obvious
 > Windows-specific dev-loop quirks that have surprised contributors across
@@ -184,7 +184,7 @@ watcher / AV holder has exited).
 ### Permanent escape
 
 Use the bare-repo + per-branch-worktree layout (per
-`specs/git-worktree-bare-layout.md`) which keeps each worktree as a
+`docs/concepts/git-worktree-bare-layout.md`) which keeps each worktree as a
 peer subdirectory. Worktrees that aren't open in any process delete
 cleanly; the IDE / watcher pattern only blocks worktrees the user
 is actively editing in.
@@ -193,6 +193,6 @@ is actively editing in.
 
 ## Cross-references
 
-- [`specs/git-worktree-bare-layout.md`](../specs/git-worktree-bare-layout.md) — bare-repo + per-branch-worktree canonical layout
-- [`runbooks/onboard-new-project.md`](onboard-new-project.md) — first-day setup; this runbook supplements with Windows-specific gotchas
-- [`docs/contributing.md`](../docs/contributing.md) §5 (test discipline) — `--runInBand` workaround for Windows test scripts
+- [`docs/concepts/git-worktree-bare-layout.md`](../docs/concepts/git-worktree-bare-layout.md) — bare-repo + per-branch-worktree canonical layout
+- [`docs/runbooks/onboard-new-project.md`](onboard-new-project.md) — first-day setup; this runbook supplements with Windows-specific gotchas
+- [`docs/concepts/contributing.md`](../docs/concepts/contributing.md) §5 (test discipline) — `--runInBand` workaround for Windows test scripts

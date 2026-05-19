@@ -45,7 +45,7 @@
 ## 7. Validation
 
 - [x] 7.1 `pytest tests/` — green (baseline 3 skipped).
-- [x] 7.2 `python scripts/cleanup_zombies.py validate` — exit 0.
+- [x] 7.2 `python scripts/rules/cleanup-zombies.rule.py validate` — exit 0.
 - [x] 7.3 `python scripts/cost_report.py --help` — no error.
 - [x] 7.4 `python -m scripts.mcp.render --help` — no error.
 - [x] 7.5 `pip install -e .` — succeeds.

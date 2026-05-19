@@ -93,6 +93,6 @@ Given a current working directory `cwd`:
 
 ## Env vars introduced by this spec
 
-See `specs/env-vars.md`:
+See `docs/concepts/env-vars.md`:
 - `AIPLAYBOOK_PROJECTS_FILE` — override registry path.
 - `AIPLAYBOOK_PROJECTS_ROOTS` — comma or OS-pathsep-separated extra scan roots.

@@ -9,7 +9,7 @@ Renamed from ``scripts.retain_lesson`` in v0.3.0 — the script handles every
 ``scripts/retain_lesson.py`` ships as a deprecation shim that delegates
 here and emits a warning to stderr. The shim will be removed in v1.0.0.
 
-Per [`specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) §5:
+Per [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) §5:
 
     - Retain on lesson, not on fact.
     - Every retain includes ``why`` (rationale), ``trace_id`` (OTel), ``tags``

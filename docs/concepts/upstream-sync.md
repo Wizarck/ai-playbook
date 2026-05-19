@@ -196,7 +196,7 @@ DIGEST=$(curl -s "https://hub.docker.com/v2/repositories/<owner>/<image>/tags/${
 
 The rule is conditional on the fork using the overlay pattern. Forks that build entirely from
 source (no pinned base image; the runtime image IS the fork tree compiled fresh) skip §9 entirely.
-The fork inventory in [`../docs/fork-inventory.md`](../docs/fork-inventory.md) SHOULD mark which
+The fork inventory in [`../docs/tutorials/07-fork-inventory.md`](../docs/tutorials/07-fork-inventory.md) SHOULD mark which
 forks use the overlay pattern so this rule is auto-discoverable.
 
 ### Memory retention
@@ -213,7 +213,7 @@ workflow itself.
   commits on `main`.
 - [verdict-contract.md](verdict-contract.md) — HITL uses verdicts.
 - [memory-hierarchy.md](memory-hierarchy.md) — retain on every merge / lost event.
-- [`../docs/fork-inventory.md`](../docs/fork-inventory.md) — the authoritative catalog of forks.
+- [`../docs/tutorials/07-fork-inventory.md`](../docs/tutorials/07-fork-inventory.md) — the authoritative catalog of forks.
 - [`../templates/PATCHES.md.tmpl`](../templates/PATCHES.md.tmpl) — per-fork manifest template.
 - [`../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py`](../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py) —
   the workflow.

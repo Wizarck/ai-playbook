@@ -45,7 +45,7 @@ Do NOT bump when:
 |---|---|
 | Typo fix, docs polish in a single SKILL.md | patch (`v0.4.0 → v0.4.1`) |
 | New skill added; existing skill expanded with backwards-compatible content | minor (`v0.4.0 → v0.5.0`) |
-| Skill renamed, deleted, or `name` frontmatter changed | major (`v0.x → v1.0.0`) — requires RFC first per [specs/rollout-strategy.md](../specs/rollout-strategy.md) |
+| Skill renamed, deleted, or `name` frontmatter changed | major (`v0.x → v1.0.0`) — requires RFC first per [docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md) |
 
 Independent semver per source repo: `ai-playbook v0.4.5` and
 `consumer-d-skills v0.2.7` are unrelated. The consumer's `skills_pins` block
@@ -214,14 +214,14 @@ regressed"; the patch tag is the new pin everyone moves to.
 
 ## Cross-refs
 
-- [`specs/skills-distribution.md`](../specs/skills-distribution.md) — the
+- [`docs/concepts/skills-distribution.md`](../docs/concepts/skills-distribution.md) — the
   contract this runbook executes.
-- [`specs/skills-registry.md`](../specs/skills-registry.md) — the discovery
+- [`docs/concepts/skills-registry.md`](../docs/concepts/skills-registry.md) — the discovery
   surface that benefits from a new tag (registry's `pin_recommended`
   hint updates next refresh).
-- [`runbooks/release.md`](release.md) — the parallel runbook for bumping
+- [`docs/runbooks/release.md`](release.md) — the parallel runbook for bumping
   the playbook submodule itself.
-- [`runbooks/propagate-bump-troubleshooting.md`](propagate-bump-troubleshooting.md) — failure
+- [`docs/runbooks/propagate-bump-troubleshooting.md`](propagate-bump-troubleshooting.md) — failure
   modes of the propagation workflow (mostly applicable to skills propagation
   too — same scaffolding).
 - [`rfcs/RFC-0001-skills-distribution.md`](../rfcs/RFC-0001-skills-distribution.md) — design

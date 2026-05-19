@@ -33,7 +33,7 @@ Arturo-private (per [dispatcher-chain.md](dispatcher-chain.md) level 3).
 
 Rules:
 
-- `bank_id` is **lowercase kebab**, matches the project slug in `specs/projects-registry.md`.
+- `bank_id` is **lowercase kebab**, matches the project slug in `docs/concepts/projects-registry.md`.
 - A child subagent inherits its parent's `memory.bank_id` unless it explicitly overrides in the
   spawn envelope.
 - Writing to a `*-personal` bank from a non-personal session is forbidden — the harness checks

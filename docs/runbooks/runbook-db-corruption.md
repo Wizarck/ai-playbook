@@ -1,12 +1,12 @@
 # runbook-db-corruption.md
 
-> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`specs/incident-response.md`](../specs/incident-response.md) §4 scenario #2.
+> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`docs/concepts/incident-response.md`](../docs/concepts/incident-response.md) §4 scenario #2.
 >
 > Stub means: the steps below capture the canonical recovery sequence for Hindsight (the canonical SQLite-backed memory MCP); the same shape applies to other SQLite-backed services with adjustments.
 
 ## When to use this runbook
 
-Triggered by [incident-response.md](../specs/incident-response.md) §4 scenario #2: Hindsight DB corruption. Detection: `_hindsight.py::HttpResult.reason == "degraded:retain_failed"` rate > 5%/min in `events.jsonl`. Or: explicit `database disk image is malformed` errors in service logs.
+Triggered by [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #2: Hindsight DB corruption. Detection: `_hindsight.py::HttpResult.reason == "degraded:retain_failed"` rate > 5%/min in `events.jsonl`. Or: explicit `database disk image is malformed` errors in service logs.
 
 Severity: **S1** (data integrity class). MTTR target: ≤ 30 min to mitigation; ≤ 4 h to durable fix.
 
@@ -97,12 +97,12 @@ If the recovery itself made things worse (e.g. Path B `.recover` produced an inc
 
 ## Post-incident artefact required
 
-**Post-mortem mandatory** (data integrity class), per [post-mortem.md](../specs/post-mortem.md). The artefact must name the corruption signature, the recovery path used, and any data loss window.
+**Post-mortem mandatory** (data integrity class), per [post-mortem.md](../docs/concepts/post-mortem.md). The artefact must name the corruption signature, the recovery path used, and any data loss window.
 
 ## Related
 
-- [incident-response.md](../specs/incident-response.md) §4 scenario #2.
-- [memory-hierarchy.md](../specs/memory-hierarchy.md) — Hindsight is Tier 3.
-- [degradation-modes.md](../specs/degradation-modes.md) — `degraded:retain_failed` taxonomy.
-- [post-mortem.md](../specs/post-mortem.md) — mandatory artefact.
+- [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #2.
+- [memory-hierarchy.md](../docs/concepts/memory-hierarchy.md) — Hindsight is Tier 3.
+- [degradation-modes.md](../docs/concepts/degradation-modes.md) — `degraded:retain_failed` taxonomy.
+- [post-mortem.md](../docs/concepts/post-mortem.md) — mandatory artefact.
 - Per-consumer richer runbook: `<consumer>/runbooks/runbook-hindsight-recovery.md` (when written).

@@ -39,7 +39,7 @@ prereq_gates:
   - Gate A — <date>
   - Gate B — <date>
 status: approved | proposed | superseded
-runbook: .ai-playbook/specs/runbook-bmad-openspec.md §2.4
+runbook: .ai-playbook/docs/concepts/runbook-bmad-openspec.md §2.4
 ---
 
 # <Module name> — OpenSpec slicing

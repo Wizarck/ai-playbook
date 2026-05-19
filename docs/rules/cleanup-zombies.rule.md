@@ -2,7 +2,7 @@
 
 > **Status**: v1.1.0 — shipped in ai-playbook v0.15.0 (initial); v0.17.0 expansion (slice `single-source-skills-reset`) added 8 v2 manifest entries deprecating RFC-0001 multi-source artefacts (`propagate-skills-bump-script`, `validate-skills-mirror-script`, `propagate-skills-bump-workflow`, `rfcs-folder-removed`, `skills-sources-submodule-v2`, `skills-sources-frontmatter`, `skills-pins-consumers-yaml`, `validate-skills-mirror-precommit-hook`) plus refined 3 existing entries (`skills-sources-submodule`, `skills-sources-frontmatter-simplify`, `pre-commit-deprecated-hooks`) with `removed_in: v0.17.0`. Manifest version bumped 2026-05-19.1 → 2026-05-19.2. Authored under OpenSpec change `add-cleanup-zombies-hook` on 2026-05-19.
 >
-> **Audience**: any agent or developer touching consumer-side hygiene. Authoritative contract for `scripts/cleanup_zombies.py` and `specs/zombies-manifest.yaml`.
+> **Audience**: any agent or developer touching consumer-side hygiene. Authoritative contract for `scripts/rules/cleanup-zombies.rule.py` and `specs/zombies-manifest.yaml`.
 
 This spec defines the consumer-side **zombie cleanup contract**: a declarative manifest of fossils left in consumer trees by past playbook versions, plus a single script that detects them, applies safe-deletes / textual renames, and reports the residue.
 
@@ -62,7 +62,7 @@ entries:
 - `rename_from` / `rename_to` / `rename_in_files` REQUIRED iff `action == rename`.
 - `rotation_days` REQUIRED iff `action == rotate`.
 
-`scripts/cleanup_zombies.py validate` enforces these rules. Pre-commit gate registers it on edits to the manifest file. Exit 2 on validation failure (the only non-zero exit code in the tool).
+`scripts/rules/cleanup-zombies.rule.py validate` enforces these rules. Pre-commit gate registers it on edits to the manifest file. Exit 2 on validation failure (the only non-zero exit code in the tool).
 
 ---
 
@@ -100,7 +100,7 @@ Each entry's `safety` field names ONE check from this catalogue. The check runs 
 ### 4.1 Adding a new safety check
 
 1. Append entry to this table.
-2. Implement `_safety_<name>(target, entry, consumer_root) -> SafetyResult` in `scripts/cleanup_zombies.py`.
+2. Implement `_safety_<name>(target, entry, consumer_root) -> SafetyResult` in `scripts/rules/cleanup-zombies.rule.py`.
 3. Register in `SAFETY_CHECKS` dict.
 4. Add unit tests in `tests/test_cleanup_zombies.py`.
 5. Update §3.1 matrix if the check is permitted in a new tier.
@@ -149,7 +149,7 @@ AIPLAYBOOK_CLEANUP_SKIP=1   # any non-empty value
 
 When set, the script logs `⚠ cleanup_zombies: skipped via AIPLAYBOOK_CLEANUP_SKIP` to stderr and exits 0 immediately. No file mutations, no channel writes.
 
-Per `specs/break-glass.md`: env var sits in the `AIPLAYBOOK_*` namespace. No audit log for this skip (the script lacks a writable audit channel beyond the report file, which would be the very thing being skipped).
+Per `docs/rules/break-glass.rule.md`: env var sits in the `AIPLAYBOOK_*` namespace. No audit log for this skip (the script lacks a writable audit channel beyond the report file, which would be the very thing being skipped).
 
 Use when:
 - A consumer needs to defer cleanup (e.g. mid-rebase, dirty tree).
@@ -164,7 +164,7 @@ After bumping the consumer's `.ai-playbook` to v0.15.0:
 1. **Hook wire-up** — add one line to `scripts/git-hooks/post-merge` AND `scripts/git-hooks/post-checkout` (both already exist if the consumer adopted `sync_skills_local.py`):
 
    ```bash
-   python "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" --apply --quiet || true
+   python "$REPO_ROOT/.ai-playbook/scripts/rules/cleanup-zombies.rule.py" --apply --quiet || true
    ```
 
 2. **Gitignore** — append to `.gitignore`:
@@ -176,9 +176,9 @@ After bumping the consumer's `.ai-playbook` to v0.15.0:
 
 3. **First run** — `bash scripts/install-skills-hooks.sh` (or equivalent) runs the cleanup immediately as part of post-install. Inspect the generated `zombie-report.md`. Review any Tier 3 advisories manually.
 
-4. **Verify clean state** — `python .ai-playbook/scripts/cleanup_zombies.py` (no `--apply`). Should print no summary line if zero zombies. Report file should be absent.
+4. **Verify clean state** — `python .ai-playbook/scripts/rules/cleanup-zombies.rule.py` (no `--apply`). Should print no summary line if zero zombies. Report file should be absent.
 
-For consumers that have **never** wired the skills sync (and therefore have no `scripts/git-hooks/` setup), point at `templates/new-project/scripts/git-hooks/` shipped in this release and the bootstrap runbook `runbooks/onboard-new-project.md`.
+For consumers that have **never** wired the skills sync (and therefore have no `scripts/git-hooks/` setup), point at `templates/new-project/scripts/git-hooks/` shipped in this release and the bootstrap runbook `docs/runbooks/onboard-new-project.md`.
 
 ---
 
@@ -192,5 +192,5 @@ For consumers that have **never** wired the skills sync (and therefore have no `
 - [`memory-hierarchy.md`](memory-hierarchy.md) — hindsight queue lifecycle (rationale for `hindsight-queue-rotation`).
 - [`dispatcher-chain.md`](dispatcher-chain.md) — `inherits_from` semantics (rationale for `inherits-from-too-old` Tier 3 entry).
 - [`runbook-bmad-openspec.md`](runbook-bmad-openspec.md) — change workflow.
-- [`../runbooks/release.md`](../runbooks/release.md) §X — release-cut checklist gates a manifest update when consumer-surface artefacts change.
-- [`../docs/development-flow.md`](../docs/development-flow.md) §5 — enforcement row for this spec.
+- [`../docs/runbooks/release.md`](../docs/runbooks/release.md) §X — release-cut checklist gates a manifest update when consumer-surface artefacts change.
+- [`../docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) §5 — enforcement row for this spec.

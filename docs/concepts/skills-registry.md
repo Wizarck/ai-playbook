@@ -106,7 +106,7 @@ it remains optional for minimum-viable implementations.
 | Scope | Visibility | Auth required |
 |---|---|---|
 | `public` | All consumers. | No (CF Tunnel already gates network access). |
-| `personal` | Arturo-only (see `specs/dispatcher-chain.md` level 3). | Yes — bearer token. |
+| `personal` | Arturo-only (see `docs/concepts/dispatcher-chain.md` level 3). | Yes — bearer token. |
 | `<project-slug>` | Callers working in a specific project. | Conditional — see projects registry. |
 
 Scope resolution on the consumer side mirrors `dispatcher-chain.md`:
@@ -152,7 +152,7 @@ If the registry is unreachable (DNS, 5xx, timeout):
    a skill that is not in `.claude/skills/` and the registry is down, the agent
    escalates with `❓ CLARIFICATION NEEDED`.
 
-See `specs/degradation-modes.md` §1 for the state-enum semantics; the registry
+See `docs/concepts/degradation-modes.md` §1 for the state-enum semantics; the registry
 counts as part of `DEGRADED_CONTEXT` alongside Hindsight.
 
 ## 6. Security
@@ -196,7 +196,7 @@ Behaviour:
 
 - Reads `SKILLS_REGISTRY_URL` (required) and `SKILLS_REGISTRY_API_KEY`
   (optional, required when scope != `public`).
-- Emits the canonical error shape on failure (`specs/error-message-standard.md`).
+- Emits the canonical error shape on failure (`docs/rules/error-message-standard.rule.md`).
 - `--force-with-reason` degrades to an empty list (exit 0) so consumers can
   boot in offline dev mode.
 

@@ -51,7 +51,7 @@ Each breaking change walks every row of this table. Skipping a row is a governan
 
 | Phase | Artefact | Audience | SLA |
 |---|---|---|---|
-| **Proposal** | RFC under `rfcs/NNNN-<slug>.md` per [../rfcs/README.md](../rfcs/README.md). | Maintainer + named reviewers per [contributing.md](../docs/contributing.md) §2. | Triage ≤7 days, decision ≤30 days per contributing.md §3.2. |
+| **Proposal** | RFC under `rfcs/NNNN-<slug>.md` per [../rfcs/README.md](../rfcs/README.md). | Maintainer + named reviewers per [contributing.md](../docs/concepts/contributing.md) §2. | Triage ≤7 days, decision ≤30 days per contributing.md §3.2. |
 | **Acceptance** | RFC merged with `Decided: accept`. CHANGELOG entry under the next minor. | Contributors + consumers (via GH Release notes). | Same day as merge. |
 | **Deprecation** | Entry added to `specs/deprecations.yaml` (schema: `{change-id, deprecated-in, remove-earliest, migration-link}`). Emitter wired into `scripts/deprecation_watcher.py` (owned by Subagent A, T22 track). | Consumers — surfaces on every CLI invocation that touches the deprecated path. | Ships in the minor that contains the RFC acceptance. |
 | **Grace** | Warning emitted on every invocation during the window. Weekly `info`-level `deprecation.usage.observed` notification per [notification-policy.md](notification-policy.md). | Consumers. | Window = §3 rules. |
@@ -88,7 +88,7 @@ Security vulnerabilities and data-corruption bugs bypass the deprecation window.
 
 - **Trigger**: a finding that would rate `S1` per [verdict-contract.md](verdict-contract.md) §2 AND affects correctness/safety AND cannot be fixed inside the existing contract.
 - **Action**: immediate hard-fail release (patch version — semver allows breaking fixes in patches for security, signalled by a `SECURITY:` prefix in the CHANGELOG).
-- **Mandatory post-mortem** per `specs/post-mortem.md` (owned by Subagent A, T22 track — **flag for race: ensure the post-mortem template cross-refs this file as the trigger**). Post-mortem lands within 7 days, commits to `reports/post-mortems/<YYYY-MM-DD>-<slug>.md`.
+- **Mandatory post-mortem** per `docs/concepts/post-mortem.md` (owned by Subagent A, T22 track — **flag for race: ensure the post-mortem template cross-refs this file as the trigger**). Post-mortem lands within 7 days, commits to `reports/post-mortems/<YYYY-MM-DD>-<slug>.md`.
 - **No retroactive deprecation.** The fact that the window was skipped is the story the post-mortem tells.
 
 ---
@@ -107,10 +107,10 @@ Security vulnerabilities and data-corruption bugs bypass the deprecation window.
 
 - [migration-guide.md](migration-guide.md) — v0→v1 migration and the template for future major migrations.
 - [../rfcs/README.md](../rfcs/README.md) — RFC template and SLA.
-- [../docs/contributing.md](../docs/contributing.md) §3 — RFC process, reviewer matrix.
+- [../docs/concepts/contributing.md](../docs/concepts/contributing.md) §3 — RFC process, reviewer matrix.
 - [slos.md](slos.md) — the break-glass-ratio SLO tracks consumers who get stuck during a deprecation window.
 - [break-glass.md](break-glass.md) — single-invocation escape hatch during migration.
 - [notification-policy.md](notification-policy.md) §4 — `deprecation.usage.observed` event mapping.
 - [verdict-contract.md](verdict-contract.md) — severity taxonomy that classifies emergency-path triggers.
 - `scripts/deprecation_watcher.py` — emitter of deprecation warnings (Subagent A, T22).
-- `specs/post-mortem.md` — template for the §7 mandatory post-mortem (Subagent A, T22).
+- `docs/concepts/post-mortem.md` — template for the §7 mandatory post-mortem (Subagent A, T22).

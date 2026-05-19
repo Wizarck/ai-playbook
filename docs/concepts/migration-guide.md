@@ -182,7 +182,7 @@ capabilities_map: false
 
 ## 0 Bootstrap directive
 
-1. Read `.ai-playbook/specs/dispatcher-chain.md`.
+1. Read `.ai-playbook/docs/concepts/dispatcher-chain.md`.
 2. Only then act.
 
 ## 1 Project identity

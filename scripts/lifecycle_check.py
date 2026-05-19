@@ -11,7 +11,7 @@ Populated in T14i. Produces a markdown report at
 - Memory-decay candidates: ``hindsight.retain`` events older than 90 days in
   ``<repo>/.ai-playbook/events.jsonl``.
 - Deprecation watchers: entries in ``~/.ai-playbook/migration-pending.log``
-  (see ``specs/migration-guide.md``).
+  (see ``docs/concepts/migration-guide.md``).
 
 CLI
 ---
@@ -56,7 +56,7 @@ BREAK_GLASS_WINDOW_DAYS = 30
 CLARIFY_MARKER = "❓ CLARIFICATION NEEDED"
 
 # Activation-trigger detectors (Phase 5 P5.6 / P5.7 — see
-# specs/incident-response.md §2 and docs/model-migration.md §2).
+# docs/concepts/incident-response.md §2 and docs/concepts/model-migration.md §2).
 PAYING_CLIENT_RECENCY_DAYS = 30  # sla_signed within last N days fires the trigger
 MODEL_RETIREMENT_HORIZON_DAYS = 90  # retirement within N days fires the trigger
 
@@ -643,7 +643,7 @@ def _render_triggers(report: LifecycleReport) -> list[str]:
         lines.append("")
         lines.append("Recommended next step: `MODEL_MIGRATION_REQUESTED=<from>:<to>` "
                      "then `python -m scripts.simulate_model_migration` "
-                     "(see `docs/model-migration.md` §3).")
+                     "(see `docs/concepts/model-migration.md` §3).")
         lines.append("")
     return lines
 

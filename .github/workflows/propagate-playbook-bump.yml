@@ -8,13 +8,13 @@
 #   4. Opens a PR against the consumer's default branch.
 #
 # Humans review + merge the PRs — propagation is propose-only per the
-# propose-only HITL convention documented in `specs/upstream-sync.md`.
+# propose-only HITL convention documented in `docs/concepts/upstream-sync.md`.
 #
 # Required repo secret:
 #   - PLAYBOOK_PROPAGATION_TOKEN: a PAT (or fine-grained token) with
 #     `contents:write` + `pull-requests:write` scopes on every consumer
 #     repo listed in consumers.yaml. Kept in SOPS; mirrored to repo
-#     secrets. Rotation policy per specs/data-retention.md.
+#     secrets. Rotation policy per docs/concepts/data-retention.md.
 #
 # Notifications:
 #   - Each PR opened emits a `warn` notification via scripts/notify.py

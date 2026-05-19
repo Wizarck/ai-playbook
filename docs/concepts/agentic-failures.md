@@ -275,7 +275,7 @@ All failure-carrying spans MUST include:
 | `ai_playbook.failure.agent_id` | UUIDv7 of the child that failed |
 | `ai_playbook.failure.detector` | `harness` \| `pre_commit` \| `qa_reviewer` \| `retro` \| `human` |
 
-These flow into the retro cadence (see `specs/retrospective-cadence.md` when populated) which
+These flow into the retro cadence (see `docs/concepts/retrospective-cadence.md` when populated) which
 aggregates weekly.
 
 ## 4. See also

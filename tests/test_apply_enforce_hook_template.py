@@ -9,13 +9,13 @@ The template is a Python script with `{{PLACEHOLDER}}`-style substitutions for
 project-specific values. Tests render the template into a temp project, then
 invoke the rendered script as a subprocess, feeding synthetic Claude Code
 hook input on stdin and asserting exit code + stderr per the canonical error
-shape (per `specs/error-message-standard.md`).
+shape (per `docs/rules/error-message-standard.rule.md`).
 
 Contracts:
 - design.md §2 (hook contract)
 - design.md §2.2 (decision flow)
 - design.md §2.3 (canonical error message)
-- specs/break-glass.md (override env)
+- docs/rules/break-glass.rule.md (override env)
 """
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def _invoke_hook(
     env to signal "background work — auto-override the apply-skill gate").
     That inheritance is correct for the harness but POLLUTES this test:
     every "expect a block" assertion would silently pass through the
-    legitimate override path in the hook (`specs/apply-skill-enforcement.md`
+    legitimate override path in the hook (`docs/rules/apply-skill-enforcement.rule.md`
     §3) and report exit 0 instead of the expected block (exit 2).
 
     Fix: drop the override env explicitly. When a test wants to exercise the

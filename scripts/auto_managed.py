@@ -1,6 +1,6 @@
 """Regenerate ``<!-- BEGIN auto-managed: <source> -->`` sections in consumer files.
 
-Populated in T17. See ``specs/auto-managed-sections.md`` for the marker format,
+Populated in T17. See ``docs/concepts/auto-managed-sections.md`` for the marker format,
 the supported source shapes, and the idempotency contract.
 
 CLI
@@ -18,7 +18,7 @@ Public API
     find_sections(text) -> list[Section]
     regenerate(file_path, playbook_root) -> list[Diff]
 
-Exit codes (per ``specs/error-message-standard.md``)
+Exit codes (per ``docs/rules/error-message-standard.rule.md``)
     0 success or clean
     1 stale sections found (``--check``) or unrecoverable marker syntax
     2 environment/setup failure (playbook root not found, source file missing)
@@ -261,9 +261,9 @@ def _extract_heading_section(
 
 
 _SUPPORTED_SOURCES = {
-    "specs/taxonomy:runtime": ("specs/taxonomy.md", "Runtime entities"),
-    "specs/taxonomy:config": ("specs/taxonomy.md", "Config artefacts"),
-    "specs/verdict-contract:levels": ("specs/verdict-contract.md", "Severity levels"),
+    "specs/taxonomy:runtime": ("docs/concepts/taxonomy.md", "Runtime entities"),
+    "specs/taxonomy:config": ("docs/concepts/taxonomy.md", "Config artefacts"),
+    "specs/verdict-contract:levels": ("docs/rules/verdict-contract.rule.md", "Severity levels"),
 }
 
 # ``specs/universal-principles`` intentionally hard-fails in v1.0 until we

@@ -59,7 +59,7 @@ flowchart TD
     qa3 -->|⚠️| impl
     qa3 -->|✅| archive[openspec archive]
     archive --> specs[(openspec/specs/*.md<br/>updated)]
-    archive --> retro[Post-archive retro<br/>specs/retrospective-cadence.md]
+    archive --> retro[Post-archive retro<br/>docs/concepts/retrospective-cadence.md]
     blocked -.->|human unblocks| parallel
 ```
 

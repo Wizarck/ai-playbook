@@ -28,8 +28,8 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 2. [quickstart.md](quickstart.md) — the 25–40-min walkthrough, end-to-end.
 3. [../AGENTS.md](../AGENTS.md) — the playbook's own project dispatcher (dogfooding example).
 4. In a consumer repo: `CLAUDE.md` / `GEMINI.md` / `.cursor/rules/*.mdc` — thin LLM-specific routers that point at AGENTS.md. (The playbook itself has no `CLAUDE.md`; it dogfoods AGENTS.md only.)
-5. [../specs/dispatcher-chain.md](../specs/dispatcher-chain.md) — the 3-level contract.
-6. [../specs/projects-registry.md](../specs/projects-registry.md) — how `~/.ai-playbook/projects.yaml` is populated and consumed.
+5. [../docs/concepts/dispatcher-chain.md](../docs/concepts/dispatcher-chain.md) — the 3-level contract.
+6. [../docs/concepts/projects-registry.md](../docs/concepts/projects-registry.md) — how `~/.ai-playbook/projects.yaml` is populated and consumed.
 
 **Do**:
 
@@ -51,11 +51,11 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 
 **Read** (any order, but all five):
 
-1. [../specs/verdict-contract.md](../specs/verdict-contract.md) — the verdict literals, severity taxonomy, max-2-rework rule.
-2. [../specs/parallel-review.md](../specs/parallel-review.md) — the 3-layer review model (Blind Hunter / Edge Case Hunter / Acceptance Auditor).
-3. [../specs/agent-contract.md](../specs/agent-contract.md) — the machine-shaped envelope that carries verdicts between agents.
-4. [../specs/model-routing.md](../specs/model-routing.md) — why reviewer layers use specific models.
-5. [../specs/break-glass.md](../specs/break-glass.md) — when an override is legitimate and when it's not.
+1. [../docs/rules/verdict-contract.rule.md](../docs/rules/verdict-contract.rule.md) — the verdict literals, severity taxonomy, max-2-rework rule.
+2. [../docs/concepts/parallel-review.md](../docs/concepts/parallel-review.md) — the 3-layer review model (Blind Hunter / Edge Case Hunter / Acceptance Auditor).
+3. [../docs/concepts/agent-contract.md](../docs/concepts/agent-contract.md) — the machine-shaped envelope that carries verdicts between agents.
+4. [../docs/concepts/model-routing.md](../docs/concepts/model-routing.md) — why reviewer layers use specific models.
+5. [../docs/rules/break-glass.rule.md](../docs/rules/break-glass.rule.md) — when an override is legitimate and when it's not.
 
 **Do**:
 
@@ -83,7 +83,7 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 
 **Do**:
 
-- Open a small spec PR (e.g. add a row to [../specs/taxonomy.md](../specs/taxonomy.md), or fix a cross-ref).
+- Open a small spec PR (e.g. add a row to [../docs/concepts/taxonomy.md](../docs/concepts/taxonomy.md), or fix a cross-ref).
 - Follow [contributing.md](contributing.md) §4 commit style and §5 test discipline.
 - Triage one open bullet in [../FEEDBACK.md](../FEEDBACK.md): turn it into an issue, an RFC, or a rejection with rationale.
 
@@ -101,11 +101,11 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 
 **Read** (in order):
 
-1. [../specs/rollout-strategy.md](../specs/rollout-strategy.md) — breaking-change workflow.
-2. [../specs/slos.md](../specs/slos.md) — the targets that define "is the playbook healthy".
-3. `specs/data-retention.md` (owned by Subagent A, T22 track — if not yet populated when you reach week 4, read [../specs/retrospective-cadence.md](../specs/retrospective-cadence.md) §3 Outputs as the interim pointer).
-4. `specs/incident-response.md` (owned by Subagent A, T22 track — same interim pointer).
-5. [../specs/retrospective-cadence.md](../specs/retrospective-cadence.md) — the three cadences and their templates.
+1. [../docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md) — breaking-change workflow.
+2. [../docs/concepts/slos.md](../docs/concepts/slos.md) — the targets that define "is the playbook healthy".
+3. `docs/concepts/data-retention.md` (owned by Subagent A, T22 track — if not yet populated when you reach week 4, read [../docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md) §3 Outputs as the interim pointer).
+4. `docs/concepts/incident-response.md` (owned by Subagent A, T22 track — same interim pointer).
+5. [../docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md) — the three cadences and their templates.
 
 **Do**:
 
@@ -126,7 +126,7 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 - **Weekly retro attendance**: observer for 2 weeks, participant for 4 weeks, facilitator thereafter. The maintainer decides when you cross each threshold.
 - **Monthly lifecycle check review**: read the monthly retro output, propose at least one systemic-flag fix per quarter.
 - **One RFC per quarter**: either write one, or serve as the named reviewer on one.
-- **Per-quarter spec rotation**: pick one spec, re-read it cold, file an issue for any line you struggle to follow. Ambiguity rot (per [slos.md](../specs/slos.md)) depends on fresh eyes to surface.
+- **Per-quarter spec rotation**: pick one spec, re-read it cold, file an issue for any line you struggle to follow. Ambiguity rot (per [slos.md](../docs/concepts/slos.md)) depends on fresh eyes to surface.
 
 ---
 
@@ -143,7 +143,7 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 - [start-here.md](start-here.md) — orientation.
 - [quickstart.md](quickstart.md) — the operator-layer walkthrough.
 - [contributing.md](contributing.md) — roles, RFC SLAs, code style.
-- [../specs/dispatcher-chain.md](../specs/dispatcher-chain.md), [../specs/verdict-contract.md](../specs/verdict-contract.md), [../specs/parallel-review.md](../specs/parallel-review.md), [../specs/agent-contract.md](../specs/agent-contract.md), [../specs/model-routing.md](../specs/model-routing.md), [../specs/break-glass.md](../specs/break-glass.md) — week-by-week reading list.
-- [../specs/rollout-strategy.md](../specs/rollout-strategy.md), [../specs/slos.md](../specs/slos.md), [../specs/retrospective-cadence.md](../specs/retrospective-cadence.md) — week 4 governance reading.
+- [../docs/concepts/dispatcher-chain.md](../docs/concepts/dispatcher-chain.md), [../docs/rules/verdict-contract.rule.md](../docs/rules/verdict-contract.rule.md), [../docs/concepts/parallel-review.md](../docs/concepts/parallel-review.md), [../docs/concepts/agent-contract.md](../docs/concepts/agent-contract.md), [../docs/concepts/model-routing.md](../docs/concepts/model-routing.md), [../docs/rules/break-glass.rule.md](../docs/rules/break-glass.rule.md) — week-by-week reading list.
+- [../docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md), [../docs/concepts/slos.md](../docs/concepts/slos.md), [../docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md) — week 4 governance reading.
 - [../FEEDBACK.md](../FEEDBACK.md) — week 3 triage target.
 - [../templates/retro/](../templates/retro/) — retro templates used in weeks 3–4 and ongoing.

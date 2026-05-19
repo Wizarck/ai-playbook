@@ -12,7 +12,7 @@
 
 Persists a lesson to the Hindsight memory layer so any future agent session —
 in any project, in any CLI — can `recall` it. This is the canonical write
-path described in [`specs/memory-hierarchy.md`](../specs/memory-hierarchy.md)
+path described in [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md)
 §5. The Claude Code per-project auto-memory folder is **not** a substitute —
 it only reloads in the same project's CLI.
 
@@ -130,8 +130,8 @@ necessarily first if other entries are more relevant).
 
 ## Cross-references
 
-- [`specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) §5 — write rules.
-- [`specs/env-vars.md`](../specs/env-vars.md) §HINDSIGHT_* — env contract.
+- [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) §5 — write rules.
+- [`docs/concepts/env-vars.md`](../docs/concepts/env-vars.md) §HINDSIGHT_* — env contract.
 - [`scripts/retain_memory.py`](../scripts/retain_memory.py) — the script.
 - [`scripts/_hindsight.py`](../scripts/_hindsight.py) — shared HTTP client.
-- [`docs/session-start-hook.md`](../docs/session-start-hook.md) — read side; the partner hook recalls memory at session start.
+- [`docs/concepts/session-start-hook.md`](../docs/concepts/session-start-hook.md) — read side; the partner hook recalls memory at session start.

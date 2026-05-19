@@ -1,6 +1,6 @@
 """upstream_sync.py — local inspection + manual-triage tool for tracked forks.
 
-Populated in T23a. Implements the human-side half of `specs/upstream-sync.md`.
+Populated in T23a. Implements the human-side half of `docs/concepts/upstream-sync.md`.
 The LangGraph `upstream_refresher.py` workflow in consumer-d is the automated
 half; this CLI is the read-only / manually-triggered counterpart.
 
@@ -11,7 +11,7 @@ Commands
     python -m scripts.upstream_sync refresh <fork>           # fetch only; never merges
     python -m scripts.upstream_sync mark-merged <fork> <patch-id>
 
-All commands accept ``--force-with-reason TEXT`` per specs/break-glass.md. The
+All commands accept ``--force-with-reason TEXT`` per docs/rules/break-glass.rule.md. The
 only gate that accepts an override is "upstream unreachable" (network flakes);
 parse errors and registry-missing do NOT accept overrides.
 
@@ -457,7 +457,7 @@ def cmd_mark_merged(
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="upstream_sync",
-        description="Inspect + triage upstream-tracked forks (see specs/upstream-sync.md).",
+        description="Inspect + triage upstream-tracked forks (see docs/concepts/upstream-sync.md).",
     )
     parser.add_argument(
         "--registry", default=None,
@@ -493,7 +493,7 @@ def main(argv: list[str] | None = None) -> int:
             where=str(registry_path),
             fix=(
                 f"create {registry_path} with schema: {REGISTRY_SCHEMA} and a "
-                "`forks:` mapping. See docs/fork-inventory.md §3."
+                "`forks:` mapping. See docs/tutorials/07-fork-inventory.md §3."
             ),
         )
         return 2
@@ -501,7 +501,7 @@ def main(argv: list[str] | None = None) -> int:
         _emit_error(
             why=f"forks registry invalid: {exc}",
             where=str(registry_path),
-            fix="fix the YAML per docs/fork-inventory.md §3.",
+            fix="fix the YAML per docs/tutorials/07-fork-inventory.md §3.",
         )
         return 2
 

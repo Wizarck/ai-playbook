@@ -1,6 +1,6 @@
 # bootstrap-directive.md
 
-> **Status**: v1.2.0. v1.1.0 aligned with SessionStart hook reality (2026-04-25). v1.2.0 adds the development-flow.md cross-reference requirement (2026-05-05) — warn-only initially, promotes to strict per [docs/development-flow.md](../docs/development-flow.md) §5 industrialisation pattern.
+> **Status**: v1.2.0. v1.1.0 aligned with SessionStart hook reality (2026-04-25). v1.2.0 adds the development-flow.md cross-reference requirement (2026-05-05) — warn-only initially, promotes to strict per [docs/concepts/development-flow.md](../docs/concepts/development-flow.md) §5 industrialisation pattern.
 
 ## Purpose
 
@@ -22,7 +22,7 @@ Mechanism 1 is enforcement (the harness fires it); mechanism 2 is contract (the 
 
 Before responding to ANY task:
 
-1. Read `.ai-playbook/specs/dispatcher-chain.md` — universal norms inherited
+1. Read `.ai-playbook/docs/concepts/dispatcher-chain.md` — universal norms inherited
    from the pinned playbook tag.
 2. Consult `.claude/injected-context.md` — populated by the SessionStart hook
    from `hindsight.recall(query="<project> <topic keywords>")`. If the file is
@@ -54,7 +54,7 @@ If a future deployment wires Hindsight as a true Claude Code MCP tool (requires 
 ## Enforcement
 
 - `scripts/schema_validate.py` verifies §0 exists in `AGENTS.md` and matches the canonical semantics. It accepts paraphrases but requires the four numbered actions and a clear pointer to the SessionStart-hook-populated file at step 2.
-- The SessionStart hook itself is wired in `<consumer>/.claude/settings.json` per [`docs/session-start-hook.md`](../docs/session-start-hook.md) — `bootstrap.py` ships this scaffold by default for new consumers.
+- The SessionStart hook itself is wired in `<consumer>/.claude/settings.json` per [`docs/concepts/session-start-hook.md`](../docs/concepts/session-start-hook.md) — `bootstrap.py` ships this scaffold by default for new consumers.
 
 ## Degraded execution
 
@@ -72,12 +72,12 @@ Projects MAY append project-specific pre-conditions (e.g. "also read `docs/prd.m
 
 ## Development-flow cross-reference (added v1.2.0)
 
-Every consumer's `AGENTS.md` §2 Dispatcher index MUST contain a row pointing to [`docs/development-flow.md`](../docs/development-flow.md) — the LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?".
+Every consumer's `AGENTS.md` §2 Dispatcher index MUST contain a row pointing to [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) — the LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?".
 
 Canonical row format (insert as the FIRST row of §2 in every consumer's AGENTS.md):
 
 ```markdown
-| **How to make a change in this project (canonical entry point)** | [.ai-playbook/docs/development-flow.md](.ai-playbook/docs/development-flow.md) |
+| **How to make a change in this project (canonical entry point)** | [.ai-playbook/docs/concepts/development-flow.md](.ai-playbook/docs/concepts/development-flow.md) |
 ```
 
 ### Enforcement (phased rollout — Change C pattern)
@@ -88,7 +88,7 @@ Canonical row format (insert as the FIRST row of §2 in every consumer's AGENTS.
 
 ### Migration
 
-Existing consumers (consumer-d, consumer-c, consumer-b, consumer-e, livekit) receive the row automatically as part of their next playbook-bump PR — `scripts/propagate_bump.py` is extended to insert the row in §2 if absent (idempotent; no-op if already present). See [docs/development-flow.md](../docs/development-flow.md) §3.3.
+Existing consumers (consumer-d, consumer-c, consumer-b, consumer-e, livekit) receive the row automatically as part of their next playbook-bump PR — `scripts/propagate_bump.py` is extended to insert the row in §2 if absent (idempotent; no-op if already present). See [docs/concepts/development-flow.md](../docs/concepts/development-flow.md) §3.3.
 
 New consumers bootstrapped via `scripts/bootstrap.py` after v0.9.3 inherit the row from `templates/new-project/AGENTS.md.tmpl` automatically.
 
@@ -112,5 +112,5 @@ python -m scripts.schema_validate AGENTS.md --force-with-reason="bootstrapping l
 - [memory-hierarchy.md](memory-hierarchy.md) — what `injected-context.md` contains and how recall is scoped.
 - [degradation-modes.md](degradation-modes.md) — what happens when step 2's data source fails.
 - [mcp-servers-schema.md](mcp-servers-schema.md) — where Hindsight credentials live.
-- [../docs/session-start-hook.md](../docs/session-start-hook.md) — the wiring in `.claude/settings.json`.
-- [../docs/development-flow.md](../docs/development-flow.md) — canonical dev-flow doc (cross-ref subject).
+- [../docs/concepts/session-start-hook.md](../docs/concepts/session-start-hook.md) — the wiring in `.claude/settings.json`.
+- [../docs/concepts/development-flow.md](../docs/concepts/development-flow.md) — canonical dev-flow doc (cross-ref subject).

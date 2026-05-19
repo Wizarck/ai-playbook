@@ -1,8 +1,8 @@
 """Shared notification emitter for playbook automations.
 
 Implements the JSONL-queue + SMTP-email contract from
-``specs/notification-queue.md`` (the spec this module realises) and the severity
-matrix from ``specs/notification-policy.md``.
+``docs/concepts/notification-queue.md`` (the spec this module realises) and the severity
+matrix from ``docs/concepts/notification-policy.md``.
 
 Zero-touch contract
 -------------------
@@ -28,7 +28,7 @@ Public API
 ``notify(*, event, severity, summary, detail="", attrs=None, trace_id=None,
 actor=None) -> None``
 
-See module-level docstring in ``specs/notification-queue.md`` for the envelope
+See module-level docstring in ``docs/concepts/notification-queue.md`` for the envelope
 shape; each JSONL line carries:
 
     {"ts": ISO8601, "event": "...", "severity": "silent|info|warn|error",

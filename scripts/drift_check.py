@@ -20,7 +20,7 @@ Checks (pick with ``--check``; ``all`` runs every check):
 
 ``taxonomy``
     A term that lives in ``*.md`` under ``specs/`` or ``docs/``, appears in at
-    least 3 distinct files, and is not defined in ``specs/taxonomy.md`` §1..§3.
+    least 3 distinct files, and is not defined in ``docs/concepts/taxonomy.md`` §1..§3.
     Reporting-only; noise-filtered by the 3-file threshold.
 
 CLI
@@ -30,7 +30,7 @@ CLI
                                   [--fix] [--force-with-reason TEXT]
                                   [--playbook-root PATH]
 
-Exit codes (per ``specs/error-message-standard.md``)
+Exit codes (per ``docs/rules/error-message-standard.rule.md``)
     0 clean OR override-applied
     1 drift detected
     2 setup failure (missing registry, unreadable playbook)
@@ -409,7 +409,7 @@ _TAXONOMY_STOPWORDS = {
 
 
 def _taxonomy_terms(playbook_root: Path) -> set[str]:
-    """Extract the set of defined taxonomy terms from §1..§3 of ``specs/taxonomy.md``."""
+    """Extract the set of defined taxonomy terms from §1..§3 of ``docs/concepts/taxonomy.md``."""
     f = playbook_root / "specs" / "taxonomy.md"
     if not f.is_file():
         return set()
@@ -478,7 +478,7 @@ def check_taxonomy(playbook_root: Path, *, min_files: int = 3) -> list[DriftFind
                 why=f"undefined term '{word}' appears in {len(files)} files",
                 where=sample,
                 fix_hint=(
-                    f"either add '{word}' to specs/taxonomy.md §1..§3 with a "
+                    f"either add '{word}' to docs/concepts/taxonomy.md §1..§3 with a "
                     "definition or rename the usages to an already-defined term."
                 ),
             )

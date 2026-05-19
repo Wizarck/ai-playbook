@@ -5,18 +5,18 @@
 
 ## 1. Documentation (already shipped in commit `cde2a13`)
 
-- [x] 1.1 New spec `specs/project-board-sync.md` (v1.0.0) — 7-layer contract
-- [x] 1.2 New spec `specs/agent-telemetry.md` (v1.0.0) — Claude Code OTLP → Langfuse
-- [x] 1.3 New spec `specs/event-and-data-patterns.md` (v1.0.0) — 7 stack-agnostic patterns
-- [x] 1.4 New spec `specs/cross-language-tooling.md` (v1.0.0) — `tools/<name>/` convention
-- [x] 1.5 New runbook `runbooks/windows-dev-environment.md` — 4 Windows gotchas
-- [x] 1.6 Update `specs/verification-before-completion.md` §4.1 — broadest-scope + tool-exit-code
-- [x] 1.7 Update `specs/release-management.md` §4.4 — gitleaks + markdown style
-- [x] 1.8 Update `specs/release-management.md` §6.4 — append-only ranges + verbose migrations
-- [x] 1.9 Update `specs/release-management.md` §6.6 — cross-BC verification gates guidance
-- [x] 1.10 Update `specs/release-management.md` §9.5 — cross-ref to project-board-sync
-- [x] 1.11 Update `specs/runbook-bmad-openspec.md` §3.7.1 — design-mock HTML
-- [x] 1.12 Update `specs/runbook-bmad-openspec.md` §4.1 — forward-authored retros
+- [x] 1.1 New spec `docs/concepts/project-board-sync.md` (v1.0.0) — 7-layer contract
+- [x] 1.2 New spec `docs/concepts/agent-telemetry.md` (v1.0.0) — Claude Code OTLP → Langfuse
+- [x] 1.3 New spec `docs/concepts/event-and-data-patterns.md` (v1.0.0) — 7 stack-agnostic patterns
+- [x] 1.4 New spec `docs/concepts/cross-language-tooling.md` (v1.0.0) — `tools/<name>/` convention
+- [x] 1.5 New runbook `docs/runbooks/windows-dev-environment.md` — 4 Windows gotchas
+- [x] 1.6 Update `docs/rules/verification-before-completion.rule.md` §4.1 — broadest-scope + tool-exit-code
+- [x] 1.7 Update `docs/concepts/release-management.md` §4.4 — gitleaks + markdown style
+- [x] 1.8 Update `docs/concepts/release-management.md` §6.4 — append-only ranges + verbose migrations
+- [x] 1.9 Update `docs/concepts/release-management.md` §6.6 — cross-BC verification gates guidance
+- [x] 1.10 Update `docs/concepts/release-management.md` §9.5 — cross-ref to project-board-sync
+- [x] 1.11 Update `docs/concepts/runbook-bmad-openspec.md` §3.7.1 — design-mock HTML
+- [x] 1.12 Update `docs/concepts/runbook-bmad-openspec.md` §4.1 — forward-authored retros
 - [x] 1.13 CHANGELOG entry for all of the above
 
 ## 2. L2 — `templates/new-project/.github/workflows/project-status-slice-progress.yml.tmpl`
@@ -39,7 +39,7 @@
 - [~] 4.1 v1 ships as periodic auditor (cron `*/15 * * * *` + `workflow_dispatch`); v2 will switch to native `project_v2_item.edited` webhook events when GH exposes them at the workflow level (tracked at <https://github.com/orgs/community/discussions/53973>). Documented as v0.10.1 follow-up.
 - [~] 4.2 v1 detects items with `Status=Done` but no merged PR (the most common skip case). v2 will compare `previous_status` vs `new_status` once the webhook payload is available.
 - [x] 4.3 Audit comment posted on the linked issue/PR via `gh api repos/.../issues/{N}/comments`; sticky-comment idempotency. **Auto-revert NOT shipped in v1** (intentional — per design D5: "v1 only audits + comments"). v2 ships revert.
-- [x] 4.4 Honor `break-glass` label exception per `specs/break-glass.md`.
+- [x] 4.4 Honor `break-glass` label exception per `docs/rules/break-glass.rule.md`.
 
 ## 5. L6 — Extend `scripts/opsx_apply_companion.py` with `--enforce-board`
 

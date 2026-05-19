@@ -27,9 +27,9 @@ Después del runbook, una sesión Claude Code en ese repo:
 
 ### ¿bank name?
 
-Default = `<project-name>` lowercased. Coincide con la convención de [memory-hierarchy.md §2](../specs/memory-hierarchy.md). Si tu proyecto necesita un bank distinto (p.ej. compartir bank con otro proyecto), cambia el `--bank-id` a la mano en `mcp-servers.project.yaml` y `.claude/settings.json` después del bootstrap.
+Default = `<project-name>` lowercased. Coincide con la convención de [memory-hierarchy.md §2](../docs/concepts/memory-hierarchy.md). Si tu proyecto necesita un bank distinto (p.ej. compartir bank con otro proyecto), cambia el `--bank-id` a la mano en `mcp-servers.project.yaml` y `.claude/settings.json` después del bootstrap.
 
-### ¿Profile A (Public OSS) o Profile B (Private Solo)? (per [release-management.md §5.6](../specs/release-management.md))
+### ¿Profile A (Public OSS) o Profile B (Private Solo)? (per [release-management.md §5.6](../docs/concepts/release-management.md))
 
 Decide ANTES del bootstrap — afecta enforcement (branch protection, CodeRabbit, merge queue) y rollout.
 
@@ -204,7 +204,7 @@ Solo para consumers públicos. CodeRabbit es free unlimited en repos OSS y revis
 3. Account: **Wizarck** · Repository access: **"Only select repositories"** → marca el nuevo repo
 4. "Install & Authorize"
 
-Cuando llegue el primer PR, CodeRabbit comenta automáticamente. **Importante**: el worker AI debe leer + responder a sus comentarios antes de pedir Gate F (per [release-management.md §4.5](../specs/release-management.md)).
+Cuando llegue el primer PR, CodeRabbit comenta automáticamente. **Importante**: el worker AI debe leer + responder a sus comentarios antes de pedir Gate F (per [release-management.md §4.5](../docs/concepts/release-management.md)).
 
 Si el repo seguirá privado o no quieres CodeRabbit: skip este paso. El contrato §4.5 degrada a self-review (Profile B fallback).
 
@@ -247,7 +247,7 @@ Configura los secrets/variables que requieren:
 - Variable `PROJECT_OWNER`: `Wizarck`.
 - Variable `PROJECT_NUMBER`: `<N>` del paso 7.
 
-`project-status.yml` auto-transiciona items de Blocked → Todo cuando sus deps están Done (per [release-management.md §6.3](../specs/release-management.md)). `dep-check.yml` (opt-in hard gate) bloquea PR de slice X si las deps no están Done aún. `coderabbit-fallback.yml` (v0.9.0+) postea un self-review checklist en PRs cuando CodeRabbit no está disponible Y el PR body no tiene §4.5 poblado (per [release-management.md §4.5.2](../specs/release-management.md)). Solo usa `secrets.GITHUB_TOKEN` (no requiere PAT).
+`project-status.yml` auto-transiciona items de Blocked → Todo cuando sus deps están Done (per [release-management.md §6.3](../docs/concepts/release-management.md)). `dep-check.yml` (opt-in hard gate) bloquea PR de slice X si las deps no están Done aún. `coderabbit-fallback.yml` (v0.9.0+) postea un self-review checklist en PRs cuando CodeRabbit no está disponible Y el PR body no tiene §4.5 poblado (per [release-management.md §4.5.2](../docs/concepts/release-management.md)). Solo usa `secrets.GITHUB_TOKEN` (no requiere PAT).
 
 **Nota**: `bootstrap_gh_project.py --profile auto` (v0.9.0+) copia `coderabbit-fallback.yml` automáticamente; estos `cp` manuales son para consumers que no quieren correr el bootstrap script.
 
@@ -307,8 +307,8 @@ cd /c/Projects/ai-playbook
 - [`templates/new-project/.github/workflows/project-status.yml.tmpl`](../templates/new-project/.github/workflows/project-status.yml.tmpl) — auto-transition Blocked→Todo (paso 11).
 - [`templates/new-project/.github/workflows/dep-check.yml.tmpl`](../templates/new-project/.github/workflows/dep-check.yml.tmpl) — opt-in dep-graph enforcement (paso 11).
 - [`consumers.yaml`](../consumers.yaml) — registro de consumers (alimenta la propagation Action).
-- [`specs/release-management.md`](../specs/release-management.md) — Profile A/B + AI-reviewer §4.5 + §6.5 pre-flight rebase.
-- [`runbooks/release.md`](release.md) — cuando el playbook corte un nuevo release, los consumers reciben PRs auto.
-- [`runbooks/hindsight-retain.md`](hindsight-retain.md) — cómo guardar lessons al bank del proyecto.
-- [`specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) §2 — convención de bank names.
-- [`docs/session-start-hook.md`](../docs/session-start-hook.md) — wiring del hook + degradation path.
+- [`docs/concepts/release-management.md`](../docs/concepts/release-management.md) — Profile A/B + AI-reviewer §4.5 + §6.5 pre-flight rebase.
+- [`docs/runbooks/release.md`](release.md) — cuando el playbook corte un nuevo release, los consumers reciben PRs auto.
+- [`docs/runbooks/hindsight-retain.md`](hindsight-retain.md) — cómo guardar lessons al bank del proyecto.
+- [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) §2 — convención de bank names.
+- [`docs/concepts/session-start-hook.md`](../docs/concepts/session-start-hook.md) — wiring del hook + degradation path.

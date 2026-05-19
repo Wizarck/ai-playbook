@@ -133,7 +133,7 @@ in sync; cascade depth grows silently otherwise.
 
 If recovery took >15 minutes OR if any downstream's data was lost (not
 just delayed): file a postmortem in `docs/postmortems/<YYYY-MM-DD>-<service>-cascade.md`
-per [post-mortem.md](../specs/post-mortem.md). Include:
+per [post-mortem.md](../docs/concepts/post-mortem.md). Include:
 
 - Cascade depth (how many services restarted).
 - Operator-time to detect (T_detect = first symptom → confirmed root).
@@ -170,18 +170,18 @@ per [post-mortem.md](../specs/post-mortem.md). Include:
 | consumer-b | (gotchas.md captures startup ordering) | 2 | Promote to runbook when cascade depth grows |
 | consumer-e | (TBD; deployment-foundation slice will introduce) | TBD | Likely candidates: `litellm-down`, `ibkr-down`, `openbb-down` |
 
-When a project adopts this template, link the resulting runbook back to this template via `> See [cascade-failure-template.md](../../.ai-playbook/runbooks/cascade-failure-template.md) for the structure rationale.`
+When a project adopts this template, link the resulting runbook back to this template via `> See [cascade-failure-template.md](../../.ai-playbook/docs/runbooks/cascade-failure-template.md) for the structure rationale.`
 
 ---
 
 ## Cross-references
 
-- [post-mortem.md](../specs/post-mortem.md) — postmortem ritual triggered by §5.
-- [degradation-modes.md](../specs/degradation-modes.md) — the canonical
+- [post-mortem.md](../docs/concepts/post-mortem.md) — postmortem ritual triggered by §5.
+- [degradation-modes.md](../docs/concepts/degradation-modes.md) — the canonical
   taxonomy of how services degrade; the cascade map's `impact` field
   picks values from this taxonomy.
-- [incident-response.md](../specs/incident-response.md) — incident-class
+- [incident-response.md](../docs/concepts/incident-response.md) — incident-class
   ladder; cascades are typically S2 unless data loss → S1.
-- [hitl-approval-pattern.md](../specs/hitl-approval-pattern.md) — when
+- [hitl-approval-pattern.md](../docs/rules/hitl-approval-pattern.rule.md) — when
   a recovery step requires HITL gating (e.g. failover to backup) the
   approval pattern applies.

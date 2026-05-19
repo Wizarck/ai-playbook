@@ -107,7 +107,7 @@ Fastest of the four environments once prereqs are installed. Tests ≤1s. Steps 
 If you hit a friction NOT listed above:
 
 - **Append a bullet** under the relevant OS section AND open a PR.
-- **Low-friction alternative**: add a bullet to [FEEDBACK.md](../FEEDBACK.md) with the date + handle. The weekly retro (see [specs/retrospective-cadence.md](../specs/retrospective-cadence.md)) will triage it.
+- **Low-friction alternative**: add a bullet to [FEEDBACK.md](../FEEDBACK.md) with the date + handle. The weekly retro (see [docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md)) will triage it.
 
 Do NOT edit Windows-baseline timings after the fact to match your experience — file a PR to update the whole table so the lineage is clear.
 
@@ -117,5 +117,5 @@ Do NOT edit Windows-baseline timings after the fact to match your experience —
 
 - [quickstart.md](quickstart.md) — the 8-step walkthrough this doc validates.
 - [FEEDBACK.md](../FEEDBACK.md) — low-friction gripe channel.
-- [specs/retrospective-cadence.md](../specs/retrospective-cadence.md) — where these findings feed back into the playbook.
+- [docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md) — where these findings feed back into the playbook.
 - [scripts/doctor.py](../scripts/doctor.py) — run this first on any new machine; it catches most of the predicted frictions above.

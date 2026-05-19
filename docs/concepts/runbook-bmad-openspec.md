@@ -202,7 +202,7 @@ python /c/Projects/ai-playbook/scripts/wt_add.py <change-id>
 
 The worktree directory name **equals** the OpenSpec change-id (the same folder name under `openspec/changes/<id>/`); this satisfies traceability principle 7 from the global CLAUDE.md by making cwd self-documenting. `wt_add.py` enforces the match unless `--no-slice-check` is passed (analogous to `/opsx:propose --no-slice`).
 
-Greenfield consumer projects adopt this layout from day one via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §1. Existing consumers on the legacy single-tree layout keep working — migration is opt-in per §3 of that runbook.
+Greenfield consumer projects adopt this layout from day one via [docs/runbooks/git-worktree-bare-setup.md](../docs/runbooks/git-worktree-bare-setup.md) §1. Existing consumers on the legacy single-tree layout keep working — migration is opt-in per §3 of that runbook.
 
 ### 3.7.1 Design-mock HTML for dense designs (optional review aid)
 
@@ -312,7 +312,7 @@ Post-archive retro is mandatory; weekly and monthly retros cover accumulation.
 | Weekly | All archives + `FEEDBACK.md` gripes + break-glass usages. | `retros/weekly-<YYYY-WW>.md`. |
 | Monthly | Lifecycle check — stale changes, outdated memories, drift findings. | `retros/monthly-<YYYY-MM>.md`. |
 
-Full cadence in [`specs/retrospective-cadence.md`](retrospective-cadence.md).
+Full cadence in [`docs/concepts/retrospective-cadence.md`](retrospective-cadence.md).
 
 ### 4.1 Forward-authored retros (recommended pattern)
 

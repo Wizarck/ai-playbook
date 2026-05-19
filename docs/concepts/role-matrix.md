@@ -1,6 +1,6 @@
 # role-matrix.md
 
-> **Status**: v1.0.0. Formalises the 4-role matrix sketched in [../docs/contributing.md](../docs/contributing.md) §2. This spec is normative; `contributing.md` is the friendly summary.
+> **Status**: v1.0.0. Formalises the 4-role matrix sketched in [../docs/concepts/contributing.md](../docs/concepts/contributing.md) §2. This spec is normative; `contributing.md` is the friendly summary.
 
 Four people-roles govern who can do what in the ai-playbook repo. The roles are orthogonal to the process-roles named in [agent-contract.md](agent-contract.md) (k8s ServiceAccounts, subagent contracts) — see §5 for the mapping.
 
@@ -154,7 +154,7 @@ Until then, Arturo is sole cluster admin. Break-glass for `kubectl` access is lo
 
 ## 6. Cross-references
 
-- [../docs/contributing.md](../docs/contributing.md) — friendly summary; this file is normative.
+- [../docs/concepts/contributing.md](../docs/concepts/contributing.md) — friendly summary; this file is normative.
 - [agent-contract.md](agent-contract.md) — process-role model for subagents (not people).
 - [break-glass.md](break-glass.md) — override contract applies equally across roles; no role is exempt from logging.
 - [incident-response.md](incident-response.md) — activation triggers that expand §5 into a real mapping.

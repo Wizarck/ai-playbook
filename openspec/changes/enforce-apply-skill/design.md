@@ -65,7 +65,7 @@ openspec_apply_marker.py list --change-id <id> [--json]                   # diag
 ```
 
 - `session_id` defaults to `$CLAUDE_SESSION_ID` env. If unset, derived as `local-<gitconfig-user>-<host>-<pid>` (deterministic enough for local-only sessions).
-- All subcommands exit `0` on success, non-zero on failure. Error messages comply with [error-message-standard.md](../../../specs/error-message-standard.md).
+- All subcommands exit `0` on success, non-zero on failure. Error messages comply with [error-message-standard.md](../../../docs/rules/error-message-standard.rule.md).
 - `start` is idempotent within the same session_id: re-invocation appends a second `start` record (for observability) but does not error.
 
 ## 2 Hook contract
@@ -131,7 +131,7 @@ FIX:
 OVERRIDE (use sparingly; logged for audit):
   export AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE="<one-line reason>"
 
-See: specs/apply-skill-enforcement.md §3 (break-glass clause).
+See: docs/rules/apply-skill-enforcement.rule.md §3 (break-glass clause).
 ```
 
 ### 2.4 Performance budget
@@ -191,10 +191,10 @@ Inserted as the first step, before existing "Select the change":
 | `skills/openspec-apply-change/SKILL.md` | ✅ EDIT (step 0 + version bump) | — |
 | `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl` | ✅ NEW | — |
 | `templates/new-project/.claude/settings.json.tmpl` | ✅ EDIT (register hook) | — |
-| `specs/apply-skill-enforcement.md` | ✅ NEW | — |
-| `specs/runbook-bmad-openspec.md` | ✅ EDIT (§3.1.1) | — |
-| `specs/agentic-failures.md` | ✅ EDIT (new row) | — |
-| `specs/enforcement-status.md` | ✅ EDIT (new row) | — |
+| `docs/rules/apply-skill-enforcement.rule.md` | ✅ NEW | — |
+| `docs/concepts/runbook-bmad-openspec.md` | ✅ EDIT (§3.1.1) | — |
+| `docs/concepts/agentic-failures.md` | ✅ EDIT (new row) | — |
+| `docs/concepts/enforcement-status.md` | ✅ EDIT (new row) | — |
 | `tests/test_apply_enforce_hook_template.py` | ✅ NEW (rendering + dry-run) | — |
 | `CHANGELOG.md` | ✅ EDIT (v0.14.0 entry) | — |
 | `VERSION` | ✅ EDIT (0.13.3 → 0.14.0) | — |

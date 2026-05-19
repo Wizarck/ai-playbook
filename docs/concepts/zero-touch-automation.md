@@ -1,6 +1,6 @@
 # zero-touch-automation.md
 
-> **Status**: v1.0.0. Populated 2026-04-23. Realises the deferred automations of `specs/issue-tracking.md` §4.
+> **Status**: v1.0.0. Populated 2026-04-23. Realises the deferred automations of `docs/concepts/issue-tracking.md` §4.
 
 This doc describes the **zero-touch loop** that takes OpenSpec changes and semver tags from repo events to tracker tickets, releases, and notifications — without human intervention in the happy path.
 
@@ -105,7 +105,7 @@ Every `notify()` call also emits an OTel event via `scripts.tracing.trace_emit.a
 
 ## 4. Env var cheat sheet
 
-See [specs/env-vars.md](../specs/env-vars.md) for the full table. Minimum for full zero-touch:
+See [docs/concepts/env-vars.md](../docs/concepts/env-vars.md) for the full table. Minimum for full zero-touch:
 
 ```bash
 # SMTP (Gmail example; any provider works)
@@ -135,7 +135,7 @@ All credentials live in SOPS-encrypted `secrets.env`; Actions pull from GitHub r
 
 ## 5. Manual override
 
-Every automation accepts `--force-with-reason="<≥10 chars>"` per `specs/break-glass.md` when a gate is blocking something legitimate:
+Every automation accepts `--force-with-reason="<≥10 chars>"` per `docs/rules/break-glass.rule.md` when a gate is blocking something legitimate:
 
 ```bash
 python -m scripts.issue_sync --force-with-reason="bootstrapping acme-shop before openspec/ exists"
@@ -173,10 +173,10 @@ Someone (or a prior CI run) already created the release. Inspect `gh release vie
 
 ## 7. Cross-references
 
-- `specs/issue-tracking.md` §2-§4 — the flow this doc implements.
-- `specs/notification-queue.md` — the JSONL schema + rate-limit contract.
-- `specs/notification-policy.md` — severity levels + per-event policy.
-- `specs/break-glass.md` — `--force-with-reason` contract.
+- `docs/concepts/issue-tracking.md` §2-§4 — the flow this doc implements.
+- `docs/concepts/notification-queue.md` — the JSONL schema + rate-limit contract.
+- `docs/concepts/notification-policy.md` — severity levels + per-event policy.
+- `docs/rules/break-glass.rule.md` — `--force-with-reason` contract.
 - `scripts/notify.py`, `scripts/issue_sync.py`, `scripts/release_cut.py` — the implementations.
 - `.github/workflows/issue-sync.yml`, `.github/workflows/release-cut.yml` — the CI triggers.
 - `templates/new-project/.github/workflows/*.tmpl` — consumer-repo copies.

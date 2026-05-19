@@ -1,12 +1,12 @@
 # runbook-secrets-leak-containment.md
 
-> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`specs/incident-response.md`](../specs/incident-response.md) §4 scenario #3 and [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md).
+> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`docs/concepts/incident-response.md`](../docs/concepts/incident-response.md) §4 scenario #3 and [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md).
 >
 > Use this runbook when the leak is **wide-scope** (suspected machine compromise, suspected supplier compromise, leak in a public-facing repo with downstream forks). For scoped leaks (1-3 individual credentials), use [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md).
 
 ## When to use this runbook
 
-Triggered by [incident-response.md](../specs/incident-response.md) §4 scenario #3 when the leak indicates a wider compromise:
+Triggered by [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #3 when the leak indicates a wider compromise:
 
 - Multiple unrelated credentials leaked together (suggests compromised secrets store or compromised dev machine).
 - Leak in a public repo that already has forks / clones (history rewrite is necessary but insufficient).
@@ -92,7 +92,7 @@ Severity: **S1**. MTTR: containment within 1h, full rotation within 4h, public d
 
 9. **Customer + public communication.**
 
-   Use [incident-response.md](../specs/incident-response.md) §7.1 templates, adjusted for security:
+   Use [incident-response.md](../docs/concepts/incident-response.md) §7.1 templates, adjusted for security:
 
    ```
    [SECURITY ADVISORY — <UTC HH:MM>] Investigating a security incident affecting <service / scope>.
@@ -123,7 +123,7 @@ Severity: **S1**. MTTR: containment within 1h, full rotation within 4h, public d
     - Regulatory notifications filed.
     - Process change shipped.
 
-    Per [post-mortem.md](../specs/post-mortem.md), security post-mortems are mandatory ≤ 48h to draft, ≤ 7 days to publish.
+    Per [post-mortem.md](../docs/concepts/post-mortem.md), security post-mortems are mandatory ≤ 48h to draft, ≤ 7 days to publish.
 
 ## Verification
 
@@ -139,13 +139,13 @@ No rollback exists. Once a credential is suspected compromised, the answer is al
 
 ## Post-incident artefact required
 
-**Security post-mortem mandatory** ≤ 48h to draft, ≤ 7 days to publish. Template + contract: [post-mortem.md](../specs/post-mortem.md).
+**Security post-mortem mandatory** ≤ 48h to draft, ≤ 7 days to publish. Template + contract: [post-mortem.md](../docs/concepts/post-mortem.md).
 
 ## Related
 
 - [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) — scoped (1-3 credentials) variant of this runbook.
 - [rotate-secrets.md](rotate-secrets.md) — non-emergency scheduled rotation.
-- [incident-response.md](../specs/incident-response.md) §4 scenario #3.
-- [data-retention.md](../specs/data-retention.md) — what data the leaked credentials could exfiltrate.
-- [agentic-failures.md](../specs/agentic-failures.md) §2.11 — secrets-scan failure mode taxonomy.
-- [post-mortem.md](../specs/post-mortem.md) — mandatory artefact.
+- [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #3.
+- [data-retention.md](../docs/concepts/data-retention.md) — what data the leaked credentials could exfiltrate.
+- [agentic-failures.md](../docs/concepts/agentic-failures.md) §2.11 — secrets-scan failure mode taxonomy.
+- [post-mortem.md](../docs/concepts/post-mortem.md) — mandatory artefact.

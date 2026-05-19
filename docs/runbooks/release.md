@@ -26,7 +26,7 @@ verify nothing downstream broke.
 |---|---|
 | Docs, typo fixes, stub closures | patch (`0.2.0 → 0.2.1`) |
 | New scripts/specs additive; no breaking schema | minor (`0.2.0 → 0.3.0`) |
-| Breaking schema (AGENTS.md frontmatter), removed script, renamed env var, changed verdict rubric | major (`0.x → 1.0.0`) — requires RFC first per [specs/rollout-strategy.md](../specs/rollout-strategy.md) |
+| Breaking schema (AGENTS.md frontmatter), removed script, renamed env var, changed verdict rubric | major (`0.x → 1.0.0`) — requires RFC first per [docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md) |
 
 ### Rc-first mode (recommended for substantial releases)
 
@@ -38,7 +38,7 @@ use the rc → stable sequence:
 2. Validate against ONE consumer (typically consumer-e): merge bumps,
    run `bootstrap_gh_project.py --profile auto`, exercise the change.
 3. If issues found: fix → tag `rc2`. Each rc cleanly supersedes the
-   previous (per [release-management.md §3.4](../specs/release-management.md));
+   previous (per [release-management.md §3.4](../docs/concepts/release-management.md));
    stale rc PRs in consumers auto-close.
 4. When stable: tag `vX.Y.Z` (no suffix). Same propagate cycle, last set
    of supersedes closes any remaining rc PRs.
@@ -88,8 +88,8 @@ script consumers invoke — append an entry to
 [`specs/zombies-manifest.yaml`](../specs/zombies-manifest.yaml) AND bump its
 `manifest_version` (`YYYY-MM-DD.N` format, strictly monotonic).
 
-Reference: [`specs/cleanup-zombies.md`](../specs/cleanup-zombies.md) §2 schema +
-§3 tier semantics. Validation runs via `python scripts/cleanup_zombies.py
+Reference: [`docs/rules/cleanup-zombies.rule.md`](../docs/rules/cleanup-zombies.rule.md) §2 schema +
+§3 tier semantics. Validation runs via `python scripts/rules/cleanup-zombies.rule.py
 validate` (pre-commit gate). Skip this step ONLY if the release is internal-only
 (playbook source changes that never touched consumer-facing surfaces).
 
@@ -175,7 +175,7 @@ For each consumer's bump PR, BEFORE merging:
    python -m scripts.check_coderabbit_status \
        --pr <N> --repo Wizarck/<repo> --wait 300
    ```
-   Exit 0 → CodeRabbit reviewed; address comments per §4.5. Exit 1 → rate-limited or silent; apply Profile B fallback per [`runbooks/coderabbit-fallback.md`](coderabbit-fallback.md). Bump PRs are mechanical so the self-review section is short ("Self-review findings: none, mechanical bump diff only.") but MUST be populated for the audit trail.
+   Exit 0 → CodeRabbit reviewed; address comments per §4.5. Exit 1 → rate-limited or silent; apply Profile B fallback per [`docs/runbooks/coderabbit-fallback.md`](coderabbit-fallback.md). Bump PRs are mechanical so the self-review section is short ("Self-review findings: none, mechanical bump diff only.") but MUST be populated for the audit trail.
 2. If CodeRabbit was rate-limited (typical during multi-bump series), the L2 workflow (`coderabbit-fallback.yml`) on the consumer auto-fires after 5 minutes and posts a checklist if §4.5 is empty. L1's whole point is to have §4.5 populated BEFORE L2 fires, so L2 stays silent. This is the v0.9.0 contract.
 3. Squash-merge.
 
@@ -193,7 +193,7 @@ python -m scripts.bootstrap_gh_project \
 Idempotent: only applies what's missing. The script:
 - Adds new Status options / custom fields / trace fields if absent.
 - Re-applies repo settings (auto-merge on, squash-only, delete-branch-on-merge).
-- For Profile A: applies branch protection (UNION semantics — preserves existing project-specific required checks per [release-management.md §gotcha #12 fix in v0.8.1](../specs/release-management.md#41-mandatory-ci-for-slice-branch-prs)).
+- For Profile A: applies branch protection (UNION semantics — preserves existing project-specific required checks per [release-management.md §gotcha #12 fix in v0.8.1](../docs/concepts/release-management.md#41-mandatory-ci-for-slice-branch-prs)).
 - For Profile B: emits notice that branch protection unavailable on GH Free private; skips.
 - (v0.9.0+) **Copies `coderabbit-fallback.yml` workflow** to `<consumer>/.github/workflows/` if absent. The L2 safety net workflow (per release-management.md §4.5.2) is now propagated automatically. Skips if the file exists (consumer may have local edits — delete + re-run to refresh).
 
@@ -291,7 +291,7 @@ git push origin main
 
 If a consumer already merged the bump and you need to recover: cut the
 next version with the correction; never rewrite a merged tag. Follow
-[specs/rollout-strategy.md](../specs/rollout-strategy.md) §rollback.
+[docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md) §rollback.
 
 ## Cross-references
 
@@ -300,5 +300,5 @@ next version with the correction; never rewrite a merged tag. Follow
 - [scripts/bump_consumers.py](../scripts/bump_consumers.py) — manual fallback for local bumps via `~/.ai-playbook/projects.yaml`.
 - [.github/workflows/propagate-playbook-bump.yml](../.github/workflows/propagate-playbook-bump.yml) — event-driven primary path.
 - [consumer-d/langgraph-aiops/workflows/playbook_bump_propagator.py](https://github.com/Wizarck/consumer-d/blob/master/langgraph-aiops/workflows/playbook_bump_propagator.py) — daily circuit-breaker backup.
-- [specs/rollout-strategy.md](../specs/rollout-strategy.md) — breaking-change protocol.
+- [docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md) — breaking-change protocol.
 - [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md) — when things break.

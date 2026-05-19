@@ -30,7 +30,7 @@
 └────────────────────────────────────────────────────────────────┘
 ```
 
-Full contract: [../specs/dispatcher-chain.md](../specs/dispatcher-chain.md). Registry format: [../specs/projects-registry.md](../specs/projects-registry.md).
+Full contract: [../docs/concepts/dispatcher-chain.md](../docs/concepts/dispatcher-chain.md). Registry format: [../docs/concepts/projects-registry.md](../docs/concepts/projects-registry.md).
 
 ## First 5 commands you should run
 
@@ -54,7 +54,7 @@ python -m scripts.discover_projects            # run from .ai-playbook/
 python .ai-playbook/scripts/schema_validate.py AGENTS.md
 ```
 
-If any of these fail, the error carries a `FIX:` line per [../specs/error-message-standard.md](../specs/error-message-standard.md). If you still need to proceed, use `--force-with-reason="..."` per [../specs/break-glass.md](../specs/break-glass.md).
+If any of these fail, the error carries a `FIX:` line per [../docs/rules/error-message-standard.rule.md](../docs/rules/error-message-standard.rule.md). If you still need to proceed, use `--force-with-reason="..."` per [../docs/rules/break-glass.rule.md](../docs/rules/break-glass.rule.md).
 
 ## Where to go next
 
@@ -64,14 +64,14 @@ If any of these fail, the error carries a `FIX:` line per [../specs/error-messag
 | I want the full walkthrough | [quickstart.md](quickstart.md) (25–40 min) |
 | I'm contributing to a spec in this repo | [../AGENTS.md](../AGENTS.md) + [contributing.md](contributing.md) |
 | I'm onboarding a new consumer project | [bootstrap-new-project.md](bootstrap-new-project.md) + [quickstart.md](quickstart.md) |
-| I broke something / hit a confusing error | [../specs/error-message-standard.md](../specs/error-message-standard.md), then [../FEEDBACK.md](../FEEDBACK.md) |
-| I want to run a retro | [../specs/retrospective-cadence.md](../specs/retrospective-cadence.md) + [../templates/retro/](../templates/retro/) |
+| I broke something / hit a confusing error | [../docs/rules/error-message-standard.rule.md](../docs/rules/error-message-standard.rule.md), then [../FEEDBACK.md](../FEEDBACK.md) |
+| I want to run a retro | [../docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md) + [../templates/retro/](../templates/retro/) |
 | I'm wiring tracing / SessionStart hook | [session-start-hook.md](session-start-hook.md) |
-| I hit a gate I think is wrong | [../specs/break-glass.md](../specs/break-glass.md) (NOT `git commit --no-verify`) |
+| I hit a gate I think is wrong | [../docs/rules/break-glass.rule.md](../docs/rules/break-glass.rule.md) (NOT `git commit --no-verify`) |
 | I want to know why the playbook is shaped this way | [why-these-choices.md](why-these-choices.md) |
 
 ## Status snapshot
 
 - **Version**: `v0.2.0` tagged; downstream consumer repos pin to it.
-- **All core specs v1.0.0**. A small number are intentionally deferred-by-design and say so in their header (e.g. [incident-response.md](../specs/incident-response.md) activates when a paying client lands; [model-migration.md](model-migration.md) activates at the first pinned-model retirement).
+- **All core specs v1.0.0**. A small number are intentionally deferred-by-design and say so in their header (e.g. [incident-response.md](../docs/concepts/incident-response.md) activates when a paying client lands; [model-migration.md](model-migration.md) activates at the first pinned-model retirement).
 - **What "dogfooding" means here**: the pre-commit config in this repo runs the same validators it ships to consumers.

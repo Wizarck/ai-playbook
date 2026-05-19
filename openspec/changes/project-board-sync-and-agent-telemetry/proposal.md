@@ -31,14 +31,14 @@ Land **v0.10.0** as an additive minor release that:
 
 1. Codifies the **7-layer defense-in-depth contract** for GH Project
    board sync as a new normative spec
-   (`specs/project-board-sync.md`). 5 truly-independent layers (L1
+   (`docs/concepts/project-board-sync.md`). 5 truly-independent layers (L1
    built-in workflows, L2 custom Actions workflow, L3 required status
    check, L4 state-machine validator, L5 OTLP telemetry) + 2
    tool-level reinforcers (L6 companion `--enforce-board`, L7 archive
    skill verification).
 
 2. Codifies the **Claude Code OTLP → Langfuse telemetry pattern** as a
-   new normative spec (`specs/agent-telemetry.md`). Plug-and-play 4
+   new normative spec (`docs/concepts/agent-telemetry.md`). Plug-and-play 4
    environment variables; reuses existing project Langfuse instances
    (consumer-d stack for Arturo-personal consumers; Langfuse Cloud free
    tier for greenfield).
@@ -47,14 +47,14 @@ Land **v0.10.0** as an additive minor release that:
    two-name pattern, same-tx migration with backfill, hasTable/hasColumn
    guards, open-enum text columns, stateless proxy + stateful caller,
    failure-collapse-to-null. New spec
-   (`specs/event-and-data-patterns.md`).
+   (`docs/concepts/event-and-data-patterns.md`).
 
 4. Codifies the **`tools/<name>/` peer-subdirectory convention** for
    non-primary-language tools. New spec
-   (`specs/cross-language-tooling.md`).
+   (`docs/concepts/cross-language-tooling.md`).
 
 5. Adds the **Windows dev-environment runbook**
-   (`runbooks/windows-dev-environment.md`) with 4 concrete gotchas.
+   (`docs/runbooks/windows-dev-environment.md`) with 4 concrete gotchas.
 
 6. Updates **existing specs** with retro-proven additions:
    - `verification-before-completion.md §4.1` — broadest-scope rule +
@@ -79,16 +79,16 @@ Land **v0.10.0** as an additive minor release that:
 
 | Capability | New spec / location |
 |---|---|
-| Defense-in-depth board sync | `specs/project-board-sync.md` (NEW) |
-| Agent runtime telemetry | `specs/agent-telemetry.md` (NEW) |
-| Event-bus + data patterns | `specs/event-and-data-patterns.md` (NEW) |
-| Cross-language tools | `specs/cross-language-tooling.md` (NEW) |
-| Windows dev gotchas | `runbooks/windows-dev-environment.md` (NEW) |
-| Verification posture | `specs/verification-before-completion.md` §4.1 (UPDATED) |
-| CI gates + style | `specs/release-management.md` §4.4 (UPDATED) |
-| Anti-collision (append-only docs + migration strings) | `specs/release-management.md` §6.4 (UPDATED) |
-| Intra-slice parallelism guidance | `specs/release-management.md` §6.6 (UPDATED) |
-| BMAD+OpenSpec runbook | `specs/runbook-bmad-openspec.md` §3.7.1, §4.1 (UPDATED) |
+| Defense-in-depth board sync | `docs/concepts/project-board-sync.md` (NEW) |
+| Agent runtime telemetry | `docs/concepts/agent-telemetry.md` (NEW) |
+| Event-bus + data patterns | `docs/concepts/event-and-data-patterns.md` (NEW) |
+| Cross-language tools | `docs/concepts/cross-language-tooling.md` (NEW) |
+| Windows dev gotchas | `docs/runbooks/windows-dev-environment.md` (NEW) |
+| Verification posture | `docs/rules/verification-before-completion.rule.md` §4.1 (UPDATED) |
+| CI gates + style | `docs/concepts/release-management.md` §4.4 (UPDATED) |
+| Anti-collision (append-only docs + migration strings) | `docs/concepts/release-management.md` §6.4 (UPDATED) |
+| Intra-slice parallelism guidance | `docs/concepts/release-management.md` §6.6 (UPDATED) |
+| BMAD+OpenSpec runbook | `docs/concepts/runbook-bmad-openspec.md` §3.7.1, §4.1 (UPDATED) |
 
 ## Prerequisites
 

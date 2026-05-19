@@ -1,6 +1,6 @@
 """Dry-run incident-response scenario walker.
 
-Picks a scenario from `specs/incident-response.md` §4 (default: S2 #4 Container
+Picks a scenario from `docs/concepts/incident-response.md` §4 (default: S2 #4 Container
 OOM cascade — short and self-contained) and walks it through detection →
 mock paging → runbook resolution → escalation chain check → post-mortem
 template render. Validates that the referenced runbook resolves to a real
@@ -41,11 +41,11 @@ class Scenario:
     severity: str
     detection_signal: str
     immediate_action: str
-    runbook: str  # relative to playbook root, e.g. "runbooks/runbook-vps-down.md"
+    runbook: str  # relative to playbook root, e.g. "docs/runbooks/runbook-vps-down.md"
     artefact: str
 
 
-# Curated list mirroring `specs/incident-response.md` §4. Kept in code (not parsed
+# Curated list mirroring `docs/concepts/incident-response.md` §4. Kept in code (not parsed
 # from the spec) because parsing markdown tables is fragile — when the table
 # changes, this list updates in the same PR.
 SCENARIOS: list[Scenario] = [
@@ -53,56 +53,56 @@ SCENARIOS: list[Scenario] = [
         id=1, name="VPS unreachable", severity="S1",
         detection_signal="Uptime-Kuma probe failed x3",
         immediate_action="SSH from secondary; check journalctl + console",
-        runbook="runbooks/runbook-vps-down.md",
+        runbook="docs/runbooks/runbook-vps-down.md",
         artefact="post-mortem if downtime > 15 min",
     ),
     Scenario(
         id=2, name="Hindsight DB corruption", severity="S1",
         detection_signal="HttpResult.reason == degraded:retain_failed > 5%/min",
         immediate_action="Stop retain workers; snapshot; replay from JSONL",
-        runbook="runbooks/runbook-db-corruption.md",
+        runbook="docs/runbooks/runbook-db-corruption.md",
         artefact="post-mortem mandatory",
     ),
     Scenario(
         id=3, name="Secrets leak in commit", severity="S1",
         detection_signal="secrets_scan.py CI fail OR external report",
         immediate_action="Rotate credentials < 1h; force-push history",
-        runbook="runbooks/runbook-secrets-leak-containment.md",
+        runbook="docs/runbooks/runbook-secrets-leak-containment.md",
         artefact="security post-mortem <= 48h",
     ),
     Scenario(
         id=4, name="Container OOM cascade", severity="S2",
         detection_signal="Docker restart count > 3 in 5 min",
         immediate_action="docker stats --no-stream; bump memory or roll back",
-        runbook="runbooks/runbook-vps-down.md",  # No dedicated runbook yet; falls back to VPS health
+        runbook="docs/runbooks/runbook-vps-down.md",  # No dedicated runbook yet; falls back to VPS health
         artefact="gotcha entry minimum",
     ),
     Scenario(
         id=5, name="Certificate expiry imminent", severity="S2",
         detection_signal="Caddy probe reports cert < 7d to expire",
         immediate_action="caddy reload to fetch fresh ACME",
-        runbook="runbooks/rotate-secrets.md",  # cert rotation lives near secret rotation
+        runbook="docs/runbooks/rotate-secrets.md",  # cert rotation lives near secret rotation
         artefact="gotcha entry",
     ),
     Scenario(
         id=6, name="Third-party LLM provider outage", severity="S2",
         detection_signal="LiteLLM 5xx > 10%/min for one provider",
         immediate_action="Verify status page; fallback chain handles automatically",
-        runbook="runbooks/runbook-vps-down.md",  # falls back to general infra runbook
+        runbook="docs/runbooks/runbook-vps-down.md",  # falls back to general infra runbook
         artefact="incident note",
     ),
     Scenario(
         id=7, name="Rate-limit cascade (LLM)", severity="S3",
         detection_signal="429 rate > 20%/min sustained 5 min",
         immediate_action="Identify caller via consumer metadata; throttle",
-        runbook="runbooks/runbook-vps-down.md",
+        runbook="docs/runbooks/runbook-vps-down.md",
         artefact="incident note",
     ),
     Scenario(
         id=8, name="Capacity degradation (disk)", severity="S3",
         detection_signal="VPS disk > 85% used",
         immediate_action="vps_maintainer.py --apply cleanup with HITL gate",
-        runbook="runbooks/runbook-vps-down.md",
+        runbook="docs/runbooks/runbook-vps-down.md",
         artefact="gotcha entry",
     ),
 ]
@@ -213,7 +213,7 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=4,
         choices=[s.id for s in SCENARIOS],
-        help="Scenario row id from specs/incident-response.md §4 (default 4 = OOM cascade).",
+        help="Scenario row id from docs/concepts/incident-response.md §4 (default 4 = OOM cascade).",
     )
     parser.add_argument(
         "--json",

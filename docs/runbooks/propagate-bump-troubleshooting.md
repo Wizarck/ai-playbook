@@ -30,7 +30,7 @@ Before debugging, confirm what you're seeing isn't expected behavior:
 
 ### Supersede auto-closes prior bump PRs (v0.8.0+)
 
-Each new `chore/bump-{playbook,skills}-vX.Y.Z` PR auto-closes ALL prior open PRs on the same change-stream (per [release-management.md §3.4](../specs/release-management.md)). If you see "PR #N closed: Auto-closed: superseded by #M" on consumer side, that's **correct behavior** — the propagate workflow ran `supersede_open_bump_prs()` after opening the new PR.
+Each new `chore/bump-{playbook,skills}-vX.Y.Z` PR auto-closes ALL prior open PRs on the same change-stream (per [release-management.md §3.4](../docs/concepts/release-management.md)). If you see "PR #N closed: Auto-closed: superseded by #M" on consumer side, that's **correct behavior** — the propagate workflow ran `supersede_open_bump_prs()` after opening the new PR.
 
 To verify supersede ran: list closed PRs in a consumer with the bump prefix:
 
@@ -256,4 +256,4 @@ If you see this on a consumer pinned to v0.8.0–v0.8.2: just merge the bump (th
 - [scripts/_bumper.py](../scripts/_bumper.py) — `supersede_open_bump_prs()` shared helper.
 - [.github/workflows/propagate-playbook-bump.yml](../.github/workflows/propagate-playbook-bump.yml) — playbook bump workflow.
 - [.github/workflows/propagate-skills-bump.yml](../.github/workflows/propagate-skills-bump.yml) — skills bump workflow.
-- [specs/release-management.md §3.4](../specs/release-management.md) — supersede contract.
+- [docs/concepts/release-management.md §3.4](../docs/concepts/release-management.md) — supersede contract.

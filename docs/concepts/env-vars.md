@@ -35,7 +35,7 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 | `AIPLAYBOOK_PROJECTS_FILE` | `AIPLAYBOOK_` | Override the projects-registry YAML path. | no | `~/.ai-playbook/projects.yaml` | `scripts/discover_projects.py::resolve_registry_path` |
 | `AIPLAYBOOK_PROJECTS_ROOTS` | `AIPLAYBOOK_` | Extra scan roots (comma- or OS-pathsep-separated). | no | empty (falls back to `~/Projects`, `~/projects`, `C:/Projects`, `/opt`, `/srv`) | `scripts/discover_projects.py::get_default_roots` |
 | `AIPLAYBOOK_DEBUG` | `AIPLAYBOOK_` | Verbose trace logging from playbook scripts. Truthy = on. | no | unset (off) | any script's logger (T07c) |
-| `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` | `AIPLAYBOOK_` | Minimum tokens per `cache_control` breakpoint before prompt caching is activated (see `specs/prompt-caching.md`). **Canonical name.** | no | `1024` | `scripts/tracing/*` + `scripts/prompt_injection_filter.py` |
+| `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` | `AIPLAYBOOK_` | Minimum tokens per `cache_control` breakpoint before prompt caching is activated (see `docs/concepts/prompt-caching.md`). **Canonical name.** | no | `1024` | `scripts/tracing/*` + `scripts/prompt_injection_filter.py` |
 | `ANTHROPIC_CACHE_TOKENS_MIN` | *(bare, alias)* | **Back-compat alias** for `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN`. Accepted but `scripts/doctor.py` warns and recommends renaming. | no | inherits from canonical default | same sites as the canonical var |
 
 ### Resolution order
@@ -81,7 +81,7 @@ are documented below.
 
 `scripts/retain_memory.py` queues unsuccessful calls to
 `<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored) when `--queue-on-fail`
-is set (default true) — see `specs/memory-hierarchy.md` §9.
+is set (default true) — see `docs/concepts/memory-hierarchy.md` §9.
 
 ---
 
@@ -92,7 +92,7 @@ is set (default true) — see `specs/memory-hierarchy.md` §9.
 | `SKILLS_REGISTRY_URL` | `SKILLS_REGISTRY_` | Base URL of the consumer-d-skills HTTP registry. | yes (if `skills-registry` MCP enabled) | unset | `scripts/skills_registry.py::_load_credentials` |
 | `SKILLS_REGISTRY_API_KEY` | `SKILLS_REGISTRY_` | Bearer token for `scope=personal` / `scope=<project>` queries. | conditional (required for non-`public` scope) | unset | `scripts/skills_registry.py::_load_credentials` |
 
-See `specs/skills-registry.md` for scope semantics and the degraded-mode path.
+See `docs/concepts/skills-registry.md` for scope semantics and the degraded-mode path.
 
 ---
 
@@ -223,7 +223,7 @@ Uses the standard `GH_TOKEN` / `GITHUB_TOKEN` for authentication — pulled from
 
 ## See also
 
-- `specs/projects-registry.md` — consumer of `AIPLAYBOOK_PROJECTS_FILE` and `AIPLAYBOOK_PROJECTS_ROOTS`.
-- `specs/break-glass.md` — consumer of `GIT_AUTHOR_EMAIL` via `scripts/_break_glass.py`.
-- `specs/prompt-caching.md` — consumer of `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` (and its alias).
+- `docs/concepts/projects-registry.md` — consumer of `AIPLAYBOOK_PROJECTS_FILE` and `AIPLAYBOOK_PROJECTS_ROOTS`.
+- `docs/rules/break-glass.rule.md` — consumer of `GIT_AUTHOR_EMAIL` via `scripts/_break_glass.py`.
+- `docs/concepts/prompt-caching.md` — consumer of `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` (and its alias).
 - `scripts/doctor.py` — emits warnings when required vars are missing or when deprecated aliases are set.

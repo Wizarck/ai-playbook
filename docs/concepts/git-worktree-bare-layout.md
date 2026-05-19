@@ -1,6 +1,6 @@
 # git-worktree-bare-layout.md
 
-> **Status**: v1.0.0. New in ai-playbook v0.9.0-rc3 (2026-05-01). Codifies the bare-repo + per-branch-worktree directory pattern as the **default layout for every consumer project** of the playbook. Replaces the implicit "single working tree at `<repo>/`" assumption that broke down once OpenSpec changes started shipping in waves of 5–10 concurrent slices (e.g. consumer-c Module 2). Existing projects on the legacy layout keep working — migration is opt-in via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §3.
+> **Status**: v1.0.0. New in ai-playbook v0.9.0-rc3 (2026-05-01). Codifies the bare-repo + per-branch-worktree directory pattern as the **default layout for every consumer project** of the playbook. Replaces the implicit "single working tree at `<repo>/`" assumption that broke down once OpenSpec changes started shipping in waves of 5–10 concurrent slices (e.g. consumer-c Module 2). Existing projects on the legacy layout keep working — migration is opt-in via [docs/runbooks/git-worktree-bare-setup.md](../docs/runbooks/git-worktree-bare-setup.md) §3.
 
 ## Purpose
 
@@ -70,7 +70,7 @@ Rationale for A as default: directory-equals-change-id naming makes the cwd self
 
 ## Migration from legacy layout
 
-Existing consumer projects on layout B (single working tree at `<repo>/`) keep working — no breaking change. Migration is voluntary, performed via [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §3 (the runbook handles the Windows cwd-lock workaround). Once migrated, the registry path entry in `~/.ai-playbook/projects.yaml` is unchanged: `path` is the project parent directory, which the dispatcher resolution treats as "ancestor of cwd" (per [dispatcher-chain.md](dispatcher-chain.md) §"Registry integration"), so cwd in `<repo>/master/` resolves through the same registry entry as cwd in `<repo>/` did.
+Existing consumer projects on layout B (single working tree at `<repo>/`) keep working — no breaking change. Migration is voluntary, performed via [docs/runbooks/git-worktree-bare-setup.md](../docs/runbooks/git-worktree-bare-setup.md) §3 (the runbook handles the Windows cwd-lock workaround). Once migrated, the registry path entry in `~/.ai-playbook/projects.yaml` is unchanged: `path` is the project parent directory, which the dispatcher resolution treats as "ancestor of cwd" (per [dispatcher-chain.md](dispatcher-chain.md) §"Registry integration"), so cwd in `<repo>/master/` resolves through the same registry entry as cwd in `<repo>/` did.
 
 ## Tooling
 
@@ -83,7 +83,7 @@ Existing consumer projects on layout B (single working tree at `<repo>/`) keep w
 
 ## Cross-references
 
-- [runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) — operational runbook (greenfield + migrate + daily flow).
+- [docs/runbooks/git-worktree-bare-setup.md](../docs/runbooks/git-worktree-bare-setup.md) — operational runbook (greenfield + migrate + daily flow).
 - [scripts/wt_add.py](../scripts/wt_add.py) — helper for daily worktree creation.
 - [release-management.md](release-management.md) §3.1 — `slice/<change-id>` branch naming this layout depends on.
 - [bmad-openspec-bridge.md](bmad-openspec-bridge.md) — the slicing artefact whose change-ids become worktree directory names.

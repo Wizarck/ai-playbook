@@ -18,7 +18,7 @@ I'll create a change with artifacts:
 
 When ready to implement, run /opsx:apply
 
-This skill is the Phase 2 → Phase 3 entry point of the BMAD+OpenSpec runbook. Default flow reads the canonical slicing artefact `docs/openspec-slice.md` (per [bmad-openspec-bridge.md](../../specs/bmad-openspec-bridge.md)) so each `<change-id>` is scaffolded with the FRs, dependencies, components, and scope note already approved at Gate C. Use `--no-slice` for ad-hoc changes that bypass the contract (legacy v0.6.x behaviour).
+This skill is the Phase 2 → Phase 3 entry point of the BMAD+OpenSpec runbook. Default flow reads the canonical slicing artefact `docs/openspec-slice.md` (per [bmad-openspec-bridge.md](../../docs/concepts/bmad-openspec-bridge.md)) so each `<change-id>` is scaffolded with the FRs, dependencies, components, and scope note already approved at Gate C. Use `--no-slice` for ad-hoc changes that bypass the contract (legacy v0.6.x behaviour).
 
 ---
 
@@ -39,7 +39,7 @@ This skill is the Phase 2 → Phase 3 entry point of the BMAD+OpenSpec runbook. 
       - Override: `--slice-file <path>` wins over both.
       - If none of the above resolve to an existing file, refuse with: "no slice file found at `docs/openspec-slice.md` (or `docs/openspec-slice-*.md`); either run BMAD slicing per `runbook-bmad-openspec.md` §2.4 first, or pass `--no-slice` for ad-hoc changes".
 
-   b. Parse the "Approved change list" table and the "Scope notes" section per the schema in [bmad-openspec-bridge.md](../../specs/bmad-openspec-bridge.md) §3.1.
+   b. Parse the "Approved change list" table and the "Scope notes" section per the schema in [bmad-openspec-bridge.md](../../docs/concepts/bmad-openspec-bridge.md) §3.1.
 
    c. Locate the row whose `Change ID` equals the requested `<change-id>`.
 

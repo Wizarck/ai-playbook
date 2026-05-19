@@ -7,13 +7,13 @@ Strategy
 Each test seeds a temporary manifest (and optionally a temp repo root) under
 `tmp_path`, invokes the script as a subprocess with `--manifest`, `--repo-root`,
 and `--diff-files` overrides, and asserts exit code + stderr/stdout content per
-the canonical WHY/FIX/OVERRIDE shape (per `specs/error-message-standard.md`).
+the canonical WHY/FIX/OVERRIDE shape (per `docs/rules/error-message-standard.rule.md`).
 
 Subprocess invocation (rather than direct import) matches the CI contract: the
 script is executed as a CLI in GitHub Actions, so tests exercise the same path.
 
 Contracts:
-- specs/doc-drift-enforcement.md (full)
+- docs/rules/doc-drift-enforcement.rule.md (full)
 - specs/co-edit-pairs.yaml (canonical manifest schema)
 """
 from __future__ import annotations
@@ -404,8 +404,8 @@ def test_real_manifest_validates() -> None:
 
 
 def test_real_manifest_synthetic_drift_probe() -> None:
-    """Touching `scripts/cleanup_zombies.py` alone must fail against the real manifest."""
-    proc = _run(diff_files=["scripts/cleanup_zombies.py"])
+    """Touching `scripts/rules/cleanup-zombies.rule.py` alone must fail against the real manifest."""
+    proc = _run(diff_files=["scripts/rules/cleanup-zombies.rule.py"])
     assert proc.returncode == 1
     assert "cleanup-zombies" in proc.stderr
 
@@ -413,7 +413,7 @@ def test_real_manifest_synthetic_drift_probe() -> None:
 def test_real_manifest_escape_hatch_probe() -> None:
     """Same probe with escape hatch in PR title exits 0."""
     proc = _run(
-        diff_files=["scripts/cleanup_zombies.py"],
+        diff_files=["scripts/rules/cleanup-zombies.rule.py"],
         pr_title="release: bump [no-doc-impact]",
     )
     assert proc.returncode == 0

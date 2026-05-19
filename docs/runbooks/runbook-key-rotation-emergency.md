@@ -1,6 +1,6 @@
 # runbook-key-rotation-emergency.md
 
-> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`specs/incident-response.md`](../specs/incident-response.md) §4 scenario #3 and [rotate-secrets.md](rotate-secrets.md).
+> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`docs/concepts/incident-response.md`](../docs/concepts/incident-response.md) §4 scenario #3 and [rotate-secrets.md](rotate-secrets.md).
 >
 > Emergency variant of [rotate-secrets.md](rotate-secrets.md): same target (rotate every credential), tighter clock (1h to revoke + reissue, not the leisurely calendar-driven path).
 
@@ -114,7 +114,7 @@ There is no rollback for "I revoked a leaked credential". The only forward path 
 
 ## Post-incident artefact required
 
-**Security post-mortem ≤ 48h** per [incident-response.md](../specs/incident-response.md) §4 scenario #3. The post-mortem must answer:
+**Security post-mortem ≤ 48h** per [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #3. The post-mortem must answer:
 - How did the credential leak?
 - Was it used by a third party? (vendor audit log evidence).
 - What customer data was reachable? (blast radius).
@@ -124,6 +124,6 @@ There is no rollback for "I revoked a leaked credential". The only forward path 
 
 - [rotate-secrets.md](rotate-secrets.md) — non-emergency scheduled rotation.
 - [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) — broader containment when leak scope is wide.
-- [incident-response.md](../specs/incident-response.md) §4 scenario #3.
-- [data-retention.md](../specs/data-retention.md) — what data the leaked credential could exfiltrate determines severity.
-- [post-mortem.md](../specs/post-mortem.md) — required artefact.
+- [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #3.
+- [data-retention.md](../docs/concepts/data-retention.md) — what data the leaked credential could exfiltrate determines severity.
+- [post-mortem.md](../docs/concepts/post-mortem.md) — required artefact.

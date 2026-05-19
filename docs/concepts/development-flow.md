@@ -19,7 +19,7 @@ That's the whole flow. The rest of this doc explains the parts and points at whe
 ## 1. The four-level hierarchy
 
 ```
-ROADMAP                                   specs/v0.9.0-roadmap.md
+ROADMAP                                   docs/concepts/v0.9.0-roadmap.md
   └── PHASE / WAVE / SLICE                docs/openspec-slice-phase5.md
         │
         ▼
@@ -28,13 +28,13 @@ OPENSPEC CHANGE  ◄────────────────────
   •   proposal.md   problem + approach + decisions (Dx.y)
   •   tasks.md      granular checklist `- [ ]` per implementable step
   •   specs/        deltas to playbook specifications
-  See: specs/runbook-bmad-openspec.md
+  See: docs/concepts/runbook-bmad-openspec.md
         │
         ▼
 BRANCH (one OpenSpec change = one branch)
   • Naming: `<type>/<change-id>` where type ∈ {feat, fix, chore, docs, refactor}
   • Lives in its own worktree (when ≥ 3 concurrent slices)
-  See: specs/git-worktree-bare-layout.md, runbooks/git-worktree-bare-setup.md
+  See: docs/concepts/git-worktree-bare-layout.md, docs/runbooks/git-worktree-bare-setup.md
         │
         ▼
 COMMITS (multiple, semantically distinct)
@@ -47,7 +47,7 @@ COMMITS (multiple, semantically distinct)
 PULL REQUEST (one branch = one PR, base: main)
   • CI: ruff + pytest 3.11 + pytest 3.12 + CodeRabbit + 3-layer review
   • Merge style: merge-commit (multi-commit) | squash (trivial single-commit)
-  See: specs/merge-policy.md, specs/parallel-review.md
+  See: docs/concepts/merge-policy.md, docs/concepts/parallel-review.md
         │
         ▼
 MAIN (accumulating PRs for the next release tag)
@@ -60,13 +60,13 @@ TAG  ◄────────────────────────
   • git tag -a vX.Y.Z + push tag
   • Triggers .github/workflows/propagate-playbook-bump.yml
   • Which opens `chore(playbook): bump to vX.Y.Z` PRs in every consumer
-  See: runbooks/release.md, scripts/release_cut.py, scripts/propagate_bump.py
+  See: docs/runbooks/release.md, scripts/release_cut.py, scripts/propagate_bump.py
         │
         ▼
 CONSUMERS (consumer-d, consumer-c, consumer-b, consumer-e, livekit, …)
   • Auto-PR opens with submodule pin bump + AGENTS.md cross-ref refresh
   • Consumer mergers → consumer is on the new playbook version
-  See: specs/projects-registry.md, consumers.yaml, scripts/bump_consumers.py
+  See: docs/concepts/projects-registry.md, consumers.yaml, scripts/bump_consumers.py
 ```
 
 The hierarchy is **strict**: every commit is inside a branch, every branch is inside a PR, every PR maps to one OpenSpec change, every change is part of a slice/wave/phase in the roadmap. CI gates enforce each level (see §5).
@@ -79,7 +79,7 @@ Three orthogonal mechanisms let multiple agents/humans work concurrently without
 
 ### Axis 1 — Wave-N (between independent OpenSpec changes)
 
-**Spec**: [release-management.md §6.4](../specs/release-management.md)
+**Spec**: [release-management.md §6.4](../docs/concepts/release-management.md)
 
 **When**: you have ≥ 3 OpenSpec changes that touch disjoint capabilities (e.g. `add-litellm-enforcement` + `complete-ir-and-model-migration-specs` + `extend-vps-maintainer` — none of them write to the same files).
 
@@ -89,7 +89,7 @@ Three orthogonal mechanisms let multiple agents/humans work concurrently without
 
 ### Axis 2 — Intra-slice (within one OpenSpec change)
 
-**Spec**: [release-management.md §6.6](../specs/release-management.md) + skill [`openspec-apply-parallel`](../skills/openspec-apply-parallel/SKILL.md) (added v0.9.2)
+**Spec**: [release-management.md §6.6](../docs/concepts/release-management.md) + skill [`openspec-apply-parallel`](../skills/openspec-apply-parallel/SKILL.md) (added v0.9.2)
 
 **When**: a single OpenSpec change has `tasks.md` groups with disjoint write-paths (canonical example: a slice that scaffolds 5 bounded contexts under `apps/api/src/` — `iam/`, `ingredients/`, `suppliers/`, `cost/`, `shared/uom/`).
 
@@ -104,7 +104,7 @@ When the gating questions don't pass, fall back to `/opsx:apply` (sequential).
 
 ### Axis 3 — Worktrees (the operational base for both)
 
-**Spec**: [git-worktree-bare-layout.md](../specs/git-worktree-bare-layout.md) + [runbook git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) + script `scripts/wt_add.py`
+**Spec**: [git-worktree-bare-layout.md](../docs/concepts/git-worktree-bare-layout.md) + [runbook git-worktree-bare-setup.md](../docs/runbooks/git-worktree-bare-setup.md) + script `scripts/wt_add.py`
 
 **When**: ≥ 3 slices concurrent (axis 1) OR ≥ 4 groups in one slice (axis 2). Below those thresholds, single working tree is simpler.
 
@@ -157,7 +157,7 @@ CI runs:                ruff → pytest 3.11/3.12 → CodeRabbit → bmad-code-r
 Address review:         additional commits as needed (preserve semantic history)
                           ▼
 Merge:                  merge-commit if ≥ 2 commits, squash if 1 trivial commit
-                        (See specs/merge-policy.md)
+                        (See docs/concepts/merge-policy.md)
                           ▼
 Archive:                openspec archive <change-id>
                         Verifies tasks.md is N/N ticked (CI gate check-tasks-checkboxes.yml)
@@ -167,7 +167,7 @@ Branch deleted          (auto via gh pr merge --delete-branch)
 
 ### 3.3 Release path
 
-When the maintainer (Profile A — see [`specs/role-matrix.md`](../specs/role-matrix.md)) decides the accumulated PRs in main are a coherent release:
+When the maintainer (Profile A — see [`docs/concepts/role-matrix.md`](../docs/concepts/role-matrix.md)) decides the accumulated PRs in main are a coherent release:
 
 ```
 Release-prep PR:        chore(release): vX.Y.Z
@@ -190,7 +190,7 @@ OpenSpec archive:       in each consumer where the change applied,
                         `openspec archive <change-id>` retires the proposal
 ```
 
-Release timing is a **policy decision**, not auto-cut. See [release-management.md §3](../specs/release-management.md) for criteria (semver discipline, CHANGELOG quality, breaking-change review).
+Release timing is a **policy decision**, not auto-cut. See [release-management.md §3](../docs/concepts/release-management.md) for criteria (semver discipline, CHANGELOG quality, breaking-change review).
 
 ---
 
@@ -219,7 +219,7 @@ CLI-specific routers (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`) are **thin poi
 
 ## 5. Industrialisation — what's enforced vs what's convention
 
-Following [`specs/enforcement-status.md`](../specs/enforcement-status.md) shape:
+Following [`docs/concepts/enforcement-status.md`](../docs/concepts/enforcement-status.md) shape:
 
 | Discipline | Enforcement | Where |
 |---|---|---|
@@ -235,10 +235,10 @@ Following [`specs/enforcement-status.md`](../specs/enforcement-status.md) shape:
 | Drift LLM routing | 🟡 warn-only | `verify_llm_routing.py` (warn-only window 30d → strict per D3.5) |
 | Notification policy 4 levels | ✅ wired | `notify.py` |
 | 7-day post-mortem trigger | 🟠 wired-pending-trigger | `lifecycle_check.py` |
-| Consumer-side playbook zombie cleanup | 🟡 partial | `scripts/cleanup_zombies.py` + declarative manifest `specs/zombies-manifest.yaml` + hook templates `templates/new-project/scripts/git-hooks/{post-merge,post-checkout}.tmpl`. Auto-fires on consumer `git pull` / `git checkout`. Status flips ✅ when ≥ 1 consumer adopts and reports a quiet 30-day window. v0.15.0. |
-| Doc-drift on paired (code, doc) tuples | ✅ wired | `scripts/check_doc_drift.py` + declarative manifest `specs/co-edit-pairs.yaml` + CI workflow `.github/workflows/doc-drift-check.yml` (sticky PR comment + hard fail). Fires on every PR. Escape hatch: `[no-doc-impact]` (case-insensitive) anywhere in PR title; logged for slice 6 telemetry. v0.16.0. |
+| Consumer-side playbook zombie cleanup | 🟡 partial | `scripts/rules/cleanup-zombies.rule.py` + declarative manifest `specs/zombies-manifest.yaml` + hook templates `templates/new-project/scripts/git-hooks/{post-merge,post-checkout}.tmpl`. Auto-fires on consumer `git pull` / `git checkout`. Status flips ✅ when ≥ 1 consumer adopts and reports a quiet 30-day window. v0.15.0. |
+| Doc-drift on paired (code, doc) tuples | ✅ wired | `scripts/check_doc_drift.py` + declarative manifest `specs/co-edit-pairs.yaml` + CI workflow `.github/workflows/doc-drift-enforcement.rule.yml` (sticky PR comment + hard fail). Fires on every PR. Escape hatch: `[no-doc-impact]` (case-insensitive) anywhere in PR title; logged for slice 6 telemetry. v0.16.0. |
 
-**Status legend** (per [enforcement-status.md](../specs/enforcement-status.md)):
+**Status legend** (per [enforcement-status.md](../docs/concepts/enforcement-status.md)):
 - ✅ wired — code + tests + pre-commit/CI fires it
 - 🟡 partial — some enforcement, gaps named
 - 📋 spec-only — convention, no automation
@@ -270,19 +270,19 @@ Document these so future agents (and humans) recognise them:
 
 ## 8. Cross-references
 
-- [`specs/release-management.md`](../specs/release-management.md) — Sections §3 (semver), §4 (PR shape + AI-reviewer feedback loop), §5 (Profile A/B), §6.4 (Wave-N), §6.5 (pre-flight rebase), §6.6 (intra-slice).
-- [`specs/runbook-bmad-openspec.md`](../specs/runbook-bmad-openspec.md) — BMAD discovery → OpenSpec implementation flow.
-- [`specs/git-worktree-bare-layout.md`](../specs/git-worktree-bare-layout.md) — bare-repo + per-branch worktree layout.
-- [`runbooks/git-worktree-bare-setup.md`](../runbooks/git-worktree-bare-setup.md) — operational procedure for worktree management.
-- [`specs/merge-policy.md`](../specs/merge-policy.md) — squash vs merge-commit decision rules.
-- [`specs/conflict-resolution-policy.md`](../specs/conflict-resolution-policy.md) — what to do when two PRs collide.
-- [`specs/parallel-review.md`](../specs/parallel-review.md) — 3-layer review (blind / edge case / adversarial).
-- [`specs/enforcement-status.md`](../specs/enforcement-status.md) — what's wired vs spec-only.
+- [`docs/concepts/release-management.md`](../docs/concepts/release-management.md) — Sections §3 (semver), §4 (PR shape + AI-reviewer feedback loop), §5 (Profile A/B), §6.4 (Wave-N), §6.5 (pre-flight rebase), §6.6 (intra-slice).
+- [`docs/concepts/runbook-bmad-openspec.md`](../docs/concepts/runbook-bmad-openspec.md) — BMAD discovery → OpenSpec implementation flow.
+- [`docs/concepts/git-worktree-bare-layout.md`](../docs/concepts/git-worktree-bare-layout.md) — bare-repo + per-branch worktree layout.
+- [`docs/runbooks/git-worktree-bare-setup.md`](../docs/runbooks/git-worktree-bare-setup.md) — operational procedure for worktree management.
+- [`docs/concepts/merge-policy.md`](../docs/concepts/merge-policy.md) — squash vs merge-commit decision rules.
+- [`docs/rules/conflict-resolution-policy.rule.md`](../docs/rules/conflict-resolution-policy.rule.md) — what to do when two PRs collide.
+- [`docs/concepts/parallel-review.md`](../docs/concepts/parallel-review.md) — 3-layer review (blind / edge case / adversarial).
+- [`docs/concepts/enforcement-status.md`](../docs/concepts/enforcement-status.md) — what's wired vs spec-only.
 - [`specs/agents-md-v1.schema.json`](../specs/agents-md-v1.schema.json) — frontmatter contract.
-- [`specs/projects-registry.md`](../specs/projects-registry.md) — `~/.ai-playbook/projects.yaml` schema.
-- [`specs/v0.9.0-roadmap.md`](../specs/v0.9.0-roadmap.md) — Followup #4 (task-checkbox enforcement).
-- [`runbooks/release.md`](../runbooks/release.md) — release cut + propagation runbook.
-- [`runbooks/onboard-new-project.md`](../runbooks/onboard-new-project.md) — bootstrap a new playbook consumer.
+- [`docs/concepts/projects-registry.md`](../docs/concepts/projects-registry.md) — `~/.ai-playbook/projects.yaml` schema.
+- [`docs/concepts/v0.9.0-roadmap.md`](../docs/concepts/v0.9.0-roadmap.md) — Followup #4 (task-checkbox enforcement).
+- [`docs/runbooks/release.md`](../docs/runbooks/release.md) — release cut + propagation runbook.
+- [`docs/runbooks/onboard-new-project.md`](../docs/runbooks/onboard-new-project.md) — bootstrap a new playbook consumer.
 - [`skills/openspec-apply-parallel/SKILL.md`](../skills/openspec-apply-parallel/SKILL.md) — intra-slice parallelism (Axis 2).
 
 ---

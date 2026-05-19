@@ -3,7 +3,7 @@
 > **Audience**: the worker AI (Claude / Gemini / Antigravity / future session). Not for humans (humans review at Gate F via the GH UI; this runbook is for the AI that authored the PR).
 > **Status**: v1.0.0 (introduced in ai-playbook v0.9.0).
 > **Trigger**: `scripts/check_coderabbit_status.py` returned exit 1 (status `rate-limited` or `silent`) after PR push.
-> **Spec**: codified in [`specs/release-management.md`](../specs/release-management.md) §4.5.
+> **Spec**: codified in [`docs/concepts/release-management.md`](../docs/concepts/release-management.md) §4.5.
 
 ## What this runbook does
 
@@ -192,6 +192,6 @@ The audit trail still matters — it confirms the worker AI looked at the diff, 
 - [`scripts/check_coderabbit_status.py`](../scripts/check_coderabbit_status.py) — the detection script that triggers this runbook.
 - [`scripts/post_self_review_checklist.py`](../scripts/post_self_review_checklist.py) — the L2 fallback that posts a checklist when L1 didn't run.
 - [`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`](../templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl) — the L2 workflow template.
-- [`specs/release-management.md`](../specs/release-management.md) §4.5 — the contract this runbook satisfies.
-- [`specs/v0.9.0-roadmap.md`](../specs/v0.9.0-roadmap.md) — the design rationale for the 3-layer defense.
+- [`docs/concepts/release-management.md`](../docs/concepts/release-management.md) §4.5 — the contract this runbook satisfies.
+- [`docs/concepts/v0.9.0-roadmap.md`](../docs/concepts/v0.9.0-roadmap.md) — the design rationale for the 3-layer defense.
 - `consumer-e` PR #41 — the canonical reference run.

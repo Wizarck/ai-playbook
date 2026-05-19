@@ -106,7 +106,7 @@ the pre-this-slice version (v0.15.0).
 | `skills-pins-consumers-yaml` | 3 | report | `consumers.yaml.<name>.skills_pins:` keys are stale (no propagator reads them anymore) |
 | `validate-skills-mirror-precommit-hook` | 3 | report | `.pre-commit-config.yaml` entries invoking `validate_skills_mirror` are stale |
 
-Per `specs/cleanup-zombies.md` Tier 3 semantics: these are advisory-only.
+Per `docs/rules/cleanup-zombies.rule.md` Tier 3 semantics: these are advisory-only.
 Consumer never auto-mutates `consumers.yaml` or hand-authored hook configs.
 
 Two additions adjust existing entries (no schema break — same entry id, refined
@@ -155,4 +155,4 @@ consumer needs, even though no current consumer requires them.
 - D17 — skills orthogonal to rules, [decisions §D17](https://github.com/Wizarck/ai-playbook/blob/main/decisions/D17.md)
 - D19 — versioning, [decisions §D19](https://github.com/Wizarck/ai-playbook/blob/main/decisions/D19.md)
 - consumer-a PR #125 — single-source simplification, https://github.com/consumer-a/consumer-a/pull/125
-- specs/cleanup-zombies.md §3 — tier semantics for the v2 manifest entries
+- docs/rules/cleanup-zombies.rule.md §3 — tier semantics for the v2 manifest entries

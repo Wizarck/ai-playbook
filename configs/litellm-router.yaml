@@ -1,7 +1,7 @@
 # litellm-router.yaml — task-class → model routing matrix
 #
 # Per OpenSpec change `add-litellm-enforcement` (Phase 5 P5.4) and
-# `specs/model-routing.md` v2.0.0+. This file is the canonical
+# `docs/concepts/model-routing.md` v2.0.0+. This file is the canonical
 # task-class routing specification.
 #
 # ===========================================================================
@@ -196,7 +196,7 @@ model_list:
 # Per-consumer virtual key budgets
 # ---------------------------------------------------------------------------
 #
-# Convention: <PROVIDER>_API_KEY_<CONSUMER> (per `specs/env-vars.md` §Consumer keys).
+# Convention: <PROVIDER>_API_KEY_<CONSUMER> (per `docs/concepts/env-vars.md` §Consumer keys).
 # LiteLLM enforces per-virtual-key monthly budgets — set generous initial caps;
 # tune after the first month of cost data.
 

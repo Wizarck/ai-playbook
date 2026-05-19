@@ -48,7 +48,7 @@ Degraded context
 ----------------
 If Hindsight is unreachable (DNS / 5xx / timeout), the script writes an empty
 ``injected-context.md`` with a `DEGRADED_CONTEXT` banner per
-``specs/degradation-modes.md`` and exits 0. The session proceeds; the agent is
+``docs/concepts/degradation-modes.md`` and exits 0. The session proceeds; the agent is
 aware memory is unavailable. Queued-retain logic lives in a companion script
 (T14i lifecycle work) and is out of scope here.
 """
@@ -295,7 +295,7 @@ def render_injected_context(
         lines.append("")
         lines.append(
             "Hindsight recall failed; the session proceeds without prior memory. "
-            f"Reason: `{result.reason}`. See `specs/degradation-modes.md`."
+            f"Reason: `{result.reason}`. See `docs/concepts/degradation-modes.md`."
         )
         lines.append("")
         return "\n".join(lines) + "\n"
@@ -420,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
             why="Hindsight credentials missing",
             where="env:HINDSIGHT_URL/HINDSIGHT_API_KEY",
             fix="run under `sops exec-env <secrets.env>` or export the two vars; "
-                "see specs/env-vars.md.",
+                "see docs/concepts/env-vars.md.",
             override_invocation=(
                 f"{SCRIPT_BASENAME} --force-with-reason=\"<>=10 char reason\""
             ),

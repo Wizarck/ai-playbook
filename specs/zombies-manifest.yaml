@@ -1,16 +1,16 @@
 # zombies-manifest.yaml — declarative inventory of consumer-side fossils
 #
 # Shipped with the ai-playbook submodule and consumed by
-# `scripts/cleanup_zombies.py` on consumer-side `git pull` / `git checkout`.
+# `scripts/rules/cleanup-zombies.rule.py` on consumer-side `git pull` / `git checkout`.
 #
-# Contract: `specs/cleanup-zombies.md`. Schema: §2. Tier semantics: §3.
+# Contract: `docs/rules/cleanup-zombies.rule.md`. Schema: §2. Tier semantics: §3.
 # Safety checks: §4.
 #
 # Rolling document. When a playbook release REMOVES or RENAMES any
 # consumer-surface artefact (file the bootstrap script propagated, a
 # frontmatter field, a literal name a consumer wired against), the release
 # PR MUST append an entry here AND bump `manifest_version`. See
-# `runbooks/release.md` pre-cut checklist.
+# `docs/runbooks/release.md` pre-cut checklist.
 #
 # DO NOT add entries for:
 #   - Files removed from the playbook root that the consumer never received
@@ -66,7 +66,7 @@ entries:
       `<!-- BEGIN auto-managed: <source> -->` blocks whose `<source>` no longer
       resolves to a playbook anchor. Detected by `scripts/auto_managed.py
       --prune-orphans`.
-    evidence: specs/auto-managed-sections.md
+    evidence: docs/concepts/auto-managed-sections.md
 
   - id: hindsight-queue-rotation
     tier: 1
@@ -79,7 +79,7 @@ entries:
       DEGRADED_CONTEXT retain queue. Once entries are marked
       `state: drained` AND file mtime > 30 days, rotate to
       `hindsight-queue.<date>.jsonl.archive` so the active queue stays small.
-    evidence: specs/memory-hierarchy.md
+    evidence: docs/concepts/memory-hierarchy.md
     rotation_days: 30
 
   # -------------------------------------------------------------------------
@@ -135,7 +135,7 @@ entries:
       `inherits_from:` is pinned more than 3 MINOR versions behind the
       playbook bundled here. Many specs/skills/templates have changed since.
       Bump the pin and rerun bootstrap doctor.
-    evidence: specs/dispatcher-chain.md
+    evidence: docs/concepts/dispatcher-chain.md
     max_minor_drift: 3
 
   - id: extra-skills-in-mirror
@@ -165,7 +165,7 @@ entries:
       delta. Often residue from archived changes whose archive deleted the
       change folder but left the cumulative spec in place. Review and remove
       manually if no longer canonical.
-    evidence: specs/runbook-bmad-openspec.md
+    evidence: docs/concepts/runbook-bmad-openspec.md
 
   - id: pre-commit-deprecated-hooks
     tier: 3
@@ -242,7 +242,7 @@ entries:
       The `rfcs/` folder (housing RFC-0001-skills-distribution.md and its
       README) was deleted entirely in v0.17.0. Markdown cross-references to
       `rfcs/RFC-0001-skills-distribution.md` now return 404 on the rendered
-      mkdocs site. Migrate prose references to `specs/skills-distribution.md`
+      mkdocs site. Migrate prose references to `docs/concepts/skills-distribution.md`
       v2.0.0.
     evidence: ai-playbook v0.17.0 CHANGELOG
 

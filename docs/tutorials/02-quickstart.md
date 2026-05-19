@@ -108,7 +108,7 @@ This scans conventional roots plus `$AIPLAYBOOK_PROJECTS_ROOTS`, finds every dir
 python -m scripts.discover_projects --list
 ```
 
-Your `acme-shop` entry should appear with `path`, `owner`, `version`, `inherits_from` populated from the frontmatter. Reference layout: [../templates/projects.yaml.example](../templates/projects.yaml.example). Schema: [../specs/projects-registry.md](../specs/projects-registry.md).
+Your `acme-shop` entry should appear with `path`, `owner`, `version`, `inherits_from` populated from the frontmatter. Reference layout: [../templates/projects.yaml.example](../templates/projects.yaml.example). Schema: [../docs/concepts/projects-registry.md](../docs/concepts/projects-registry.md).
 
 ### What can go wrong
 
@@ -120,7 +120,7 @@ Your `acme-shop` entry should appear with `path`, `owner`, `version`, `inherits_
 
 ## Step 5 — Wire MCP servers (≈4 min)
 
-Open `mcp-servers.yaml` (copied in Step 2). Declare the MCP servers this project uses, per the schema at [../specs/mcp-servers-schema.md](../specs/mcp-servers-schema.md). Minimal shape:
+Open `mcp-servers.yaml` (copied in Step 2). Declare the MCP servers this project uses, per the schema at [../docs/concepts/mcp-servers-schema.md](../docs/concepts/mcp-servers-schema.md). Minimal shape:
 
 ```yaml
 schema: mcp-servers/v1
@@ -174,7 +174,7 @@ Pick a tiny feature to bootstrap the rhythm. Create the change folder:
 mkdir -p openspec/changes/acme-shop-bootstrap
 ```
 
-Write `openspec/changes/acme-shop-bootstrap/proposal.md` — one paragraph on problem, one on approach. Then `specs/` and `tasks.md` per the per-artefact sequence in [../specs/runbook-bmad-openspec.md](../specs/runbook-bmad-openspec.md) §3.1. Validate:
+Write `openspec/changes/acme-shop-bootstrap/proposal.md` — one paragraph on problem, one on approach. Then `specs/` and `tasks.md` per the per-artefact sequence in [../docs/concepts/runbook-bmad-openspec.md](../docs/concepts/runbook-bmad-openspec.md) §3.1. Validate:
 
 ```bash
 python .ai-playbook/scripts/openspec_validate.py acme-shop-bootstrap
@@ -188,7 +188,7 @@ If you're using Claude Code, the slash command flow is:
 /opsx:archive  → promotes specs to openspec/specs/ and runs post-archive retro
 ```
 
-Verdict contract for each artefact: [../specs/verdict-contract.md](../specs/verdict-contract.md). After archive, drop a retro per [../templates/retro/post-archive.md.tmpl](../templates/retro/post-archive.md.tmpl).
+Verdict contract for each artefact: [../docs/rules/verdict-contract.rule.md](../docs/rules/verdict-contract.rule.md). After archive, drop a retro per [../templates/retro/post-archive.md.tmpl](../templates/retro/post-archive.md.tmpl).
 
 ### What can go wrong
 
@@ -206,7 +206,7 @@ If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.p
 
 ### What can go wrong
 
-- **Hook fires but Hindsight MCP is down** — degradation state flips to `DEGRADED_CONTEXT` (see [../specs/degradation-modes.md](../specs/degradation-modes.md)). The session continues without memory; the warning is expected.
+- **Hook fires but Hindsight MCP is down** — degradation state flips to `DEGRADED_CONTEXT` (see [../docs/concepts/degradation-modes.md](../docs/concepts/degradation-modes.md)). The session continues without memory; the warning is expected.
 - **Hook times out** — raise the harness timeout to 15 s; memory reads can be slow on cold cache.
 
 ---
@@ -233,4 +233,4 @@ If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.p
 
 - First retro: use [../templates/retro/post-archive.md.tmpl](../templates/retro/post-archive.md.tmpl) after your first archive.
 - Hit friction? Append a bullet to [../FEEDBACK.md](../FEEDBACK.md). One sentence, dated, signed.
-- Read [../specs/runbook-bmad-openspec.md](../specs/runbook-bmad-openspec.md) before your first real PRD.
+- Read [../docs/concepts/runbook-bmad-openspec.md](../docs/concepts/runbook-bmad-openspec.md) before your first real PRD.

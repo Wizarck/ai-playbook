@@ -1,7 +1,7 @@
 # doc-drift-check.yml
 #
 # CI gate: enforce that paired (code, doc) tuples move together in a PR.
-# See specs/doc-drift-enforcement.md (v1.0.0) for the full contract.
+# See docs/rules/doc-drift-enforcement.rule.md (v1.0.0) for the full contract.
 #
 # Triggers on PR open / synchronize / reopen / edited. The `edited` trigger is
 # essential — when an author adds `[no-doc-impact]` to the PR title to bypass
@@ -93,7 +93,7 @@ jobs:
                 '',
                 '✅ Pass — no Tier 1 doc-drift detected on this PR.',
                 '',
-                '_Contract_: [`specs/doc-drift-enforcement.md`](../blob/main/specs/doc-drift-enforcement.md). ' +
+                '_Contract_: [`docs/rules/doc-drift-enforcement.rule.md`](../blob/main/docs/rules/doc-drift-enforcement.rule.md). ' +
                 '_Pairs_: [`specs/co-edit-pairs.yaml`](../blob/main/specs/co-edit-pairs.yaml).',
               ].join('\n');
             } else if (rc === 1) {
@@ -110,7 +110,7 @@ jobs:
                 '1. Edit the missing side in this PR, OR',
                 '2. Add `[no-doc-impact]` (case-insensitive) anywhere in the PR title if this change truly does not affect the doc contract.',
                 '',
-                '_Contract_: [`specs/doc-drift-enforcement.md`](../blob/main/specs/doc-drift-enforcement.md) §5 (escape hatch).',
+                '_Contract_: [`docs/rules/doc-drift-enforcement.rule.md`](../blob/main/docs/rules/doc-drift-enforcement.rule.md) §5 (escape hatch).',
               ].join('\n');
             } else {
               body = [
@@ -122,7 +122,7 @@ jobs:
                 stderr || '(no stderr captured)',
                 '```',
                 '',
-                '_Contract_: [`specs/doc-drift-enforcement.md`](../blob/main/specs/doc-drift-enforcement.md) §2 (manifest schema).',
+                '_Contract_: [`docs/rules/doc-drift-enforcement.rule.md`](../blob/main/docs/rules/doc-drift-enforcement.rule.md) §2 (manifest schema).',
               ].join('\n');
             }
             const { data: comments } = await github.rest.issues.listComments({

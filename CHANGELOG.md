@@ -101,7 +101,7 @@ Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
 | `scripts/propagate_skills_bump.py` | None (single-source = playbook tag IS the skills tag) | Remove any wrapper that invoked `.ai-playbook/scripts/propagate_skills_bump.py`. |
 | `scripts/validate_skills_mirror.py` | Built into the new materialiser (fingerprint-equality short-circuit) | Remove from `.pre-commit-config.yaml`. |
 | `.github/workflows/propagate-skills-bump.yml` | None (the existing `propagate-playbook-bump.yml` already covers it) | Remove consumer copies if any. |
-| `rfcs/RFC-0001-skills-distribution.md` + `rfcs/README.md` + `rfcs/` folder | `specs/skills-distribution.md` v2.0.0 | Migrate cross-references to the spec. |
+| `rfcs/RFC-0001-skills-distribution.md` + `rfcs/README.md` + `rfcs/` folder | `docs/concepts/skills-distribution.md` v2.0.0 | Migrate cross-references to the spec. |
 | `skills_sources:` block in AGENTS.md frontmatter | None — single-source needs no declaration | Drop the block from `AGENTS.md`. Zombies-manifest flags it as Tier 3 advisory. |
 | `skills_pins:` keys in `consumers.yaml` | None | Drop on the next `consumers.yaml` edit. Schema's `additionalProperties: true` keeps them valid as no-ops. |
 | `validate-skills-mirror` entry in `.pre-commit-hooks.yaml` | None (drift-detection built-in) | If your `.pre-commit-config.yaml` references it, remove the entry. |
@@ -144,7 +144,7 @@ Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
 
 ### Changed
 
-- **`specs/skills-distribution.md`** rewritten to v2.0.0. Reflects single-source
+- **`docs/concepts/skills-distribution.md`** rewritten to v2.0.0. Reflects single-source
   design, cites D1 / D2 / D17. New §1 (decisions), §3 (consumer-side layout
   with gitignored mirrors), §4 (materialisation algorithm + fingerprint
   idempotency), §5 (hook wiring incl. Gemini-specific wrapper), §8 (updated KPIs).
@@ -194,7 +194,7 @@ Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
 ### Validation
 
 - `pytest tests/` — 818 passed, 2 skipped (slice 2's `test_apply_enforce_hook_template.py` failures already fixed on main).
-- `python scripts/cleanup_zombies.py validate` — exit 0, manifest 2026-05-19.2
+- `python scripts/rules/cleanup-zombies.rule.py validate` — exit 0, manifest 2026-05-19.2
   with 18 entries (10 v1 + 8 v2, all schema-valid).
 - `python scripts/materialise_skills.py --consumer <tmp> --dry-run` — exit 0
   on a fresh tmp dir seeded with `.ai-playbook/skills/`; idempotent (second run
@@ -222,33 +222,33 @@ Additive MINOR. Slice 2 of the architectural reset plan v0.15.0 → v0.20.0 (see
 
 ### Added
 
-- **`specs/doc-drift-enforcement.md`** (NEW, v1.0.0). Full contract: manifest schema (§2), CI gate behaviour (§3), canonical block message shape (§4 — per `specs/error-message-standard.md`), escape-hatch contract (§5 — `[no-doc-impact]` case-insensitive substring in PR title), adoption checklist (§6), invariants (§7), open questions (§8). Future tiers (2 = soft / warn, 3 = informational / telemetry-only) are reserved in the schema; only Tier 1 (strict) is enforced in v0.16.0.
+- **`docs/rules/doc-drift-enforcement.rule.md`** (NEW, v1.0.0). Full contract: manifest schema (§2), CI gate behaviour (§3), canonical block message shape (§4 — per `docs/rules/error-message-standard.rule.md`), escape-hatch contract (§5 — `[no-doc-impact]` case-insensitive substring in PR title), adoption checklist (§6), invariants (§7), open questions (§8). Future tiers (2 = soft / warn, 3 = informational / telemetry-only) are reserved in the schema; only Tier 1 (strict) is enforced in v0.16.0.
 - **`specs/co-edit-pairs.yaml`** (NEW). v1 ships with 12 hand-curated pairs grounded in the real `scripts/` ↔ `specs/` topology: `cleanup-zombies`, `zombies-manifest`, `apply-skill-enforcement-hook`, `apply-skill-enforcement-marker`, `git-worktree-bare-layout`, `auto-managed-sections`, `break-glass`, `verdict-contract`, `error-message-standard`, `doc-drift-enforcement` (self-reference — the rule eats its own dogfood), `doc-drift-manifest`, `mcp-servers-schema`. Schema validation enforced via `check_doc_drift.py validate` (exit 2 on schema break).
 - **`scripts/check_doc_drift.py`** (NEW): argparse-driven CLI with two subcommands. `check` (default) reads `git diff --name-only origin/main...HEAD` (triple-dot to capture only THIS branch's changes), evaluates each Tier 1 pair, and either passes (exit 0) or emits a canonical WHY/FIX/OVERRIDE error and exits 1. Honours `--pr-title` for the escape hatch. `validate` runs schema-only check. `--diff-files` flag bypasses git for tests / synthetic probes. 28 tests in [`tests/test_check_doc_drift.py`](tests/test_check_doc_drift.py) covering: 11 schema-validation paths (exit 2), 9 drift-detection paths (exit 0/1), 5 escape-hatch behaviours, and 3 smoke probes against the real shipped manifest.
-- **`.github/workflows/doc-drift-check.yml`** (NEW). Triggers on `pull_request: [opened, synchronize, reopened, edited]` — the `edited` trigger is critical so adding `[no-doc-impact]` to the PR title re-runs without a code push. Sticky PR comment pattern (one comment per PR, updated on each run) mirrors `branch-name-validator.yml`. Hard-fails the check on drift; passes when the manifest is clean OR the escape hatch is honoured.
+- **`.github/workflows/doc-drift-enforcement.rule.yml`** (NEW). Triggers on `pull_request: [opened, synchronize, reopened, edited]` — the `edited` trigger is critical so adding `[no-doc-impact]` to the PR title re-runs without a code push. Sticky PR comment pattern (one comment per PR, updated on each run) mirrors `branch-name-validator.yml`. Hard-fails the check on drift; passes when the manifest is clean OR the escape hatch is honoured.
 
 ### Changed
 
-- **`specs/enforcement-status.md`**: new row for `doc-drift-enforcement.md` at ✅ wired (script + 28 tests + CI workflow + manifest schema validator).
-- **`docs/development-flow.md`** §5 enforcement table: new row "Doc-drift on paired (code, doc) tuples" at ✅ wired.
+- **`docs/concepts/enforcement-status.md`**: new row for `doc-drift-enforcement.md` at ✅ wired (script + 28 tests + CI workflow + manifest schema validator).
+- **`docs/concepts/development-flow.md`** §5 enforcement table: new row "Doc-drift on paired (code, doc) tuples" at ✅ wired.
 - **`README.md`** status section bumped to v0.16.0 with the new doc-drift summary.
 
 ### Fixed
 
-- **`tests/test_apply_enforce_hook_template.py`**: 3 long-standing failing tests (`test_hook_blocks_when_no_marker`, `test_hook_handles_glob_in_write_paths`, `test_hook_writes_canonical_error_shape`) now pass. Root cause was a test-fixture issue, not a template bug: `_invoke_hook` copied `os.environ` whole, leaking the parent harness's `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` env var into the child process. The hook (correctly per `specs/apply-skill-enforcement.md` §3) treated the inherited override as a legitimate break-glass and returned exit 0 instead of the expected block (exit 2). Fix: scrub `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` from the fixture env unless the test explicitly sets it via the `override` kwarg.
-- **`specs/project-board-sync.md`** × 5 dead cross-refs: `templates/workflows/project-*.yml` (path never existed) → `templates/new-project/.github/workflows/project-*.yml.tmpl` (canonical location).
-- **`specs/release-management.md`** × 1: `templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl` (does not exist; bump-bot is a playbook-internal workflow) → `.github/workflows/propagate-playbook-bump.yml` (correct location) + clarifying note.
-- **`docs/curriculum.md`** × 1: `../CLAUDE.md` (playbook itself does not ship a `CLAUDE.md`) → consumer-side guidance with explicit note that the playbook dogfoods AGENTS.md only.
-- **`runbooks/coderabbit-fallback.md`** × 1: `../../consumer-e/docs/gotchas.md` (cross-repo broken relative path) → generic consumer-side reference.
+- **`tests/test_apply_enforce_hook_template.py`**: 3 long-standing failing tests (`test_hook_blocks_when_no_marker`, `test_hook_handles_glob_in_write_paths`, `test_hook_writes_canonical_error_shape`) now pass. Root cause was a test-fixture issue, not a template bug: `_invoke_hook` copied `os.environ` whole, leaking the parent harness's `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` env var into the child process. The hook (correctly per `docs/rules/apply-skill-enforcement.rule.md` §3) treated the inherited override as a legitimate break-glass and returned exit 0 instead of the expected block (exit 2). Fix: scrub `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` from the fixture env unless the test explicitly sets it via the `override` kwarg.
+- **`docs/concepts/project-board-sync.md`** × 5 dead cross-refs: `templates/workflows/project-*.yml` (path never existed) → `templates/new-project/.github/workflows/project-*.yml.tmpl` (canonical location).
+- **`docs/concepts/release-management.md`** × 1: `templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl` (does not exist; bump-bot is a playbook-internal workflow) → `.github/workflows/propagate-playbook-bump.yml` (correct location) + clarifying note.
+- **`docs/tutorials/05-curriculum.md`** × 1: `../CLAUDE.md` (playbook itself does not ship a `CLAUDE.md`) → consumer-side guidance with explicit note that the playbook dogfoods AGENTS.md only.
+- **`docs/runbooks/coderabbit-fallback.md`** × 1: `../../consumer-e/docs/gotchas.md` (cross-repo broken relative path) → generic consumer-side reference.
 
 ### Validation
 
 - `pytest tests/test_check_doc_drift.py` — 28 / 28 green.
 - `pytest tests/test_apply_enforce_hook_template.py` — 10 / 10 green (was 7 / 10).
 - `python scripts/check_doc_drift.py validate` — exit 0.
-- Synthetic probe: `python scripts/check_doc_drift.py --diff-files scripts/cleanup_zombies.py` → exit 1 (drift detected).
+- Synthetic probe: `python scripts/check_doc_drift.py --diff-files scripts/rules/cleanup-zombies.rule.py` → exit 1 (drift detected).
 - Synthetic escape-hatch probe: same diff + `--pr-title "feat: bump [no-doc-impact]"` → exit 0.
-- `python scripts/cleanup_zombies.py validate` — exit 0.
+- `python scripts/rules/cleanup-zombies.rule.py validate` — exit 0.
 
 ### Notes
 
@@ -264,24 +264,24 @@ This release ships a **declarative zombie manifest** + a **single cleanup script
 
 ### Added
 
-- **`specs/cleanup-zombies.md`** (NEW, v1.0.0). Full contract: manifest schema (§2), three-tier policy (§3), six safety checks catalogue (§4), three-channel report contract (§5), exit-code policy (§6 — default invocation NEVER exits non-zero), break-glass clause (§7, `AIPLAYBOOK_CLEANUP_SKIP=1`), consumer adoption checklist (§8).
+- **`docs/rules/cleanup-zombies.rule.md`** (NEW, v1.0.0). Full contract: manifest schema (§2), three-tier policy (§3), six safety checks catalogue (§4), three-channel report contract (§5), exit-code policy (§6 — default invocation NEVER exits non-zero), break-glass clause (§7, `AIPLAYBOOK_CLEANUP_SKIP=1`), consumer adoption checklist (§8).
 - **`specs/zombies-manifest.yaml`** (NEW). Rolling declarative inventory. v1 ships with 10 entries — 4 × Tier 1 (safe-delete), 1 × Tier 2 (literal rename), 5 × Tier 3 (advisory-only). Schema validation enforced via `cleanup_zombies.py validate` (exit 2 on schema break — the ONLY non-zero exit in the tool).
-- **`scripts/cleanup_zombies.py`** (NEW): default invocation is dry-run; `--apply` executes Tier 1+2; `--quiet` for hook context; `validate` for the manifest schema pre-commit gate; `version` prints the manifest_version. 31 tests in [`tests/test_cleanup_zombies.py`](tests/test_cleanup_zombies.py) covering: manifest schema (9), each safety check (8), decision flow + channels (8), exit-code policy + break-glass (5), idempotency (1).
+- **`scripts/rules/cleanup-zombies.rule.py`** (NEW): default invocation is dry-run; `--apply` executes Tier 1+2; `--quiet` for hook context; `validate` for the manifest schema pre-commit gate; `version` prints the manifest_version. 31 tests in [`tests/test_cleanup_zombies.py`](tests/test_cleanup_zombies.py) covering: manifest schema (9), each safety check (8), decision flow + channels (8), exit-code policy + break-glass (5), idempotency (1).
 - **`templates/new-project/scripts/git-hooks/post-merge.tmpl`** (NEW). Two-step bash: skills sync → playbook zombie cleanup. Always exits 0 (`|| true` after cleanup). Activates via existing `scripts/install-skills-hooks.sh` pattern (sets `git config core.hooksPath scripts/git-hooks`).
 - **`templates/new-project/scripts/git-hooks/post-checkout.tmpl`** (NEW). Analogous, gated on `$3 == "1"` (branch-checkout flag) so file checkouts don't re-fire.
 
 ### Changed
 
-- **`specs/enforcement-status.md`**: new row for `cleanup-zombies.md` at ✅ wired (script + 31 tests + 2 hook templates + manifest schema validator).
-- **`docs/development-flow.md`** §5 enforcement table: new row for "Consumer-side playbook zombie cleanup" at 🟡 partial (auto-fires per hook; promotion to ✅ when ≥ 1 real consumer adopts and reports a quiet quarter).
-- **`runbooks/release.md`** §2: pre-cut checklist gains "If this release REMOVED or RENAMED any consumer-surface artefact (template file, frontmatter field, literal identifier consumers wire against), append an entry to `specs/zombies-manifest.yaml` and bump `manifest_version`."
+- **`docs/concepts/enforcement-status.md`**: new row for `cleanup-zombies.md` at ✅ wired (script + 31 tests + 2 hook templates + manifest schema validator).
+- **`docs/concepts/development-flow.md`** §5 enforcement table: new row for "Consumer-side playbook zombie cleanup" at 🟡 partial (auto-fires per hook; promotion to ✅ when ≥ 1 real consumer adopts and reports a quiet quarter).
+- **`docs/runbooks/release.md`** §2: pre-cut checklist gains "If this release REMOVED or RENAMED any consumer-surface artefact (template file, frontmatter field, literal identifier consumers wire against), append an entry to `specs/zombies-manifest.yaml` and bump `manifest_version`."
 
 ### Consumer adoption (per consumer, in a follow-up PR)
 
 1. Bump `.ai-playbook` submodule to v0.15.0.
 2. Append one line to existing `scripts/git-hooks/post-merge` AND `scripts/git-hooks/post-checkout`:
    ```bash
-   python "$REPO_ROOT/.ai-playbook/scripts/cleanup_zombies.py" --apply --quiet || true
+   python "$REPO_ROOT/.ai-playbook/scripts/rules/cleanup-zombies.rule.py" --apply --quiet || true
    ```
 3. Append `.ai-playbook/zombie-report.md` to `.gitignore`.
 
@@ -312,27 +312,27 @@ Additive MINOR. Closes a real failure mode observed in consumer-a's Revalid v1.0
 
 This release ships three coordinated enforcement layers:
 
-- **L1 — doc rule**: explicit text in [`specs/runbook-bmad-openspec.md`](specs/runbook-bmad-openspec.md) §3.1.1 stating apply phase MUST go through the skill. New row `2.13 apply_phase_bypass` in [`specs/agentic-failures.md`](specs/agentic-failures.md).
+- **L1 — doc rule**: explicit text in [`docs/concepts/runbook-bmad-openspec.md`](docs/concepts/runbook-bmad-openspec.md) §3.1.1 stating apply phase MUST go through the skill. New row `2.13 apply_phase_bypass` in [`docs/concepts/agentic-failures.md`](docs/concepts/agentic-failures.md).
 - **L2 — skill marker**: skill `openspec-apply-change` bumped to v1.1 — new step 0 writes a JSONL `start` record to `openspec/changes/<id>/.apply_log.jsonl` (committed to git for audit). Marker helper `scripts/openspec_apply_marker.py` exposes `start`/`stop`/`override`/`is_active`/`session_started`/`list` subcommands.
 - **L3 — PreToolUse hook**: project-local hook at `.claude/hooks/openspec-apply-enforce.py` blocks `Edit`/`Write`/`MultiEdit` on a slice's `write_paths` when no `start` record exists for the current session. Break-glass via `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE=<≥10-char reason>` env (audited via `override` JSONL record).
 
 ### Added
 
-- **`specs/apply-skill-enforcement.md`** (NEW, v1.0.0). Marker contract (§1), hook contract (§2), break-glass clause (§3, per [`break-glass.md`](specs/break-glass.md)), invariants INV-1..INV-4 (§4), consumer adoption checklist (§5), retro/audit cadence (§6).
-- **`scripts/openspec_apply_marker.py`** (NEW). 6 subcommands. JSONL append-only audit log. Session-id resolution: `--session-id` → `$CLAUDE_SESSION_ID` env → derived `local-<git-user>-<host>-<pid>`. Path resolution walks `cwd` ancestors for `openspec/` dir. Error shape per [`error-message-standard.md`](specs/error-message-standard.md). 9 tests in [`tests/test_openspec_apply_marker.py`](tests/test_openspec_apply_marker.py): happy paths, idempotent start, corrupt-JSONL recovery, override audit record, missing change folder, list subcommand.
+- **`docs/rules/apply-skill-enforcement.rule.md`** (NEW, v1.0.0). Marker contract (§1), hook contract (§2), break-glass clause (§3, per [`break-glass.md`](docs/rules/break-glass.rule.md)), invariants INV-1..INV-4 (§4), consumer adoption checklist (§5), retro/audit cadence (§6).
+- **`scripts/openspec_apply_marker.py`** (NEW). 6 subcommands. JSONL append-only audit log. Session-id resolution: `--session-id` → `$CLAUDE_SESSION_ID` env → derived `local-<git-user>-<host>-<pid>`. Path resolution walks `cwd` ancestors for `openspec/` dir. Error shape per [`error-message-standard.md`](docs/rules/error-message-standard.rule.md). 9 tests in [`tests/test_openspec_apply_marker.py`](tests/test_openspec_apply_marker.py): happy paths, idempotent start, corrupt-JSONL recovery, override audit record, missing change folder, list subcommand.
 - **`templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl`** (NEW). Project-local PreToolUse hook. Reads JSON from stdin per Claude Code hook protocol. Walks `openspec/changes/*/tasks.md`, parses `Owns (write_paths)` section (bullet `* `path`` lines), glob-matches via `fnmatch`. Calls `session_started` subprocess per matching active change. Honours override env. Emits canonical block message per error-message-standard.md. Fail-open on missing helper. Perf budget <250ms p95. 10 tests in [`tests/test_apply_enforce_hook_template.py`](tests/test_apply_enforce_hook_template.py).
 - **Skill `openspec-apply-change` v1.1**: new step 0 ("Write apply-session start marker") inserted before existing step 1. Frontmatter `version: "1.0"` → `"1.1"`. Backwards-compatible: pre-v0.14.0 consumers without the helper script see the skill's note about overdue playbook bump but proceed (no block).
 
 ### Changed
 
-- **`specs/runbook-bmad-openspec.md`** §3.1.1 (NEW subsection). Documents the apply-phase orchestration rule + the two enforcement vectors + cross-references to QA pairing (§3.2) and self-validation gates (§3.4).
-- **`specs/agentic-failures.md`** §1 catalog: new row `apply_phase_bypass` (S2, Detectable: Yes). §2 catalog detail: new section §2.13 with Signal/First-response/Detector/Example. Example cites the consumer-a Revalid incident.
-- **`specs/enforcement-status.md`**: new row for `apply-skill-enforcement.md` at ✅ wired. `agentic-failures.md` row flipped from 📋 spec-only to 🟡 partial (mode 2.13 now wired via the hook).
+- **`docs/concepts/runbook-bmad-openspec.md`** §3.1.1 (NEW subsection). Documents the apply-phase orchestration rule + the two enforcement vectors + cross-references to QA pairing (§3.2) and self-validation gates (§3.4).
+- **`docs/concepts/agentic-failures.md`** §1 catalog: new row `apply_phase_bypass` (S2, Detectable: Yes). §2 catalog detail: new section §2.13 with Signal/First-response/Detector/Example. Example cites the consumer-a Revalid incident.
+- **`docs/concepts/enforcement-status.md`**: new row for `apply-skill-enforcement.md` at ✅ wired. `agentic-failures.md` row flipped from 📋 spec-only to 🟡 partial (mode 2.13 now wired via the hook).
 - **`templates/new-project/.claude/settings.json.tmpl`**: registers the new `PreToolUse` hook for `Edit|Write|MultiEdit` matcher.
 
 ### Migration (per consumer)
 
-5-step adoption checklist in [`specs/apply-skill-enforcement.md`](specs/apply-skill-enforcement.md) §5:
+5-step adoption checklist in [`docs/rules/apply-skill-enforcement.rule.md`](docs/rules/apply-skill-enforcement.rule.md) §5:
 
 1. Bump `.ai-playbook` submodule to `v0.14.0`.
 2. Copy `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl` → `.claude/hooks/openspec-apply-enforce.py`.
@@ -351,7 +351,7 @@ First-class adoption: `consumer-a` (concurrent follow-up PR; dogfooded by resumi
 ### Notes
 
 - The `enforce-apply-skill` change folder ships with a real `.apply_log.jsonl` from this slice's own apply session (dogfooded). See `openspec/changes/enforce-apply-skill/.apply_log.jsonl`.
-- Hook fails OPEN on helper absence (intentional, see [`specs/apply-skill-enforcement.md`](specs/apply-skill-enforcement.md) §2.4): a missing `.ai-playbook/scripts/openspec_apply_marker.py` warns to stderr but does not block. Consumer pre-v0.14.0 sees no enforcement.
+- Hook fails OPEN on helper absence (intentional, see [`docs/rules/apply-skill-enforcement.rule.md`](docs/rules/apply-skill-enforcement.rule.md) §2.4): a missing `.ai-playbook/scripts/openspec_apply_marker.py` warns to stderr but does not block. Consumer pre-v0.14.0 sees no enforcement.
 
 ## [0.13.4] — 2026-05-14 — worker-agent delegation prompt contract (`release-management.md` §4.5.5 + §4.5.6)
 
@@ -359,9 +359,9 @@ Patch release. Additive — codifies two prompt-engineering patterns that emerge
 
 Both failure modes affect the **whole-slice worker-agent delegation** flow (main agent invokes `Agent(isolation="worktree", ...)` to ship apply → lint → push → open PR end-to-end). Neither was previously covered: §4.5.4 only covers *automation* PRs (bump / chore-archive scripts), not *worker-AI* delegation. The new subsections close that gap.
 
-New: [`specs/release-management.md`](specs/release-management.md) §4.5.5 — **Worker-agent delegation: STOP-after-`gh pr create` directive.** Prompts MUST embed the literal "STOP after `gh pr create` returns the PR URL. Do NOT poll CI." instruction. Verified on consumer-e PRs #149-#152: worker wall-time dropped from ~16 min to 4-8 min (263 seconds on PR #151, new record) after the directive landed.
+New: [`docs/concepts/release-management.md`](docs/concepts/release-management.md) §4.5.5 — **Worker-agent delegation: STOP-after-`gh pr create` directive.** Prompts MUST embed the literal "STOP after `gh pr create` returns the PR URL. Do NOT poll CI." instruction. Verified on consumer-e PRs #149-#152: worker wall-time dropped from ~16 min to 4-8 min (263 seconds on PR #151, new record) after the directive landed.
 
-New: [`specs/release-management.md`](specs/release-management.md) §4.5.6 — **Worker-agent delegation: AI-reviewer signoff canonical block in prompt.** Prompts MUST embed the literal §4.5.3 block (three markers `Profile:`, `Reviewer:`, `Self-review findings:`) verbatim, not a free-form "write a self-review section" instruction. Failure surfaced on consumer-e PR #152 (substantive prose, no markers → L2 re-run cycle, +6 min recovery).
+New: [`docs/concepts/release-management.md`](docs/concepts/release-management.md) §4.5.6 — **Worker-agent delegation: AI-reviewer signoff canonical block in prompt.** Prompts MUST embed the literal §4.5.3 block (three markers `Profile:`, `Reviewer:`, `Self-review findings:`) verbatim, not a free-form "write a self-review section" instruction. Failure surfaced on consumer-e PR #152 (substantive prose, no markers → L2 re-run cycle, +6 min recovery).
 
 Tracked at [`openspec/changes/agent-spawn-template-improvements/proposal.md`](openspec/changes/agent-spawn-template-improvements/proposal.md).
 
@@ -375,7 +375,7 @@ Patch release. Additive — codifies the integration pattern for consumer projec
 
 First reference implementation: `consumer-a` (FastAPI + Next.js modular monolith, `consumer-a-team` schema with 9 artefacts, 18 changes pre-fusion).
 
-New: [`specs/fusion-integration-pattern.md`](specs/fusion-integration-pattern.md) — fusion decision matrix, AGENTS.md §7 template structure, migration policy (existing changes exempt), N-layer parallel review (3 isolated playbook layers + 1 holistic project-reviewer layer with M custom checks; no size opt-out), dual canonical memory sources (Markdown SSOT + Hindsight recall), verdict mapping reference (legacy → canonical), pre-commit hook profile with documented opt-out conditions, worked example.
+New: [`docs/concepts/fusion-integration-pattern.md`](docs/concepts/fusion-integration-pattern.md) — fusion decision matrix, AGENTS.md §7 template structure, migration policy (existing changes exempt), N-layer parallel review (3 isolated playbook layers + 1 holistic project-reviewer layer with M custom checks; no size opt-out), dual canonical memory sources (Markdown SSOT + Hindsight recall), verdict mapping reference (legacy → canonical), pre-commit hook profile with documented opt-out conditions, worked example.
 
 Template polish (no breaking changes for existing consumers):
 
@@ -388,7 +388,7 @@ Template polish (no breaking changes for existing consumers):
 
 ## [0.13.2] — 2026-05-13 — upstream-sync §9: containerised forks pin-bump rule
 
-Patch release. Docs-only — `specs/upstream-sync.md` v1.0.0 → v1.1.0 gains §9 "Containerised forks — base-image pin discipline" capturing a fork-overlay-Docker gotcha learned in [`Wizarck/hermes-agent#6`](https://github.com/Wizarck/hermes-agent/pull/6) on 2026-05-13.
+Patch release. Docs-only — `docs/concepts/upstream-sync.md` v1.0.0 → v1.1.0 gains §9 "Containerised forks — base-image pin discipline" capturing a fork-overlay-Docker gotcha learned in [`Wizarck/hermes-agent#6`](https://github.com/Wizarck/hermes-agent/pull/6) on 2026-05-13.
 
 Rule: when a fork ships as `FROM <upstream>@sha256:<digest> + COPY our_source.py`, the pinned digest and the fork source tree MUST advance together during every upstream sync. Skipping the pin bump produces a container where new source files (with new imports) sit on top of an OLD base image without the modules they need → `ModuleNotFoundError` at startup.
 
@@ -405,13 +405,13 @@ Spec adds the rule, a 4-step recipe (merge → resolve digest → bump pin → r
 
 ## [0.13.1] — 2026-05-13 — enforcement-status row 47 refresh (Phase 1 closure docs)
 
-Patch release. Docs-only — refreshes the `model-routing.md` row in `specs/enforcement-status.md` (line 47) to reflect post-Phase-1 reality of OpenSpec change `add-litellm-enforcement` in consumer-d. No code or behaviour change.
+Patch release. Docs-only — refreshes the `model-routing.md` row in `docs/concepts/enforcement-status.md` (line 47) to reflect post-Phase-1 reality of OpenSpec change `add-litellm-enforcement` in consumer-d. No code or behaviour change.
 
 The row now documents: drift detector covers BOTH direct-SDK and `_llm.call(...)` missing `application=` (v0.13.0 AST check); call-site migrations CLOSED for `prompt_injection_filter.py` (v0.12.1) and `consumer-d/lib/advisor.py:_call_via_litellm` (consumer-d PR #166); application tag lands end-to-end (v0.12.0 + roster in §5 of model-routing.md); CI step `Drift detector (warn-only)` wired in test.yml on 2026-05-13; strict-mode promotion target 2026-06-05 still pending.
 
 ### Notes for consumers
 
-- Bump submodule `.ai-playbook` to `v0.13.1`. No code changes required. The vendored copy of `specs/enforcement-status.md` will reflect the post-Phase-1 reality.
+- Bump submodule `.ai-playbook` to `v0.13.1`. No code changes required. The vendored copy of `docs/concepts/enforcement-status.md` will reflect the post-Phase-1 reality.
 
 ## [0.13.0] — 2026-05-13 — drift detector: `_llm.call(...)` missing `application=` kwarg
 
@@ -438,7 +438,7 @@ Closes T7.5 + T7.8 of parent consumer-d change `add-litellm-enforcement`. Tracke
 
 - Bump submodule `.ai-playbook` to `v0.13.0`. The new CI step will start flagging any `_llm.call(...)` in consumer code missing `application=`. Findings are warnings only — exit code 0 — but they appear in the CI log and are visible in pre-commit local runs.
 - Existing callers that already pass `application=` (e.g. consumer-d's `lib/advisor.py` adopted in v0.12.1's wave) are unaffected.
-- To migrate a flagged call, add the canonical `application="<name>"` per `specs/model-routing.md` §5 roster, OR annotate with `# llm-routing-allow: env-fallback` if the caller relies on `AIPLAYBOOK_APPLICATION` env in its deployment manifest.
+- To migrate a flagged call, add the canonical `application="<name>"` per `docs/concepts/model-routing.md` §5 roster, OR annotate with `# llm-routing-allow: env-fallback` if the caller relies on `AIPLAYBOOK_APPLICATION` env in its deployment manifest.
 
 ## [0.12.1] — 2026-05-13 — prompt-injection-filter adopts application tag
 
@@ -461,8 +461,8 @@ Origin: cost-by-tag-dashboard project in consumer-d (Phase 1), see [`openspec/ch
 ### Added
 
 - **`scripts/_llm.py`** — `call()` accepts new `application: str | None = None` kwarg. `_resolve_application()` mirrors `_resolve_consumer()` with `AIPLAYBOOK_APPLICATION` env fallback (kebab-lowercase normalisation). All 4 OTel emission points propagate `ai_playbook.application`. CLI surface gains `--application`. `LLMResponse` dataclass gains `application` field. 16/16 existing tests pass — backwards-compatible.
-- **`specs/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (`hermes-bot`, `dashboard-backend`, `aiops-workflow-<name>`, `prompt-injection-filter`, `lib-advisor`, `hindsight-internal`, `claude-code` reserved) + "how to add a new application" recipe + worked examples showing `consumer × application` M:M. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
-- **`specs/env-vars.md`** §Per-consumer virtual keys — new "How to add a new consumer" 7-step subsection (provider key generation → SOPS encryption → k8s sync → LiteLLM wiring → table registration → budget cap script → smoke test).
+- **`docs/concepts/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (`hermes-bot`, `dashboard-backend`, `aiops-workflow-<name>`, `prompt-injection-filter`, `lib-advisor`, `hindsight-internal`, `claude-code` reserved) + "how to add a new application" recipe + worked examples showing `consumer × application` M:M. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
+- **`docs/concepts/env-vars.md`** §Per-consumer virtual keys — new "How to add a new consumer" 7-step subsection (provider key generation → SOPS encryption → k8s sync → LiteLLM wiring → table registration → budget cap script → smoke test).
 - **`configs/litellm-router.yaml`** — top-of-file warning section documenting the production-deploy mirror contract: LiteLLM accepts only ONE `--config` file, so this yaml MUST be mirrored into the consumer's project-local ConfigMap. The companion sync test lives in the consumer's repo (e.g. `consumer-d/dashboard/tests/test_litellm_config_sync.py`), NOT here — it reads the consumer's local deploy template, which doesn't exist inside the playbook standalone.
 - **`openspec/changes/llm-application-tag/`** — new openspec change folder tracking the playbook-side of this work, cross-referenced to the parent project in consumer-d.
 
@@ -490,26 +490,26 @@ Major cross-project lessons-consolidation release. Mined 14 consumer-e retros + 
 
 #### Tier-1 specs (HIGH-severity cross-project patterns)
 
-- **`specs/migration-slot-reservation.md`** (v1.0.0) — universal contract for **reserving monotonic / append-only namespace slots** across parallel slices (DB migrations, gotcha IDs, ADR numbers, seed entity IDs). Subsumes + generalises `release-management.md` §6.4.1/§6.4.2. Closes the **6-consecutive migration-slot-collision pattern** in consumer-e Wave 2-3 (R1/R2/R5/R3/T2/O2 all picked slot `0007`/`0008` independently). Validated by consumer-c-legacy m2-data-model + cost-rollup parallel m2 races.
-- **`specs/protocol-fake-deferred-install.md`** (v1.0.0) — canonical **Protocol + InTreeFake + DeferredProductionInstall** pattern for isolating heavy / security-sensitive vendor SDKs. Cross-validated by 6+ consumer-e Wave 3 slices (R5/T2/R3/O2 + 2 more) + consumer-c-legacy m2-recipes-core service IoC + consumer-d ADR-018/-028 sidecar isolation. Defines the four artefacts (Protocol / fake / deferred-install row / production adapter) + cross-language guidance (Python / TypeScript-NestJS / Elixir-behaviour).
-- **`specs/cross-slice-additive-extension.md`** (v1.0.0) — three additive shapes (nullable / `NOT NULL DEFAULT <sentinel>` / JSONB) for parallel slices extending shared entities. Drawn from 4+ consumer-e R-series slices (`dedupe_key`, `audit_trail_id`, `client_order_id`) + consumer-c-legacy m2-data-model array/jsonb columns. Codifies migration-chain discipline + read-side discipline.
-- **`specs/hitl-approval-pattern.md`** (v1.0.0) — runtime **HITL gating for state-mutating actions** in single-operator AI systems. Cross-validated by **3 projects** (consumer-e P1 Telegram approval-channels + consumer-d ADR-028 WABA-MCP rollout gating + consumer-b operator-gated deploys). Defines the five Protocol artefacts (mutation request DTO / channel Protocol / HMAC correlation / decision persistence / TTL+escalation ladder) + a canonical 3-tier channel ladder + cross-project mutation taxonomy.
+- **`docs/rules/migration-slot-reservation.rule.md`** (v1.0.0) — universal contract for **reserving monotonic / append-only namespace slots** across parallel slices (DB migrations, gotcha IDs, ADR numbers, seed entity IDs). Subsumes + generalises `release-management.md` §6.4.1/§6.4.2. Closes the **6-consecutive migration-slot-collision pattern** in consumer-e Wave 2-3 (R1/R2/R5/R3/T2/O2 all picked slot `0007`/`0008` independently). Validated by consumer-c-legacy m2-data-model + cost-rollup parallel m2 races.
+- **`docs/concepts/protocol-fake-deferred-install.md`** (v1.0.0) — canonical **Protocol + InTreeFake + DeferredProductionInstall** pattern for isolating heavy / security-sensitive vendor SDKs. Cross-validated by 6+ consumer-e Wave 3 slices (R5/T2/R3/O2 + 2 more) + consumer-c-legacy m2-recipes-core service IoC + consumer-d ADR-018/-028 sidecar isolation. Defines the four artefacts (Protocol / fake / deferred-install row / production adapter) + cross-language guidance (Python / TypeScript-NestJS / Elixir-behaviour).
+- **`docs/rules/cross-slice-additive-extension.rule.md`** (v1.0.0) — three additive shapes (nullable / `NOT NULL DEFAULT <sentinel>` / JSONB) for parallel slices extending shared entities. Drawn from 4+ consumer-e R-series slices (`dedupe_key`, `audit_trail_id`, `client_order_id`) + consumer-c-legacy m2-data-model array/jsonb columns. Codifies migration-chain discipline + read-side discipline.
+- **`docs/rules/hitl-approval-pattern.rule.md`** (v1.0.0) — runtime **HITL gating for state-mutating actions** in single-operator AI systems. Cross-validated by **3 projects** (consumer-e P1 Telegram approval-channels + consumer-d ADR-028 WABA-MCP rollout gating + consumer-b operator-gated deploys). Defines the five Protocol artefacts (mutation request DTO / channel Protocol / HMAC correlation / decision persistence / TTL+escalation ladder) + a canonical 3-tier channel ladder + cross-project mutation taxonomy.
 
 #### Tier-2 specs (MED-severity recurring patterns)
 
-- **`specs/dependency-injection-patterns.md`** (v1.0.0) — provider deduplication (NestJS `@Global()` rule + Python `app.dependency_overrides` + Phoenix `Application.put_env` equivalents) + **seam-then-consume DI tokens** for cross-slice extension. Cross-validated by consumer-c-legacy m2-mcp-write-capabilities (`payload_before:null` bug from `@Global()` re-declaration) + m2-cost-rollup-and-audit (`INVENTORY_COST_RESOLVER` token rebinding) + consumer-d ADR-028 (action-class dispatcher dict). Includes the **class-level cache reset autouse fixture** pattern for test isolation.
-- **`specs/database-numeric-boundaries.md`** (v1.0.0) — **money/decimal column boundary rule** (explicit coercion at ORM, never per-call). Surfaced by consumer-c-legacy m2-cost-rollup numeric-string-multiplication bug (`"1000NaN"` shipped to BI ingest). Per-stack recipes for TypeORM / Prisma / SQLAlchemy / Ecto. Generalises the AGENTS.md "no float for money" universal rule.
-- **`specs/multi-layer-defense-single-operator.md`** (v1.0.0) — canonical **5-layer defense pattern** (L1 Identity / L2 Ingress / L3 Network / L4 State-RBAC / L5 Ergonomic) for single-operator AI systems. Cross-validated by consumer-d ADRs 017/018/019/020/024 + consumer-b `MERGE-ORDERS-SECURITY-AUDIT.md` zero-permission plugin fork. Decision matrix for when each layer is warranted.
+- **`docs/concepts/dependency-injection-patterns.md`** (v1.0.0) — provider deduplication (NestJS `@Global()` rule + Python `app.dependency_overrides` + Phoenix `Application.put_env` equivalents) + **seam-then-consume DI tokens** for cross-slice extension. Cross-validated by consumer-c-legacy m2-mcp-write-capabilities (`payload_before:null` bug from `@Global()` re-declaration) + m2-cost-rollup-and-audit (`INVENTORY_COST_RESOLVER` token rebinding) + consumer-d ADR-028 (action-class dispatcher dict). Includes the **class-level cache reset autouse fixture** pattern for test isolation.
+- **`docs/concepts/database-numeric-boundaries.md`** (v1.0.0) — **money/decimal column boundary rule** (explicit coercion at ORM, never per-call). Surfaced by consumer-c-legacy m2-cost-rollup numeric-string-multiplication bug (`"1000NaN"` shipped to BI ingest). Per-stack recipes for TypeORM / Prisma / SQLAlchemy / Ecto. Generalises the AGENTS.md "no float for money" universal rule.
+- **`docs/concepts/multi-layer-defense-single-operator.md`** (v1.0.0) — canonical **5-layer defense pattern** (L1 Identity / L2 Ingress / L3 Network / L4 State-RBAC / L5 Ergonomic) for single-operator AI systems. Cross-validated by consumer-d ADRs 017/018/019/020/024 + consumer-b `MERGE-ORDERS-SECURITY-AUDIT.md` zero-permission plugin fork. Decision matrix for when each layer is warranted.
 
 #### Spec extensions (added sections to existing canonical specs)
 
-- **`specs/release-management.md` §4.5.4**: codifies that **auto-generated bump / chore-archive PRs MUST pre-populate the §4.5 AI-reviewer signoff block**. Closes the v0.10.3 CHANGELOG gap surfaced 2026-05-06 by 5 failed bump PRs + 3 failed chore-archive PRs in consumer-e (PRs #90/#92/#94 all required manual body-edit roundtrips).
-- **`specs/release-management.md` §6.6.1**: canonical **subagent prompt template** + mandatory verification commands contract for intra-slice parallelism. Cross-validated by consumer-c-legacy Wave 1.7-1.9 (3 subagent slices, 0 boundary violations, ~22 min/slice saved). Template at `templates/subagent-prompt.md.tmpl`.
-- **`specs/release-management.md` §6.7**: **post-merge OpenSpec archive automation**. Closes the second v0.10.3 CHANGELOG gap (28h archive drift in consumer-e Wave 2 PRs #68+#69). Workflow template fires on `slice/*` PR squash-merge to main; opens `chore/archive-<id>` PR with §4.5-marker-populated body and auto-merge enabled.
-- **`specs/event-and-data-patterns.md` §9**: async event-emission ordering — `tap()` vs `mergeMap+emitAsync` for read-after-write coherence + cascade self-emission guard (one-line ID equality check). Cross-stack equivalents for NestJS RxJS / Phoenix LiveView / FastAPI / Express. Cross-validated by consumer-c-legacy m2-mcp-write-capabilities + m2-cost-rollup race conditions.
-- **`specs/runbook-bmad-openspec.md` §3.7.2**: **proposal-only-first** for tech-seam slices (new tech stack, architectural seams, cross-cutting infrastructure). Cross-validated by consumer-c-legacy m2-ui-foundation + consumer-e api-foundation-rfc7807. Defers design.md/tasks.md/apply until Gate D approval lands; saves rework when design is rescinded mid-apply.
+- **`docs/concepts/release-management.md` §4.5.4**: codifies that **auto-generated bump / chore-archive PRs MUST pre-populate the §4.5 AI-reviewer signoff block**. Closes the v0.10.3 CHANGELOG gap surfaced 2026-05-06 by 5 failed bump PRs + 3 failed chore-archive PRs in consumer-e (PRs #90/#92/#94 all required manual body-edit roundtrips).
+- **`docs/concepts/release-management.md` §6.6.1**: canonical **subagent prompt template** + mandatory verification commands contract for intra-slice parallelism. Cross-validated by consumer-c-legacy Wave 1.7-1.9 (3 subagent slices, 0 boundary violations, ~22 min/slice saved). Template at `templates/subagent-prompt.md.tmpl`.
+- **`docs/concepts/release-management.md` §6.7**: **post-merge OpenSpec archive automation**. Closes the second v0.10.3 CHANGELOG gap (28h archive drift in consumer-e Wave 2 PRs #68+#69). Workflow template fires on `slice/*` PR squash-merge to main; opens `chore/archive-<id>` PR with §4.5-marker-populated body and auto-merge enabled.
+- **`docs/concepts/event-and-data-patterns.md` §9**: async event-emission ordering — `tap()` vs `mergeMap+emitAsync` for read-after-write coherence + cascade self-emission guard (one-line ID equality check). Cross-stack equivalents for NestJS RxJS / Phoenix LiveView / FastAPI / Express. Cross-validated by consumer-c-legacy m2-mcp-write-capabilities + m2-cost-rollup race conditions.
+- **`docs/concepts/runbook-bmad-openspec.md` §3.7.2**: **proposal-only-first** for tech-seam slices (new tech stack, architectural seams, cross-cutting infrastructure). Cross-validated by consumer-c-legacy m2-ui-foundation + consumer-e api-foundation-rfc7807. Defers design.md/tasks.md/apply until Gate D approval lands; saves rework when design is rescinded mid-apply.
 - **`skills/openspec-apply-change/SKILL.md` §4b**: **preflight re-grep** of cited identifiers (class names, file paths, migration slot numbers, ADR numbers) on `main` before apply. Catches state divergence between propose and apply (proposals written days earlier may cite renamed/removed identifiers). Refuses to proceed if ≥3 identifiers drifted; warns + asks if 1-2.
-- **`runbooks/release.md` §10**: mandatory **first-run smoke test** for every new script / workflow / skill against ONE real consumer before rc → stable promotion. Closes the v0.10.x cascade pattern (3 hotfixes within 5 days because tests stubbed boundaries that hid environmental constraints — API limits, locale encoding, missing markers).
+- **`docs/runbooks/release.md` §10**: mandatory **first-run smoke test** for every new script / workflow / skill against ONE real consumer before rc → stable promotion. Closes the v0.10.x cascade pattern (3 hotfixes within 5 days because tests stubbed boundaries that hid environmental constraints — API limits, locale encoding, missing markers).
 
 #### New templates
 
@@ -520,7 +520,7 @@ Major cross-project lessons-consolidation release. Mined 14 consumer-e retros + 
 
 #### New runbooks
 
-- **`runbooks/cascade-failure-template.md`** (v1.0.0) — template runbook for **service-dependency cascade failures**. 5-section structure (symptom list / precondition check / impact map / recovery sequence / postmortem trigger). Cross-validated by consumer-d `runbook-litellm-down-cascade.md` (LiteLLM → Hindsight → Hermes → Paperclip cascade) + consumer-b gotchas.
+- **`docs/runbooks/cascade-failure-template.md`** (v1.0.0) — template runbook for **service-dependency cascade failures**. 5-section structure (symptom list / precondition check / impact map / recovery sequence / postmortem trigger). Cross-validated by consumer-d `runbook-litellm-down-cascade.md` (LiteLLM → Hindsight → Hermes → Paperclip cascade) + consumer-b gotchas.
 
 #### New skill
 
@@ -574,14 +574,14 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 
 ### Added
 
-- **`specs/project-board-sync.md`** — new normative spec (v1.0.0) codifying a 7-layer defense-in-depth contract for GitHub Project board sync during AI-driven OpenSpec work. L1 built-in workflows, L2 custom Actions workflow, L3 required status check (`project-board-synced`), L4 state-machine validator (gh-aw ProjectOps pattern), L5 OTLP agent telemetry, L6 companion script `--enforce-board` flag, L7 archive skill Step 0 verification. Five truly-independent layers (server-side + telemetry) plus two tool-level reinforcers. Authored after consumer-e Wave 2 retro surfaced silent board drift (slices merged with `Status=Backlog`, no audit trail). Research-grounded justifications cite OWASP AI Security Guide 2026, GitHub gh-aw ProjectOps pattern, EU AI Act forward-looking compliance, and the LLM-structured-outputs syntax-vs-semantics distinction.
-- **`specs/agent-telemetry.md`** — new normative spec (v1.0.0) codifying the Claude Code OTLP exporter → Langfuse ingestion pattern. Four-environment-variable configuration, resource attributes for slice/wave tagging, OpenTelemetry GenAI semantic conventions mapping, "reuse over reinvent" default for projects with existing Langfuse instances (or Langfuse Cloud free tier as minimum-viable for greenfield consumers). Anti-patterns: standing up a custom OTel collector, inventing custom JSONL audit logs, logging traces to the project's `data/` directory, disabling telemetry "for performance".
-- **`specs/event-and-data-patterns.md`** — new normative spec (v1.0.0) codifying 7 stack-agnostic patterns surfaced by consumer-c-legacy Wave 1.7-1.9 + consumer-e Wave 1-2: (1) hybrid translation pattern for cross-cutting concern extraction without forcing N upstream emitters to migrate, (2) two-name pattern (bus channel name preserves module ownership; persisted name is module-agnostic), (3) same-transaction migration with backfill, (4) `hasTable`/`hasColumn` guards on backfill SELECTs, (5) open-enum text columns + CHECK over native enums, (6) stateless proxy + stateful caller, (7) failure-collapse-to-null. Each pattern has a "when it applies", "when NOT", failure-mode-prevented, and reference implementation citation.
-- **`specs/cross-language-tooling.md`** — new normative spec (v1.0.0) codifying the `tools/<name>/` peer-subdirectory convention for non-primary-language tools (Python services in TS monorepos, MCP servers in Python monorepos). Each tool has its own complete toolchain (`pyproject.toml`, ruff/mypy/pytest, Dockerfile multi-stage, `.env.example`, separate CI workflow with path filter). Anti-patterns: faking Python as a TS workspace, mixing primary-language code into `tools/`, reaching across language boundaries via filesystem. Reference implementations: consumer-c-legacy `tools/rag-proxy/` (Wave 1.8) and planned consumer-e `tools/openbb-sidecar/` (R4 slice).
-- **`runbooks/windows-dev-environment.md`** — new operational runbook (v1.0.0) capturing Windows-specific dev-loop gotchas: (1) `python -m venv` doesn't include pip on Windows Store Python without `--upgrade-deps`, (2) `pip install --user` is silent + glacially slow on Windows Store Python, (3) Jest workers crash with `spawn UNKNOWN errno -4094` on Windows + Node 24+ (fix: `--runInBand`), (4) `git worktree remove --force` fails "Device or resource busy" on Windows when IDE / file watcher / AV holds handles. Linux CI is unaffected; this runbook is for Windows developer pain only.
+- **`docs/concepts/project-board-sync.md`** — new normative spec (v1.0.0) codifying a 7-layer defense-in-depth contract for GitHub Project board sync during AI-driven OpenSpec work. L1 built-in workflows, L2 custom Actions workflow, L3 required status check (`project-board-synced`), L4 state-machine validator (gh-aw ProjectOps pattern), L5 OTLP agent telemetry, L6 companion script `--enforce-board` flag, L7 archive skill Step 0 verification. Five truly-independent layers (server-side + telemetry) plus two tool-level reinforcers. Authored after consumer-e Wave 2 retro surfaced silent board drift (slices merged with `Status=Backlog`, no audit trail). Research-grounded justifications cite OWASP AI Security Guide 2026, GitHub gh-aw ProjectOps pattern, EU AI Act forward-looking compliance, and the LLM-structured-outputs syntax-vs-semantics distinction.
+- **`docs/concepts/agent-telemetry.md`** — new normative spec (v1.0.0) codifying the Claude Code OTLP exporter → Langfuse ingestion pattern. Four-environment-variable configuration, resource attributes for slice/wave tagging, OpenTelemetry GenAI semantic conventions mapping, "reuse over reinvent" default for projects with existing Langfuse instances (or Langfuse Cloud free tier as minimum-viable for greenfield consumers). Anti-patterns: standing up a custom OTel collector, inventing custom JSONL audit logs, logging traces to the project's `data/` directory, disabling telemetry "for performance".
+- **`docs/concepts/event-and-data-patterns.md`** — new normative spec (v1.0.0) codifying 7 stack-agnostic patterns surfaced by consumer-c-legacy Wave 1.7-1.9 + consumer-e Wave 1-2: (1) hybrid translation pattern for cross-cutting concern extraction without forcing N upstream emitters to migrate, (2) two-name pattern (bus channel name preserves module ownership; persisted name is module-agnostic), (3) same-transaction migration with backfill, (4) `hasTable`/`hasColumn` guards on backfill SELECTs, (5) open-enum text columns + CHECK over native enums, (6) stateless proxy + stateful caller, (7) failure-collapse-to-null. Each pattern has a "when it applies", "when NOT", failure-mode-prevented, and reference implementation citation.
+- **`docs/concepts/cross-language-tooling.md`** — new normative spec (v1.0.0) codifying the `tools/<name>/` peer-subdirectory convention for non-primary-language tools (Python services in TS monorepos, MCP servers in Python monorepos). Each tool has its own complete toolchain (`pyproject.toml`, ruff/mypy/pytest, Dockerfile multi-stage, `.env.example`, separate CI workflow with path filter). Anti-patterns: faking Python as a TS workspace, mixing primary-language code into `tools/`, reaching across language boundaries via filesystem. Reference implementations: consumer-c-legacy `tools/rag-proxy/` (Wave 1.8) and planned consumer-e `tools/openbb-sidecar/` (R4 slice).
+- **`docs/runbooks/windows-dev-environment.md`** — new operational runbook (v1.0.0) capturing Windows-specific dev-loop gotchas: (1) `python -m venv` doesn't include pip on Windows Store Python without `--upgrade-deps`, (2) `pip install --user` is silent + glacially slow on Windows Store Python, (3) Jest workers crash with `spawn UNKNOWN errno -4094` on Windows + Node 24+ (fix: `--runInBand`), (4) `git worktree remove --force` fails "Device or resource busy" on Windows when IDE / file watcher / AV holds handles. Linux CI is unaffected; this runbook is for Windows developer pain only.
 - **`templates/new-project/.github/workflows/project-status-slice-progress.yml.tmpl`** — L2 server-side workflow per project-board-sync.md. On `push` to `slice/**` populates Branch field + Base SHA + Status=In Progress on the matching project item via GraphQL; on PR opened sets Status=Review. Idempotent. Reuses existing `PROJECT_AUTOMATION_TOKEN` secret + `PROJECT_OWNER`/`PROJECT_NUMBER` vars from the existing `project-status.yml` template (which it complements, not replaces — that one handles Wave-N Blocked → Todo transitions).
 - **`templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl`** — L3 required status check per project-board-sync.md. Asserts (a) Status ∈ {In Progress, Review}, (b) Branch field matches PR head ref, (c) Base SHA field populated. Designed to be added to required-status-checks list in branch protection so the merge button physically blocks until board is synced. Actionable error messages name `opsx_apply_companion.py` as the fix path.
-- **`templates/new-project/.github/workflows/project-state-machine.yml.tmpl`** — L4 state-machine validator per project-board-sync.md. v1 ships as periodic auditor (every 15min cron) flagging items with `Status=Done` but no merged PR. v2 will switch to native `project_v2_item.edited` webhook events once GitHub exposes them at the workflow level. Honors `break-glass` label exception per `specs/break-glass.md`.
+- **`templates/new-project/.github/workflows/project-state-machine.yml.tmpl`** — L4 state-machine validator per project-board-sync.md. v1 ships as periodic auditor (every 15min cron) flagging items with `Status=Done` but no merged PR. v2 will switch to native `project_v2_item.edited` webhook events once GitHub exposes them at the workflow level. Honors `break-glass` label exception per `docs/rules/break-glass.rule.md`.
 - **`scripts/verify_board_state.py`** — L7 helper script per project-board-sync.md. CLI tool that queries the GH Project board via GraphQL and exits non-zero when the matching item's Status doesn't match `--expected-status`. Stable exit-code contract: `0` match, `1` mismatch, `2` item-not-found, `3` GraphQL/network error. Designed for invocation by skills (e.g. archive Step 0) where the AI's verdict is bound to a tool exit code rather than the AI's text claim (per verification-before-completion.md §4.1.2).
 - **`tests/test_verify_board_state.py`** — pytest coverage for `verify_board_state.py`. 11 tests covering all 4 exit codes + CLI argument parsing. The GraphQL transport (`subprocess.run` boundary) is mocked.
 
@@ -592,18 +592,18 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 
 ### Changed
 
-- **`specs/verification-before-completion.md` §4.1** — added §4.1.1 "Broadest-scope rule" (run lint/typecheck at the broadest scope CI uses, not the slice subdirectory; retro-proven by consumer-e Wave 2 P1 where 6 mypy errors in test files were invisible at the contexts/<slice>/ scope but immediately surfaced at apps/api/ scope) and §4.1.2 "Tool-exit-code-over-text rule" (verdict messages cite the tool's exit code, not paraphrase the tool's output; LLM structured outputs guarantee syntax not semantics, so AI text claims about tool results are not proof — only non-AI-controlled process exit codes are).
-- **`specs/release-management.md` §4.4** — added §4.4.1 "Gitleaks scans full PR commit history" (squash + force-push to clear history when leak is fixed in a later commit but earlier commit's leak still triggers the scanner) and §4.4.2 "Markdown style guide: avoid `KEY=<placeholder>` syntax" (shell-syntax placeholder fires gitleaks generic-api-key matcher; use bullet lists or inline narrative instead). Both retro-proven on consumer-c-legacy PR #89 (`m2-wrap-up`).
-- **`specs/release-management.md` §6.4** — added §6.4.1 "Append-only doc files: numbering ranges per slice" (gotchas.md, CHANGELOG.md, append-only ADR indexes require explicit numeric range per slice; recommended convention: foundation 1-29, Wave 2 bounded contexts 30-79 in 10-blocks, Wave 3 adapters 80-199 in 20-blocks). Added §6.4.2 "Migration revision strings: verbose-form from scaffold" (alembic/sqlx/prisma migrations MUST use `<NNNN>_<topic>` from scaffold; latent chain breakage retro from consumer-e Wave 2 R1/T1 mismatch).
-- **`specs/release-management.md` §6.6** — refined "When it does NOT apply" guidance for intra-slice parallelism: explicitly NOT applied to slices with cross-BC verification gates (cost ↔ allergens ↔ labels ↔ audit; trading → risk → kill-switch). The serial verification path beats subagent recombination + cross-BC test orchestration overhead. Validated on consumer-c-legacy Wave 1.9 + consumer-e K1.
-- **`specs/release-management.md`** — added §9.5 "Project board sync contract" cross-referencing the new `project-board-sync.md` spec; updated §10 cross-references.
-- **`specs/runbook-bmad-openspec.md` §3** — added §3.7.1 "Design-mock HTML for dense designs" (optional review aid for slices spanning ≥3 bounded contexts; visual mock with arch-flow + schema cards + sample API + Gate D recap, using project's design-system palette per `ux-track.md`). Validated on consumer-c-legacy Wave 1.9 where the mock surfaced a column-name mismatch pre-implementation.
-- **`specs/runbook-bmad-openspec.md` §4** — added §4.1 "Forward-authored retros" (recommended pattern: author retro DURING slice's implementation, not after merge; squash SHA + merge date filled in post-merge during the archive step; reduces after-merge cognitive drop-off; validated across consumer-c-legacy Wave 1.7-1.9 + consumer-e Wave 2).
+- **`docs/rules/verification-before-completion.rule.md` §4.1** — added §4.1.1 "Broadest-scope rule" (run lint/typecheck at the broadest scope CI uses, not the slice subdirectory; retro-proven by consumer-e Wave 2 P1 where 6 mypy errors in test files were invisible at the contexts/<slice>/ scope but immediately surfaced at apps/api/ scope) and §4.1.2 "Tool-exit-code-over-text rule" (verdict messages cite the tool's exit code, not paraphrase the tool's output; LLM structured outputs guarantee syntax not semantics, so AI text claims about tool results are not proof — only non-AI-controlled process exit codes are).
+- **`docs/concepts/release-management.md` §4.4** — added §4.4.1 "Gitleaks scans full PR commit history" (squash + force-push to clear history when leak is fixed in a later commit but earlier commit's leak still triggers the scanner) and §4.4.2 "Markdown style guide: avoid `KEY=<placeholder>` syntax" (shell-syntax placeholder fires gitleaks generic-api-key matcher; use bullet lists or inline narrative instead). Both retro-proven on consumer-c-legacy PR #89 (`m2-wrap-up`).
+- **`docs/concepts/release-management.md` §6.4** — added §6.4.1 "Append-only doc files: numbering ranges per slice" (gotchas.md, CHANGELOG.md, append-only ADR indexes require explicit numeric range per slice; recommended convention: foundation 1-29, Wave 2 bounded contexts 30-79 in 10-blocks, Wave 3 adapters 80-199 in 20-blocks). Added §6.4.2 "Migration revision strings: verbose-form from scaffold" (alembic/sqlx/prisma migrations MUST use `<NNNN>_<topic>` from scaffold; latent chain breakage retro from consumer-e Wave 2 R1/T1 mismatch).
+- **`docs/concepts/release-management.md` §6.6** — refined "When it does NOT apply" guidance for intra-slice parallelism: explicitly NOT applied to slices with cross-BC verification gates (cost ↔ allergens ↔ labels ↔ audit; trading → risk → kill-switch). The serial verification path beats subagent recombination + cross-BC test orchestration overhead. Validated on consumer-c-legacy Wave 1.9 + consumer-e K1.
+- **`docs/concepts/release-management.md`** — added §9.5 "Project board sync contract" cross-referencing the new `project-board-sync.md` spec; updated §10 cross-references.
+- **`docs/concepts/runbook-bmad-openspec.md` §3** — added §3.7.1 "Design-mock HTML for dense designs" (optional review aid for slices spanning ≥3 bounded contexts; visual mock with arch-flow + schema cards + sample API + Gate D recap, using project's design-system palette per `ux-track.md`). Validated on consumer-c-legacy Wave 1.9 where the mock surfaced a column-name mismatch pre-implementation.
+- **`docs/concepts/runbook-bmad-openspec.md` §4** — added §4.1 "Forward-authored retros" (recommended pattern: author retro DURING slice's implementation, not after merge; squash SHA + merge date filled in post-merge during the archive step; reduces after-merge cognitive drop-off; validated across consumer-c-legacy Wave 1.7-1.9 + consumer-e Wave 2).
 - **`scripts/notify.py`** — warn/error path now prefers the consumer-side durable queue (Phase 5 Change B `add-durable-notification-queue`) when `CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED=1` AND a `notifications.queue` package is importable; falls through to the legacy synchronous SMTP path otherwise. The two transports are mutually exclusive per emission. Other consumers (consumer-b, consumer-c-legacy, consumer-e, livekit) continue with SMTP unchanged.
 - **`scripts/prompt_injection_filter.py`** layer-2 migrated from direct `anthropic` SDK to `scripts._llm.call("safety_judge", consumer="INJECTION", ...)` per Change C P5.4 follow-up. The opt-in env var `ANTHROPIC_API_KEY_INJECTION` is preserved as a budget gate; actual provider key resolution now happens at the LiteLLM proxy via the `safety_judge` task class. Drift detector confirms 0 in-tree direct-SDK callers remain.
 - **`scripts/verify_llm_routing.py`** — added Windows-safe UTF-8 stdio reconfigure so the success sigil (`✓`) prints under cp1252.
-- **`specs/notification-queue.md`** — extended with §8 Durable queue layer (Phase 5 Change B): activation gate, SQLite schema, async worker model, backoff schedule, channel routing, MCP outbox tool, observability events, restart-survival contract. The legacy JSONL+SMTP layers (§3-§7) are unchanged.
-- **`specs/enforcement-status.md`** — `notification-queue.md` row flipped 🟡 partial → ✅ wired with the Change B activation details.
+- **`docs/concepts/notification-queue.md`** — extended with §8 Durable queue layer (Phase 5 Change B): activation gate, SQLite schema, async worker model, backoff schedule, channel routing, MCP outbox tool, observability events, restart-survival contract. The legacy JSONL+SMTP layers (§3-§7) are unchanged.
+- **`docs/concepts/enforcement-status.md`** — `notification-queue.md` row flipped 🟡 partial → ✅ wired with the Change B activation details.
 
 ### Added
 
@@ -623,12 +623,12 @@ Major milestone release codifying the canonical task↔PR↔release pattern as t
 
 #### Dev-flow industrialization (PRs #33, #34)
 
-- **`docs/development-flow.md`** (new) — single LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?". 4-level hierarchy + 3 axes of parallelism (Wave-N / Intra-slice / Worktrees) + lifecycle + LLM-agnostic pointer table + industrialisation surface + 8 anti-patterns. Decisions D1.1–D1.5.
-- **`specs/merge-policy.md`** (new) — squash vs merge-commit decision rules (D2.1–D2.4). Default merge-commit; squash bounded to trivial single-intent PRs.
-- **`specs/conflict-resolution-policy.md`** (new) — 4-tier conflict taxonomy + 5-line escalation threshold + Wave-N coordinator role + intra-slice partitioning gate (D3.1–D3.6).
+- **`docs/concepts/development-flow.md`** (new) — single LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?". 4-level hierarchy + 3 axes of parallelism (Wave-N / Intra-slice / Worktrees) + lifecycle + LLM-agnostic pointer table + industrialisation surface + 8 anti-patterns. Decisions D1.1–D1.5.
+- **`docs/concepts/merge-policy.md`** (new) — squash vs merge-commit decision rules (D2.1–D2.4). Default merge-commit; squash bounded to trivial single-intent PRs.
+- **`docs/rules/conflict-resolution-policy.rule.md`** (new) — 4-tier conflict taxonomy + 5-line escalation threshold + Wave-N coordinator role + intra-slice partitioning gate (D3.1–D3.6).
 - **`skills/dev-flow/SKILL.md`** (new) — orchestrator skill: `/dev-flow start <description>` scaffolds OpenSpec change + branch + worktree (when ≥3 concurrent) + auto-tick git hook; `/dev-flow ship` validates + pushes + opens PR + monitors CI. Decisions D1.1–D1.6 + 3 anti-patterns.
-- **LLM-agnostic pointers wired** from `templates/new-project/AGENTS.md.tmpl` §2 (every NEW consumer inherits) + `runbooks/INDEX.md` + `docs/index.md` + `docs/start-here.md` + playbook root `AGENTS.md`. NOT in `~/.claude/CLAUDE.md` per LLM-agnostic principle (per repo `README.md`: "CLI-specific routers are thin pointers").
-- **`specs/release-management.md`** v1.2.0 → v1.3.0 — new §0 entry-point pointer to `development-flow.md`; scopes what release-management.md adds beyond it.
+- **LLM-agnostic pointers wired** from `templates/new-project/AGENTS.md.tmpl` §2 (every NEW consumer inherits) + `docs/runbooks/INDEX.md` + `docs/index.md` + `docs/tutorials/01-start-here.md` + playbook root `AGENTS.md`. NOT in `~/.claude/CLAUDE.md` per LLM-agnostic principle (per repo `README.md`: "CLI-specific routers are thin pointers").
+- **`docs/concepts/release-management.md`** v1.2.0 → v1.3.0 — new §0 entry-point pointer to `development-flow.md`; scopes what release-management.md adds beyond it.
 
 #### CI gates + git hook (Followup #4 closed)
 
@@ -639,14 +639,14 @@ Major milestone release codifying the canonical task↔PR↔release pattern as t
 
 #### Schema cross-ref enforcement (warn-only window)
 
-- **`specs/bootstrap-directive.md`** v1.1.0 → v1.2.0 — adds Development-flow cross-ref requirement: every consumer's AGENTS.md §2 Dispatcher index MUST contain a row pointing to `.ai-playbook/docs/development-flow.md`. Phased rollout (Change C pattern): warn-only initially → strict after 30d green builds.
+- **`docs/rules/bootstrap-directive.rule.md`** v1.1.0 → v1.2.0 — adds Development-flow cross-ref requirement: every consumer's AGENTS.md §2 Dispatcher index MUST contain a row pointing to `.ai-playbook/docs/concepts/development-flow.md`. Phased rollout (Change C pattern): warn-only initially → strict after 30d green builds.
 - **`scripts/schema_validate.py`** extended — body-level check for `development-flow.md` link. `--strict-dev-flow-cross-ref` flag promotes warn → error.
 - **`scripts/propagate_bump.py`** extended — `ensure_dev_flow_cross_ref()` inserts the row in each consumer's AGENTS.md §2 in the same bump PR as the version bump. Idempotent. Already-present → no-op. (= **Opción 1 migration** from `development-flow.md` §3.3.)
 
 #### Phase 5 bring-forward (PRs #31, #32)
 
 - **PR #32** — `scripts/wt_add.py` post-create install (npm/pnpm/poetry/uv detection, lockfile-based, failure non-fatal); `.gitignore` ignore `notifications.jsonl` + `hindsight-queue.jsonl` (runtime logs).
-- **PR #31** — Phase 5 P5.4: `configs/litellm-router.yaml` (11 task classes); `scripts/_llm.py` (canonical helper, `LITELLM_BASE_URL` proxy); `scripts/verify_llm_routing.py` (drift detector, warn-only initially per D3.5); `specs/model-routing.md` v2.0.0 + per-consumer virtual keys section in `env-vars.md`. Phase 5 P5.6+P5.7: `specs/incident-response.md` stub → v1.0.0 (8 S1–S4 scenarios + on-call ladder + 7-day post-mortem detector + comm templates + 4 stub recovery runbooks); `docs/model-migration.md` stub → v1.0.0 (trigger taxonomy + 6-step playbook + canary thresholds); 2 lifecycle_check detectors (`first_paying_client_detected`, `model_retirement_detected`); 2 dry-run simulators; `configs/anthropic-retirement-list.yaml`; new 🟠 wired-pending-trigger symbol in `enforcement-status.md`.
+- **PR #31** — Phase 5 P5.4: `configs/litellm-router.yaml` (11 task classes); `scripts/_llm.py` (canonical helper, `LITELLM_BASE_URL` proxy); `scripts/verify_llm_routing.py` (drift detector, warn-only initially per D3.5); `docs/concepts/model-routing.md` v2.0.0 + per-consumer virtual keys section in `env-vars.md`. Phase 5 P5.6+P5.7: `docs/concepts/incident-response.md` stub → v1.0.0 (8 S1–S4 scenarios + on-call ladder + 7-day post-mortem detector + comm templates + 4 stub recovery runbooks); `docs/concepts/model-migration.md` stub → v1.0.0 (trigger taxonomy + 6-step playbook + canary thresholds); 2 lifecycle_check detectors (`first_paying_client_detected`, `model_retirement_detected`); 2 dry-run simulators; `configs/anthropic-retirement-list.yaml`; new 🟠 wired-pending-trigger symbol in `enforcement-status.md`.
 
 ### Tests
 
@@ -677,12 +677,12 @@ Patch release that ships a guided skill for the §6.6 intra-slice parallelism co
 
 ### Added
 
-- **`skills/openspec-apply-parallel/SKILL.md`** — guided skill that wraps `specs/release-management.md` §6.6 (intra-slice parallelism). Encodes the gating questions (multi-group? disjoint write-paths? >30 min? pre-allocated migration numbers?), the ownership cross-check, the spawn matrix, the parallel-spawn pattern (single-message multi-Agent calls with `isolation: "worktree"`), the cherry-pick recombination order, and the anti-patterns. Falls back to `/opsx:apply` (sequential) when the gates don't pass. Architectural note: the skill is **declarative** — there is no Python orchestration script. The agent reads the skill + invokes the existing `Agent` tool primitives (worktree mode, gh CLI, git CLI). This matches the state-of-the-art "agent-as-orchestrator" pattern (Anthropic Agent SDK, OpenAI Swarm, LangGraph supervisor); a Python orchestration script would have been an anti-pattern that encloses the LLM's judgment in fixed control flow.
-- **`specs/release-management.md` §6.6 cross-reference** — the section now opens with a pointer at the new skill, so an agent reading the spec discovers the operational entry point immediately.
+- **`skills/openspec-apply-parallel/SKILL.md`** — guided skill that wraps `docs/concepts/release-management.md` §6.6 (intra-slice parallelism). Encodes the gating questions (multi-group? disjoint write-paths? >30 min? pre-allocated migration numbers?), the ownership cross-check, the spawn matrix, the parallel-spawn pattern (single-message multi-Agent calls with `isolation: "worktree"`), the cherry-pick recombination order, and the anti-patterns. Falls back to `/opsx:apply` (sequential) when the gates don't pass. Architectural note: the skill is **declarative** — there is no Python orchestration script. The agent reads the skill + invokes the existing `Agent` tool primitives (worktree mode, gh CLI, git CLI). This matches the state-of-the-art "agent-as-orchestrator" pattern (Anthropic Agent SDK, OpenAI Swarm, LangGraph supervisor); a Python orchestration script would have been an anti-pattern that encloses the LLM's judgment in fixed control flow.
+- **`docs/concepts/release-management.md` §6.6 cross-reference** — the section now opens with a pointer at the new skill, so an agent reading the spec discovers the operational entry point immediately.
 
 ### Filed (open)
 
-- **Followup 4** in `specs/v0.9.0-roadmap.md` — `/opsx:apply` skill doesn't enforce `tasks.md` checkbox-update discipline. Surfaced by consumer-e slice 3 archive (merged with 0/55 tasks ticked despite being feature-complete). Three fix options outlined: (1) conventional-commit scope → checkbox auto-tick via `prepare-commit-msg` hook, (2) PR-open warning workflow, (3) `openspec archive --strict` mode. Recommended: ship 1 + 2 in a future v0.9.x patch; defer 3.
+- **Followup 4** in `docs/concepts/v0.9.0-roadmap.md` — `/opsx:apply` skill doesn't enforce `tasks.md` checkbox-update discipline. Surfaced by consumer-e slice 3 archive (merged with 0/55 tasks ticked despite being feature-complete). Three fix options outlined: (1) conventional-commit scope → checkbox auto-tick via `prepare-commit-msg` hook, (2) PR-open warning workflow, (3) `openspec archive --strict` mode. Recommended: ship 1 + 2 in a future v0.9.x patch; defer 3.
 
 ### Notes
 
@@ -700,7 +700,7 @@ Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0
 
 ### Added (operational guard)
 
-- **`runbooks/release.md` Step 3** — pre-tag chronology check codified. Before tagging, verify the previous tag's `propagate-playbook-bump` workflow is `completed success` AND that `git log <prev-tag>..HEAD` is non-empty. The semver-aware supersede in `_bumper.py` is the code-side defence; this runbook step is the operational guard so devs don't rely on script correctness when tagging close together.
+- **`docs/runbooks/release.md` Step 3** — pre-tag chronology check codified. Before tagging, verify the previous tag's `propagate-playbook-bump` workflow is `completed success` AND that `git log <prev-tag>..HEAD` is non-empty. The semver-aware supersede in `_bumper.py` is the code-side defence; this runbook step is the operational guard so devs don't rely on script correctness when tagging close together.
 
 ### Tests
 
@@ -713,11 +713,11 @@ Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0
 
 ## [0.9.0] — 2026-05-01 — CodeRabbit fallback STABLE — slice 3 dogfood validated end-to-end
 
-Promotes v0.9.0-rc1 (CodeRabbit fallback 3-layer defense) → stable after the validation milestone (`specs/v0.9.0-roadmap.md`) completed successfully on consumer-e slice 3 (`persistence-tenant-enforcement`).
+Promotes v0.9.0-rc1 (CodeRabbit fallback 3-layer defense) → stable after the validation milestone (`docs/concepts/v0.9.0-roadmap.md`) completed successfully on consumer-e slice 3 (`persistence-tenant-enforcement`).
 
 ### Validation evidence (consumer-e cascade 2026-05-01)
 
-- **PR #52** (`coderabbit-fallback-l2-setup`): bootstrap dogfood. Submodule + L2 workflow installed via `runbooks/onboard-new-project.md` Step 11. CodeRabbit was rate-limited at the moment of PR open (the EXACT scenario the L2 design exists for). L2 fired at 5m11s, classified `rate-limited`, posted the structured checklist as a PR comment when §4.5 was empty/stubbed, and turned `ai-self-review-required` ✅ after the PR body was updated with the 3 schema markers (`Profile:`, `Reviewer:`, `Self-review findings:`). Squash-merged into `main`.
+- **PR #52** (`coderabbit-fallback-l2-setup`): bootstrap dogfood. Submodule + L2 workflow installed via `docs/runbooks/onboard-new-project.md` Step 11. CodeRabbit was rate-limited at the moment of PR open (the EXACT scenario the L2 design exists for). L2 fired at 5m11s, classified `rate-limited`, posted the structured checklist as a PR comment when §4.5 was empty/stubbed, and turned `ai-self-review-required` ✅ after the PR body was updated with the 3 schema markers (`Profile:`, `Reviewer:`, `Self-review findings:`). Squash-merged into `main`.
 - **PR #55** (`slice/persistence-tenant-enforcement`): L1 in-session §4.5 populated by claude-code-action; CodeRabbit reviewed without rate-limit; L2 skipped silently (status check ✅). 56 tasks / 30 new tests / 95% coverage on `persistence/*` / 154 passed combined / mypy strict clean / pre-commit clean.
 - **PR #56** (`chore/ux-scaffolding-draft`): L1 in-session §4.5 populated; CodeRabbit reviewed; L2 skipped silently. Squash-merged.
 
@@ -729,13 +729,13 @@ The 3-layer architecture worked exactly as designed: L0 (CodeRabbit primary) han
 
 ### Added (since v0.9.0-rc3)
 
-- **`specs/release-management.md` §6.6 Intra-slice parallelism** (originally landed under "Unreleased" between rc3 and stable): orthogonal to wave-level (§6.4). Codifies how a main agent spawns subagents inside one slice when the slice covers multiple disjoint bounded contexts. Pre-conditions (write-path ownership in `tasks.md`, migration-number pre-allocation, shared-file reservation), spawn pattern (`Agent isolation: "worktree"` with ephemeral side-branches `slice/<id>--<group>`), recombination via cherry-pick, anti-patterns (cross-ownership edits, public-branch pushes), and the cost-benefit threshold (~30 min of parallelisable work).
-- **`specs/runbook-bmad-openspec.md` §3.8**: brief pointer to §6.6, distinguishing intra-slice from wave-level parallelism.
+- **`docs/concepts/release-management.md` §6.6 Intra-slice parallelism** (originally landed under "Unreleased" between rc3 and stable): orthogonal to wave-level (§6.4). Codifies how a main agent spawns subagents inside one slice when the slice covers multiple disjoint bounded contexts. Pre-conditions (write-path ownership in `tasks.md`, migration-number pre-allocation, shared-file reservation), spawn pattern (`Agent isolation: "worktree"` with ephemeral side-branches `slice/<id>--<group>`), recombination via cherry-pick, anti-patterns (cross-ownership edits, public-branch pushes), and the cost-benefit threshold (~30 min of parallelisable work).
+- **`docs/concepts/runbook-bmad-openspec.md` §3.8**: brief pointer to §6.6, distinguishing intra-slice from wave-level parallelism.
 
 ### Open followups (carried into v0.9.x)
 
-- **`scripts/propagate_bump.py`**: doesn't bump `AGENTS.md` `inherits_from` field on consumers. Manual fix in livekit PR #36 surfaced this. Filed in `specs/v0.9.0-roadmap.md`.
-- **`scripts/_bumper.py` supersede logic**: uses tag-push chronology, not semver order. Out-of-order tag push superseded newer PRs with older ones during the v0.9.0-rc1/rc2 cycle. Filed in `specs/v0.9.0-roadmap.md`.
+- **`scripts/propagate_bump.py`**: doesn't bump `AGENTS.md` `inherits_from` field on consumers. Manual fix in livekit PR #36 surfaced this. Filed in `docs/concepts/v0.9.0-roadmap.md`.
+- **`scripts/_bumper.py` supersede logic**: uses tag-push chronology, not semver order. Out-of-order tag push superseded newer PRs with older ones during the v0.9.0-rc1/rc2 cycle. Filed in `docs/concepts/v0.9.0-roadmap.md`.
 - **`/opsx:apply` skill**: doesn't enforce tasks.md checkbox-update discipline. Slice 3 implementation merged with 0/55 boxes checked despite being feature-complete (verified by tests + coverage). To file as a v0.9.x followup.
 
 ## [0.9.0-rc3] — 2026-05-01 — bare-repo + per-branch worktree layout (default for new consumers)
@@ -746,14 +746,14 @@ Existing consumers on the legacy single-tree layout keep working — migration i
 
 ### Added
 
-- **[`specs/git-worktree-bare-layout.md`](specs/git-worktree-bare-layout.md)** (v1.0.0): the layout contract — directory shape, naming rules (worktree dir == OpenSpec change-id), invariants I1–I5, rationale (bare+per-branch vs sibling-suffix vs centralised pool), tooling pointers, registry compatibility. Cross-references `dispatcher-chain.md` and `release-management.md`.
-- **[`runbooks/git-worktree-bare-setup.md`](runbooks/git-worktree-bare-setup.md)** (v1.0.0): operational runbook covering 4 scenarios — §1 greenfield bootstrap, §2 onboard existing repo, §3 migrate from legacy single-tree, §4 daily flow (add/remove worktrees). §3.5 documents the Windows cwd-lock workaround (rename a project root locked by an open editor session).
+- **[`docs/concepts/git-worktree-bare-layout.md`](docs/concepts/git-worktree-bare-layout.md)** (v1.0.0): the layout contract — directory shape, naming rules (worktree dir == OpenSpec change-id), invariants I1–I5, rationale (bare+per-branch vs sibling-suffix vs centralised pool), tooling pointers, registry compatibility. Cross-references `dispatcher-chain.md` and `release-management.md`.
+- **[`docs/runbooks/git-worktree-bare-setup.md`](docs/runbooks/git-worktree-bare-setup.md)** (v1.0.0): operational runbook covering 4 scenarios — §1 greenfield bootstrap, §2 onboard existing repo, §3 migrate from legacy single-tree, §4 daily flow (add/remove worktrees). §3.5 documents the Windows cwd-lock workaround (rename a project root locked by an open editor session).
 - **[`scripts/wt_add.py`](scripts/wt_add.py)** (~280 LOC): one-command worktree creation. Auto-detects default branch via `origin/HEAD`; refuses change-ids without a matching `openspec/changes/<id>/` folder unless `--no-slice-check`; initialises submodules in the new worktree by default. Dry-run mode.
 
 ### Changed
 
-- **`specs/runbook-bmad-openspec.md`**: new §3.7 "On-disk layout for concurrent slices" cross-references the new spec + runbook + script. §3.6 (branch + PR + merge contract) unchanged — the layout sits **under** the existing 1 branch = 1 change = 1 PR rule.
-- **`runbooks/INDEX.md`**: new row pointing at `git-worktree-bare-setup.md`.
+- **`docs/concepts/runbook-bmad-openspec.md`**: new §3.7 "On-disk layout for concurrent slices" cross-references the new spec + runbook + script. §3.6 (branch + PR + merge contract) unchanged — the layout sits **under** the existing 1 branch = 1 change = 1 PR rule.
+- **`docs/runbooks/INDEX.md`**: new row pointing at `git-worktree-bare-setup.md`.
 - **`specs/INDEX.md`**: regenerated to include `git-worktree-bare-layout.md`.
 
 ### Notes
@@ -775,16 +775,16 @@ rc2 is the v0.9.0-rc1 bundle PLUS the v0.8.7 fix folded in. Also adds the retroa
 ### Notes
 
 - All v0.9.0-rc1 features are preserved verbatim (L1 detection script, L2 workflow + checklist script, runbook, spec §4.5.1-3, bootstrap integration). See [v0.9.0-rc1] entry below.
-- Process gotcha: when a fix-PR merges to main between the tag-cut and the propagation-finish window, it falls between two semver releases. Mitigation idea for v0.9.x: a pre-tag check in `runbooks/release.md` Step 3 that diffs `git log origin/main..HEAD` and aborts if there are uncommitted-into-tag fixes. Filed as a follow-up; not blocking rc2.
+- Process gotcha: when a fix-PR merges to main between the tag-cut and the propagation-finish window, it falls between two semver releases. Mitigation idea for v0.9.x: a pre-tag check in `docs/runbooks/release.md` Step 3 that diffs `git log origin/main..HEAD` and aborts if there are uncommitted-into-tag fixes. Filed as a follow-up; not blocking rc2.
 
 ## [0.9.0-rc1] — 2026-05-01 — CodeRabbit fallback (3-layer defense)
 
-Codifies the manual Profile-B fallback the worker AI applies when CodeRabbit is rate-limited or silent. Turns it into a 3-layer defense (L0 mechanical / L1 in-session AI / L2 GH Action safety net) with L1 ↔ L2 coordination via PR-body §4.5 regex check. See [`specs/v0.9.0-roadmap.md`](specs/v0.9.0-roadmap.md) for the design rationale (incl. 4 alternatives considered + tradeoff analysis).
+Codifies the manual Profile-B fallback the worker AI applies when CodeRabbit is rate-limited or silent. Turns it into a 3-layer defense (L0 mechanical / L1 in-session AI / L2 GH Action safety net) with L1 ↔ L2 coordination via PR-body §4.5 regex check. See [`docs/concepts/v0.9.0-roadmap.md`](docs/concepts/v0.9.0-roadmap.md) for the design rationale (incl. 4 alternatives considered + tradeoff analysis).
 
 ### Added
 
 - **L1 — `scripts/check_coderabbit_status.py`** (~80 LOC): polls `gh pr view --comments` for CodeRabbit; classifies into `available` / `rate-limited` / `silent` / `error`. Returns JSON on stdout + exit codes (0/1/2/3). Pure stdlib + `gh` CLI; no API token.
-- **L1 — [`runbooks/coderabbit-fallback.md`](runbooks/coderabbit-fallback.md)**: structured guide for the worker AI when L1 fires. 7-category diff inspection (type / async / errors / security / edge cases / public API / spec compliance) + canonical §4.5 schema + 5 anti-patterns + reference run (consumer-e PR #41).
+- **L1 — [`docs/runbooks/coderabbit-fallback.md`](docs/runbooks/coderabbit-fallback.md)**: structured guide for the worker AI when L1 fires. 7-category diff inspection (type / async / errors / security / edge cases / public API / spec compliance) + canonical §4.5 schema + 5 anti-patterns + reference run (consumer-e PR #41).
 - **L2 — `scripts/post_self_review_checklist.py`** (~280 LOC): reads PR diff + body; if §4.5 is populated (3 markers + non-stub), exits silently and marks status check ✅; if empty/stubbed, posts a structured fallback checklist as a PR comment + marks status check ❌. Markdown bold (`**Profile**:`) is normalised to plain (`Profile:`) before matching.
 - **L2 — `templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: GH Action (`pull_request: [opened, synchronize]`). Sleeps 5 min, runs detection + checklist scripts. Skips dependabot/renovate/github-actions PRs. `secrets.GITHUB_TOKEN` only — no PAT.
 - **`scripts/bootstrap_gh_project.py`**: `apply_profile()` now copies the new workflow under both Profile A and Profile B (the L2 status check is informational unless added to required-checks manually). Helper: `write_coderabbit_fallback_workflow()`. Idempotent; "delete to refresh" semantics.
@@ -792,9 +792,9 @@ Codifies the manual Profile-B fallback the worker AI applies when CodeRabbit is 
 
 ### Changed
 
-- **`specs/release-management.md`**: 3 new subsections under §4.5 — §4.5.1 (L1 worker-AI in-session check, MUST after every PR push), §4.5.2 (L2 CI safety net + ai-self-review-required status check semantics), §4.5.3 (PR-body schema regex contract: 3 mandatory markers + STUB_INDICATORS exclusion list). All additive — existing §4.5 unchanged.
-- **`runbooks/release.md`** Step 7: replaces generic "wait for CodeRabbit" with explicit `check_coderabbit_status.py --pr ... --wait 300` invocation + Profile B fallback path; clarifies how L1 ↔ L2 interact on bump PRs. Step 8 mentions that bootstrap re-run now propagates the L2 workflow.
-- **`runbooks/onboard-new-project.md`** Step 11: adds `coderabbit-fallback.yml` to the manual `cp` list with note that `bootstrap_gh_project.py` copies it automatically (v0.9.0+).
+- **`docs/concepts/release-management.md`**: 3 new subsections under §4.5 — §4.5.1 (L1 worker-AI in-session check, MUST after every PR push), §4.5.2 (L2 CI safety net + ai-self-review-required status check semantics), §4.5.3 (PR-body schema regex contract: 3 mandatory markers + STUB_INDICATORS exclusion list). All additive — existing §4.5 unchanged.
+- **`docs/runbooks/release.md`** Step 7: replaces generic "wait for CodeRabbit" with explicit `check_coderabbit_status.py --pr ... --wait 300` invocation + Profile B fallback path; clarifies how L1 ↔ L2 interact on bump PRs. Step 8 mentions that bootstrap re-run now propagates the L2 workflow.
+- **`docs/runbooks/onboard-new-project.md`** Step 11: adds `coderabbit-fallback.yml` to the manual `cp` list with note that `bootstrap_gh_project.py` copies it automatically (v0.9.0+).
 
 ### Notes
 
@@ -847,11 +847,11 @@ Bump submodule v0.8.6 → v0.8.7. Verified against:
 
 ## [0.8.6] — 2026-05-01 — DESIGN.md format spec + Google design.md tier 1 adoption
 
-Extends `specs/ux-track.md` con tier 1 adoptions de [google-labs-code/design.md](https://github.com/google-labs-code/design.md) (Apache-2.0, alpha, 10.5k stars). DESIGN.md becomes hybrid format: machine-readable YAML frontmatter tokens + human-readable markdown rationale.
+Extends `docs/concepts/ux-track.md` con tier 1 adoptions de [google-labs-code/design.md](https://github.com/google-labs-code/design.md) (Apache-2.0, alpha, 10.5k stars). DESIGN.md becomes hybrid format: machine-readable YAML frontmatter tokens + human-readable markdown rationale.
 
 ### Added
 
-- **`specs/ux-track.md` §11 — DESIGN.md format spec** (NEW section, 175 lines). Subsections:
+- **`docs/concepts/ux-track.md` §11 — DESIGN.md format spec** (NEW section, 175 lines). Subsections:
   - §11.1 Hybrid format (YAML frontmatter + Markdown body)
   - §11.2 Token schema (colors, typography, rounded, spacing, components)
   - §11.3 Token reference syntax `{path.to.token}`
@@ -866,9 +866,9 @@ Extends `specs/ux-track.md` con tier 1 adoptions de [google-labs-code/design.md]
 
 ### Changed
 
-- **`specs/ux-track.md` §10 OKLCH-canonical rule** — added "Dual representation" paragraph cross-referencing §11.7. The CSS surfaces declare OKLCH canonical; YAML frontmatter declares hex computed equivalents. OKLCH remains source-of-truth; hex is one-way derivation snapshot. Tooling consumers MUST NOT round-trip hex → OKLCH.
+- **`docs/concepts/ux-track.md` §10 OKLCH-canonical rule** — added "Dual representation" paragraph cross-referencing §11.7. The CSS surfaces declare OKLCH canonical; YAML frontmatter declares hex computed equivalents. OKLCH remains source-of-truth; hex is one-way derivation snapshot. Tooling consumers MUST NOT round-trip hex → OKLCH.
 
-- **`specs/ux-track.md` §11..§19 renumbered to §12..§20** (per-journey docs format → §12, Components catalogue → §13, ...). Internal §-references updated atomically.
+- **`docs/concepts/ux-track.md` §11..§19 renumbered to §12..§20** (per-journey docs format → §12, Components catalogue → §13, ...). Internal §-references updated atomically.
 
 ### Pilot validated
 
@@ -943,13 +943,13 @@ companion, date refresh, auto-transition + dep-check scripts).
 
 ### Updated
 
-- **`runbooks/release.md` v1.1.0**: adds rc-first mode for breaking
+- **`docs/runbooks/release.md` v1.1.0**: adds rc-first mode for breaking
   releases; adds Step 7 "AI-reviewer signoff per consumer" and Step 8
   "post-merge bootstrap re-run with `--profile auto`"; adds Quick-
   reference flow diagram for the post-v0.8.x release sequence;
   documents supersede behavior in Step 6.
 
-- **`runbooks/onboard-new-project.md` v1.1.0**: adds Profile A/B
+- **`docs/runbooks/onboard-new-project.md` v1.1.0**: adds Profile A/B
   decision matrix as a "decisión previa"; adds Step 7 "Bootstrap GH
   Project + Profile A/B enforcement"; adds Step 8 "Install CodeRabbit
   GH App" (Profile A only); adds Step 9 "Configure CONSUMER_D_GOD_MODE
@@ -957,7 +957,7 @@ companion, date refresh, auto-transition + dep-check scripts).
   + dep-check workflow templates"; refreshes cross-references with new
   scripts + templates.
 
-- **`runbooks/propagate-bump-troubleshooting.md` v1.1.0**: adds
+- **`docs/runbooks/propagate-bump-troubleshooting.md` v1.1.0**: adds
   "Expected behaviors (v0.8.0+)" section explaining supersede +
   date refresh as features (not bugs); adds Pattern F "supersede
   helper failure" with manual-cleanup fix; adds Pattern G "pre-v0.8.3
@@ -1076,7 +1076,7 @@ v0.8.1 codifies the contract.
 
 ### Added
 
-- **`specs/release-management.md` v1.2.0**:
+- **`docs/concepts/release-management.md` v1.2.0**:
   - **§4.5 AI-reviewer feedback loop**: worker AI MUST poll for the
     reviewer's "review completed" check, read `gh pr view <N> --comments`,
     triage every actionable comment (address / reject with reason / defer
@@ -1144,7 +1144,7 @@ that made every consumer PR fail.
 
 ### Added
 
-- **`specs/release-management.md` v1.1.0** (PR #13):
+- **`docs/concepts/release-management.md` v1.1.0** (PR #13):
   - §3.4 Bump-bot supersede expectation: each new `chore/bump-*` PR auto-
     closes prior open PRs on the same change-stream.
   - §4.4 Pre-commit MUST run on the PR diff in CI (`--from-ref/--to-ref`),
@@ -1304,7 +1304,7 @@ closed.
   re-runs don't surprise the operator with an unintended visibility
   change. New projects default to `private`; flip to `public` for
   community / OSS work.
-- **`specs/release-management.md` §5.4** new subsection covering the
+- **`docs/concepts/release-management.md` §5.4** new subsection covering the
   user/org-vs-repo scope distinction + visibility independence.
 
 ### Validated against
@@ -1325,14 +1325,14 @@ This is a **release candidate** — the contract is validated via consumer-e Wav
 
 ### Added — Release management contract
 
-- **`specs/release-management.md`** v1.0.0 — defines the universal contract for how OpenSpec changes ship: 1 branch = 1 change = 1 PR (tasks tracked as PR checklist, never per-task branches), Status field schema with five canonical options (`Todo`, `Blocked`, `In Progress`, `Review`, `Done`), recommended `Risk` + `P&L impact` custom fields, CI-green-required-for-Review transition, dependency-driven merge order (Wave N before N+1), bootstrap-via-script (§7), migration path for existing consumers (§8), anti-patterns (§9). Complements `issue-tracking.md` v1.0.0 (which already automates ticket↔proposal sync) on the source-control side.
+- **`docs/concepts/release-management.md`** v1.0.0 — defines the universal contract for how OpenSpec changes ship: 1 branch = 1 change = 1 PR (tasks tracked as PR checklist, never per-task branches), Status field schema with five canonical options (`Todo`, `Blocked`, `In Progress`, `Review`, `Done`), recommended `Risk` + `P&L impact` custom fields, CI-green-required-for-Review transition, dependency-driven merge order (Wave N before N+1), bootstrap-via-script (§7), migration path for existing consumers (§8), anti-patterns (§9). Complements `issue-tracking.md` v1.0.0 (which already automates ticket↔proposal sync) on the source-control side.
 - **`scripts/bootstrap_gh_project.py`** — one-command setup for a consumer's GH Project board: looks up project, adds canonical Status options idempotently (preserves existing names; flags case-only divergence as a soft warning), adds recommended custom fields (`Risk`, `P&L impact`), and (with `--slicing-file`) creates one draft project item per change row from `docs/openspec-slice.md` with initial Status set per dep graph. Stdlib-only (subprocess + json + urllib not used; just `gh api graphql`). Idempotent.
 
 ### Updated — runbook v1.1.0
 
-- **`specs/runbook-bmad-openspec.md` §3.6** — new section, "Branch, PR + merge contract", points at `release-management.md` for the normative source-control contract. One-paragraph summary in the runbook for skim-readers; full detail in the spec.
-- **`specs/runbook-bmad-openspec.md` §5** — Gate F row now mentions "CI green on slice branch" as prerequisite (was implicit before).
-- **`specs/runbook-bmad-openspec.md` §6** — cross-refs add `release-management.md` + `issue-tracking.md`.
+- **`docs/concepts/runbook-bmad-openspec.md` §3.6** — new section, "Branch, PR + merge contract", points at `release-management.md` for the normative source-control contract. One-paragraph summary in the runbook for skim-readers; full detail in the spec.
+- **`docs/concepts/runbook-bmad-openspec.md` §5** — Gate F row now mentions "CI green on slice branch" as prerequisite (was implicit before).
+- **`docs/concepts/runbook-bmad-openspec.md` §6** — cross-refs add `release-management.md` + `issue-tracking.md`.
 
 ### Validated against
 
@@ -1340,7 +1340,7 @@ This is a **release candidate** — the contract is validated via consumer-e Wav
 
 ### Roadmap
 
-- v0.8.0 stable promotion: after consumer-e Wave 0 (slices 1-3) lands, retro confirms the contract works under load. Items 1-10 from `specs/v0.8.0-roadmap.md` are still tracked separately; this RC is **scoped only** to release management.
+- v0.8.0 stable promotion: after consumer-e Wave 0 (slices 1-3) lands, retro confirms the contract works under load. Items 1-10 from `docs/concepts/v0.8.0-roadmap.md` are still tracked separately; this RC is **scoped only** to release management.
 - Optional follow-ups (not blocking v0.8.0 stable):
   - GH Action template `.github/workflows/project-status.yml` for auto Status transitions (commit-passing-CI → Review; squash-merge → Done; downstream-deps-merged → Blocked-to-Todo). Doc placeholder in spec §6.3; implementation deferred.
   - Optional hard dependency-check workflow `.github/workflows/dep-check.yml` per spec §6.2.
@@ -1351,7 +1351,7 @@ Adds the `apply-fix-contract.md` spec — the canonical contract any workflow MU
 
 ### Added
 
-- **`specs/apply-fix-contract.md`** v1.0.0 — two-tier permission model (autonomous tier for `watchdogs.py`-class auto-mutators, HITL-gated tier for everything else), envelope shape (`command_preview`, `idempotency_key`, `reversal_hint`, `risk`, `mode`, `max_approval_age_seconds`), exact-match invariant (bytes-of-action MUST equal approved bytes), idempotency contract (workflows requesting `mode="apply"` MUST supply a precheck callable), identity binding rule (env-bound approvers; rejection logged not silently dropped), risk-tier rule (`risk=high` always HITL even on cron), Python helper API (`request_approval`, `verify_apply_safety`, `record_apply_outcome`), structured logging contract (rows to `incidents.jsonl` with `request_id` correlation).
+- **`docs/rules/apply-fix-contract.rule.md`** v1.0.0 — two-tier permission model (autonomous tier for `watchdogs.py`-class auto-mutators, HITL-gated tier for everything else), envelope shape (`command_preview`, `idempotency_key`, `reversal_hint`, `risk`, `mode`, `max_approval_age_seconds`), exact-match invariant (bytes-of-action MUST equal approved bytes), idempotency contract (workflows requesting `mode="apply"` MUST supply a precheck callable), identity binding rule (env-bound approvers; rejection logged not silently dropped), risk-tier rule (`risk=high` always HITL even on cron), Python helper API (`request_approval`, `verify_apply_safety`, `record_apply_outcome`), structured logging contract (rows to `incidents.jsonl` with `request_id` correlation).
 
 ### Stale references retired (in consumers)
 
@@ -1369,13 +1369,13 @@ Major hardening of the BMAD↔OpenSpec hybrid flow. v0.7.0 closes the seam betwe
 
 ### Added — Phase 2 → Phase 3 bridge
 
-- **`specs/bmad-openspec-bridge.md`** v1.0.0 — defines the canonical slicing artefact (`docs/openspec-slice.md`) that BMAD writes at Gate C and `openspec-propose` reads at the start of Phase 3. Resolves the v0.6.x drift where the Phase 2 → 3 handoff was implicit. Also settles the `docs/` (canonical) vs `_bmad-output/planning-artifacts/` (workflow trail) path-canon split with explicit rules.
+- **`docs/concepts/bmad-openspec-bridge.md`** v1.0.0 — defines the canonical slicing artefact (`docs/openspec-slice.md`) that BMAD writes at Gate C and `openspec-propose` reads at the start of Phase 3. Resolves the v0.6.x drift where the Phase 2 → 3 handoff was implicit. Also settles the `docs/` (canonical) vs `_bmad-output/planning-artifacts/` (workflow trail) path-canon split with explicit rules.
 - **`templates/openspec-slice.md.template`** — copyable starting point for the slicing artefact. Schema includes change-ID table (with bounded context, FRs, journeys, components, dependencies) plus per-change scope notes (copy-paste-quality prose, no `<TBD>` placeholders).
 
 ### Added — Cross-cutting discipline specs (lifted from external audits)
 
-- **`specs/output-completeness.md`** v1.0.0 — anti-skeleton-output rules. Bans `// TODO`, "for brevity", placeholder skeletons, ellipses-as-substitute, and self-narration. Defines the deferral protocol (the only legitimate exit) and the PAUSED check-in pattern. Pattern adopted from [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill)'s `output-skill`; adapted for the hybrid flow.
-- **`specs/verification-before-completion.md`** v1.0.0 — iron law: no claim of completion without fresh verification output in the same message. Defines what "fresh verification" means (after the work, observable output, specific to the claim) and the synthesis-claim exception for non-code artefacts. Pattern adopted from [obra/superpowers](https://github.com/obra/superpowers) (MIT, © Jesse Vincent); adapted for the hybrid flow.
+- **`docs/rules/output-completeness.rule.md`** v1.0.0 — anti-skeleton-output rules. Bans `// TODO`, "for brevity", placeholder skeletons, ellipses-as-substitute, and self-narration. Defines the deferral protocol (the only legitimate exit) and the PAUSED check-in pattern. Pattern adopted from [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill)'s `output-skill`; adapted for the hybrid flow.
+- **`docs/rules/verification-before-completion.rule.md`** v1.0.0 — iron law: no claim of completion without fresh verification output in the same message. Defines what "fresh verification" means (after the work, observable output, specific to the claim) and the synthesis-claim exception for non-code artefacts. Pattern adopted from [obra/superpowers](https://github.com/obra/superpowers) (MIT, © Jesse Vincent); adapted for the hybrid flow.
 
 ### Added — Verdict vocabulary
 
@@ -1393,7 +1393,7 @@ Major hardening of the BMAD↔OpenSpec hybrid flow. v0.7.0 closes the seam betwe
 
 ### Roadmap
 
-- **`specs/v0.8.0-roadmap.md`** v0.1.0 — records design objectives + work items deferred from v0.7.0 to v0.8.0. Highlights:
+- **`docs/concepts/v0.8.0-roadmap.md`** v0.1.0 — records design objectives + work items deferred from v0.7.0 to v0.8.0. Highlights:
   - **KISS single-versioning** (Master, 2026-04-28): collapse `ai-playbook` + `consumer-d-skills` semver streams to one. Reduces AGENTS.md drift and per-consumer pin inconsistency.
   - Complete the `bmad-create-ux-design` v1→v2 migration (workflow.md was rewritten in v0.6.0; the steps/ files underneath still produce the v1 monolithic doc).
   - Vendor / lift `systematic-debugging` from `obra/superpowers` for the `/opsx:apply` worker debug path; wire the "3 failed fixes" rule to emit `⛔ ARCHITECTURE QUESTIONED`.
@@ -1441,7 +1441,7 @@ Substantial expansion of the UX Track from v0.5.0's framing into operational rul
 
 ### Added
 
-- **`specs/ux-track.md` v2.0.0** — rewritten and expanded. New sections:
+- **`docs/concepts/ux-track.md` v2.0.0** — rewritten and expanded. New sections:
   - §3 **Three-step order** (mandatory): inspiration → palette validation → variant generation. Visual artefact at every step; text descriptions never substitute.
   - §5 **Variant generation pattern** — one agent per creative engine in parallel; the 5-engine starter set codified (impeccable, taste-skill, huashu-design, ui-ux-pro-max-skill, awesome-design-md).
   - §6 **Self-documenting deliverables** — banner + HTML head-comment audit format with internal-only citations (`DESIGN.md §N`, never external repo paths).
@@ -1455,7 +1455,7 @@ Substantial expansion of the UX Track from v0.5.0's framing into operational rul
   - §14 **WCAG-AA verification ritual** — every new text pair recorded with ratio in the audit.
   - §15 **Anti-pattern: hand-coded mocks pretending to be design** — they are baseline only.
 - **`templates/ux/`** — 6 copyable templates: `inspiration.md.template`, `palette-options.html.template`, `variants-index.html.template`, `DESIGN.md.template`, `journey.md.template`, `components.md.template`. Consumers copy on first use.
-- **`specs/runbook-bmad-openspec.md` §2.3** — expanded UX Track summary inline (the three steps + Phase A/B + OKLCH discipline) so the runbook is self-explanatory without requiring a jump to ux-track.md for the high-level shape.
+- **`docs/concepts/runbook-bmad-openspec.md` §2.3** — expanded UX Track summary inline (the three steps + Phase A/B + OKLCH discipline) so the runbook is self-explanatory without requiring a jump to ux-track.md for the high-level shape.
 - **`skills/bmad-create-ux-design/workflow.md`** — rewritten to invoke the three-step order explicitly, point at the templates, and require: parallel agent fan-out at step 3, OKLCH declarations, internal-only citations, WCAG-AA verification block in the audit.
 
 ### Changed
@@ -1464,7 +1464,7 @@ Substantial expansion of the UX Track from v0.5.0's framing into operational rul
 
 ### Removed
 
-- **`specs/ux-track.md` §6.1 License compliance** (from v1.0.0). Was scaffolding; replaced with a one-line "consumers must check each engine's licence against their own project's licensing constraints" in the curated-engines table. Engines are referenced, never vendored — licensing remains the consumer's responsibility for their own use case.
+- **`docs/concepts/ux-track.md` §6.1 License compliance** (from v1.0.0). Was scaffolding; replaced with a one-line "consumers must check each engine's licence against their own project's licensing constraints" in the curated-engines table. Engines are referenced, never vendored — licensing remains the consumer's responsibility for their own use case.
 
 ### Notes
 
@@ -1514,11 +1514,11 @@ changes, and component sprawl during `/opsx:apply`.
 
 ### Added
 
-- `specs/ux-track.md` (v1.0.0) — full spec for the UX Track: position in
+- `docs/concepts/ux-track.md` (v1.0.0) — full spec for the UX Track: position in
   workflow, artefacts (`docs/ux/DESIGN.md` 9-section format + per-journey
   files + components.md), Storybook-first component-library curation pattern,
   design-review trigger for non-trivial components, QA discipline mirroring
-  [parallel-review.md](specs/parallel-review.md), and curated external-skill
+  [parallel-review.md](docs/concepts/parallel-review.md), and curated external-skill
   recommendations.
 - Curated third-party skill recommendations (not vendored — distribution per
   RFC-0001): pbakaus/impeccable + Leonxlnx/taste-skill (drop-in),
@@ -1527,8 +1527,8 @@ changes, and component sprawl during `/opsx:apply`.
 
 ### Changed
 
-- `specs/runbook-bmad-openspec.md` — phase map updated to show UX Track in
-  parallel with Architecture; new §2.3 cross-references [ux-track.md](specs/ux-track.md);
+- `docs/concepts/runbook-bmad-openspec.md` — phase map updated to show UX Track in
+  parallel with Architecture; new §2.3 cross-references [ux-track.md](docs/concepts/ux-track.md);
   Gate B now waits on both Architecture and UX (HITL summary updated). Headless
   / API-only consumers declare `no-ui-consumer` in `docs/ux/README.md` and skip
   the UX gate.
@@ -1537,7 +1537,7 @@ changes, and component sprawl during `/opsx:apply`.
 
 - **Backward-compatible** for consumers shipping a UI: their existing UX work
   (if any) needs to be expressed in the new `docs/ux/` layout. Per
-  [contributing.md](docs/contributing.md) §6, deviations from the recommended
+  [contributing.md](docs/concepts/contributing.md) §6, deviations from the recommended
   DESIGN.md format land in the consumer's `AGENTS.md` §7.
 - **No-op** for headless / API-only consumers via the one-line escape hatch.
 
@@ -1569,10 +1569,10 @@ now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
   copy). 65 BMAD agents/workflows/QA + 4 OpenSpec commands = 69 skills.
 - `rfcs/RFC-0001-skills-distribution.md` — full design rationale, alternatives
   considered, KPIs, FRs/NFRs, migration recipe per consumer.
-- `specs/skills-distribution.md` — formal contract for the new distribution
+- `docs/concepts/skills-distribution.md` — formal contract for the new distribution
   surface (canonical layout, pinning model, materialisation algorithm, drift
   detection, propagation, fallback, security, KPIs).
-- `runbooks/skills-version-bump.md` — maintainer procedure for cutting a tag
+- `docs/runbooks/skills-version-bump.md` — maintainer procedure for cutting a tag
   on a source repo and walking it through the propagation workflow PR-by-PR.
 - `scripts/_skills_materialiser.py` (533 LOC) — idempotent submodule
   sparse-checkout + merge + per-LLM mirror copy. Public entry point
@@ -1598,7 +1598,7 @@ now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
 
 ### Changed
 
-- `specs/skills-registry.md` bumped to v2.0.0: scope clarified to
+- `docs/concepts/skills-registry.md` bumped to v2.0.0: scope clarified to
   **discovery-only** (catalog metadata, never content). The `source` field
   format changes to canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
 - `scripts/bootstrap.py`: new `--refresh-skills` flag re-runs only the
@@ -1631,7 +1631,7 @@ now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
   to this release — verified to fail also at parent commit `01fccf9`.
 - Smoke test (Win11 Pro, Git Bash + native PowerShell): bootstrap dry-run +
   live materialisation + drift inject + `--fix` regen + drift re-check all
-  pass per `runbooks/skills-version-bump.md` smoke recipe.
+  pass per `docs/runbooks/skills-version-bump.md` smoke recipe.
 - `consumer-d-skills` test suite (21 tests) green post-restructure. Catalog
   smoke test detects 64 valid skills with `SKILLS_CATALOG_DIR=./skills` (4
   pre-existing broken-frontmatter skills are tracked as backlog cleanup).
@@ -1662,7 +1662,7 @@ This release ships the complete one-command onboarding flow.
 - `templates/new-project/mcp-servers.project.yaml.tmpl` — v1 layer file declaring the Hindsight server with the project's bank id.
 - `templates/new-project/.cursor/rules/00-dispatcher.mdc.tmpl` — Cursor thin router (alwaysApply: true).
 - `templates/new-project/.gitignore.tmpl` — playbook integration entries (overrides.log, hindsight-queue.jsonl, etc).
-- `runbooks/onboard-new-project.md` — canonical one-page procedure: `gh repo create` → `bootstrap.py --register-in <playbook>` → 3 placeholders in AGENTS.md → 2 commits → done. Covers SOPS path overrides, rollback, and the verification suite.
+- `docs/runbooks/onboard-new-project.md` — canonical one-page procedure: `gh repo create` → `bootstrap.py --register-in <playbook>` → 3 placeholders in AGENTS.md → 2 commits → done. Covers SOPS path overrides, rollback, and the verification suite.
 
 ### Changed
 
@@ -1690,7 +1690,7 @@ honestly, close the manual-vs-automation script duplication.
 
 ### Added
 
-- `specs/enforcement-status.md` — full matrix of every spec with one of
+- `docs/concepts/enforcement-status.md` — full matrix of every spec with one of
   ✅ wired / 🟡 partial / 📋 spec-only / 📌 deferred status. Three most
   aspirational specs (`agent-contract.md`, `parallel-review.md`,
   `agentic-failures.md`) carry banner pointers to it. Lets future
@@ -1739,7 +1739,7 @@ honestly, close the manual-vs-automation script duplication.
   remains as a deprecation shim that re-exports + emits a `DeprecationWarning`;
   will be removed in v1.0.0. Update invocations:
   `python -m scripts.retain_memory ...`.
-- `specs/bootstrap-directive.md` — rewritten to reflect SessionStart-hook
+- `docs/rules/bootstrap-directive.rule.md` — rewritten to reflect SessionStart-hook
   reality. Step 2 now says "Consult `.claude/injected-context.md`"
   (populated by the auto-fired hook BEFORE the session starts) instead of
   the deprecated "Call MCP `hindsight.recall`" wording (the MCP tool isn't
@@ -1800,7 +1800,7 @@ across 6+ files.
 
 - `consumer-b/` (third active consumer) — `.ai-playbook/` submodule pinned to v0.2.2; `AGENTS.md` (v1 dispatcher); `mcp-servers.project.yaml` (project layer with `consumer-b` bank); `.claude/settings.json` (SessionStart hook); `.mcp.json` + `.gemini/settings.json` rendered. `consumers.yaml` updated.
 - `consumer-d/mcp-servers.project.yaml` — playbook-side project layer for the render pipeline. The legacy `mcp-servers.yaml` (v2-metadata SSOT for helm + desktop-stack + scripts) stays untouched; the playbook validator now resolves `mcp-servers.project.yaml` first, falls back to `mcp-servers.yaml` only when the legacy file declares `schema: mcp-servers/v1`. consumer-d's `.mcp.json` rendered (23 servers across base+project+personal).
-- `runbooks/rotate-secrets.md` §"Fine-grained PAT scope" — explicit GitHub UI fields (token name, description, resource owner, expiration, repos-to-select, exact permission grants).
+- `docs/runbooks/rotate-secrets.md` §"Fine-grained PAT scope" — explicit GitHub UI fields (token name, description, resource owner, expiration, repos-to-select, exact permission grants).
 
 ### Changed
 
@@ -1822,16 +1822,16 @@ across 6+ files.
 
 - `scripts/_hindsight.py` — shared HTTP client (CF Access auth + bearer fallback + 45 s default timeout). 9 tests.
 - `scripts/retain_lesson.py` — write side. CLI: `--content`, `--bulk JSONL`, `--replay-queue`. Sanitises through `secrets_scan` before POST. Hard-blocks API-key shapes, soft-redacts softer matches. Queues to `.ai-playbook/hindsight-queue.jsonl` when Hindsight is unreachable. 9 tests.
-- `runbooks/hindsight-retain.md` — when to retain, how to invoke, sanitisation contract, degraded-mode replay, verify-it-landed.
+- `docs/runbooks/hindsight-retain.md` — when to retain, how to invoke, sanitisation contract, degraded-mode replay, verify-it-landed.
 - `consumer-c-legacy/.claude/settings.json` + `consumer-d/.claude/settings.json` — SessionStart hooks invoking `inject_context.py` with the project bank id (timeout 60 s).
 - `consumer-c-legacy/mcp-servers.yaml` (project layer, schema mcp-servers/v1) + rendered `consumer-c-legacy/.mcp.json` + `consumer-c-legacy/.gemini/settings.json` (11 servers from base+project layers; personal layer excluded since consumer-c-legacy is public AGPL).
 
 ### Changed
 
 - `scripts/inject_context.py` — recall now goes through `_hindsight.post_recall` against the real API path `/v1/default/banks/{bank_id}/memories/recall` with CF Access headers. Bank id rides in URL, not body. Maps `top_k` → `max_tokens` (~800 tokens per top_k unit). 21 tests pass.
-- `specs/env-vars.md` §HINDSIGHT_* — replaced bearer-only contract with the real auth resolution order: CF Access pair preferred, bearer fallback. Documents the 45 s timeout and queue file.
-- `specs/memory-hierarchy.md` §5 — added the canonical retain CLI invocation as the lead bullet.
-- `docs/session-start-hook.md` — bumped hook timeout from 15 s to 60 s; updated command to use full path + `--bank-id <slug>`.
+- `docs/concepts/env-vars.md` §HINDSIGHT_* — replaced bearer-only contract with the real auth resolution order: CF Access pair preferred, bearer fallback. Documents the 45 s timeout and queue file.
+- `docs/concepts/memory-hierarchy.md` §5 — added the canonical retain CLI invocation as the lead bullet.
+- `docs/concepts/session-start-hook.md` — bumped hook timeout from 15 s to 60 s; updated command to use full path + `--bank-id <slug>`.
 
 ### Replayed to Hindsight
 
@@ -1849,8 +1849,8 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 - `scripts/propagate_bump.py` — CI-side twin that reads `consumers.yaml` + `$GH_TOKEN`, clones each active consumer, bumps submodule, opens PR via `gh`. Idempotent (skips if PR already open). Emits `warn` notifications per PR.
 - `.github/workflows/propagate-playbook-bump.yml` — event-driven primary propagation path: fires `on: push: tags: v*.*.*`, runs `propagate_bump.py`, uploads notifications.jsonl. Needs repo secret `PLAYBOOK_PROPAGATION_TOKEN`.
 - `consumer-d/langgraph-aiops/workflows/playbook_bump_propagator.py` + CronJob wiring — daily circuit-breaker for the GH Action: queries consumer submodule SHAs, re-invokes propagator for laggards, emits `warn` on every firing (meaning the Action missed a fire).
-- `specs/dispatcher-chain.md`, `specs/bootstrap-directive.md`, `docs/bootstrap-new-project.md` — 3 real v0.1.0 stubs closed to full v1.0.0 content.
-- `specs/agent-contract.schema.json` — JSON Schema file extracted from the spec prose (was "stub pending T06 follow-up"); now the authoritative validation target.
+- `docs/concepts/dispatcher-chain.md`, `docs/rules/bootstrap-directive.rule.md`, `docs/tutorials/03-bootstrap-new-project.md` — 3 real v0.1.0 stubs closed to full v1.0.0 content.
+- `schemas/schema-agent-contract.json` — JSON Schema file extracted from the spec prose (was "stub pending T06 follow-up"); now the authoritative validation target.
 - README.md — full directory map (35 specs, 24 scripts, templates, docs, routers, rfcs, tests) + 4 persona getting-started paths + honest status.
 
 ### Changed
@@ -1858,13 +1858,13 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 - 13 in-prose "stub" references inside v1.0.0 specs resolved (scripts they pointed at are fully populated).
 - `scripts/_break_glass.py` — wires `ai_playbook.override.*` OTel span via `trace_emit.override_attrs` (no-op safe when OTel absent). Removes the stale T07c TODO.
 - `scripts/mcp/validate.py` — stale "wire through _break_glass" TODO removed (the wiring already existed).
-- `docs/quickstart.md`, `docs/quickstart-lessons.md`, `docs/start-here.md`, `AGENTS.md` — outdated "bootstrap.py is a stub" warnings replaced with real usage.
+- `docs/tutorials/02-quickstart.md`, `docs/tutorials/04-quickstart-lessons.md`, `docs/tutorials/01-start-here.md`, `AGENTS.md` — outdated "bootstrap.py is a stub" warnings replaced with real usage.
 
 ### Notes
 - Deferred-by-design items (not addressed here, not stubs):
-  - `specs/incident-response.md` activates at first paying client.
-  - `docs/model-migration.md` activates at first pinned-model retirement.
-  - `specs/notification-queue.md` full spec is T25+ (Phase 5).
+  - `docs/concepts/incident-response.md` activates at first paying client.
+  - `docs/concepts/model-migration.md` activates at first pinned-model retirement.
+  - `docs/concepts/notification-queue.md` full spec is T25+ (Phase 5).
 - Consumer pins today: consumer-c-legacy + consumer-d still at v0.1.0. The propagation loop above will open bump-to-v0.2.1 PRs on tag push; humans merge per propose-only HITL convention.
 
 ## [0.2.0] — 2026-04-23 — MVP complete (T01–T23)
@@ -1872,22 +1872,22 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 ### Added (Batch 10 — governance + upstream sync, 3 parallel subagents)
 
 **Subagent A — T22a/c/d/e/h/i governance docs + bootstrap (ai-playbook):**
-- `specs/incident-response.md` — deferred IR placeholder; activation triggers named.
-- `specs/role-matrix.md` — 4-role matrix + deferred k8s RBAC mapping.
-- `specs/data-retention.md` — retention table (10+ rows), deletion paths, GDPR-adjacent anonymisation.
-- `specs/post-mortem.md` + `templates/post-mortem.md.tmpl` — S1/SYSTEMIC trigger, 7-day due, required outcomes, 7 anti-patterns.
+- `docs/concepts/incident-response.md` — deferred IR placeholder; activation triggers named.
+- `docs/concepts/role-matrix.md` — 4-role matrix + deferred k8s RBAC mapping.
+- `docs/concepts/data-retention.md` — retention table (10+ rows), deletion paths, GDPR-adjacent anonymisation.
+- `docs/concepts/post-mortem.md` + `templates/post-mortem.md.tmpl` — S1/SYSTEMIC trigger, 7-day due, required outcomes, 7 anti-patterns.
 - `scripts/bootstrap.py` (~534 lines, **full impl replacing stub**) — submodule add + pin, template copy with placeholder substitution, `--personal`, `--dry-run`, `--playbook-path` offline fallback via break-glass.
 - `scripts/deprecation_watcher.py` (~446 lines) — scans registry consumers + playbook for v0 schema, env-alias leaks, deprecated MCP IDs, stale lifecycle reports. `--strict`/`--json` modes; reads optional `specs/deprecations.yaml`.
 - `tests/test_bootstrap.py` (28 tests; **skip removed**) + `tests/test_deprecation_watcher.py` (18 tests).
 
 **Subagent B — T22f/g/j/k governance ops (ai-playbook):**
-- `specs/slos.md` — 8 SLOs with monthly review cadence + RFC escalation.
-- `specs/rollout-strategy.md` — 5-phase announcement path, 1-minor-cycle OR 90-day deprecation window, emergency security bypass.
-- `docs/curriculum.md` — 4-week dev learning path (Operator / Reviewer / Contributor / Maintainer candidate) with exit criteria.
-- `specs/channels.md` — solo-state + 8-row channels-by-purpose table + team-growth path + anti-patterns.
+- `docs/concepts/slos.md` — 8 SLOs with monthly review cadence + RFC escalation.
+- `docs/concepts/rollout-strategy.md` — 5-phase announcement path, 1-minor-cycle OR 90-day deprecation window, emergency security bypass.
+- `docs/tutorials/05-curriculum.md` — 4-week dev learning path (Operator / Reviewer / Contributor / Maintainer candidate) with exit criteria.
+- `docs/concepts/channels.md` — solo-state + 8-row channels-by-purpose table + team-growth path + anti-patterns.
 
 **Subagent C — T23 upstream sync (ai-playbook + consumer-d):**
-- `specs/upstream-sync.md` + `templates/PATCHES.md.tmpl` + `docs/fork-inventory.md` (with `TODO: clarify` on 4 upstream URLs).
+- `docs/concepts/upstream-sync.md` + `templates/PATCHES.md.tmpl` + `docs/tutorials/07-fork-inventory.md` (with `TODO: clarify` on 4 upstream URLs).
 - `scripts/upstream_sync.py` (~528 lines) — local inspection tool, `list`/`status`/`refresh`/`mark-merged` subcommands. Refresh is propose-only — no auto-merge.
 - `tests/test_upstream_sync.py` — 20 tests.
 - `consumer-d/langgraph-aiops/workflows/upstream_refresher.py` (~538 lines) — weekly LangGraph workflow; propose-only, gated by `hitl.request_approval`; decision log written to `reports/upstream-refresh/`.
@@ -1901,12 +1901,12 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 
 ### Open TODOs remaining at v0.2.0
 
-- Upstream URLs for 4 forks (hindsight/hermes/paperclip/lightrag) — Arturo to confirm in `docs/fork-inventory.md`.
-- `Last rebase` timestamp convention in `PATCHES.md` — default ISO-8601; flagged in `specs/upstream-sync.md`.
+- Upstream URLs for 4 forks (hindsight/hermes/paperclip/lightrag) — Arturo to confirm in `docs/tutorials/07-fork-inventory.md`.
+- `Last rebase` timestamp convention in `PATCHES.md` — default ISO-8601; flagged in `docs/concepts/upstream-sync.md`.
 - T18 LangGraph workflows (Batch 8B) — NOT deployed; Arturo runs `consumer-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure) to activate on VPS.
 - T19 Dashboard (Batch 9A) — deploy helm/consumer-d-stack/ manifest; 5-step runbook.
 - `consumer-d-skills` HTTP service — only the API contract is spec'd (Batch 9B `docs/api-contract.md`); the service itself is future work.
-- IR runbook (Batch 10A `specs/incident-response.md`) — deferred until first paying client.
+- IR runbook (Batch 10A `docs/concepts/incident-response.md`) — deferred until first paying client.
 - APPLY_FIX mode (T29 Phase 5) — every propose-mode helper carries the stub; real write capability after stability proof.
 
 ### MVP summary
@@ -1930,9 +1930,9 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 **Subagent B — T20 Skills Registry Integration (ai-playbook `b44833c` + consumer-d-skills `6d58f20`):**
 - `scripts/skills_registry.py` (~391 lines) — `list` / `show` CLI + importable `list_skills()` / `skill_by_name()`. Stdlib `urllib` only. Canonical errors; `--force-with-reason` degrades to empty list.
 - `tests/test_skills_registry.py` — 26 tests (all pass; mocks `urlrequest.urlopen`).
-- `specs/skills-registry.md` — purpose, API contract, scope model, caching, fallback, security, cross-refs.
-- `specs/mcp-servers-schema.md` — expanded from 28-line stub to 249-line full spec (3-layer merge, field contract, skills-registry deep dive, validator/render rules, anti-patterns).
-- `specs/env-vars.md` — added `SKILLS_REGISTRY_*` table.
+- `docs/concepts/skills-registry.md` — purpose, API contract, scope model, caching, fallback, security, cross-refs.
+- `docs/concepts/mcp-servers-schema.md` — expanded from 28-line stub to 249-line full spec (3-layer merge, field contract, skills-registry deep dive, validator/render rules, anti-patterns).
+- `docs/concepts/env-vars.md` — added `SKILLS_REGISTRY_*` table.
 - `consumer-d-skills/docs/api-contract.md` + `README.md` — documents the HTTP contract the playbook integration expects; the service implementation itself remains future work.
 
 ### Test suite totals (Batch 9 close)
@@ -1953,7 +1953,7 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 **Subagent A — T17 live docs + drift (ai-playbook):**
 - `scripts/drift_check.py` (~644 lines) — full implementation (was stub). 4 checks (`inherits_from` pin lag, auto-managed section staleness, spec xref drift, taxonomy term drift with 3-file noise filter). CLI `--check`, `--fix` (auto-managed only), `--force-with-reason`. Canonical errors.
 - `scripts/auto_managed.py` (~562 lines) — new. Public API `compute_expected` / `find_sections` / `regenerate` / `apply_fix`. Supports 4 source shapes (universal-principles, taxonomy:runtime/config, verdict-contract:levels) + generic `<spec>:<anchor>` fallback. Idempotent; skips fenced code blocks.
-- `specs/auto-managed-sections.md` — marker format, source shapes, merge strategy, anti-patterns.
+- `docs/concepts/auto-managed-sections.md` — marker format, source shapes, merge strategy, anti-patterns.
 - `tests/test_auto_managed.py` (24 tests) + `tests/test_drift_check.py` (18 tests, skip marker removed).
 - `.github/workflows/drift-check.yml` — active weekly cron (MON 07:00 UTC) with 48-hour T18a sentinel stagger via `heartbeat-t18a.txt` mtime check.
 
@@ -1999,7 +1999,7 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 ### Added (Batch 6 — T15 cross-OS validation)
 
 **Windows baseline — real dry-run 2026-04-23:**
-- `docs/quickstart-lessons.md` fully populated with Windows timings + 4 real friction points. Total wall-clock ~18 min (inside 25–40 min quickstart band).
+- `docs/tutorials/04-quickstart-lessons.md` fully populated with Windows timings + 4 real friction points. Total wall-clock ~18 min (inside 25–40 min quickstart band).
 
 **macOS / Linux / WSL2 — predicted friction from static analysis:**
 - macOS: `python3` vs `python` alias, Xcode CLT git prompt, `brew install sops age gitleaks`, BSD vs GNU util gotchas, APFS case-insensitivity caveat.
@@ -2024,14 +2024,14 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 - Tests: `test_doctor.py` (26), `test_cost_report.py` (14), `test_lifecycle_check.py` (24).
 
 **Subagent B — T14b/c/d/e/g/h/i-spec docs+specs (10 files, 982 lines):**
-- `docs/start-here.md` — 1-pager (3-level dispatcher ASCII, first 5 commands, needs→file routing).
-- `docs/quickstart.md` — 8-step honest 25–40 min walkthrough for `acme-shop` with per-step time budget + "what can go wrong" sub-sections.
-- `docs/quickstart-lessons.md` — empty per-OS skeleton ready for T15 dry-run findings.
+- `docs/tutorials/01-start-here.md` — 1-pager (3-level dispatcher ASCII, first 5 commands, needs→file routing).
+- `docs/tutorials/02-quickstart.md` — 8-step honest 25–40 min walkthrough for `acme-shop` with per-step time budget + "what can go wrong" sub-sections.
+- `docs/tutorials/04-quickstart-lessons.md` — empty per-OS skeleton ready for T15 dry-run findings.
 - `FEEDBACK.md` — formalised: format, triage cadence, 3 good-gripe examples, 3 anti-patterns.
-- `specs/notification-policy.md` — 4 levels, rate limits, channel contract, per-event policy table (14 events).
-- `docs/contributing.md` — 4-role matrix, RFC 7/30/90-day SLAs, code style + test discipline + backwards-compat (full governance lands T22).
+- `docs/concepts/notification-policy.md` — 4 levels, rate limits, channel contract, per-event policy table (14 events).
+- `docs/concepts/contributing.md` — 4-role matrix, RFC 7/30/90-day SLAs, code style + test discipline + backwards-compat (full governance lands T22).
 - `templates/retro/{post-archive,weekly,monthly}.md.tmpl` — retro templates per cadence.
-- `specs/retrospective-cadence.md` — 3 cadences, template mapping, output layout, automation contract for `lifecycle_check.py`, 4 anti-patterns.
+- `docs/concepts/retrospective-cadence.md` — 3 cadences, template mapping, output layout, automation contract for `lifecycle_check.py`, 4 anti-patterns.
 
 ### Test suite totals (Batch 5 close)
 
@@ -2047,12 +2047,12 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 ### Added (Batch 4 — project workflows)
 
 **T11 — Runbook BMAD + OpenSpec:**
-- `specs/runbook-bmad-openspec.md` (canonical universal runbook — 6 HITL gates A..F, phase map, BMAD Discovery artefacts + gates, OpenSpec per-artefact sequence, max-2-rework, self-validation 5-gate checklist, lifecycle state diagram, retro cadence summary).
+- `docs/concepts/runbook-bmad-openspec.md` (canonical universal runbook — 6 HITL gates A..F, phase map, BMAD Discovery artefacts + gates, OpenSpec per-artefact sequence, max-2-rework, self-validation 5-gate checklist, lifecycle state diagram, retro cadence summary).
 
 **T12 — Context auto-inject:**
 - `scripts/inject_context.py` (full implementation, ~340 lines). POST `<HINDSIGHT_URL>/recall` with `{bank_id, query, top_k}`; normalises entries/results envelopes; auto-resolves `project` + `bank_id` from consumer `AGENTS.md` frontmatter; sanitises output through `secrets_scan.sanitise` before write; writes `<consumer>/.claude/injected-context.md` with per-entry markdown blocks + metadata; `DEGRADED_CONTEXT` banner path on URL errors / timeouts / credentials missing; break-glass honoured with audit-logged override.
 - `tests/test_inject_context.py` (21 tests — all pass). Covers AGENTS.md introspection, HTTP normalisation (list + envelope shapes), degraded paths (HTTPError / URLError / malformed JSON), rendering (empty / populated / degraded / error banners), sanitiser integration, CLI paths (missing creds, force-with-reason, dry-run, happy path, bank-id override).
-- `docs/session-start-hook.md` — how to wire it into Claude Code `SessionStart`, Gemini CLI, Cursor, plus dry-run + break-glass docs.
+- `docs/concepts/session-start-hook.md` — how to wire it into Claude Code `SessionStart`, Gemini CLI, Cursor, plus dry-run + break-glass docs.
 
 **T13 — Gotcha templates:**
 - `templates/gotcha.md.tmpl` — canonical public and personal gotcha entry shapes with worked examples, 6 writer rules (one-concept-per-bullet, date-stamp, why+how-to-avoid, link-to-evidence, archive-90-day, never-retain-secrets), cross-refs to `memory-hierarchy.md` / `verdict-contract.md` / `retrospective-cadence.md`.
@@ -2078,13 +2078,13 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 - Tests: 28/28 pass (`test_mcp_validate.py`, `test_mcp_render.py`).
 
 **Subagent C (T09 scripts + pre-commit + env-vars):**
-- `scripts/_break_glass.py` (NEW) — shared helper per `specs/break-glass.md`. `add_break_glass_flag`, `apply_break_glass`, min reason length 10, logs to `.ai-playbook/overrides.log`.
+- `scripts/_break_glass.py` (NEW) — shared helper per `docs/rules/break-glass.rule.md`. `add_break_glass_flag`, `apply_break_glass`, min reason length 10, logs to `.ai-playbook/overrides.log`.
 - `scripts/schema_validate.py` — full AGENTS.md frontmatter validator + `--autofix` (inject defaults, normalise `updated`, slugify `project`, pin `inherits_from`). Honours WILL/WON'T lists from migration-guide.md.
 - `scripts/openspec_validate.py` — thin wrapper around `npx @fission-ai/openspec@latest validate`. Cross-platform npx lookup.
 - `scripts/verdict_lint.py` — enforces verdict literals + S1-S4 severities on artefacts; `--shape artifact|error|script-cli`; S0 audit-only; never overridable (exit 3 on `--force-with-reason`).
 - `scripts/block_manual_spec_edit.py` — pre-commit hook blocking hand-edits to `openspec/specs/*.md` unless commit message carries `openspec-archive:` marker.
 - `.pre-commit-config.yaml` — full hook chain (trailing-whitespace, eof-fixer, check-yaml/json, large-files 500KB, gitleaks, schema-validate, mcp-validate, block-manual-spec-edit, verdict-lint).
-- `specs/env-vars.md` — fully enumerated. Resolved the `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` alias TODO (canonical wins; bare alias accepted with doctor.py warning; removal in v2.0.0).
+- `docs/concepts/env-vars.md` — fully enumerated. Resolved the `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` alias TODO (canonical wins; bare alias accepted with doctor.py warning; removal in v2.0.0).
 - Tests: 60/60 pass (`test_schema_validate.py`, `test_verdict_lint.py`, `test_break_glass.py`, `test_block_manual_spec_edit.py`).
 
 **Subagent D (T10 secrets + injection):**
@@ -2100,24 +2100,24 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 ### Resolved Batch 2 TODOs
 - `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` alias (resolved in `env-vars.md`).
 - `--autofix` behaviour (shipped in `schema_validate.py`).
-- Stable finding_id for max-2-rework — deferred: `verdict_lint.py` currently uses `title` substring matching; formal `finding_id` remains future work (tracked by the heuristic note in `specs/verdict-contract.md` §3).
+- Stable finding_id for max-2-rework — deferred: `verdict_lint.py` currently uses `title` substring matching; formal `finding_id` remains future work (tracked by the heuristic note in `docs/rules/verdict-contract.rule.md` §3).
 
 ## [Unreleased] — T02 + Batch 2
 
 ### Added (Batch 2 — universal norm specs populated from stubs)
 - **`specs/agents-md-v1.schema.json`** (T03a): tightened patterns (`version` semver, `inherits_from` github pins, `project` slug, `owner` email), added `$comment` rationale, `examples[]` with 2 cases.
-- **`specs/migration-guide.md`** (T03b): v0→v1 procedure, warn-only stance at v0.1.x, hard-fail at v2.0, autofix contract, acme-shop worked example (before/after diff), 5 common pitfalls.
-- **`specs/taxonomy.md`** (T03c): 25 entries across runtime/config/process groupings + 5 "hammered distinctions" (tool-vs-skill, hook-vs-script, subagent-vs-agent, personal-add-on-vs-project-dispatcher, dispatcher-vs-router).
-- **`specs/model-routing.md`** (T04a): 9-class task taxonomy, fallback semantics (1-step silent, ≥2-step visible), provider quirks (Anthropic/Gemini/OpenRouter/Ollama), OTel attribute table.
-- **`specs/degradation-modes.md`** (T04b): 5-state enum (HEALTHY/DEGRADED_CAPACITY/_QUALITY/_CONTEXT/OFFLINE), rolling-window triggers, circuit breaker (30s floor, 5min cap), composition rules, T19 dashboard contract.
-- **`specs/prompt-caching.md`** (T04c): 9-tier stable→volatile rule, provider-specific mechanics (`cache_control`+5min TTL, Context Caching API+32k min, OpenAI-compat implicit, Ollama KV warmth), 6 anti-patterns, worked 3-turn example, `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` knob.
-- **`specs/parallel-review.md`** (T05a): 3-layer pattern, 3 canonical prompts (Blind Hunter + Edge Case + Acceptance ≥30 lines each), triage, cost budgets (Sonnet×3 default), discipline rules.
-- **`specs/agentic-failures.md`** (T05b): 12-entry catalog (hallucination, infinite_loop, prompt_injection, goal_drift, over_confidence, context_collapse, tool_selection_error, premature_completion, untracked_state_mutation, plan_mode_escape, credential_exposure, cascade_failure) with signal + detector + OTel attr + example each.
-- **`specs/verdict-contract.md`** (T05c): `✅/⚠️/❓` canonical strings, S0-S4 rubric, max-2-rework SYSTEMIC escalation, `blocked-by-spec` lifecycle, 3 worked examples, interaction with break-glass.
-- **`specs/memory-hierarchy.md`** (T06a): 4-tier table (session/project/durable-personal/durable-universal), `bank_id` conventions (including `*-personal` suffix), retrieval thresholds, decay policy, handoff to agent-contract.
-- **`specs/agent-contract.md`** (T06b): formal input/return envelopes, field reference tables, `budget_exhausted` synthesized return, JSON Schema (draft 2020-12) inline, RBAC linkage (deferred to T18).
-- **`specs/error-message-standard.md`** (T07a): canonical WHY/WHERE/FIX/OVERRIDE, field contracts, 4 worked examples, exit code table, OTel mapping, linter contract, anti-patterns.
-- **`specs/break-glass.md`** (T07b): `--force-with-reason` contract, min reason length (10), OTel attrs, audit trail (local + durable + retro), shared Python helper interface, override-vs-verdict boundary (never waives S1).
+- **`docs/concepts/migration-guide.md`** (T03b): v0→v1 procedure, warn-only stance at v0.1.x, hard-fail at v2.0, autofix contract, acme-shop worked example (before/after diff), 5 common pitfalls.
+- **`docs/concepts/taxonomy.md`** (T03c): 25 entries across runtime/config/process groupings + 5 "hammered distinctions" (tool-vs-skill, hook-vs-script, subagent-vs-agent, personal-add-on-vs-project-dispatcher, dispatcher-vs-router).
+- **`docs/concepts/model-routing.md`** (T04a): 9-class task taxonomy, fallback semantics (1-step silent, ≥2-step visible), provider quirks (Anthropic/Gemini/OpenRouter/Ollama), OTel attribute table.
+- **`docs/concepts/degradation-modes.md`** (T04b): 5-state enum (HEALTHY/DEGRADED_CAPACITY/_QUALITY/_CONTEXT/OFFLINE), rolling-window triggers, circuit breaker (30s floor, 5min cap), composition rules, T19 dashboard contract.
+- **`docs/concepts/prompt-caching.md`** (T04c): 9-tier stable→volatile rule, provider-specific mechanics (`cache_control`+5min TTL, Context Caching API+32k min, OpenAI-compat implicit, Ollama KV warmth), 6 anti-patterns, worked 3-turn example, `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` knob.
+- **`docs/concepts/parallel-review.md`** (T05a): 3-layer pattern, 3 canonical prompts (Blind Hunter + Edge Case + Acceptance ≥30 lines each), triage, cost budgets (Sonnet×3 default), discipline rules.
+- **`docs/concepts/agentic-failures.md`** (T05b): 12-entry catalog (hallucination, infinite_loop, prompt_injection, goal_drift, over_confidence, context_collapse, tool_selection_error, premature_completion, untracked_state_mutation, plan_mode_escape, credential_exposure, cascade_failure) with signal + detector + OTel attr + example each.
+- **`docs/rules/verdict-contract.rule.md`** (T05c): `✅/⚠️/❓` canonical strings, S0-S4 rubric, max-2-rework SYSTEMIC escalation, `blocked-by-spec` lifecycle, 3 worked examples, interaction with break-glass.
+- **`docs/concepts/memory-hierarchy.md`** (T06a): 4-tier table (session/project/durable-personal/durable-universal), `bank_id` conventions (including `*-personal` suffix), retrieval thresholds, decay policy, handoff to agent-contract.
+- **`docs/concepts/agent-contract.md`** (T06b): formal input/return envelopes, field reference tables, `budget_exhausted` synthesized return, JSON Schema (draft 2020-12) inline, RBAC linkage (deferred to T18).
+- **`docs/rules/error-message-standard.rule.md`** (T07a): canonical WHY/WHERE/FIX/OVERRIDE, field contracts, 4 worked examples, exit code table, OTel mapping, linter contract, anti-patterns.
+- **`docs/rules/break-glass.rule.md`** (T07b): `--force-with-reason` contract, min reason length (10), OTel attrs, audit trail (local + durable + retro), shared Python helper interface, override-vs-verdict boundary (never waives S1).
 
 ### Open TODOs surfaced by subagents
 - `--autofix` flag behaviour in migration-guide.md (lands with T09 scripts).
@@ -2125,7 +2125,7 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 - Stable `finding_id` for same-finding detection in max-2-rework (heuristic currently; tighten when `verdict_lint.py` lands in T09).
 
 ### Added (T02-pre, pre-Batch-2)
-- **Projects registry** (`specs/projects-registry.md`) — per-dev `~/.ai-playbook/projects.yaml` mapping project name → absolute path. Eliminates hardcoded paths from dispatchers.
+- **Projects registry** (`docs/concepts/projects-registry.md`) — per-dev `~/.ai-playbook/projects.yaml` mapping project name → absolute path. Eliminates hardcoded paths from dispatchers.
 - `scripts/discover_projects.py` — full (non-stub) implementation. Scans conventional roots + `$AIPLAYBOOK_PROJECTS_ROOTS`, finds `AGENTS.md` with `schema: agents-md/v1`, writes registry.
 - `tests/test_discover_projects.py` — functional tests (10+) covering frontmatter parsing, scan filtering, registry round-trip, and CLI subcommands.
 - `templates/projects.yaml.example` — reference layout.

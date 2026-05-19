@@ -13,10 +13,10 @@ path is `validate` (exit 2 on schema failure) — that subcommand is the
 pre-commit gate on edits to the manifest itself.
 
 Contracts:
-- specs/cleanup-zombies.md (this script's contract, in full)
+- docs/rules/cleanup-zombies.rule.md (this script's contract, in full)
 - specs/zombies-manifest.yaml (canonical manifest)
-- specs/break-glass.md (AIPLAYBOOK_CLEANUP_SKIP env)
-- specs/error-message-standard.md (only `validate` emits structured errors)
+- docs/rules/break-glass.rule.md (AIPLAYBOOK_CLEANUP_SKIP env)
+- docs/rules/error-message-standard.rule.md (only `validate` emits structured errors)
 
 CLI
 ---
@@ -704,7 +704,7 @@ def _cmd_validate(manifest_path: Path) -> int:
         # Per error-message-standard.md — emit WHY / WHERE / FIX / OVERRIDE shape.
         print(f"❌ {exc}", file=sys.stderr)
         print(f"   WHERE: {manifest_path}", file=sys.stderr)
-        print("   FIX: restore the file to valid YAML per specs/cleanup-zombies.md §2", file=sys.stderr)
+        print("   FIX: restore the file to valid YAML per docs/rules/cleanup-zombies.rule.md §2", file=sys.stderr)
         print("   OVERRIDE: none (schema gate is structural)", file=sys.stderr)
         return 2
     errors = _validate_manifest(data)
@@ -713,7 +713,7 @@ def _cmd_validate(manifest_path: Path) -> int:
         for err in errors:
             print(f"   - {err}", file=sys.stderr)
         print(f"   WHERE: {manifest_path}", file=sys.stderr)
-        print("   FIX: align entries with specs/cleanup-zombies.md §2", file=sys.stderr)
+        print("   FIX: align entries with docs/rules/cleanup-zombies.rule.md §2", file=sys.stderr)
         print("   OVERRIDE: none (schema gate is structural)", file=sys.stderr)
         return 2
     print(f"✓ manifest {manifest_path} valid ({len(data['entries'])} entries, version {data['manifest_version']})")

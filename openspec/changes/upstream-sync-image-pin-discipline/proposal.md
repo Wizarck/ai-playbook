@@ -8,7 +8,7 @@
 
 ## Problem
 
-`specs/upstream-sync.md` v1.0.0 covers fork governance for source-tree drift but does NOT mention
+`docs/concepts/upstream-sync.md` v1.0.0 covers fork governance for source-tree drift but does NOT mention
 the containerised-fork pattern. When a fork ships as a Docker overlay (`Dockerfile.overlay` that
 `COPY`s our custom source on top of an upstream-pinned base image), the source tree and the
 base-image pin **must advance together** during every upstream sync. We learned this the hard way
@@ -26,7 +26,7 @@ mistake.
 
 ## Proposed change
 
-Extend `specs/upstream-sync.md` with a new §9 "Containerised forks — base-image pin discipline":
+Extend `docs/concepts/upstream-sync.md` with a new §9 "Containerised forks — base-image pin discipline":
 
 - Names the pattern (overlay Dockerfile + pinned upstream base image).
 - States the rule: bump source AND pin together.
@@ -38,7 +38,7 @@ Renumber existing §9 "Cross-references" → §10. Bump spec version v1.0.0 → 
 
 ## Acceptance
 
-- [x] `specs/upstream-sync.md` gains §9 "Containerised forks — base-image pin discipline".
+- [x] `docs/concepts/upstream-sync.md` gains §9 "Containerised forks — base-image pin discipline".
 - [x] Spec frontmatter version bumped to v1.1.0.
 - [x] Cross-references updated to cite the parent incident (Wizarck/hermes-agent PR #6).
 - [ ] Lesson retained in Hindsight (bank `consumer-d`, kind `gotcha`, tag `upstream-sync,containerised-fork,fork-image-pin`).
@@ -47,4 +47,4 @@ Renumber existing §9 "Cross-references" → §10. Bump spec version v1.0.0 → 
 
 - Parent incident: [Wizarck/hermes-agent#6](https://github.com/Wizarck/hermes-agent/pull/6).
 - Companion doc: [Wizarck/hermes-agent deploy/consumer-d-vps/README.md §"Upstream sync routine"](https://github.com/Wizarck/hermes-agent/blob/main/deploy/consumer-d-vps/README.md).
-- Spec extended: [`specs/upstream-sync.md`](../../../specs/upstream-sync.md) v1.0.0 → v1.1.0.
+- Spec extended: [`docs/concepts/upstream-sync.md`](../../../docs/concepts/upstream-sync.md) v1.0.0 → v1.1.0.

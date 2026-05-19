@@ -3,7 +3,7 @@
 # CI advisor (informational, soft enforcement): post a sticky PR comment
 # recommending squash vs merge-commit based on commit count + diff size.
 #
-# Implements specs/merge-policy.md §3 advisor workflow. Default policy
+# Implements docs/concepts/merge-policy.md §3 advisor workflow. Default policy
 # is merge-commit (per D2.1); squash is reserved for trivial single-intent
 # PRs (D2.2).
 #
@@ -69,7 +69,7 @@ jobs:
           TYPES: ${{ steps.metrics.outputs.distinct_types }}
         run: |
           set -e
-          # Decision rules per specs/merge-policy.md §2:
+          # Decision rules per docs/concepts/merge-policy.md §2:
           #   1 commit AND <50 lines      → SQUASH (trivial single intent)
           #   ≥2 commits with ≥2 types    → MERGE-COMMIT (multi-intent)
           #   ≥2 commits, all same type   → SQUASH (single intent in steps)
@@ -127,9 +127,9 @@ jobs:
               '',
               `**Why**: ${reason}`,
               '',
-              '_This is informational — the maintainer ultimately decides per [`specs/merge-policy.md`](../blob/main/specs/merge-policy.md) §2 / D2.3. The advisor surfaces the policy at review time so the choice is conscious, not default._',
+              '_This is informational — the maintainer ultimately decides per [`docs/concepts/merge-policy.md`](../blob/main/docs/concepts/merge-policy.md) §2 / D2.3. The advisor surfaces the policy at review time so the choice is conscious, not default._',
               '',
-              '<details><summary>Decision rules (specs/merge-policy.md §2)</summary>',
+              '<details><summary>Decision rules (docs/concepts/merge-policy.md §2)</summary>',
               '',
               '- 1 commit AND <50 lines → **SQUASH** (trivial single intent)',
               '- ≥2 commits with ≥2 distinct conv-commit types → **MERGE-COMMIT** (multi-intent)',

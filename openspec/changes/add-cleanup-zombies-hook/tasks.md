@@ -1,17 +1,17 @@
 # tasks — `add-cleanup-zombies-hook`
 
-> TDD-ordered implementation steps. Each task is a worker→QA pair per [runbook-bmad-openspec.md](../../../specs/runbook-bmad-openspec.md) §3.2.
+> TDD-ordered implementation steps. Each task is a worker→QA pair per [runbook-bmad-openspec.md](../../../docs/concepts/runbook-bmad-openspec.md) §3.2.
 > Citations: [proposal.md](proposal.md), [design.md](design.md).
 
 ## Owns (write_paths)
 
-* `scripts/cleanup_zombies.py`
+* `scripts/rules/cleanup-zombies.rule.py`
 * `tests/test_cleanup_zombies.py`
-* `specs/cleanup-zombies.md`
+* `docs/rules/cleanup-zombies.rule.md`
 * `specs/zombies-manifest.yaml`
-* `specs/enforcement-status.md` (additive — new row)
-* `docs/development-flow.md` (additive — §5 enforcement table row)
-* `runbooks/release.md` (additive — checklist item)
+* `docs/concepts/enforcement-status.md` (additive — new row)
+* `docs/concepts/development-flow.md` (additive — §5 enforcement table row)
+* `docs/runbooks/release.md` (additive — checklist item)
 * `templates/new-project/scripts/git-hooks/post-merge.tmpl`
 * `templates/new-project/scripts/git-hooks/post-checkout.tmpl`
 * `CHANGELOG.md` (additive — v0.15.0 entry)
@@ -22,8 +22,8 @@
 * `scripts/auto_managed.py` — orphan-source detection patterns; cleanup uses its `--prune-orphans` mode
 * `scripts/sync_skills_local.py` (in consumer-a) — reference for the hook-invocation pattern
 * `scripts/_break_glass.py` — canonical error shape helper
-* `specs/break-glass.md` — `AIPLAYBOOK_*` env namespace
-* `specs/error-message-standard.md` — error message format
+* `docs/rules/break-glass.rule.md` — `AIPLAYBOOK_*` env namespace
+* `docs/rules/error-message-standard.rule.md` — error message format
 * `specs/cross-os-validation.md` — Windows/macOS/Linux test matrix expectations
 
 ## Tasks (TDD order)
@@ -40,7 +40,7 @@
   - `test_manifest_version_must_be_monotonic_format` — `YYYY-MM-DD.N` regex.
   - Run: `pytest tests/test_cleanup_zombies.py -k manifest -x` → RED.
 
-- [ ] **T2 — implement manifest loader + validator** in `scripts/cleanup_zombies.py`:
+- [ ] **T2 — implement manifest loader + validator** in `scripts/rules/cleanup-zombies.rule.py`:
   - `_load_manifest(path) -> dict` — yaml.safe_load, raises ManifestError on missing keys.
   - `validate` subcommand — calls loader, prints results, exits 0/2.
   - Run: `pytest tests/test_cleanup_zombies.py -k manifest -x` → GREEN.
@@ -107,9 +107,9 @@
 - [ ] **T10 — author `specs/zombies-manifest.yaml`** with 16 entries from [design.md](design.md) §4:
   - 8 × Tier 1, 1 × Tier 2 (consumer-c-legacy-rename), 7 × Tier 3.
   - For each Tier 1 `file_exact_match_only`: compute `expected_sha256` from the historical commit (`git show <commit>:<path>` → sha256).
-  - Run `python scripts/cleanup_zombies.py validate` → exit 0.
+  - Run `python scripts/rules/cleanup-zombies.rule.py validate` → exit 0.
 
-- [ ] **T11 — author `specs/cleanup-zombies.md`** — the contract spec:
+- [ ] **T11 — author `docs/rules/cleanup-zombies.rule.md`** — the contract spec:
   - § 1 Purpose
   - § 2 Manifest schema (links to YAML)
   - § 3 Tier semantics
@@ -130,13 +130,13 @@
 
 ### Phase G — Doc updates within scope
 
-- [ ] **T13 — update `specs/enforcement-status.md`**:
+- [ ] **T13 — update `docs/concepts/enforcement-status.md`**:
   - New row: `cleanup-zombies.md` | ✅ wired | script + tests + hook template + manifest validator pre-commit.
 
-- [ ] **T14 — update `docs/development-flow.md` §5 enforcement table**:
-  - New row: "Consumer-side playbook zombie cleanup" | 🟡 partial (auto-fires per hook; no real consumer adopted day 1) | `scripts/cleanup_zombies.py` + hook templates.
+- [ ] **T14 — update `docs/concepts/development-flow.md` §5 enforcement table**:
+  - New row: "Consumer-side playbook zombie cleanup" | 🟡 partial (auto-fires per hook; no real consumer adopted day 1) | `scripts/rules/cleanup-zombies.rule.py` + hook templates.
 
-- [ ] **T15 — update `runbooks/release.md`**:
+- [ ] **T15 — update `docs/runbooks/release.md`**:
   - Pre-cut checklist: "If this release REMOVED or RENAMED any consumer-surface file (template, script consumers invoke, frontmatter field), append an entry to `specs/zombies-manifest.yaml` and bump `manifest_version`."
 
 - [ ] **T16 — update `CHANGELOG.md`**:
@@ -152,7 +152,7 @@
 
 - [ ] **T20 — manual smoke** — in a sibling sandbox dir simulating a consumer:
   - Create `.ai-playbook/` (symlink to actual playbook); add `.github/workflows/release-cut.yml` matching the historical sha.
-  - Run `python <playbook>/scripts/cleanup_zombies.py --apply`.
+  - Run `python <playbook>/scripts/rules/cleanup-zombies.rule.py --apply`.
   - Verify: file deleted, `zombie-report.md` written, stdout summary printed.
   - Run again: zero zombies, report removed.
   - Run with `AIPLAYBOOK_CLEANUP_SKIP=1`: no-op exit 0.
@@ -166,7 +166,7 @@
 - [ ] Test count ≥ 15.
 - [ ] `pytest` green.
 - [ ] `pre-commit run --all-files` green.
-- [ ] `python scripts/cleanup_zombies.py validate` exits 0 on shipped manifest.
-- [ ] `python scripts/cleanup_zombies.py version` prints manifest_version.
+- [ ] `python scripts/rules/cleanup-zombies.rule.py validate` exits 0 on shipped manifest.
+- [ ] `python scripts/rules/cleanup-zombies.rule.py version` prints manifest_version.
 - [ ] CHANGELOG `[0.15.0]` entry present.
 - [ ] VERSION bumped.

@@ -1,16 +1,16 @@
 # release-management.md
 
-> **Status**: v1.3.0 (new in v0.9.3). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, the **visibility-driven enforcement profile** (public-OSS vs private-solo), and the **AI-reviewer feedback loop** (CodeRabbit / claude-code-action). Companion to [`docs/development-flow.md`](../docs/development-flow.md) (the LLM-agnostic canonical entry point — read that first). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
+> **Status**: v1.3.0 (new in v0.9.3). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, the **visibility-driven enforcement profile** (public-OSS vs private-solo), and the **AI-reviewer feedback loop** (CodeRabbit / claude-code-action). Companion to [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) (the LLM-agnostic canonical entry point — read that first). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
 >
 > **Changelog**:
-> - **v1.3.0** (2026-05-05): added §0 (entry-point pointer to [`docs/development-flow.md`](../docs/development-flow.md)) so readers landing here know this spec covers source-control / PR / CI specifically — the canonical end-to-end flow lives in development-flow.md.
+> - **v1.3.0** (2026-05-05): added §0 (entry-point pointer to [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md)) so readers landing here know this spec covers source-control / PR / CI specifically — the canonical end-to-end flow lives in development-flow.md.
 > - **v1.2.0** (2026-05-01): added §4.5 (AI-reviewer feedback loop) — worker AI MUST read + respond to AI-reviewer comments (CodeRabbit on Profile A, claude-code-action when Phase 3 lands) before requesting Gate F. Closes the gap surfaced when the v0.8.0 rollout itself admin-merged 5 PRs without checking CodeRabbit's feedback (rate limit was hit; no real comments missed, but the FLOW was the failure mode).
 > - **v1.1.0** (2026-05-01): added §5.5 (trace fields Branch + Base SHA), §5.6 (visibility-driven profile A/B), §4.4 (pre-commit diff mode in CI), §6.5 (pre-flight rebase before slice start), §3.4 (bump-bot supersede expectation). `bootstrap_gh_project.py` gains `--profile {auto,public,private}`.
 > - **v1.0.0** (2026-04-29): initial spec — branch model, PR shape, CI gates, project board schema, dependency-driven merge order, bootstrap automation.
 
 ## 0. Where to start (entry-point pointer)
 
-**If this is your first time landing here, read [`docs/development-flow.md`](../docs/development-flow.md) FIRST.** That doc is the **LLM-agnostic canonical entry point** for "how do I make a change in any playbook-consuming project?" — covering the 4-level hierarchy (Roadmap → OpenSpec change → Branch → Commits → PR → Main → Tag → Consumers), the 3 axes of parallelism (Wave-N / Intra-slice / Worktrees), and the lifecycle from "I want to change something" to "consumers are on the new version".
+**If this is your first time landing here, read [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) FIRST.** That doc is the **LLM-agnostic canonical entry point** for "how do I make a change in any playbook-consuming project?" — covering the 4-level hierarchy (Roadmap → OpenSpec change → Branch → Commits → PR → Main → Tag → Consumers), the 3 axes of parallelism (Wave-N / Intra-slice / Worktrees), and the lifecycle from "I want to change something" to "consumers are on the new version".
 
 This spec (`release-management.md`) covers **the source-control + review + CI surface** specifically:
 - §2 branch model (`<type>/<change-id>`)
@@ -278,11 +278,11 @@ Behavior by exit code:
 | Exit code | Status | Worker AI action |
 |---|---|---|
 | `0` | `available` | Resume the §4.5 normal loop (read comments, address, re-poll). |
-| `1` | `rate-limited` or `silent` | **Apply Profile B fallback inline using [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md)**. Populate the PR-body §4.5 section per the schema in §4.5.3 below. Do NOT declare the PR ready for Gate F until §4.5 is populated. |
+| `1` | `rate-limited` or `silent` | **Apply Profile B fallback inline using [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md)**. Populate the PR-body §4.5 section per the schema in §4.5.3 below. Do NOT declare the PR ready for Gate F until §4.5 is populated. |
 | `2` | setup error (gh unavailable, PR / repo not found) | Fix the setup error and retry. The PR is not ready for Gate F until L1 succeeds. |
 | `3` | unrecoverable (gh / network failure during polling) | Treat as `rate-limited` — apply Profile B fallback. Note the gh failure in the §4.5 audit trail. |
 
-The worker AI MUST NOT skip L1 because the diff is "obviously trivial". Bump PRs (submodule SHA + AGENTS.md version refresh) still get an L1 self-review — short, but present (see [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md) "bump PR" example).
+The worker AI MUST NOT skip L1 because the diff is "obviously trivial". Bump PRs (submodule SHA + AGENTS.md version refresh) still get an L1 self-review — short, but present (see [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md) "bump PR" example).
 
 ### 4.5.2 L2 — CI safety net (auto-posts checklist when L1 didn't run)
 
@@ -311,7 +311,7 @@ The "AI-reviewer signoff" subsection in the PR body MUST contain the following t
 
 If any marker is missing or stubbed (e.g. `Self-review findings: TODO`, or `<placeholder>` brackets), L2 considers §4.5 unpopulated and posts the checklist.
 
-The full canonical structure is documented in [`runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md) §4. Bump PRs (submodule SHA + AGENTS.md version) MAY use the shorter form documented in that runbook's examples — markers still required, but the findings list can be `none` with a one-sentence justification.
+The full canonical structure is documented in [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md) §4. Bump PRs (submodule SHA + AGENTS.md version) MAY use the shorter form documented in that runbook's examples — markers still required, but the findings list can be `none` with a one-sentence justification.
 
 ### 4.5.4 Auto-generated bump PRs MUST pre-populate §4.5 (chore-archive PRs included)
 
@@ -782,7 +782,7 @@ Existing consumer projects on ai-playbook v0.7.x → v0.8.0 follow:
 1. **Audit visibility**: `gh repo view <owner>/<repo> --json visibility`. Decide Profile A (make public) or Profile B (keep private). Document the decision in the consumer's `docs/hitl-gates-log.md`.
 2. **Audit project board**: list current Status options. If they diverge from §5.1, plan a rename pass (one PR per consumer, since Status field rename can break external bookmarks).
 3. **Run bootstrap**: `python .ai-playbook/scripts/bootstrap_gh_project.py --owner <user> --project-number <existing> --profile auto --no-create-items` (no-create-items mode aligns just the schema, not the items).
-4. **Update consumer's `AGENTS.md`**: add `release_management: .ai-playbook/specs/release-management.md` to the inherited specs list. If on v0.7.x, also bump `inherits_from` to `@v0.8.0`.
+4. **Update consumer's `AGENTS.md`**: add `release_management: .ai-playbook/docs/concepts/release-management.md` to the inherited specs list. If on v0.7.x, also bump `inherits_from` to `@v0.8.0`.
 5. **Update consumer's `.github/workflows/ci.yml`**: switch the pre-commit step to diff-mode invocation per §4.4. The template at `templates/new-project/.github/workflows/ci.yml.tmpl` ships the canonical form.
 6. **Bump submodule pointer** to v0.8.0 (the propagate-bump bot opens the PR automatically per §3.4 once the playbook tag lands).
 

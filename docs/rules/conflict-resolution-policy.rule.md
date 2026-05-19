@@ -1,6 +1,6 @@
 # conflict-resolution-policy.md
 
-> **Status**: v1.0.0. Authored under OpenSpec change `industrialize-dev-flow` (Phase 5 wave 2) on 2026-05-05. Referenced from [`docs/development-flow.md`](../docs/development-flow.md) §2 (parallelism) and §4 (pointer table).
+> **Status**: v1.0.0. Authored under OpenSpec change `industrialize-dev-flow` (Phase 5 wave 2) on 2026-05-05. Referenced from [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) §2 (parallelism) and §4 (pointer table).
 >
 > **Enforcement**: 📋 spec-only. Convention; humans + agents commit to it. No automated mediator.
 
@@ -113,12 +113,12 @@ If two policies in the playbook give different guidance (e.g. "merge-policy says
 
 ## 8. Cross-references
 
-- [`docs/development-flow.md`](../docs/development-flow.md) §2 (parallelism) — referrer.
-- [`specs/release-management.md`](release-management.md) §6.4 (Wave-N) and §6.6 (intra-slice).
-- [`specs/merge-policy.md`](merge-policy.md) — what merge style after rebase.
-- [`specs/break-glass.md`](break-glass.md) — `--force-with-reason` for skipping a step under explicit override.
-- [`specs/retrospective-cadence.md`](retrospective-cadence.md) — surfacing repeated overrides.
-- [`runbooks/git-worktree-bare-setup.md`](../runbooks/git-worktree-bare-setup.md) — operational mechanism for Wave-N work.
+- [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) §2 (parallelism) — referrer.
+- [`docs/concepts/release-management.md`](release-management.md) §6.4 (Wave-N) and §6.6 (intra-slice).
+- [`docs/concepts/merge-policy.md`](merge-policy.md) — what merge style after rebase.
+- [`docs/rules/break-glass.rule.md`](break-glass.md) — `--force-with-reason` for skipping a step under explicit override.
+- [`docs/concepts/retrospective-cadence.md`](retrospective-cadence.md) — surfacing repeated overrides.
+- [`docs/runbooks/git-worktree-bare-setup.md`](../docs/runbooks/git-worktree-bare-setup.md) — operational mechanism for Wave-N work.
 - [`skills/openspec-apply-parallel/SKILL.md`](../skills/openspec-apply-parallel/SKILL.md) — intra-slice gating questions.
 
 ---

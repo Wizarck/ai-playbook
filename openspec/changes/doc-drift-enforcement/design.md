@@ -11,8 +11,8 @@ manifest_version: "2026-05-19.1"   # data version (YYYY-MM-DD.N); monotonic per 
 pairs:
   - id: cleanup-zombies      # kebab-case slug; must match `^[a-z][a-z0-9-]{1,40}$`
     tier: 1                  # 1 = strict, 2 = soft (future), 3 = informational (future)
-    code: "scripts/cleanup_zombies.py"     # glob OR exact path (fnmatch on /)
-    doc: "specs/cleanup-zombies.md"        # glob OR exact path
+    code: "scripts/rules/cleanup-zombies.rule.py"     # glob OR exact path (fnmatch on /)
+    doc: "docs/rules/cleanup-zombies.rule.md"        # glob OR exact path
     reason: "Cleanup script + its normative spec; both must move together."
     introduced_in: "v0.16.0"
 ```
@@ -42,7 +42,7 @@ pairs:
    - Else: emit canonical violation message; exit 1.
 5. No drift → exit 0.
 
-### Exit codes (per `specs/break-glass.md` convention)
+### Exit codes (per `docs/rules/break-glass.rule.md` convention)
 
 | Code | Meaning |
 |---|---|
@@ -50,7 +50,7 @@ pairs:
 | 1 | Drift detected (Tier 1 violation) |
 | 2 | Schema break (manifest malformed, YAML parse error, missing required field) |
 
-### Violation message shape (per `specs/error-message-standard.md`)
+### Violation message shape (per `docs/rules/error-message-standard.rule.md`)
 
 ```
 ❌ Doc-drift violation detected for N pair(s):
@@ -64,10 +64,10 @@ pairs:
         to the PR title if this change truly does not affect the doc contract.
    OVERRIDE: add `[no-doc-impact]` (case-insensitive) anywhere in PR title.
 
-   See: specs/doc-drift-enforcement.md §3 (escape-hatch policy).
+   See: docs/rules/doc-drift-enforcement.rule.md §3 (escape-hatch policy).
 ```
 
-## 2 CI workflow design (`.github/workflows/doc-drift-check.yml`)
+## 2 CI workflow design (`.github/workflows/doc-drift-enforcement.rule.yml`)
 
 ### Triggers
 
@@ -88,7 +88,7 @@ check without requiring a synchronize event.
 
 ### Why sticky comment
 
-Per `specs/error-message-standard.md`: feedback must be human-actionable +
+Per `docs/rules/error-message-standard.rule.md`: feedback must be human-actionable +
 visible. PR-level checks alone do not show the message; the sticky comment
 surfaces the violation pairs + the suggested fix without spamming the
 conversation on each push.

@@ -9,9 +9,9 @@ canonical FastAPI surface documented at ``<HINDSIGHT_URL>/openapi.json``:
     GET  /v1/default/banks                            — list banks
     GET  /health                                       — liveness
 
-Per [`specs/memory-hierarchy.md`](../specs/memory-hierarchy.md) the bank_id
+Per [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) the bank_id
 matches the project slug (`consumer-c`, `consumer-d`, `consumer-b`, …) — see
-[`specs/env-vars.md`](../specs/env-vars.md) for the env var contract.
+[`docs/concepts/env-vars.md`](../docs/concepts/env-vars.md) for the env var contract.
 
 This client is **stdlib-only** (no SDK dep): consumers run it from
 SessionStart hooks where minimising the dep graph matters.

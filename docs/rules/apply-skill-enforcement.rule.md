@@ -156,7 +156,7 @@ Exit codes: `0` = allow; `2` = block (Claude Code surfaces stderr to the agent).
    FIX: invoke the skill `/openspec-apply-change <change-id>` first,
         or run `python .ai-playbook/scripts/openspec_apply_marker.py start --change-id <change-id>`.
    OVERRIDE: export AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE="<≥10-char reason>"
-   See: specs/apply-skill-enforcement.md §3 (break-glass clause).
+   See: docs/rules/apply-skill-enforcement.rule.md §3 (break-glass clause).
 ```
 
 ### 2.4 Fail-open scenarios (intentional)

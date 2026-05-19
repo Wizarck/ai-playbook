@@ -61,7 +61,7 @@ validates it against the JSON Schema (§5) before the child's prompt is sent.
 | `agent_type` | enum string | yes | One of `reviewer`, `builder`, `doctor`, `advisor`, `retro`, `dispatcher`, `custom`. |
 | `parent_agent_id` | UUIDv7 or null | yes | `null` iff the agent was spawned by a human (root of tree). |
 | `trace_id` | OTel 16-byte hex | yes | Propagates via W3C trace context; set by the root. |
-| `scope.project` | string | yes | Project slug as it appears in `specs/projects-registry.md`. |
+| `scope.project` | string | yes | Project slug as it appears in `docs/concepts/projects-registry.md`. |
 | `scope.change_id` | string or null | yes | OpenSpec change id, or `null` for non-OpenSpec tasks (e.g. a cross-cutting doctor run). |
 | `scope.read_paths` | string[] | yes | Glob patterns the child is allowed to read. Harness may enforce. |
 | `scope.write_paths` | string[] | yes | Glob patterns the child is allowed to write. Empty list = reviewer. |
@@ -253,7 +253,7 @@ and the harness MUST validate against the `.json` file, not the inline block.
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ai-playbook/specs/agent-contract.schema.json",
+  "$id": "https://ai-playbook/schemas/schema-agent-contract.json",
   "title": "Agent contract — input + return envelopes",
   "oneOf": [
     { "$ref": "#/$defs/input" },

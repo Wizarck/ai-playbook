@@ -1,6 +1,6 @@
 # contributing.md
 
-> **Status**: v1.0.0. Friendly summary of the governance model; the normative contract lives in [../specs/role-matrix.md](../specs/role-matrix.md), [../specs/post-mortem.md](../specs/post-mortem.md), and the deprecation watcher under [../specs/rollout-strategy.md](../specs/rollout-strategy.md).
+> **Status**: v1.0.0. Friendly summary of the governance model; the normative contract lives in [../docs/concepts/role-matrix.md](../docs/concepts/role-matrix.md), [../docs/concepts/post-mortem.md](../docs/concepts/post-mortem.md), and the deprecation watcher under [../docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md).
 
 ---
 
@@ -36,7 +36,7 @@ Breaking changes to the schema, dispatcher semantics, or any spec's `## Contract
 - New required fields in any spec.
 - Changes to dispatcher resolution order.
 - Removing or renaming a public script.
-- Changing exit-code semantics ([error-message-standard.md](../specs/error-message-standard.md) §exit codes).
+- Changing exit-code semantics ([error-message-standard.md](../docs/rules/error-message-standard.rule.md) §exit codes).
 
 Do NOT file an RFC for: typo fixes, new examples, clarifying prose, new optional fields, new scripts that don't replace existing ones.
 
@@ -48,7 +48,7 @@ Do NOT file an RFC for: typo fixes, new examples, clarifying prose, new optional
 | Decision (open → `accepted` / `rejected` / `needs-info`) | 30 days. |
 | Auto-close (no author response to `needs-info`) | 90 days idle. Can be reopened with one comment. |
 
-Missing the triage SLA surfaces as a warn-level notification per [notification-policy.md](../specs/notification-policy.md) §4 (event: `rfc.triage.slo_breached`, lands alongside T22 SLOs).
+Missing the triage SLA surfaces as a warn-level notification per [notification-policy.md](../docs/concepts/notification-policy.md) §4 (event: `rfc.triage.slo_breached`, lands alongside T22 SLOs).
 
 ### 3.3 Where to file what
 
@@ -85,7 +85,7 @@ Missing the triage SLA surfaces as a warn-level notification per [notification-p
 
 - **Additive within a major.** New optional frontmatter field, new script, new severity doc row — all fine within a semver major.
 - **Breaking changes need an RFC and a semver major bump.** A change that rejects previously-valid `AGENTS.md` files is breaking. A change that renames a script is breaking.
-- **Deprecation window.** Before removal, a feature is first marked deprecated in [../specs/migration-guide.md](../specs/migration-guide.md) with a target removal version and a migration recipe. The deprecation watcher (T22) flags any deprecated-but-still-used path in consumer `AGENTS.md`.
+- **Deprecation window.** Before removal, a feature is first marked deprecated in [../docs/concepts/migration-guide.md](../docs/concepts/migration-guide.md) with a target removal version and a migration recipe. The deprecation watcher (T22) flags any deprecated-but-still-used path in consumer `AGENTS.md`.
 - **Never edit archived specs.** Once `specs/*.md` reaches v1.0.0 and is consumed by ≥1 project, changes flow through RFC → version bump → migration guide. Silent edits are a governance-level violation.
 
 ---
@@ -93,7 +93,7 @@ Missing the triage SLA surfaces as a warn-level notification per [notification-p
 ## 7. See also
 
 - [../AGENTS.md](../AGENTS.md) — hard rules for agents editing this repo (§4).
-- [../specs/migration-guide.md](../specs/migration-guide.md) — versioning and deprecation mechanics.
-- [../specs/retrospective-cadence.md](../specs/retrospective-cadence.md) — where governance slipups surface.
+- [../docs/concepts/migration-guide.md](../docs/concepts/migration-guide.md) — versioning and deprecation mechanics.
+- [../docs/concepts/retrospective-cadence.md](../docs/concepts/retrospective-cadence.md) — where governance slipups surface.
 - [../rfcs/README.md](../rfcs/README.md) — RFC template.
 - [../FEEDBACK.md](../FEEDBACK.md) — low-friction gripe channel.

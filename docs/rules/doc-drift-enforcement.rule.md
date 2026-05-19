@@ -1,6 +1,6 @@
 # doc-drift-enforcement.md
 
-> **Status**: v1.0.0 — shipped in ai-playbook v0.16.0. Authored under OpenSpec change `doc-drift-enforcement` on 2026-05-19. v0.17.0 (slice `single-source-skills-reset`) registered the `materialise-skills` pair (`scripts/materialise_skills.py` ↔ `specs/skills-distribution.md`), bringing the manifest to 13 pairs (`manifest_version: 2026-05-19.2`).
+> **Status**: v1.0.0 — shipped in ai-playbook v0.16.0. Authored under OpenSpec change `doc-drift-enforcement` on 2026-05-19. v0.17.0 (slice `single-source-skills-reset`) registered the `materialise-skills` pair (`scripts/materialise_skills.py` ↔ `docs/concepts/skills-distribution.md`), bringing the manifest to 13 pairs (`manifest_version: 2026-05-19.2`).
 >
 > **Audience**: anyone authoring a PR against the playbook upstream. Authoritative contract for `scripts/check_doc_drift.py` and `specs/co-edit-pairs.yaml`.
 
@@ -20,7 +20,7 @@ Reviewers catch drift only by chance. The doc-drift gate makes the pair contract
 Goals:
 
 1. **Declarative pair registry** — `specs/co-edit-pairs.yaml` enumerates every paired (code, doc) tuple; hand-curated; one entry per pair.
-2. **PR-time gate** — `.github/workflows/doc-drift-check.yml` runs `scripts/check_doc_drift.py` on every PR; fails on drift; sticky-comments the violation.
+2. **PR-time gate** — `.github/workflows/doc-drift-enforcement.rule.yml` runs `scripts/check_doc_drift.py` on every PR; fails on drift; sticky-comments the violation.
 3. **Documented escape hatch** — `[no-doc-impact]` (case-insensitive) anywhere in the PR title bypasses the gate; usage is auditable (slice 6 telemetry).
 4. **Forward-compatible tiering** — schema reserves Tier 2 (soft / warn) and Tier 3 (informational / telemetry-only) for future use without manifest migration.
 
@@ -58,7 +58,7 @@ pairs:
 - `code` and `doc` are forward-slash-normalised paths or fnmatch globs (`*`, `?`).
 - `code` and `doc` MUST be different strings (a file cannot pair with itself).
 
-Violation of any rule causes `check_doc_drift.py validate` to exit 2 with a canonical WHY/FIX/OVERRIDE error (per `specs/error-message-standard.md`).
+Violation of any rule causes `check_doc_drift.py validate` to exit 2 with a canonical WHY/FIX/OVERRIDE error (per `docs/rules/error-message-standard.rule.md`).
 
 ### 2.2 Tier semantics
 
@@ -89,7 +89,7 @@ PR events: `opened`, `synchronize`, `reopened`, `edited`. The `edited` trigger i
    - Exit 1.
 5. Else: exit 0.
 
-### 3.3 Exit codes (per `specs/break-glass.md` convention)
+### 3.3 Exit codes (per `docs/rules/break-glass.rule.md` convention)
 
 | Code | Meaning |
 |---|---|
@@ -103,7 +103,7 @@ On drift, CI posts/updates a single sticky comment per PR (pattern from `.github
 
 ---
 
-## 4 Canonical block message (per `specs/error-message-standard.md`)
+## 4 Canonical block message (per `docs/rules/error-message-standard.rule.md`)
 
 ```
 ❌ Doc-drift violation detected for N pair(s):
@@ -117,7 +117,7 @@ On drift, CI posts/updates a single sticky comment per PR (pattern from `.github
         to the PR title if this change truly does not affect the doc contract.
    OVERRIDE: add `[no-doc-impact]` (case-insensitive) anywhere in PR title.
 
-   See: specs/doc-drift-enforcement.md §3 (CI gate behaviour).
+   See: docs/rules/doc-drift-enforcement.rule.md §3 (CI gate behaviour).
 ```
 
 ---
@@ -153,8 +153,8 @@ v0.16.0 does NOT ship the telemetry emit (slice 6 adds it). The schema is design
 1. Bump `VERSION` to v0.16.0.
 2. Ship the script, manifest, spec, workflow, and tests in one PR.
 3. Confirm CI green on the PR opening this slice (the slice's PR title should contain the spec itself paired with the script — both move together).
-4. Document the rule in `docs/development-flow.md` §5 enforcement table.
-5. Flip `specs/enforcement-status.md` row for `doc-drift-enforcement.md` to ✅.
+4. Document the rule in `docs/concepts/development-flow.md` §5 enforcement table.
+5. Flip `docs/concepts/enforcement-status.md` row for `doc-drift-enforcement.md` to ✅.
 
 This spec self-applies: `specs/co-edit-pairs.yaml` has a `doc-drift-enforcement` pair entry. Any future change to `scripts/check_doc_drift.py` will require an update to this file.
 
@@ -165,7 +165,7 @@ This spec self-applies: `specs/co-edit-pairs.yaml` has a `doc-drift-enforcement`
 | ID | Invariant |
 |---|---|
 | **INV-1** | Every Tier 1 pair MUST be co-modified or the PR MUST carry `[no-doc-impact]`. |
-| **INV-2** | The manifest is append-mostly. Adding a new pair is additive (MINOR); changing the tier of an existing pair is BREAKING (MAJOR — per `specs/migration-guide.md`). |
+| **INV-2** | The manifest is append-mostly. Adding a new pair is additive (MINOR); changing the tier of an existing pair is BREAKING (MAJOR — per `docs/concepts/migration-guide.md`). |
 | **INV-3** | `scripts/check_doc_drift.py` exits 0/1/2 only. Other exit codes indicate a bug. |
 | **INV-4** | Escape-hatch usage is auditable from the PR title; the title is the single source. CI does not inspect commit messages, body text, or labels. |
 

@@ -56,7 +56,7 @@ JSON-shaped findings use the schema in [agent-contract.md](agent-contract.md) §
 ### 2.1 S0 — audit-only
 
 `S0` means **"the rule that fired was itself wrong; escalate upstream"**. It is produced only by
-retrospectives (see `specs/retrospective-cadence.md` when populated) and only when the retro author
+retrospectives (see `docs/concepts/retrospective-cadence.md` when populated) and only when the retro author
 passes `scripts/verdict_lint.py --audit`. An agent emitting `S0` in normal operation is a
 `goal_drift` failure (see [agentic-failures.md](agentic-failures.md)) and the linter rejects it.
 

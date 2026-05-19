@@ -1,6 +1,6 @@
 # fork-inventory.md
 
-> **Status**: v1.0.0. Companion to [`../specs/upstream-sync.md`](../specs/upstream-sync.md).
+> **Status**: v1.0.0. Companion to [`../docs/concepts/upstream-sync.md`](../docs/concepts/upstream-sync.md).
 
 The authoritative list of upstream-tracked forks Arturo maintains. Each entry links to its local
 clone and the in-repo `PATCHES.md` that enumerates its local patches.
@@ -69,7 +69,7 @@ If we stop tracking a fork (upstream dead, we no longer use it, we vendored perm
 
 ## 5. Cross-references
 
-- [`../specs/upstream-sync.md`](../specs/upstream-sync.md) — the governance spec.
+- [`../docs/concepts/upstream-sync.md`](../docs/concepts/upstream-sync.md) — the governance spec.
 - [`../templates/PATCHES.md.tmpl`](../templates/PATCHES.md.tmpl) — per-fork manifest template.
 - `scripts/upstream_sync.py` — CLI inspection + triage.
 - `consumer-d/langgraph-aiops/workflows/upstream_refresher.py` — weekly refresh workflow.

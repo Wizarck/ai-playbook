@@ -190,7 +190,7 @@ The summary output lists which layer contributed each server:
 2. **Draft the base entry** in `ai-playbook/mcp-servers-base.yaml`. Required
    fields: `id`, `description`, `transport`, `auth`, `scope: universal`,
    `capabilities_hint`. Endpoints and OAuth tokens stay null at the base layer.
-3. **Document env vars** in `specs/env-vars.md` in the same PR. Every new
+3. **Document env vars** in `docs/concepts/env-vars.md` in the same PR. Every new
    env var required by the template gets a row in the relevant
    prefix-table.
 4. **Add a deep-dive section** to this file if the auth/scope interplay is

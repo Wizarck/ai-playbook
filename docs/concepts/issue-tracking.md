@@ -108,7 +108,7 @@ code is truly shared.
 ## 4. Automation (LIVE as of 2026-04-23)
 
 Zero-touch automation — no human intervention in the happy path. See
-[docs/zero-touch-automation.md](../docs/zero-touch-automation.md) for the end-to-end flow.
+[docs/concepts/zero-touch-automation.md](../docs/concepts/zero-touch-automation.md) for the end-to-end flow.
 
 - **`scripts/issue_sync.py`** — scans `openspec/changes/*/proposal.md`, creates Jira issues
   (private repos via Atlassian REST / `atlassian-consumer-a` tenant) OR GH Issues + optional GH
@@ -179,10 +179,10 @@ For public-repo issue creation: `gh issue create --repo Wizarck/consumer-c --tit
 
 ## 7. Cross-references
 
-- `specs/runbook-bmad-openspec.md` — phase map + HITL gates; this spec is the tracker projection.
-- `specs/rollout-strategy.md` — release sequencing; this spec names the surfaces.
-- `specs/retrospective-cadence.md` — monthly lifecycle check flags orphan tickets.
-- `specs/verdict-contract.md` — QA verdict → ticket transition mapping.
-- `docs/fork-inventory.md` — determines which repos are public vs private.
+- `docs/concepts/runbook-bmad-openspec.md` — phase map + HITL gates; this spec is the tracker projection.
+- `docs/concepts/rollout-strategy.md` — release sequencing; this spec names the surfaces.
+- `docs/concepts/retrospective-cadence.md` — monthly lifecycle check flags orphan tickets.
+- `docs/rules/verdict-contract.rule.md` — QA verdict → ticket transition mapping.
+- `docs/tutorials/07-fork-inventory.md` — determines which repos are public vs private.
 - `consumer-c/AGENTS.md` §4 + ADR-010 — dual-repo strategy (origin of the split this spec
   extends).

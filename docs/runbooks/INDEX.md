@@ -1,4 +1,4 @@
-# runbooks/INDEX.md
+# docs/runbooks/INDEX.md
 
 > **Status**: v1.0.0. Manual index (not auto-generated yet).
 
@@ -6,7 +6,7 @@ Operational runbooks — AI-executable procedures for recurring ops. Specs
 define the contract; runbooks describe the sequence of commands a
 maintainer (human or AI) runs to execute it.
 
-> **Where to start (any change)**: read [`docs/development-flow.md`](../docs/development-flow.md) FIRST. It's the LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?" and points outward to the right runbook / spec for each step.
+> **Where to start (any change)**: read [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) FIRST. It's the LLM-agnostic canonical entry point for "how do I make a change in any playbook-consuming project?" and points outward to the right runbook / spec for each step.
 
 All runbooks follow the same shape:
 
@@ -20,17 +20,17 @@ All runbooks follow the same shape:
 | Runbook | When to run it | Cross-refs |
 |---|---|---|
 | [onboard-new-project.md](onboard-new-project.md) | Add a brand-new repo as a consumer of the playbook (submodule + dispatcher + Hindsight loop + auto-propagation). | [scripts/bootstrap.py](../scripts/bootstrap.py), [consumers.yaml](../consumers.yaml), [templates/new-project/](../templates/new-project/) |
-| [release.md](release.md) | Cut a new semver tag on `ai-playbook`; auto-propagates PRs to every consumer. | [consumers.yaml](../consumers.yaml), [specs/rollout-strategy.md](../specs/rollout-strategy.md) |
-| [rotate-secrets.md](rotate-secrets.md) | Any secret expires, rotates, or is compromised (PLAYBOOK_PROPAGATION_TOKEN, SMTP, ATLASSIAN, GITHUB_TOKEN). | [specs/data-retention.md](../specs/data-retention.md), [specs/env-vars.md](../specs/env-vars.md) |
+| [release.md](release.md) | Cut a new semver tag on `ai-playbook`; auto-propagates PRs to every consumer. | [consumers.yaml](../consumers.yaml), [docs/concepts/rollout-strategy.md](../docs/concepts/rollout-strategy.md) |
+| [rotate-secrets.md](rotate-secrets.md) | Any secret expires, rotates, or is compromised (PLAYBOOK_PROPAGATION_TOKEN, SMTP, ATLASSIAN, GITHUB_TOKEN). | [docs/concepts/data-retention.md](../docs/concepts/data-retention.md), [docs/concepts/env-vars.md](../docs/concepts/env-vars.md) |
 | [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md) | `propagate-playbook-bump.yml` Action fails or a consumer's PR doesn't appear. Decision tree by failing step. | [scripts/propagate_bump.py](../scripts/propagate_bump.py), [.github/workflows/propagate-playbook-bump.yml](../.github/workflows/propagate-playbook-bump.yml) |
-| [hindsight-retain.md](hindsight-retain.md) | At the end of any meaningful work — discovered gotcha, ADR, agentic-failure resolved, retro pattern. Persists durable knowledge to Hindsight so any future session/project can recall it. | [specs/memory-hierarchy.md](../specs/memory-hierarchy.md), [scripts/retain_memory.py](../scripts/retain_memory.py) |
-| [skills-version-bump.md](skills-version-bump.md) | Cut a new semver tag on a skills source repo (`ai-playbook` itself or `consumer-d-skills`) and propagate the bump as PRs across every consumer pinning that source. | [specs/skills-distribution.md](../specs/skills-distribution.md), [scripts/propagate_skills_bump.py](../scripts/propagate_skills_bump.py), [.github/workflows/propagate-skills-bump.yml](../.github/workflows/propagate-skills-bump.yml) |
-| [git-worktree-bare-setup.md](git-worktree-bare-setup.md) | Greenfield bootstrap, migration, or daily-flow worktree management for the bare-repo + per-branch layout (consumers running ≥3 concurrent OpenSpec slices). | [specs/git-worktree-bare-layout.md](../specs/git-worktree-bare-layout.md), [scripts/wt_add.py](../scripts/wt_add.py), [specs/runbook-bmad-openspec.md](../specs/runbook-bmad-openspec.md) §3.7 |
-| [runbook-vps-down.md](runbook-vps-down.md) | VPS unreachable (S1). Stub v0.1.0 — referenced by `incident-response.md` §4 scenario #1. | [specs/incident-response.md](../specs/incident-response.md), [specs/post-mortem.md](../specs/post-mortem.md) |
-| [runbook-db-corruption.md](runbook-db-corruption.md) | Hindsight DB corruption (S1, data integrity). Stub v0.1.0 — `incident-response.md` §4 scenario #2. | [specs/incident-response.md](../specs/incident-response.md), [specs/memory-hierarchy.md](../specs/memory-hierarchy.md) |
-| [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) | Scoped credential leak (1-3 keys), 1h MTTR. Stub v0.1.0. | [rotate-secrets.md](rotate-secrets.md), [specs/incident-response.md](../specs/incident-response.md) §4 scenario #3 |
-| [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) | Wide-scope leak (machine compromise, supplier compromise, public repo). Stub v0.1.0. | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md), [specs/incident-response.md](../specs/incident-response.md) |
-| [cascade-failure-template.md](cascade-failure-template.md) | Author a per-service cascade-failure runbook (added v0.11.0). Template with 5 sections (symptom list / precondition check / impact map / recovery sequence / postmortem trigger). | [specs/post-mortem.md](../specs/post-mortem.md), [specs/degradation-modes.md](../specs/degradation-modes.md), [specs/incident-response.md](../specs/incident-response.md) |
+| [hindsight-retain.md](hindsight-retain.md) | At the end of any meaningful work — discovered gotcha, ADR, agentic-failure resolved, retro pattern. Persists durable knowledge to Hindsight so any future session/project can recall it. | [docs/concepts/memory-hierarchy.md](../docs/concepts/memory-hierarchy.md), [scripts/retain_memory.py](../scripts/retain_memory.py) |
+| [skills-version-bump.md](skills-version-bump.md) | Cut a new semver tag on a skills source repo (`ai-playbook` itself or `consumer-d-skills`) and propagate the bump as PRs across every consumer pinning that source. | [docs/concepts/skills-distribution.md](../docs/concepts/skills-distribution.md), [scripts/propagate_skills_bump.py](../scripts/propagate_skills_bump.py), [.github/workflows/propagate-skills-bump.yml](../.github/workflows/propagate-skills-bump.yml) |
+| [git-worktree-bare-setup.md](git-worktree-bare-setup.md) | Greenfield bootstrap, migration, or daily-flow worktree management for the bare-repo + per-branch layout (consumers running ≥3 concurrent OpenSpec slices). | [docs/concepts/git-worktree-bare-layout.md](../docs/concepts/git-worktree-bare-layout.md), [scripts/wt_add.py](../scripts/wt_add.py), [docs/concepts/runbook-bmad-openspec.md](../docs/concepts/runbook-bmad-openspec.md) §3.7 |
+| [runbook-vps-down.md](runbook-vps-down.md) | VPS unreachable (S1). Stub v0.1.0 — referenced by `incident-response.md` §4 scenario #1. | [docs/concepts/incident-response.md](../docs/concepts/incident-response.md), [docs/concepts/post-mortem.md](../docs/concepts/post-mortem.md) |
+| [runbook-db-corruption.md](runbook-db-corruption.md) | Hindsight DB corruption (S1, data integrity). Stub v0.1.0 — `incident-response.md` §4 scenario #2. | [docs/concepts/incident-response.md](../docs/concepts/incident-response.md), [docs/concepts/memory-hierarchy.md](../docs/concepts/memory-hierarchy.md) |
+| [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) | Scoped credential leak (1-3 keys), 1h MTTR. Stub v0.1.0. | [rotate-secrets.md](rotate-secrets.md), [docs/concepts/incident-response.md](../docs/concepts/incident-response.md) §4 scenario #3 |
+| [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) | Wide-scope leak (machine compromise, supplier compromise, public repo). Stub v0.1.0. | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md), [docs/concepts/incident-response.md](../docs/concepts/incident-response.md) |
+| [cascade-failure-template.md](cascade-failure-template.md) | Author a per-service cascade-failure runbook (added v0.11.0). Template with 5 sections (symptom list / precondition check / impact map / recovery sequence / postmortem trigger). | [docs/concepts/post-mortem.md](../docs/concepts/post-mortem.md), [docs/concepts/degradation-modes.md](../docs/concepts/degradation-modes.md), [docs/concepts/incident-response.md](../docs/concepts/incident-response.md) |
 
 ## Adding a new runbook
 

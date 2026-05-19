@@ -1,9 +1,9 @@
-"""Tests for scripts/cleanup_zombies.py.
+"""Tests for scripts/rules/cleanup-zombies.rule.py.
 
 Slice: add-cleanup-zombies-hook (v0.15.0).
 
 Contracts:
-- specs/cleanup-zombies.md (full contract)
+- docs/rules/cleanup-zombies.rule.md (full contract)
 - specs/zombies-manifest.yaml (manifest schema instance)
 """
 from __future__ import annotations

@@ -11,7 +11,7 @@ Three layers — each a YAML file, same v1 schema:
 Merge precedence: **personal > project > base**, field-by-field deep merge.
 
 Validations (every failure emits a canonical error per
-``specs/error-message-standard.md``: ``❌ WHY / FIX / OVERRIDE``):
+``docs/rules/error-message-standard.rule.md``: ``❌ WHY / FIX / OVERRIDE``):
 
 - each YAML file parses and matches ``schema: mcp-servers/v1`` shape
 - no ``scope: personal`` server appears at base or project layer
@@ -20,7 +20,7 @@ Validations (every failure emits a canonical error per
 - drift: if ``<consumer>/.mcp.json`` or ``<consumer>/.gemini/settings.json``
   exists, recompute its rendered form in-memory and refuse on any diff.
 
-Exit codes (see ``specs/error-message-standard.md``):
+Exit codes (see ``docs/rules/error-message-standard.rule.md``):
 
 - ``0`` — all validations pass
 - ``1`` — user-actionable validation error

@@ -1,12 +1,12 @@
 # runbook-vps-down.md
 
-> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`specs/incident-response.md`](../specs/incident-response.md) §4 scenario #1.
+> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`docs/concepts/incident-response.md`](../docs/concepts/incident-response.md) §4 scenario #1.
 >
 > Stub means: the steps below capture the canonical recovery sequence, but specific commands assume the canonical consumer (consumer-d) topology. Per-consumer richer runbooks (e.g. `consumer-d/runbooks/runbook-vps-disaster-recovery.md`) link from here.
 
 ## When to use this runbook
 
-Triggered by [incident-response.md](../specs/incident-response.md) §4 scenario #1: VPS unreachable. Detection: Uptime-Kuma probe failed ×3 OR SSH timeout > 30s.
+Triggered by [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #1: VPS unreachable. Detection: Uptime-Kuma probe failed ×3 OR SSH timeout > 30s.
 
 Severity: **S1**. MTTR target: ≤ 30 min to mitigation.
 
@@ -72,11 +72,11 @@ Not applicable — this is a recovery runbook, not a change runbook. If recovery
 
 ## Post-incident artefact required
 
-Post-mortem if downtime > 15 min, per [post-mortem.md](../specs/post-mortem.md). Otherwise gotcha entry minimum, per [retrospective-cadence.md](../specs/retrospective-cadence.md).
+Post-mortem if downtime > 15 min, per [post-mortem.md](../docs/concepts/post-mortem.md). Otherwise gotcha entry minimum, per [retrospective-cadence.md](../docs/concepts/retrospective-cadence.md).
 
 ## Related
 
-- [incident-response.md](../specs/incident-response.md) §4 scenario #1.
+- [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #1.
 - Per-consumer richer runbook: `<consumer>/runbooks/runbook-vps-disaster-recovery.md`.
-- [post-mortem.md](../specs/post-mortem.md) — required artefact for > 15 min outages.
-- [notification-policy.md](../specs/notification-policy.md) — paging during the outage.
+- [post-mortem.md](../docs/concepts/post-mortem.md) — required artefact for > 15 min outages.
+- [notification-policy.md](../docs/concepts/notification-policy.md) — paging during the outage.

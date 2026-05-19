@@ -1,13 +1,13 @@
 # runbook: git-worktree-bare-setup.md — bare-repo + per-branch worktree layout
 
 > **Audience**: tú o un teammate que va a (a) arrancar un consumer project nuevo con el layout canónico, (b) migrar un consumer existente del layout legacy single-tree, o (c) gestionar worktrees diarios (añadir/borrar por OpenSpec change).
-> **Status**: v1.0.0 (2026-05-01 — introduced alongside [specs/git-worktree-bare-layout.md](../specs/git-worktree-bare-layout.md) in ai-playbook v0.9.0-rc3).
+> **Status**: v1.0.0 (2026-05-01 — introduced alongside [docs/concepts/git-worktree-bare-layout.md](../docs/concepts/git-worktree-bare-layout.md) in ai-playbook v0.9.0-rc3).
 > **Prereqs**: `git ≥ 2.36` (for `git worktree repair`), `gh` autenticado, `python 3.11+`, acceso de escritura al repo + permisos para renombrar el dir local.
 > **Tiempo estimado**: greenfield 5min · migrate 10–15min (Windows: +5min por la session restart) · daily 30s por worktree.
 
 ## Qué hace este runbook
 
-Tres escenarios bajo el mismo contrato de layout (per [specs/git-worktree-bare-layout.md](../specs/git-worktree-bare-layout.md)):
+Tres escenarios bajo el mismo contrato de layout (per [docs/concepts/git-worktree-bare-layout.md](../docs/concepts/git-worktree-bare-layout.md)):
 
 ```
 <project-root>/
@@ -188,7 +188,7 @@ Remove-Item -Recurse -Force C:/Projects/<repo>_old
 Remove-Item -Recurse -Force C:/Projects/_migration-backup-<repo>
 ```
 
-The registry at `~/.ai-playbook/projects.yaml` does **not** need editing — `path: C:/Projects/<repo>` resolves cwd-in-`<repo>/master/` via the parent-of-cwd rule (per [specs/dispatcher-chain.md](../specs/dispatcher-chain.md) §Registry integration).
+The registry at `~/.ai-playbook/projects.yaml` does **not** need editing — `path: C:/Projects/<repo>` resolves cwd-in-`<repo>/master/` via the parent-of-cwd rule (per [docs/concepts/dispatcher-chain.md](../docs/concepts/dispatcher-chain.md) §Registry integration).
 
 ## 4. Daily flow: add and remove worktrees
 
@@ -237,8 +237,8 @@ If §3 fails partway and the new layout is unusable:
 
 ## Cross-references
 
-- [specs/git-worktree-bare-layout.md](../specs/git-worktree-bare-layout.md) — the layout contract this runbook operationalises.
+- [docs/concepts/git-worktree-bare-layout.md](../docs/concepts/git-worktree-bare-layout.md) — the layout contract this runbook operationalises.
 - [scripts/wt_add.py](../scripts/wt_add.py) — daily-flow helper.
-- [specs/release-management.md](../specs/release-management.md) §3.1 — `slice/<change-id>` branch convention.
-- [specs/runbook-bmad-openspec.md](../specs/runbook-bmad-openspec.md) §3.6 — branch + PR + merge contract.
-- [runbooks/onboard-new-project.md](onboard-new-project.md) — the broader greenfield bootstrap flow this runbook plugs into at step §1.5.
+- [docs/concepts/release-management.md](../docs/concepts/release-management.md) §3.1 — `slice/<change-id>` branch convention.
+- [docs/concepts/runbook-bmad-openspec.md](../docs/concepts/runbook-bmad-openspec.md) §3.6 — branch + PR + merge contract.
+- [docs/runbooks/onboard-new-project.md](onboard-new-project.md) — the broader greenfield bootstrap flow this runbook plugs into at step §1.5.

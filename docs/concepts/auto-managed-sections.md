@@ -29,9 +29,9 @@ Rules:
 
 | `source_spec` | Source file | Extracted content |
 |---|---|---|
-| `specs/taxonomy:runtime` | `specs/taxonomy.md` | §1 *Runtime entities* table + surrounding prose up to the next `## ` heading. |
-| `specs/taxonomy:config` | `specs/taxonomy.md` | §2 *Config artefacts*. |
-| `specs/verdict-contract:levels` | `specs/verdict-contract.md` | §2 *Severity levels* table. |
+| `specs/taxonomy:runtime` | `docs/concepts/taxonomy.md` | §1 *Runtime entities* table + surrounding prose up to the next `## ` heading. |
+| `specs/taxonomy:config` | `docs/concepts/taxonomy.md` | §2 *Config artefacts*. |
+| `specs/verdict-contract:levels` | `docs/rules/verdict-contract.rule.md` | §2 *Severity levels* table. |
 | `specs/universal-principles` | _(not yet checked in)_ | Hard-fails with a FIX pointing at the canonical file to create. |
 
 A **generic** fallback is also accepted for any `<spec-file>:<anchor>` shape: the extractor opens `<playbook>/<spec-file>.md` (adding a `.md` suffix if missing), finds the first `## ` heading whose text contains or begins with `<anchor>` (case-insensitive, optional numeric prefix ignored), and returns everything up to the next `## ` heading.

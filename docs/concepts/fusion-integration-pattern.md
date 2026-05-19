@@ -52,14 +52,14 @@ The override is documented in the consumer's `AGENTS.md` §7 with this structure
 <project> operates under the custom workflow schema at
 `openspec/schemas/<schema-name>/schema.yaml` (<N> artefacts: <list>),
 NOT the BMAD-then-OpenSpec runbook at
-`.ai-playbook/specs/runbook-bmad-openspec.md`.
+`.ai-playbook/docs/concepts/runbook-bmad-openspec.md`.
 
 **Rationale**: <N> changes already implemented under <schema-name>.
 <List the strengths the project's workflow brings vs the playbook default>.
 
 **Imported from playbook (fusion)**:
 
-- **Verdict literals + S1-S4 severity** per `.ai-playbook/specs/verdict-contract.md`.
+- **Verdict literals + S1-S4 severity** per `.ai-playbook/docs/rules/verdict-contract.rule.md`.
   Mapping:
   - <legacy-pass> → ✅ APPROVED
   - <legacy-pass-with-notes> → ⚠️ ISSUES FOUND (iter N) — only S3/S4
@@ -148,7 +148,7 @@ The project's existing `review` instruction (whatever rendered M holistic checks
 
 - Reference the project's `openspec/memory.md` and Hindsight recall via `.claude/injected-context.md`.
 - List the M holistic checks explicitly (1, 2, ..., M) with concrete pointers to project-specific patterns from memory.md.
-- Cross-reference `.ai-playbook/specs/agentic-failures.md` failure modes that apply to the project's stack.
+- Cross-reference `.ai-playbook/docs/concepts/agentic-failures.md` failure modes that apply to the project's stack.
 - End with verdict emission per verdict-contract.md (no project-specific verdict literal — use the canonical 4).
 
 Example Layer 4 brief skeleton (replace `<...>` placeholders):

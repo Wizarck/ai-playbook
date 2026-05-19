@@ -4,7 +4,7 @@
 > compromised.
 > **Status**: v1.0.0. Canonical list of secrets the playbook uses, where
 > they live, and the exact rotation steps. Rotation is audited per
-> [specs/data-retention.md](../specs/data-retention.md).
+> [docs/concepts/data-retention.md](../docs/concepts/data-retention.md).
 
 ## Secrets inventory
 
@@ -171,7 +171,7 @@ session, then rotate to a scoped fine-grained PAT ASAP.
 
 ## Cross-references
 
-- [specs/data-retention.md](../specs/data-retention.md) — retention + deletion contract.
-- [specs/env-vars.md](../specs/env-vars.md) — env var catalog (name + purpose for every secret).
-- [specs/break-glass.md](../specs/break-glass.md) — log every ad-hoc override to `overrides.log`.
+- [docs/concepts/data-retention.md](../docs/concepts/data-retention.md) — retention + deletion contract.
+- [docs/concepts/env-vars.md](../docs/concepts/env-vars.md) — env var catalog (name + purpose for every secret).
+- [docs/rules/break-glass.rule.md](../docs/rules/break-glass.rule.md) — log every ad-hoc override to `overrides.log`.
 - [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md) §Pattern D — when the Action fails with `Authentication failed`.
