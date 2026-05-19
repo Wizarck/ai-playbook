@@ -28,6 +28,7 @@ desktop.ini
 .env.local
 dist/
 build/
+site/
 
 # Projects registry (per-dev, never committed)
 projects.yaml

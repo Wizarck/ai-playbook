@@ -2,9 +2,9 @@
 schema: rule/v1
 slug: apply-fix-contract
 description: Workflow mutations of prod state outside the autonomous tier MUST go through `hitl.request_approval` with the full envelope, pass `verify_apply_safety` (exact-match + idempotency), and record the outcome to `.ai-playbook/incidents.jsonl`.
-paired_hardrule: scripts/rules/apply-fix-contract.rule.py
+paired_hardrule: null
 activation: agent
-status: enforced
+status: advisory
 applies_to: all
 last_validated: "2026-05-19"
 ---
@@ -30,7 +30,7 @@ Approvals arrive from identity-bound channels (`TELEGRAM_HITL_ARTURO_CHAT_ID`, `
 
 ## Process supervision
 
-After implementing or running an apply step, run `python .ai-playbook/scripts/rules/apply-fix-contract.rule.py validate <workflow-file-or-incident-id>` and confirm exit code 0. The hardrule checks the envelope shape, the exact-match invariant, the idempotency precheck presence, and the `incidents.jsonl` row schema.
+The rule is **advisory** in the playbook tree because `langgraph-aiops/` and the `hitl.request_approval` runtime are consumer-side (each consumer ships its own automation surface). Consumer projects MAY add a paired hardrule under their own `scripts/rules/` namespace that AST-validates their workflow envelope contract; the playbook tracks the deferral in [../concepts/enforcement-pairing-exceptions.md](../concepts/enforcement-pairing-exceptions.md).
 
 ## Two-tier permission model
 

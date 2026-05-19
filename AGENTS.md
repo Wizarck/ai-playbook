@@ -93,53 +93,52 @@ Empty at v0.1.0. Populated as operational knowledge accrues.
 
 ## 9 Rule Map (D3 signal #4)
 
-Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Slice 5.F; auto-generation is a Slice 7 deliverable.
+Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Slice 5.F; refreshed in Slice 6 (14 new hardrules) + Slice 7 (5 new hardrules + 5 advisory downgrades); the deferred-hardrules allowlist is empty at v0.18.3.
 
 ### Enforced (paired hardrule on disk)
-
-- [cleanup-on-bump](docs/rules/cleanup-on-bump.rule.md)
-- [cleanup-zombies](docs/rules/cleanup-zombies.rule.md)
-- [english-only-docs](docs/rules/english-only-docs.rule.md)
-- [gemini-session-start](docs/rules/gemini-session-start.rule.md)
-- [install-playbook](docs/rules/install-playbook.rule.md)
-- [link-integrity](docs/rules/link-integrity.rule.md)
-- [openspec-apply-enforcement](docs/rules/openspec-apply-enforcement.rule.md)
-- [secrets-handling](docs/rules/secrets-handling.rule.md)
-- [update-documentation](docs/rules/update-documentation.rule.md)
-- [update-playbook](docs/rules/update-playbook.rule.md)
-
-### Advisory (paired_hardrule: null per `docs/concepts/enforcement-pairing-exceptions.md`)
-
-- [conflict-resolution-policy](docs/rules/conflict-resolution-policy.rule.md)
-- [data-handling](docs/rules/data-handling.rule.md)
-- [parallel-wave-anti-collision](docs/rules/parallel-wave-anti-collision.rule.md)
-- [slice-preflight](docs/rules/slice-preflight.rule.md)
-
-### Hardrule deferred (paired_hardrule named, .py ships in a later slice)
-
-Listed in `scripts/rules/deferred-hardrules.txt`; tracked in `openspec/changes/slice-5f-harmonization/deferred-strict-failures.md`.
 
 - [agentic-failure-catalog-schema](docs/rules/agentic-failure-catalog-schema.rule.md)
 - [ai-reviewer-signoff](docs/rules/ai-reviewer-signoff.rule.md)
 - [alembic-migration-naming](docs/rules/alembic-migration-naming.rule.md)
-- [apply-fix-contract](docs/rules/apply-fix-contract.rule.md)
 - [apply-skill-enforcement](docs/rules/apply-skill-enforcement.rule.md)
 - [auto-merge-discipline](docs/rules/auto-merge-discipline.rule.md)
 - [auto-pr-stream-closure](docs/rules/auto-pr-stream-closure.rule.md)
 - [bootstrap-directive](docs/rules/bootstrap-directive.rule.md)
 - [break-glass](docs/rules/break-glass.rule.md)
+- [cleanup-on-bump](docs/rules/cleanup-on-bump.rule.md)
+- [cleanup-zombies](docs/rules/cleanup-zombies.rule.md)
 - [cross-slice-additive-extension](docs/rules/cross-slice-additive-extension.rule.md)
 - [delegated-shipping-prompt](docs/rules/delegated-shipping-prompt.rule.md)
 - [doc-drift-enforcement](docs/rules/doc-drift-enforcement.rule.md)
+- [english-only-docs](docs/rules/english-only-docs.rule.md)
 - [error-message-standard](docs/rules/error-message-standard.rule.md)
+- [gemini-session-start](docs/rules/gemini-session-start.rule.md)
 - [github-project-board-schema](docs/rules/github-project-board-schema.rule.md)
-- [hitl-approval-pattern](docs/rules/hitl-approval-pattern.rule.md)
+- [install-playbook](docs/rules/install-playbook.rule.md)
+- [link-integrity](docs/rules/link-integrity.rule.md)
 - [migration-slot-reservation](docs/rules/migration-slot-reservation.rule.md)
-- [notification-channel-adapter](docs/rules/notification-channel-adapter.rule.md)
-- [notification-level-declared](docs/rules/notification-level-declared.rule.md)
-- [notification-no-secrets](docs/rules/notification-no-secrets.rule.md)
+- [openspec-apply-enforcement](docs/rules/openspec-apply-enforcement.rule.md)
 - [output-completeness](docs/rules/output-completeness.rule.md)
 - [pr-tracker-reference](docs/rules/pr-tracker-reference.rule.md)
+- [secrets-handling](docs/rules/secrets-handling.rule.md)
 - [subagent-envelope-schema](docs/rules/subagent-envelope-schema.rule.md)
+- [update-documentation](docs/rules/update-documentation.rule.md)
+- [update-playbook](docs/rules/update-playbook.rule.md)
 - [verdict-contract](docs/rules/verdict-contract.rule.md)
 - [verification-before-completion](docs/rules/verification-before-completion.rule.md)
+
+### Advisory (paired_hardrule: null per `docs/concepts/enforcement-pairing-exceptions.md`)
+
+- [apply-fix-contract](docs/rules/apply-fix-contract.rule.md) — consumer-side surface (Slice 7).
+- [conflict-resolution-policy](docs/rules/conflict-resolution-policy.rule.md)
+- [data-handling](docs/rules/data-handling.rule.md)
+- [hitl-approval-pattern](docs/rules/hitl-approval-pattern.rule.md) — consumer-side surface (Slice 7).
+- [notification-channel-adapter](docs/rules/notification-channel-adapter.rule.md) — consumer-side surface (Slice 7).
+- [notification-level-declared](docs/rules/notification-level-declared.rule.md) — consumer-side surface (Slice 7).
+- [notification-no-secrets](docs/rules/notification-no-secrets.rule.md) — consumer-side surface (Slice 7).
+- [parallel-wave-anti-collision](docs/rules/parallel-wave-anti-collision.rule.md)
+- [slice-preflight](docs/rules/slice-preflight.rule.md)
+
+### Hardrule deferred (paired_hardrule named, .py ships in a later slice)
+
+Empty at v0.18.3. The deferred-hardrules allowlist file was removed in Slice 7; the strict-mode validator now exits 0 with no allowlist.
