@@ -764,8 +764,9 @@ def _build_argparser() -> argparse.ArgumentParser:
 
 
 def _resolve_default_manifest() -> Path:
-    # The script ships under <playbook>/scripts/; the manifest sits at <playbook>/specs/.
-    return Path(__file__).resolve().parent.parent / MANIFEST_REL
+    # v0.18.0: the script ships under <playbook>/scripts/rules/; the manifest
+    # sits at <playbook>/specs/. Walk two parents up to reach the playbook root.
+    return Path(__file__).resolve().parent.parent.parent / MANIFEST_REL
 
 
 def main(argv: list[str] | None = None) -> int:
