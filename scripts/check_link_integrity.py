@@ -37,6 +37,23 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # because images live outside the link-integrity scope (handled by mkdocs).
 _LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\(([^)]+)\)")
 
+# Fenced code blocks: ``` ... ``` or ~~~ ... ~~~ (multi-line, dot matches newline).
+_FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
+# Inline code: `...` — single backtick spans.
+_INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+
+
+def _strip_code(text: str) -> str:
+    """Replace fenced and inline code with newline-preserving blanks so line
+    numbers stay accurate while the link regex no longer hits code-block
+    examples (e.g. `[#NN](...)` inside a markdown template fence)."""
+    def _blank(m: re.Match[str]) -> str:
+        # Preserve line count so reported line numbers stay correct.
+        return "\n" * m.group(0).count("\n")
+    text = _FENCE_RE.sub(_blank, text)
+    text = _INLINE_CODE_RE.sub(_blank, text)
+    return text
+
 
 def is_external(target: str) -> bool:
     parsed = urlparse(target)
@@ -62,6 +79,7 @@ def find_dead_links(paths: list[Path], repo_root: Path) -> list[tuple[Path, int,
             text = md.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        text = _strip_code(text)
         for lineno, line in enumerate(text.splitlines(), start=1):
             for match in _LINK_RE.finditer(line):
                 target = match.group(2).strip()

@@ -121,3 +121,29 @@ def test_line_number_reported(tmp_path: Path) -> None:
     source.write_text("line 1\nline 2\n[dead](nope.md)\n", encoding="utf-8")
     dead = cli.find_dead_links([source], tmp_path)
     assert dead[0][1] == 3
+
+
+def test_fenced_code_block_links_skipped(tmp_path: Path) -> None:
+    """Links inside ``` fences are markdown examples, not real cross-refs."""
+    source = tmp_path / "src.md"
+    source.write_text(
+        "Real link below.\n\n"
+        "```markdown\n"
+        "[#NN](...)\n"
+        "[example](missing-target.md)\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    dead = cli.find_dead_links([source], tmp_path)
+    assert dead == []
+
+
+def test_inline_code_links_skipped(tmp_path: Path) -> None:
+    """Backtick-quoted `[label](path)` is documentation prose, not a real link."""
+    source = tmp_path / "src.md"
+    source.write_text(
+        "Reference the link syntax as `[label](path.md)` in your doc.\n",
+        encoding="utf-8",
+    )
+    dead = cli.find_dead_links([source], tmp_path)
+    assert dead == []
