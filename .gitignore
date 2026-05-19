@@ -43,3 +43,9 @@ consumers.yaml
 # Runtime notifications (append-only, per-consumer; should never enter the repo)
 notifications.jsonl
 hindsight-queue.jsonl
+
+# OpenSpec working tree — devs may use the openspec workflow locally while
+# iterating on the playbook itself, but the playbook does not commit its own
+# proposals/tasks/archive. Consumer-side `openspec/` folders are governed by
+# each consumer's own .gitignore (not this file).
+openspec/
