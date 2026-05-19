@@ -15,36 +15,15 @@ def _write(path: Path, text: str) -> Path:
     return path
 
 
-def test_extract_status_blockquote_bold() -> None:
-    text = "# foo\n\n> **Status**: v1.0.0. Populated in T07.\n\nbody\n"
-    assert gi.extract_status(text) == "v1.0.0. Populated in T07."
-
-
-def test_extract_status_missing_returns_dash() -> None:
-    text = "# foo\n\nSome summary paragraph.\n"
-    assert gi.extract_status(text) == "—"
-
-
-def test_extract_status_skips_frontmatter() -> None:
-    text = (
-        "---\n"
-        "schema: agents-md/v1\n"
-        "> **Status**: not-a-real-status\n"
-        "---\n"
-        "# body\n\n> **Status**: v2.0.0\n"
-    )
-    assert gi.extract_status(text) == "v2.0.0"
-
-
 def test_extract_summary_first_paragraph_line() -> None:
     text = "# Title\n\nThis is the first paragraph line.\n\nSecond.\n"
     assert gi.extract_summary(text) == "This is the first paragraph line."
 
 
-def test_extract_summary_skips_status_and_headings() -> None:
+def test_extract_summary_skips_blockquote_and_headings() -> None:
     text = (
         "# heading\n\n"
-        "> **Status**: v1.0.0\n\n"
+        "> META note that should be skipped\n\n"
         "## sub\n\n"
         "Real summary here.\n"
     )
@@ -52,7 +31,7 @@ def test_extract_summary_skips_status_and_headings() -> None:
 
 
 def test_extract_summary_truncates() -> None:
-    body = "x" * 200
+    body = "x" * 300
     text = f"# heading\n\n{body}\n"
     result = gi.extract_summary(text)
     assert len(result) == gi.SUMMARY_MAX_LEN
@@ -68,18 +47,66 @@ def test_extract_summary_ignores_code_fence() -> None:
     assert gi.extract_summary(text) == "Real summary."
 
 
+def test_extract_summary_prefers_frontmatter_summary_block_scalar() -> None:
+    text = (
+        "---\n"
+        "schema: concept/v1\n"
+        "summary: |\n"
+        "  First curated line\n"
+        "  continues on a second line.\n"
+        "last_validated: \"2026-05-19\"\n"
+        "---\n"
+        "# Body\n\nThis body line should be ignored.\n"
+    )
+    assert gi.extract_summary(text) == "First curated line continues on a second line."
+
+
+def test_extract_summary_prefers_frontmatter_description_single_line() -> None:
+    text = (
+        "---\n"
+        "schema: rule/v1\n"
+        "description: One-line curated description from a rule.\n"
+        "status: enforced\n"
+        "---\n"
+        "# Body\n\nIgnored body line.\n"
+    )
+    assert gi.extract_summary(text) == "One-line curated description from a rule."
+
+
+def test_extract_summary_frontmatter_strips_quotes() -> None:
+    text = (
+        "---\n"
+        'summary: "Quoted summary value."\n'
+        "---\n"
+        "# Body\n\nIgnored.\n"
+    )
+    assert gi.extract_summary(text) == "Quoted summary value."
+
+
+def test_extract_summary_falls_back_to_body_when_no_frontmatter_key() -> None:
+    text = (
+        "---\n"
+        "schema: misc/v1\n"
+        "slug: foo\n"
+        "---\n"
+        "# Body\n\nBody fallback summary.\n"
+    )
+    assert gi.extract_summary(text) == "Body fallback summary."
+
+
 def test_render_index_shape_and_sort(tmp_path: Path) -> None:
-    _write(tmp_path / "beta.md", "# Beta\n\n> **Status**: v0.2\n\nBeta summary.\n")
-    _write(tmp_path / "alpha.md", "# Alpha\n\n> **Status**: v1.0\n\nAlpha summary.\n")
+    _write(tmp_path / "beta.md", "# Beta\n\nBeta summary.\n")
+    _write(tmp_path / "alpha.md", "# Alpha\n\nAlpha summary.\n")
     out = gi.render_index(tmp_path)
     assert out.startswith(f"# {tmp_path.name} — index\n")
     assert gi.BANNER in out
-    assert "| File | Status | Summary |" in out
+    assert "| File | Summary |" in out
+    assert "Status" not in out
     alpha_pos = out.index("[alpha.md]")
     beta_pos = out.index("[beta.md]")
     assert alpha_pos < beta_pos
-    assert "v1.0" in out
     assert "Alpha summary." in out
+    assert "Beta summary." in out
 
 
 def test_render_index_sub_directories_listed(tmp_path: Path) -> None:

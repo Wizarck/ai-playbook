@@ -38,6 +38,22 @@ All notable changes to `ai-playbook` are documented here. Semver.
   Troubleshooting block updated to describe the new auto-drain behaviour and
   the manual `--replay-queue` flag as the escape hatch.
 
+### Changed
+
+- **`scripts/gen_indexes.py`** — fixed two long-standing defects in the
+  auto-generated `INDEX.md` tables: (1) the `Status` column has been dropped
+  because no `.md` file in the playbook uses the `> **Status**:` blockquote
+  convention it sourced from (the column was uniformly `—` everywhere); (2)
+  `Summary` now prefers a curated YAML frontmatter field (`summary:` for
+  concept docs, `description:` for rules / runbooks / tutorials) and only
+  falls back to the first body paragraph when neither is present. Truncation
+  raised from 100 → 200 chars so curated summaries can breathe. The four
+  `docs/{concepts,rules,runbooks,tutorials}/INDEX.md` files have been
+  regenerated. The CI `--check` mode still asserts idempotency, so consumers
+  pinning future versions must regenerate their own indexes if they keep
+  local copies. Test contract updated (3 status-related tests removed; 4
+  frontmatter-related tests added).
+
 ### Known gaps still pending (post-v0.19.2, post-review gate)
 
 - **v0.19.x (subsequent post-review fix iterations)**: reserved for any
