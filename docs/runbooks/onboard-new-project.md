@@ -1,54 +1,67 @@
-# runbook: onboard-new-project.md — anexar un repo nuevo al playbook
+---
+schema: runbook/v1
+slug: onboard-new-project
+description: Attach a new repo to the ai-playbook (submodule pin, dispatcher routers, MCP config, SessionStart hook, propagation, Profile A/B enforcement).
+audience: developer
+estimated_time: 10-15 min (Profile A adds ~5 min for CodeRabbit install)
+last_validated: "2026-05-19"
+---
 
-> **Audience**: tú o un teammate que acaba de crear (o va a crear) un repo nuevo y quiere que herede del ai-playbook (Hindsight memory loop, MCP config, SessionStart hook, propagation auto-bump, runbooks compartidos, **Profile A/B release-management v0.8.x**).
-> **Status**: v1.1.0 (2026-05-01 — adds Profile A/B project board bootstrap + AI-reviewer install + visibility decision).
-> **Prereqs**: `git`, `python 3.11+`, `pre-commit` (`pipx install pre-commit`), `gh` autenticado, acceso de escritura al repo nuevo + al ai-playbook.
-> **Tiempo estimado**: 10–15 minutos en el happy path (Profile A consumers add ~5min for CodeRabbit install).
+# Onboard a new project to the playbook
 
-## Qué hace este runbook
+## Outcome
 
-Un comando ➜ un consumer completamente onboarded:
-- Submódulo `.ai-playbook/` pinneado al último release.
-- `AGENTS.md` (v1 dispatcher), `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/00-dispatcher.mdc` (routers).
-- `mcp-servers.project.yaml` con bank Hindsight asignado.
-- `.claude/settings.json` con SessionStart hook auto-fired.
-- `.mcp.json` + `.gemini/settings.json` rendered desde el merge 3-layer.
-- `.gitignore` extendido con entries del playbook.
-- Pre-commit hooks instalados (schema, secrets, verdict, drift checks).
-- `~/.ai-playbook/projects.yaml` actualizado para resolución de paths local.
-- Fila en `<playbook>/consumers.yaml` para que la propagation Action auto-bumpea el submódulo en cada release nuevo.
+The new repo has:
 
-Después del runbook, una sesión Claude Code en ese repo:
-1. Auto-recall desde Hindsight bank `<project>` al arrancar.
-2. Reconoce los specs universales via inheritance.
-3. Recibe bumps automáticos cuando el playbook saca v0.x.y.
+- `.ai-playbook/` submodule pinned to the latest release.
+- `AGENTS.md` (v1 dispatcher), `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/00-dispatcher.mdc` routers.
+- `mcp-servers.project.yaml` with a Hindsight bank assigned.
+- `.claude/settings.json` with the SessionStart hook auto-fired.
+- `.mcp.json` + `.gemini/settings.json` rendered from the 3-layer merge.
+- `.gitignore` extended with playbook entries.
+- Pre-commit hooks installed (schema, secrets, verdict, drift).
+- `~/.ai-playbook/projects.yaml` updated for local path resolution.
+- A row in `<playbook>/consumers.yaml` so propagation auto-bumps the submodule each release.
+- GitHub Project board with the canonical Status schema (and, for Profile A, branch protection + CodeRabbit + merge queue).
 
-## Decisiones previas
+A Claude Code session at the repo root then auto-recalls from Hindsight bank `<project>` at startup, recognises the universal specs via inheritance, and receives bump PRs automatically.
 
-### ¿bank name?
+## When to use this
 
-Default = `<project-name>` lowercased. Coincide con la convención de [memory-hierarchy.md §2](../docs/concepts/memory-hierarchy.md). Si tu proyecto necesita un bank distinto (p.ej. compartir bank con otro proyecto), cambia el `--bank-id` a la mano en `mcp-servers.project.yaml` y `.claude/settings.json` después del bootstrap.
+You are about to create (or have just created) a repo and want it to inherit from the playbook. Skip when:
 
-### ¿Profile A (Public OSS) o Profile B (Private Solo)? (per [release-management.md §5.6](../docs/concepts/release-management.md))
+- The repo already has `.ai-playbook/` and `AGENTS.md` — use the daily flow instead.
+- The repo will not consume any playbook contract (rare; usually a third-party fork).
 
-Decide ANTES del bootstrap — afecta enforcement (branch protection, CodeRabbit, merge queue) y rollout.
+## Prerequisites
 
-| Visibility | Profile | Plan GH | Branch protection | CodeRabbit | Merge queue |
-|---|---|---|---|---|---|
-| `public` | A | Free OK | ✅ | ✅ free unlimited | ✅ |
-| `private` | B | Free OK | ❌ (need Pro/Team) | ❌ (paid only) | ❌ |
-| `private` | A | Pro/Team ($4+/mes) | ✅ | ❌ (paid only) | ✅ Team+ |
-
-**Regla práctica**:
-- Si el repo es OSS-friendly (license Apache/MIT/AGPL, no IP secret) → **público + Profile A**. Coste 0, full enforcement.
-- Si privacidad es no-negociable y eres solo tú trabajando → **privado + Profile B** (convention-based, sin gates duros).
-- Si privacidad + multi-dev → **privado + Pro/Team + Profile A**.
-
-Documentar la decisión en `docs/hitl-gates-log.md` del consumer.
+- `git --version` and `python --version` (3.11+) report success.
+- `pipx list | grep pre-commit` shows pre-commit installed.
+- `gh auth status` shows authenticated.
+- Write access to the new repo and the ai-playbook repo.
 
 ## Steps
 
-### 1. Crea el repo en GitHub (si aún no existe)
+### 1. Decide the bank name and the profile (before bootstrap)
+
+The bank defaults to `<project-name>` lowercased (per [Concept: memory-hierarchy](../concepts/memory-hierarchy.md)). Override only when sharing a bank deliberately.
+
+Choose Profile A or B per [Concept: release-management](../concepts/release-management.md):
+
+| Visibility | Profile | GH plan | Branch protection | CodeRabbit | Merge queue |
+|---|---|---|---|---|---|
+| `public` | A | Free OK | enabled | free unlimited | enabled |
+| `private` | B | Free OK | needs Pro/Team | paid only | unavailable on Free |
+| `private` | A | Pro/Team ($4+/mo) | enabled | paid only | Team+ |
+
+Rule of thumb:
+- OSS-friendly license + no IP secret → public + Profile A (cost 0, full enforcement).
+- Privacy non-negotiable, solo developer → private + Profile B (convention-based).
+- Privacy + multi-dev → private + Pro/Team + Profile A.
+
+Document the decision in `docs/hitl-gates-log.md` of the consumer.
+
+### 2. Create the repo on GitHub (if it does not exist)
 
 ```bash
 gh repo create Wizarck/<project-name> --private --clone
@@ -57,14 +70,12 @@ git commit --allow-empty -m "chore: initial commit"
 git push -u origin master
 ```
 
-Si el repo ya existe + tiene historia, cd a su working tree y salta a step 2.
+If the repo already exists with history, `cd` into its working tree and skip to step 3.
 
-### 2. Corre bootstrap.py desde el playbook
-
-Un solo comando, cubre TODO:
+### 3. Run `bootstrap.py` from the playbook
 
 ```bash
-cd /c/Projects/<project-name>          # tu repo nuevo
+cd /c/Projects/<project-name>
 
 python /c/Projects/ai-playbook/scripts/bootstrap.py <project-name> \
     --owner <your-email> \
@@ -74,20 +85,20 @@ python /c/Projects/ai-playbook/scripts/bootstrap.py <project-name> \
     --default-branch master
 ```
 
-**Flags clave:**
+Flags:
 
-| Flag | Qué hace |
+| Flag | Purpose |
 |---|---|
-| `<project-name>` (positional) | Slug. `[a-zA-Z0-9][a-zA-Z0-9_-]*`. Bank será `<project-name>` lowercased. |
-| `--owner` | Email para AGENTS.md frontmatter. Default: `$GIT_AUTHOR_EMAIL` o `git config user.email`. |
-| `--path .` | Donde escribir. Default: `<cwd>/<project-name>` (asume target NO existe). Pasa `.` cuando el repo ya existe. |
-| `--register-in <playbook-path>` | Añade automáticamente la fila a `consumers.yaml` del playbook. Si lo omites, lo haces a mano (paso 4 abajo). |
-| `--visibility private\|public` | Para la fila en consumers.yaml. Si es público, ten en cuenta que `.mcp.json` no incluirá la personal layer. |
-| `--default-branch master\|main` | Branch principal del repo (afecta consumers.yaml y la propagation Action). |
-| `--personal` | Solo para repos personales de Arturo. Marca `personal: true` en frontmatter; carga consumer-d.md como add-on. |
-| `--dry-run` | Simula sin escribir. Recomendado primer pasada. |
+| `<project-name>` (positional) | Slug. `[a-zA-Z0-9][a-zA-Z0-9_-]*`. Bank is `<project-name>` lowercased. |
+| `--owner` | Email for AGENTS.md frontmatter. Defaults to `$GIT_AUTHOR_EMAIL` or `git config user.email`. |
+| `--path .` | Where to write. Defaults to `<cwd>/<project-name>`. Pass `.` when the repo already exists. |
+| `--register-in <playbook-path>` | Auto-appends the row to `consumers.yaml`. Omit to do it manually in step 5. |
+| `--visibility private\|public` | Sets the row in `consumers.yaml`. Public repos do not include the personal layer in `.mcp.json`. |
+| `--default-branch master\|main` | Affects `consumers.yaml` and the propagation Action. |
+| `--personal` | For Arturo's personal repos only. Marks `personal: true`; loads consumer-d.md as add-on. |
+| `--dry-run` | Simulate without writing. Recommended on first pass. |
 
-**Output esperado:**
+Expected output:
 
 ```
 → Bootstrapping project '<project-name>'
@@ -101,44 +112,35 @@ python /c/Projects/ai-playbook/scripts/bootstrap.py <project-name> \
 ✓ doctor.py: ✅ healthy
 ✓ rendered .mcp.json + .gemini/settings.json for <project-name>
 ✓ added <project-name> row to /c/Projects/ai-playbook/consumers.yaml
-  Next: cd /c/Projects/ai-playbook && git add consumers.yaml && git commit && git push
-
-✅ Bootstrap complete. Next steps:
-   1. cd /c/Projects/<project-name>
-   2. Fill placeholders in AGENTS.md (§1 identity, §3 active work, §4 rules).
-   ...
 ```
 
-### 3. Edita los placeholders manuales en AGENTS.md
+### 4. Fill the manual placeholders in AGENTS.md
 
-Bootstrap deja 4 placeholders sin substituir (son human-fill obligatorios):
+Bootstrap leaves 4 placeholders unsubstituted (human-fill required):
 
 ```bash
 grep -nE "\{\{[A-Z_]+\}\}" AGENTS.md
 ```
 
-| Placeholder | Qué pones |
+| Placeholder | What to write |
 |---|---|
-| `{{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}` | §1 identity. Qué ES el proyecto en 1-3 líneas. |
-| `{{ACTIVE_OPENSPEC_CHANGE_OR_NONE}}` | §3 active work. `none (bootstrap)` está bien al arrancar. |
-| `{{PROJECT_SPECIFIC_RULES_NOT_DUPLICATING_PLAYBOOK}}` | §4 hard rules. Reglas TUYAS, no las del playbook. |
-| `{{NONE_OR_EXPLICIT_OVERRIDES_WITH_RATIONALE}}` | §7 overrides. `None.` por default. |
-| `{{EMPTY_FILL_AS_YOU_LEARN}}` | §8 gotchas. Vacío por default. |
+| `{{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}` | §1 identity — what the project IS in 1-3 lines. |
+| `{{ACTIVE_OPENSPEC_CHANGE_OR_NONE}}` | §3 active work — `none (bootstrap)` is fine at start. |
+| `{{PROJECT_SPECIFIC_RULES_NOT_DUPLICATING_PLAYBOOK}}` | §4 hard rules — yours, not the playbook's. |
+| `{{NONE_OR_EXPLICIT_OVERRIDES_WITH_RATIONALE}}` | §7 overrides — `None.` by default. |
+| `{{EMPTY_FILL_AS_YOU_LEARN}}` | §8 gotchas — empty by default. |
 
-Valida:
+Validate:
 
 ```bash
 python .ai-playbook/scripts/schema_validate.py AGENTS.md
 # Expected: ✅ AGENTS.md valid against schema agents-md/v1
 ```
 
-### 4. Si NO usaste `--register-in`: añade la fila a mano
-
-Edita `<playbook>/consumers.yaml`:
+### 5. (Only if `--register-in` was omitted) Manually add to `consumers.yaml`
 
 ```yaml
 consumers:
-  # ... existentes ...
   <project-name>:
     repo: Wizarck/<project-name>
     default_branch: master
@@ -147,7 +149,7 @@ consumers:
     notes: <one-line description>.
 ```
 
-### 5. Commit + push del proyecto
+### 6. Commit + push the project
 
 ```bash
 cd /c/Projects/<project-name>
@@ -156,7 +158,7 @@ git commit -m "chore: bootstrap <project-name> via ai-playbook v0.3.0"
 git push
 ```
 
-### 6. Commit + push del playbook (consumers.yaml updated)
+### 7. Commit + push the playbook (`consumers.yaml` updated)
 
 ```bash
 cd /c/Projects/ai-playbook
@@ -165,20 +167,20 @@ git commit -m "feat(consumers): onboard <project-name>"
 git push
 ```
 
-A partir de aquí, **cada vez que el playbook saque un release nuevo (`v0.X.Y` tag)**, la GH Action `propagate-playbook-bump.yml` abre automáticamente un PR en `Wizarck/<project-name>` actualizando el submódulo. Solo hay que merger el PR.
+From here, every playbook release auto-opens a bump PR on `Wizarck/<project-name>` via `propagate-playbook-bump.yml`.
 
-### 7. (NEW v0.8.x) Bootstrap del GH Project board + Profile A/B enforcement
+### 8. Bootstrap the GitHub Project board + Profile A/B enforcement
 
-Crea el GH Project (si aún no existe):
+Create the GH Project (if it does not exist):
 
 ```bash
 gh project create --owner Wizarck --title "<project-name>"
-gh project list --owner Wizarck   # toma el número resultante (e.g. 5)
+gh project list --owner Wizarck   # take the resulting number, e.g. 5
 ```
 
-Si vas a usar Jira en lugar de GH Issues como tracker, igualmente crea el Project para el roadmap visual + el `Status` schema canónico.
+Even when Jira is the primary tracker, the GH Project still hosts the roadmap view + canonical Status schema.
 
-Luego corre el bootstrap (idempotente — safe re-run):
+Run the bootstrap (idempotent — safe re-run):
 
 ```bash
 cd /c/Projects/<project-name>
@@ -186,52 +188,53 @@ python -m scripts.bootstrap_gh_project \
     --owner Wizarck --project-number <N> \
     --repo Wizarck/<project-name> \
     --profile auto \
-    --visibility private   # solo si NO está aún seteado
+    --visibility private   # only when not yet set
 ```
 
-`--profile auto` detecta visibility con `gh repo view` y aplica:
-- **Profile A (public)**: branch protection clásico (1 review, 5 universal checks), repo settings (auto-merge=on, squash-only, delete-branch-on-merge), `.coderabbit.yaml` desde template.
-- **Profile B (private)**: solo repo settings + emite notice de que branch protection no está disponible en GH Free private.
+`--profile auto` detects visibility via `gh repo view` and applies:
 
-En ambos profiles se añade el schema canónico al project: Status (5 opciones) + Risk + P&L impact + Branch + Base SHA.
+- **Profile A (public)**: branch protection (1 review, 5 universal checks), repo settings (auto-merge=on, squash-only, delete-branch-on-merge), `.coderabbit.yaml` from template.
+- **Profile B (private)**: only repo settings; emits a notice that branch protection is unavailable on GH Free private.
 
-### 8. (NEW v0.8.x — Profile A only) Instala CodeRabbit GH App
+Both profiles add the canonical schema: Status (5 options) + Risk + P&L impact + Branch + Base SHA.
 
-Solo para consumers públicos. CodeRabbit es free unlimited en repos OSS y revisa cada PR con las path-instructions de `.coderabbit.yaml`.
+### 9. Install the CodeRabbit GitHub App (Profile A only)
 
-1. Ve a https://github.com/marketplace/coderabbitai
-2. "Set up plan" → "CodeRabbit Free for Open Source"
-3. Account: **Wizarck** · Repository access: **"Only select repositories"** → marca el nuevo repo
-4. "Install & Authorize"
+CodeRabbit is free unlimited on OSS repos. It reviews every PR using the path-instructions in `.coderabbit.yaml`.
 
-Cuando llegue el primer PR, CodeRabbit comenta automáticamente. **Importante**: el worker AI debe leer + responder a sus comentarios antes de pedir Gate F (per [release-management.md §4.5](../docs/concepts/release-management.md)).
+1. Visit <https://github.com/marketplace/coderabbitai>.
+2. "Set up plan" → "CodeRabbit Free for Open Source".
+3. Account: **Wizarck** · Repository access: **"Only select repositories"** → mark the new repo.
+4. "Install & Authorize".
 
-Si el repo seguirá privado o no quieres CodeRabbit: skip este paso. El contrato §4.5 degrada a self-review (Profile B fallback).
+On the first PR, CodeRabbit comments automatically. The worker AI must read and respond to its comments before requesting Gate F (per [Concept: release-management](../concepts/release-management.md)).
 
-### 9. (NEW v0.8.x — Profile A only) Configura el secret `CONSUMER_D_GOD_MODE`
+Skip if the repo stays private or if CodeRabbit is not wanted. The §4.5 contract degrades to self-review (Profile B fallback, see [Runbook: coderabbit-fallback](coderabbit-fallback.md)).
 
-Si el consumer tiene CI workflows que necesitan clonar `.ai-playbook/` (submodule privado de `Wizarck/ai-playbook`), añade el PAT:
+### 10. Configure the `CONSUMER_D_GOD_MODE` secret (Profile A only)
+
+If the consumer has CI workflows that need to clone `.ai-playbook/` (private submodule of `Wizarck/ai-playbook`):
 
 ```bash
 gh secret set CONSUMER_D_GOD_MODE -R Wizarck/<project-name> --body "<your-pat>"
 ```
 
-El PAT necesita scope `Contents: read` sobre `Wizarck/ai-playbook` + `Wizarck/consumer-d-skills`. Sin esto, `actions/checkout@v4` con `submodules: true` falla con 404 "Repository not found".
+The PAT requires scope `Contents: read` on `Wizarck/ai-playbook` and `Wizarck/consumer-d-skills`. Without this, `actions/checkout@v4` with `submodules: true` fails with `404 Repository not found`.
 
-### 10. Verifica el SessionStart hook
+### 11. Verify the SessionStart hook
 
-Lanza una sesión Claude Code en el directorio:
+Launch a Claude Code session in the repo:
 
 ```bash
 cd /c/Projects/<project-name>
-claude  # o lo que uses para arrancar Claude Code
+claude  # or whatever launches Claude Code
 ```
 
-Después de ~30-60 segundos (cold recall) debería aparecer `.claude/injected-context.md` con resultados del bank `<project-name>`. Es normal que esté vacío en la primera ejecución (el bank se crea lazy).
+After ~30-60 seconds (cold recall) `.claude/injected-context.md` should appear with results from bank `<project-name>`. Empty on first run is normal — the bank is created lazily.
 
-### 11. (Opcional, v0.8.x+) Copia los workflow templates de auto-transition + dep-check + coderabbit-fallback
+### 12. (Optional) Copy auto-transition + dep-check + coderabbit-fallback workflows
 
-Si el consumer va a usar el slicing graph activamente (Wave 0 sequential + Wave N parallel), copia los workflows que automatizan el board:
+When the consumer uses the slicing graph actively (Wave 0 sequential + Wave N parallel):
 
 ```bash
 cp .ai-playbook/templates/new-project/.github/workflows/project-status.yml.tmpl \
@@ -239,76 +242,71 @@ cp .ai-playbook/templates/new-project/.github/workflows/project-status.yml.tmpl 
 cp .ai-playbook/templates/new-project/.github/workflows/dep-check.yml.tmpl \
    .github/workflows/dep-check.yml
 cp .ai-playbook/templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl \
-   .github/workflows/coderabbit-fallback.yml   # v0.9.0+ — L2 safety net
+   .github/workflows/coderabbit-fallback.yml
 ```
 
-Configura los secrets/variables que requieren:
-- Secret `PROJECT_AUTOMATION_TOKEN`: PAT con Project read+write (para `project-status.yml` + `dep-check.yml`).
+Configure:
+
+- Secret `PROJECT_AUTOMATION_TOKEN`: PAT with Project read+write.
 - Variable `PROJECT_OWNER`: `Wizarck`.
-- Variable `PROJECT_NUMBER`: `<N>` del paso 7.
+- Variable `PROJECT_NUMBER`: `<N>` from step 8.
 
-`project-status.yml` auto-transiciona items de Blocked → Todo cuando sus deps están Done (per [release-management.md §6.3](../docs/concepts/release-management.md)). `dep-check.yml` (opt-in hard gate) bloquea PR de slice X si las deps no están Done aún. `coderabbit-fallback.yml` (v0.9.0+) postea un self-review checklist en PRs cuando CodeRabbit no está disponible Y el PR body no tiene §4.5 poblado (per [release-management.md §4.5.2](../docs/concepts/release-management.md)). Solo usa `secrets.GITHUB_TOKEN` (no requiere PAT).
+`project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty — only uses `secrets.GITHUB_TOKEN`.
 
-**Nota**: `bootstrap_gh_project.py --profile auto` (v0.9.0+) copia `coderabbit-fallback.yml` automáticamente; estos `cp` manuales son para consumers que no quieren correr el bootstrap script.
+`bootstrap_gh_project.py --profile auto` (v0.9.0+) copies `coderabbit-fallback.yml` automatically; the manual `cp` is for consumers skipping the bootstrap script.
 
-## Manual override del SOPS path
+## Verification
 
-Si tu repo NO está al lado de `consumer-d/` (donde viven las CF Access creds del Hindsight), edita `.claude/settings.json` y cambia:
-
-```diff
-- "command": "sops exec-env ../consumer-d/secrets/secrets.env -- python ..."
-+ "command": "sops exec-env /absolute/path/to/your/secrets.env -- python ..."
-```
-
-O usa env vars exportadas en tu shell profile y elimina el `sops exec-env` wrapper.
-
-## Verificación end-to-end
+End-to-end checks:
 
 ```bash
-# Schema
-python .ai-playbook/scripts/schema_validate.py AGENTS.md
-
-# MCP config
-python .ai-playbook/scripts/mcp/validate.py --consumer-root .
-
-# Drift check (legacy ↔ v1 yamls)
-python .ai-playbook/scripts/check_mcp_drift.py --consumer-root .
-
-# Doctor (full suite)
-python .ai-playbook/scripts/doctor.py
+python .ai-playbook/scripts/schema_validate.py AGENTS.md       # AGENTS.md valid
+python .ai-playbook/scripts/mcp/validate.py --consumer-root .  # MCP config valid
+python .ai-playbook/scripts/check_mcp_drift.py --consumer-root .  # No drift
+python .ai-playbook/scripts/doctor.py                          # Full suite
 ```
 
-Los 4 deberían terminar en ✅. Si alguno falla, su `FIX:` line dice exactamente qué hacer.
+All four must end in success. Each script prints a `FIX:` line on failure with the exact remediation.
 
-## Rollback
+## Troubleshooting
 
-Si algo sale mal y quieres deshacer:
+### Symptom: bootstrap exits with `bank not allowed`
+**Cause**: the requested `--bank-id` is reserved or already claimed by another project.
+**Fix**: pick a different bank name, or share an existing bank deliberately. Edit `mcp-servers.project.yaml` and `.claude/settings.json` after bootstrap to point at the chosen bank.
 
+### Symptom: schema_validate fails with "unsubstituted placeholder"
+**Cause**: AGENTS.md still has `{{PLACEHOLDER}}` literals.
+**Fix**: `grep -nE "\{\{[A-Z_]+\}\}" AGENTS.md` and fill each one per step 4.
+
+### Symptom: SOPS path mismatch on the SessionStart hook
+**Cause**: the repo is not co-located with `consumer-d/` where the canonical CF Access creds live.
+**Fix**: edit `.claude/settings.json` and replace
+```
+"command": "sops exec-env ../consumer-d/secrets/secrets.env -- python ..."
+```
+with an absolute path: `"command": "sops exec-env /absolute/path/to/your/secrets.env -- python ..."`. Or export the env vars in the shell profile and drop the `sops exec-env` wrapper.
+
+### Symptom: CI submodule clone fails with `404 Repository not found`
+**Cause**: `CONSUMER_D_GOD_MODE` secret missing or PAT lacks `Contents: read` on the playbook + skills repos.
+**Fix**: rotate per [Runbook: rotate-secrets](rotate-secrets.md), confirming the PAT has both repos in scope.
+
+### Symptom: rollback — something went wrong and the bootstrap must be undone
+**Fix**:
 ```bash
 cd /c/Projects/<project-name>
 git rm -rf --cached .ai-playbook
 rm -rf .ai-playbook AGENTS.md CLAUDE.md GEMINI.md .claude .cursor .mcp.json .gemini mcp-servers.project.yaml
-
-# Si .gitignore tenía entries del playbook que quieres mantener, edita a mano
-# antes de borrar el archivo entero.
-
-# Y si registraste en consumers.yaml:
-cd /c/Projects/ai-playbook
-# borra la fila a mano + commit
+# Edit .gitignore by hand if it carries playbook entries you want to keep.
+cd /c/Projects/ai-playbook   # remove the row from consumers.yaml + commit
 ```
 
-## Cross-references
+## Related
 
-- [`scripts/bootstrap.py`](../scripts/bootstrap.py) — el script principal (paso 2).
-- [`scripts/bootstrap_gh_project.py`](../scripts/bootstrap_gh_project.py) — Profile A/B + project board (paso 7).
-- [`scripts/opsx_apply_companion.py`](../scripts/opsx_apply_companion.py) — Branch+SHA + pre-flight rebase para `/opsx:apply` (per release-management.md §6.5).
-- [`templates/new-project/`](../templates/new-project/) — los archivos copiados.
-- [`templates/new-project/.coderabbit.yaml.tmpl`](../templates/new-project/.coderabbit.yaml.tmpl) — Profile A AI-reviewer config (auto-copiado por bootstrap).
-- [`templates/new-project/.github/workflows/project-status.yml.tmpl`](../templates/new-project/.github/workflows/project-status.yml.tmpl) — auto-transition Blocked→Todo (paso 11).
-- [`templates/new-project/.github/workflows/dep-check.yml.tmpl`](../templates/new-project/.github/workflows/dep-check.yml.tmpl) — opt-in dep-graph enforcement (paso 11).
-- [`consumers.yaml`](../consumers.yaml) — registro de consumers (alimenta la propagation Action).
-- [`docs/concepts/release-management.md`](../docs/concepts/release-management.md) — Profile A/B + AI-reviewer §4.5 + §6.5 pre-flight rebase.
-- [`docs/runbooks/release.md`](release.md) — cuando el playbook corte un nuevo release, los consumers reciben PRs auto.
-- [`docs/runbooks/hindsight-retain.md`](hindsight-retain.md) — cómo guardar lessons al bank del proyecto.
-- [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) §2 — convención de bank names.
-- [`docs/concepts/session-start-hook.md`](../docs/concepts/session-start-hook.md) — wiring del hook + degradation path.
+- [Runbook: release](release.md) — when the playbook cuts a release, consumers receive auto bump PRs.
+- [Runbook: hindsight-retain](hindsight-retain.md) — how to write lessons to the project's bank.
+- [Runbook: coderabbit-fallback](coderabbit-fallback.md) — Profile B self-review when CodeRabbit is unavailable.
+- [Runbook: rotate-secrets](rotate-secrets.md) — `CONSUMER_D_GOD_MODE` and `PLAYBOOK_PROPAGATION_TOKEN` rotation.
+- [Runbook: git-worktree-bare-setup](git-worktree-bare-setup.md) — alternative layout for projects that want per-branch worktrees.
+- [Concept: memory-hierarchy](../concepts/memory-hierarchy.md) — bank naming convention.
+- [Concept: release-management](../concepts/release-management.md) — Profile A/B and AI-reviewer §4.5.
+- [Concept: session-start-hook](../concepts/session-start-hook.md) — hook wiring + degradation path.

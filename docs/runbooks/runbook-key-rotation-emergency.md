@@ -1,41 +1,50 @@
-# runbook-key-rotation-emergency.md
+---
+schema: runbook/v1
+slug: runbook-key-rotation-emergency
+description: Emergency rotation of 1-3 suspected or confirmed compromised credentials within 1 hour (revoke + reissue + restart + history rewrite if published).
+audience: operator
+estimated_time: ≤1 h to revoke + reissue; ≤48 h post-mortem draft
+last_validated: "2026-05-19"
+---
 
-> **Status**: Stub v0.1.0. Authored under OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6) on 2026-05-01. Sibling to [`docs/concepts/incident-response.md`](../docs/concepts/incident-response.md) §4 scenario #3 and [rotate-secrets.md](rotate-secrets.md).
->
-> Emergency variant of [rotate-secrets.md](rotate-secrets.md): same target (rotate every credential), tighter clock (1h to revoke + reissue, not the leisurely calendar-driven path).
+# Emergency rotation of leaked credentials
 
-## When to use this runbook
+## Outcome
 
-A credential is suspected or confirmed compromised AND the leak window is open. Escalates from [rotate-secrets.md](rotate-secrets.md) when the breach is active rather than precautionary.
+Every leaked credential is revoked at the vendor side, replaced with a narrower-scoped credential, and the secrets store and all consuming services have been updated and restarted. If the leak was in a published commit, the git history has been rewritten with `git filter-repo` and force-pushed. A security post-mortem is drafted within 48 hours and published within 7 days.
+
+## When to use this
+
+A credential is suspected or confirmed compromised AND the leak window is open. Escalates from [Runbook: rotate-secrets](rotate-secrets.md) when the breach is active rather than precautionary.
 
 Common triggers:
+
 - A vendor sends a "your token was used from an unexpected location" email.
-- `secrets_scan.py` post-push CI fails AND the repo is public OR has > 1 contributor.
-- A team member reports having committed a secret to a repo they don't own.
+- `secrets_scan.py` post-push CI fails AND the repo is public OR has >1 contributor.
+- A team member reports having committed a secret to a repo they do not own.
 - An external party reports a token or key valid in their possession.
 
-This runbook is for **scoped** credential exposure (1-3 keys). For broad compromise (suspected machine compromise, suspected supplier compromise), escalate to [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) which assumes a wider blast radius.
+This runbook handles **scoped** exposure (1-3 keys). For broad compromise (suspected machine compromise, suspected supplier compromise), use [Runbook: runbook-secrets-leak-containment](runbook-secrets-leak-containment.md) which assumes a wider blast radius.
 
-Severity: **S1** if customer data is reachable via the leaked credential; **S2** otherwise. MTTR: ≤ 1h to revoke + reissue.
+Severity: **S1** if customer data is reachable via the leaked credential; **S2** otherwise. MTTR: ≤1 h to revoke + reissue.
 
 ## Prerequisites
 
-- SOPS / age key for the encrypted secrets store.
+- SOPS / age key for the encrypted secrets store: `age-keygen -y ~/.config/sops/age/keys.txt`.
 - 1Password (or equivalent) for vendor-side rotation — most vendors require a manual UI dance.
-- VPS SSH for restarting any service that consumes the credential.
+- VPS SSH access for restarting any service that consumes the credential: `ssh consumer-d-vps echo ok`.
+- `git-filter-repo` installed if history rewrite is anticipated: `pip install git-filter-repo`.
 
 ## Steps
 
 1. **Identify the credential's blast radius.**
-
    For each leaked credential, determine:
-   - What service consumes it? (`grep -r '<env-var-name>' .` across consumer repos.)
-   - What does it grant? (vendor docs — read access, write access, customer data, billing).
-   - Was the credential used during the leak window? (vendor audit log if available — Anthropic / OpenAI / GitHub all expose this).
+   - What service consumes it: `grep -r '<env-var-name>' .` across consumer repos.
+   - What does it grant: vendor docs (read access, write access, customer data, billing).
+   - Was the credential used during the leak window: vendor audit log if available (Anthropic / OpenAI / GitHub all expose this).
 
-2. **Revoke the credential at the vendor side.**
-
-   This is a manual UI action per vendor. Do this BEFORE issuing a replacement — an active bad token is worse than 5 min of downtime.
+2. **Revoke at the vendor side BEFORE issuing a replacement.**
+   An active bad token is worse than 5 minutes of downtime.
 
    | Vendor | Revocation path |
    |---|---|
@@ -49,20 +58,17 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
    | SOPS / age key | rotate the master key — see Step 6. |
 
 3. **Issue a replacement credential.**
-
-   Same UI, "Create new key". Scope it as narrowly as possible (read-only when read-only suffices).
+   Same vendor UI, "Create new key". Scope it as narrowly as possible (read-only when read-only suffices).
 
 4. **Update the secrets store.**
-
    ```bash
-   sops <repo>/secrets/secrets.env  # decrypts in-place; replace the value
+   sops <repo>/secrets/secrets.env   # decrypts in-place; replace the value
    # Save and close — sops re-encrypts.
    git add secrets/secrets.env
    git commit -m "chore(secrets): rotate <CREDENTIAL_NAME> after leak (INC-<n>)"
    ```
 
 5. **Restart consuming services.**
-
    ```bash
    # k3s pods that read from secrets:
    kubectl rollout restart deploy/<service> -n consumer-d
@@ -72,31 +78,26 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
    systemctl --user restart <service>
    ```
 
-6. **If the leaked credential was the SOPS / age master key itself**, the rotation is recursive:
+6. **If the leaked credential was the SOPS / age master key**, rotate recursively:
    ```bash
-   # Generate new age key
    age-keygen -o ~/.config/sops/age/keys-new.txt
-   # Re-encrypt every sops file with the new public key
    for f in $(find . -name 'secrets*.env'); do
        sops -d "$f" | sops -e --age <new-pub-key> /dev/stdin > "$f.new"
        mv "$f.new" "$f"
    done
-   # Replace the old key, commit
+   # Replace the old key, commit.
    ```
    This is the "rotation of the rotation key" — slow, error-prone, do it carefully.
 
 7. **Force-push history rewrite IF the leak was in a published commit.**
-
    ```bash
-   # Use git filter-repo (not filter-branch — too slow, deprecated)
    pip install git-filter-repo
    git filter-repo --replace-text <(echo "<leaked-token>==>REDACTED")
    git push --force origin <branch>
    ```
+   Coordinate with collaborators before force-pushing. Anyone with the old history must re-clone. Per [Runbook: git-worktree-bare-setup](git-worktree-bare-setup.md), bare-repo collaborators need to re-fetch and reset their worktrees.
 
-   **Coordinate with collaborators before force-push.** Anyone with the old history needs to re-clone. Per [git-worktree-bare-setup.md](git-worktree-bare-setup.md), bare-repo collaborators need to re-fetch and reset their worktrees.
-
-8. **File a CISA-style note.**
+8. **File a CISA-style note in `incidents.jsonl`.**
    ```bash
    echo '{"ts":"<iso>","incident_id":"INC-<n>","severity":"S1","scenario":"secrets-leak","credentials_rotated":["<list>"],"force_push":<true|false>,"customer_data_at_risk":<true|false>,"state":"resolved"}' >> incidents.jsonl
    ```
@@ -104,17 +105,32 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
 ## Verification
 
 - Vendor audit log shows no requests with the old token after revocation timestamp.
-- Replacement token works end-to-end (smoke test the consumer service).
+- Replacement token works end-to-end (smoke test the consumer service per its runbook).
 - `secrets_scan.py` is green on `HEAD`.
 - If history was rewritten: `git log --all --pickaxe-regex --pickaxe-all -S '<leaked-token>'` returns empty.
 
-## Rollback
+## Troubleshooting
 
-There is no rollback for "I revoked a leaked credential". The only forward path is "issue a new one and keep going". If the replacement does not work, debug the consumer (Step 5 likely failed); do not un-revoke the leaked credential.
+### Symptom: rollback after the rotation completed (false-alarm leak)
+**Cause**: the leak was reported but turned out to be a false positive.
+**Fix**: there is no rollback for "I revoked a leaked credential". The only forward path is "issue a new one and keep going". The cost of a false alarm is one batch of vendor-side revocation work; you do not re-instate the old credential.
+
+### Symptom: replacement token does not work after Step 5
+**Cause**: pod did not pick up the new secret (cached env at startup), OR the new token's scope is narrower than required.
+**Fix**: confirm `kubectl rollout restart` completed (`kubectl rollout status`). If still failing, audit the new token's scopes at the vendor side and re-issue with the original scopes.
+
+### Symptom: `git filter-repo` rewrites locally but force-push is rejected
+**Cause**: branch protection prevents force-push on the default branch, OR the remote has new commits since the rewrite.
+**Fix**: temporarily relax branch protection (admin override), force-push, then re-enable protection. If the remote has new commits, rebase the new commits on top of the rewritten history before force-pushing — coordinate with collaborators first.
+
+### Symptom: SOPS master key rotation leaves a file partially encrypted with the old key
+**Cause**: the loop in Step 6 errored mid-way on one file.
+**Fix**: identify the failed file (`sops -d <file>` will fail), decrypt with the OLD key (still present in keys.txt), re-encrypt with the NEW pub key, verify, commit. Do NOT remove the old key from keys.txt until every file decrypts with the new key.
 
 ## Post-incident artefact required
 
-**Security post-mortem ≤ 48h** per [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #3. The post-mortem must answer:
+**Security post-mortem ≤48 h to draft, ≤7 days to publish** per [Concept: incident-response](../concepts/incident-response.md) §4 scenario #3. The post-mortem must answer:
+
 - How did the credential leak?
 - Was it used by a third party? (vendor audit log evidence).
 - What customer data was reachable? (blast radius).
@@ -122,8 +138,9 @@ There is no rollback for "I revoked a leaked credential". The only forward path 
 
 ## Related
 
-- [rotate-secrets.md](rotate-secrets.md) — non-emergency scheduled rotation.
-- [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) — broader containment when leak scope is wide.
-- [incident-response.md](../docs/concepts/incident-response.md) §4 scenario #3.
-- [data-retention.md](../docs/concepts/data-retention.md) — what data the leaked credential could exfiltrate determines severity.
-- [post-mortem.md](../docs/concepts/post-mortem.md) — required artefact.
+- [Runbook: rotate-secrets](rotate-secrets.md) — non-emergency scheduled rotation.
+- [Runbook: runbook-secrets-leak-containment](runbook-secrets-leak-containment.md) — wider containment when leak scope is broad.
+- [Runbook: git-worktree-bare-setup](git-worktree-bare-setup.md) — collaborator re-clone after history rewrite.
+- [Concept: incident-response](../concepts/incident-response.md) — incident-class ladder; this is §4 scenario #3.
+- [Concept: data-retention](../concepts/data-retention.md) — what data the leaked credential could exfiltrate determines severity.
+- [Concept: post-mortem](../concepts/post-mortem.md) — mandatory artefact.

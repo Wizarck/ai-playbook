@@ -1,137 +1,118 @@
-# runbook: hindsight-retain.md — store a lesson / decision / gotcha
+---
+schema: runbook/v1
+slug: hindsight-retain
+description: Persist a lesson, decision, gotcha, or failure pattern to the Hindsight memory layer so future agent sessions can recall it.
+audience: developer
+estimated_time: 2-5 min
+last_validated: "2026-05-19"
+---
 
-> **Audience**: the AI or a human maintainer at the end of any meaningful
-> work — a discovered gotcha, an architectural decision, an agentic-failure
-> resolved, a retro pattern.
-> **Status**: v1.0.0. Companion to [release.md](release.md) +
-> [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md).
-> **Prereqs**: SOPS-decryptable `secrets/secrets.env` with CF Access creds
-> (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `HINDSIGHT_URL`).
+# Retain a lesson to the Hindsight memory layer
 
-## What this runbook does
+## Outcome
 
-Persists a lesson to the Hindsight memory layer so any future agent session —
-in any project, in any CLI — can `recall` it. This is the canonical write
-path described in [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md)
-§5. The Claude Code per-project auto-memory folder is **not** a substitute —
-it only reloads in the same project's CLI.
+A lesson is durably stored in the chosen Hindsight bank with the right `kind`, `project`, and tags. Future agent sessions in any project and any LLM CLI can `recall` it. This is the canonical write path described in [Concept: memory-hierarchy](../concepts/memory-hierarchy.md).
 
-## When to retain
+## When to use this
 
-Trigger the retain at the boundary of a meaningful event, NOT for routine
-facts (those live in the code or in `docs/`). Per memory-hierarchy.md §5:
+Trigger the retain at the boundary of a meaningful event:
 
 | Event | Kind | Bank |
 |---|---|---|
 | ADR chosen over a named alternative | `decision` | project bank (`consumer-c`, `consumer-d`, `consumer-b`) |
 | Gotcha discovered (wrong port, weird env, breaking API quirk) | `gotcha` | project bank |
 | Agentic-failure mode fired and was resolved | `failure` | project bank |
-| Retro extracted a pattern worth reusing | `lesson` | project bank |
+| Retro extracted a reusable pattern | `lesson` | project bank |
 | Cross-project policy or convention | `lesson` | `consumer-d` (universal personal) |
 | Production fact about an external system | `fact` | project or `consumer-d` |
 
-Skip retain when the content is already trivially recoverable from `git log`,
-`git blame`, the code itself, or a recent doc commit.
+Skip retain when the content is already trivially recoverable from `git log`, `git blame`, the code itself, or a recent doc commit. The Claude Code per-project auto-memory folder is not a substitute — it only reloads in the same project's CLI.
 
-## Single-item retain
+## Prerequisites
 
-```bash
-sops exec-env ../consumer-d/secrets/secrets.env -- \
-  python .ai-playbook/scripts/retain_memory.py \
-    --bank consumer-d \
-    --kind decision \
-    --project ai-playbook \
-    --content "Rotated PLAYBOOK_PROPAGATION_TOKEN from god-mode PAT to fine-grained scoped to consumers.yaml" \
-    --why "Least-privilege; god-mode PAT was a 1-week stop-gap" \
-    --tag rotation --tag security
-```
+- `secrets/secrets.env` (SOPS-decryptable) exists with `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `HINDSIGHT_URL`: `sops -d ../consumer-d/secrets/secrets.env | grep ^HINDSIGHT_URL=`.
+- `sops` and `age` installed: `sops --version && age --version`.
+- The retain script is reachable: `ls .ai-playbook/scripts/retain_memory.py`.
 
-Expected output:
+## Steps
 
-```
-✅ retained 1 item(s) to bank=consumer-d; usage=2884 tokens
-```
+1. **Single-item retain** — the common path:
+   ```bash
+   sops exec-env ../consumer-d/secrets/secrets.env -- \
+     python .ai-playbook/scripts/retain_memory.py \
+       --bank consumer-d \
+       --kind decision \
+       --project ai-playbook \
+       --content "Rotated PLAYBOOK_PROPAGATION_TOKEN from god-mode PAT to fine-grained scoped to consumers.yaml" \
+       --why "Least-privilege; god-mode PAT was a 1-week stop-gap" \
+       --tag rotation --tag security
+   ```
+   Expected output: `✅ retained 1 item(s) to bank=consumer-d; usage=2884 tokens`.
 
-## Bulk retain (replay session memory)
+2. **Bulk retain (optional)** — when several lessons land in one session:
+   ```bash
+   cat > /tmp/lessons.jsonl <<'EOF'
+   {"content": "Lesson 1 body...", "kind": "decision", "project": "ai-playbook", "why": "..."}
+   {"content": "Lesson 2 body...", "kind": "gotcha", "project": "consumer-c", "tags": ["build", "ci"]}
+   EOF
 
-When you've made several lessons in one session, dump them to a JSONL file and
-retain in one round-trip:
+   sops exec-env ../consumer-d/secrets/secrets.env -- \
+     python .ai-playbook/scripts/retain_memory.py --bank consumer-d --bulk /tmp/lessons.jsonl
+   ```
+   Each line is one item. Required field: `content`. Optional: `why`, `kind`, `project`, `tags`, `trace_id`, `context`, `ttl_days`, `timestamp`, `document_id`.
 
-```bash
-cat > /tmp/lessons.jsonl <<'EOF'
-{"content": "Lesson 1 body...", "kind": "decision", "project": "ai-playbook", "why": "..."}
-{"content": "Lesson 2 body...", "kind": "gotcha", "project": "consumer-c", "tags": ["build", "ci"]}
-EOF
+3. **Dry-run when the body is risky** — multi-line text, near a secret-shaped pattern:
+   ```bash
+   python .ai-playbook/scripts/retain_memory.py \
+       --bank consumer-d --content "..." --kind lesson --dry-run
+   ```
+   Prints the JSON that would be POSTed; no network call. Confirm the rendered payload before retaining for real.
 
-sops exec-env ../consumer-d/secrets/secrets.env -- \
-  python .ai-playbook/scripts/retain_memory.py --bank consumer-d --bulk /tmp/lessons.jsonl
-```
+4. **Verify the retain landed** by recalling the same query:
+   ```bash
+   sops exec-env ../consumer-d/secrets/secrets.env -- \
+     python -c "
+   from scripts._hindsight import load_credentials, post_recall
+   c = load_credentials()
+   r = post_recall(c, 'consumer-d', 'your search query here', max_tokens=2000)
+   print(r.body if r.ok else r.reason)
+   "
+   ```
+   The newly retained item appears in `results[]`. Semantic search ranks by relevance, so the item is not necessarily first.
 
-Each line is one item. Required field: `content`. Optional: `why`, `kind`,
-`project`, `tags`, `trace_id`, `context`, `ttl_days`, `timestamp`,
-`document_id`.
+## Verification
 
-## Dry-run before retaining
+- Step 1 prints `✅ retained 1 item(s) to bank=<name>`.
+- Step 4 recalls the lesson body verbatim from the bank.
+- `events.jsonl` shows a `hindsight.retain` event with the new item's `document_id`.
 
-When the lesson body is tricky (multi-line, near a secret-shaped pattern),
-dry-run first to confirm the rendered Hindsight payload looks right:
+## Troubleshooting
 
-```bash
-python .ai-playbook/scripts/retain_memory.py \
-    --bank consumer-d --content "..." --kind lesson --dry-run
-```
+### Symptom: script exits 3 with `OVERRIDE: none` after a content scan
+**Cause**: the merged `content` + `why` text contains a shape matching a hard-blocked secret pattern (e.g., `anthropic-api-key`, `openai-api-key`, `github-pat`, `aws-secret`). `scripts.secrets_scan.sanitise` runs before POST and hard-blocks these. No break-glass is available for this gate.
+**Fix**: clean up the lesson body — paraphrase the key reference, or replace the token-shaped substring with `<redacted>`. Re-run.
 
-Prints the JSON that would be POSTed; no network call.
+### Symptom: item retained but tagged `sanitised`
+**Cause**: a softer pattern matched (URL with embedded token, base64-ish string). The script redacted the match and added the `sanitised` tag.
+**Fix**: expected behaviour. If the redaction was over-eager, re-author the lesson with the redacted span as an explicit placeholder and retain again.
 
-## Sanitisation contract
-
-`retain_memory.py` runs the merged (`content` + `why`) text through
-`scripts.secrets_scan.sanitise` before POSTing.
-
-- **Hard block** on shapes that look like API keys (`anthropic-api-key`,
-  `openai-api-key`, `github-pat`, `aws-secret`). The script exits with code 3
-  + canonical error + `OVERRIDE: none`. The lesson body must be cleaned up;
-  there is no break-glass for this gate.
-- **Soft redact** on softer matches (URLs with embedded tokens, base64-ish).
-  The redacted text is sent + a `sanitised` tag is added to the item.
-- **Pass-through** on clean content.
-
-## Degraded mode (Hindsight unreachable)
-
-When `HINDSIGHT_URL` is unset OR Hindsight returns network errors, the script
-appends the item to `<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored)
-and exits 0. The session continues healthy. Drain the queue when Hindsight
-comes back:
-
+### Symptom: `degraded:retain_failed` or network error
+**Cause**: `HINDSIGHT_URL` unset OR Hindsight unreachable. The script appended the item to `<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored) and exited 0.
+**Fix**: when Hindsight returns, drain the queue:
 ```bash
 sops exec-env ../consumer-d/secrets/secrets.env -- \
   python .ai-playbook/scripts/retain_memory.py --bank consumer-d --replay-queue
 ```
+The script POSTs each queued item, removes it on success, and keeps it for the next replay attempt on failure.
 
-The script POSTs each queued item, removes it from the queue on success,
-keeps it on failure for the next replay attempt.
+### Symptom: SOPS path differs because the repo is not co-located with `consumer-d/`
+**Cause**: the canonical wrapper assumes `../consumer-d/secrets/secrets.env` is the SOPS source.
+**Fix**: either point `sops exec-env` at an explicit absolute path (`sops exec-env /absolute/path/to/secrets.env -- python ...`), or export the three env vars (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `HINDSIGHT_URL`) in the shell profile and drop the `sops exec-env` wrapper.
 
-## Verifying the retain landed
+## Related
 
-Recall the same query you'd run from a future session:
-
-```bash
-sops exec-env ../consumer-d/secrets/secrets.env -- \
-  python -c "
-from scripts._hindsight import load_credentials, post_recall
-c = load_credentials()
-r = post_recall(c, 'consumer-d', 'your search query here', max_tokens=2000)
-print(r.body if r.ok else r.reason)
-"
-```
-
-The newly-retained item should appear in `results[]` (semantic search; not
-necessarily first if other entries are more relevant).
-
-## Cross-references
-
-- [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) §5 — write rules.
-- [`docs/concepts/env-vars.md`](../docs/concepts/env-vars.md) §HINDSIGHT_* — env contract.
-- [`scripts/retain_memory.py`](../scripts/retain_memory.py) — the script.
-- [`scripts/_hindsight.py`](../scripts/_hindsight.py) — shared HTTP client.
-- [`docs/concepts/session-start-hook.md`](../docs/concepts/session-start-hook.md) — read side; the partner hook recalls memory at session start.
+- [Runbook: release](release.md) — when retain is part of the release flow.
+- [Runbook: propagate-bump-troubleshooting](propagate-bump-troubleshooting.md) — when retain is part of a fix.
+- [Concept: memory-hierarchy](../concepts/memory-hierarchy.md) — write rules and bank conventions.
+- [Concept: env-vars](../concepts/env-vars.md) — `HINDSIGHT_*` and `CF_ACCESS_*` env contract.
+- [Concept: session-start-hook](../concepts/session-start-hook.md) — the read side; the partner hook recalls memory at session start.
