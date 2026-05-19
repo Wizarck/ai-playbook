@@ -11,8 +11,8 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 | Prefix | Owner | Example | Source |
 |---|---|---|---|
 | `AIPLAYBOOK_` | This repo's scripts. | `AIPLAYBOOK_PROJECTS_FILE` | Runtime env. |
-| `consumer-d_` | consumer-d (personal). | `consumer-d_CORE_DIR`, `consumer-d_VPS_HOST` | SOPS-decrypted + shell env. |
-| `consumer-c_` | consumer-c consumer. | `consumer-c_DATABASE_URL` | `.env` + secret store. |
+| `consumer-d_` | consumer-d (personal). | `CONSUMER_D_CORE_DIR`, `CONSUMER_D_VPS_HOST` | SOPS-decrypted + shell env. |
+| `consumer-c_` | consumer-c consumer. | `CONSUMER_C_DATABASE_URL` | `.env` + secret store. |
 | `HINDSIGHT_` | Hindsight MCP credentials. | `HINDSIGHT_API_KEY` | SOPS-decrypted. |
 | `LANGFUSE_` | Langfuse tracing. | `LANGFUSE_HOST` | SOPS-decrypted. |
 | `OTEL_` | OpenTelemetry SDK. | `OTEL_EXPORTER_OTLP_ENDPOINT` | Local Collector or VPS pointer. |
@@ -50,8 +50,8 @@ When both canonical and alias are set, the canonical value wins and the alias is
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `consumer-d_CORE_DIR` | `consumer-d_` | Path to consumer-d checkout. | yes (if consumer-d consumer) | unset | consumer-d dispatchers, not playbook scripts |
-| `consumer-d_VPS_HOST` | `consumer-d_` | SSH target for VPS k3s. | yes (consumer-d ops) | unset | consumer-d runbooks |
+| `CONSUMER_D_CORE_DIR` | `consumer-d_` | Path to consumer-d checkout. | yes (if consumer-d consumer) | unset | consumer-d dispatchers, not playbook scripts |
+| `CONSUMER_D_VPS_HOST` | `consumer-d_` | SSH target for VPS k3s. | yes (consumer-d ops) | unset | consumer-d runbooks |
 
 Playbook scripts MUST NOT read these directly — they flow through the consumer-d dispatcher (see `C:\Projects\consumer-d\consumer-d.md`).
 

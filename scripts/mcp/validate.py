@@ -2,7 +2,7 @@
 
 Three layers — each a YAML file, same v1 schema:
 
-1. **Base**     — ``<playbook>/mcp-servers-base.yaml`` (well-known templates).
+1. **Base**     — ``<playbook>/templates/rendered/mcp-servers-base.yaml.tmpl`` (well-known templates).
 2. **Project**  — ``<consumer>/mcp-servers.yaml`` (project-scoped servers).
 3. **Personal** — ``$AIPLAYBOOK_PERSONAL_MCP_FILE`` if set, else
                   ``~/.config/mcp-servers.yaml``, else
@@ -174,7 +174,8 @@ def resolve_playbook_root(explicit: Path | None, cwd: Path) -> Path:
     1. --playbook-root CLI arg.
     2. $AIPLAYBOOK_ROOT env var.
     3. ``<cwd>/.ai-playbook`` (submodule convention).
-    4. ``<cwd>`` when it contains ``mcp-servers-base.yaml`` (running inside playbook itself).
+    4. ``<cwd>`` when it contains ``templates/rendered/mcp-servers-base.yaml.tmpl``
+       (running inside playbook itself).
     5. The dir containing this script (fallback for test-from-source).
     """
     if explicit is not None:
@@ -183,9 +184,9 @@ def resolve_playbook_root(explicit: Path | None, cwd: Path) -> Path:
     if env:
         return Path(env).expanduser().resolve()
     submodule = cwd / ".ai-playbook"
-    if (submodule / "mcp-servers-base.yaml").is_file():
+    if (submodule / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl").is_file():
         return submodule.resolve()
-    if (cwd / "mcp-servers-base.yaml").is_file():
+    if (cwd / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl").is_file():
         return cwd.resolve()
     return Path(__file__).resolve().parent.parent.parent
 
@@ -287,7 +288,7 @@ def _resolve_project_layer_file(consumer_root: Path) -> Path:
 
 def load_layers(*, playbook_root: Path, consumer_root: Path,
                 personal_file: Path | None) -> tuple[Layer, Layer, Layer]:
-    base_path = playbook_root / "mcp-servers-base.yaml"
+    base_path = playbook_root / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl"
     project_path = _resolve_project_layer_file(consumer_root)
 
     base = Layer(name=LAYER_BASE, path=base_path, present=base_path.is_file())
@@ -678,8 +679,8 @@ def run(args: argparse.Namespace) -> int:
 
     if not base.present:
         _emit(CanonicalError(
-            why="base layer `mcp-servers-base.yaml` not found",
-            where=_path_str(playbook_root / "mcp-servers-base.yaml"),
+            why="base layer `templates/rendered/mcp-servers-base.yaml.tmpl` not found",
+            where=_path_str(playbook_root / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl"),
             fix=("set --playbook-root to the ai-playbook checkout, set $AIPLAYBOOK_ROOT, "
                  "or ensure .ai-playbook/ is submoduled under the consumer repo"),
         ))
@@ -762,7 +763,7 @@ def main(argv: list[str] | None = None) -> int:
         _emit(CanonicalError(
             why=f"unexpected failure during mcp.validate: {type(exc).__name__}: {exc}",
             where="scripts/mcp/validate.py",
-            fix="report with full stacktrace to FEEDBACK.md",
+            fix="open a GitHub issue at github.com/Wizarck/ai-playbook with the full stacktrace",
         ))
         return 2
 

@@ -27,7 +27,7 @@ What it touches:
 What it does NOT touch:
 
     - specs/*.md      — these are universal and should stay org-agnostic
-    - mcp-servers-base.yaml — already generic post-v0.3.0
+    - templates/rendered/mcp-servers-base.yaml.tmpl — already generic post-v0.3.0
     - scripts/*.py    — scripts are already parametric (read env vars)
     - VERSION + CHANGELOG — keep the upstream history intact
 
@@ -60,15 +60,16 @@ class FileEdit:
 
 def _detect_playbook_root(path: Path) -> Path:
     """Walk up from `path` until we find the playbook root (has both
-    mcp-servers-base.yaml + consumers.yaml). Raise if not found."""
+    templates/rendered/mcp-servers-base.yaml.tmpl + consumers.yaml). Raise if not found."""
     cur = path.resolve()
     while True:
-        if (cur / "mcp-servers-base.yaml").is_file() and (cur / "consumers.yaml").is_file():
+        base_tmpl = cur / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl"
+        if base_tmpl.is_file() and (cur / "consumers.yaml").is_file():
             return cur
         if cur == cur.parent:
             print(
-                "❌ not inside an ai-playbook checkout (no mcp-servers-base.yaml + "
-                "consumers.yaml found walking up)",
+                "❌ not inside an ai-playbook checkout (no templates/rendered/"
+                "mcp-servers-base.yaml.tmpl + consumers.yaml found walking up)",
                 file=sys.stderr,
             )
             print("   FIX: cd into your ai-playbook fork and rerun.", file=sys.stderr)

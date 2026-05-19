@@ -9,7 +9,11 @@ from scripts import init_org as io
 
 
 def _make_fake_playbook(root: Path) -> None:
-    (root / "mcp-servers-base.yaml").write_text("schema: mcp-servers/v1\n", encoding="utf-8")
+    rendered = root / "templates" / "rendered"
+    rendered.mkdir(parents=True, exist_ok=True)
+    (rendered / "mcp-servers-base.yaml.tmpl").write_text(
+        "schema: mcp-servers/v1\n", encoding="utf-8",
+    )
     (root / "consumers.yaml").write_text(
         "schema: ai-playbook/consumers/v1\nconsumers:\n  alpha:\n    repo: Wizarck/alpha\n",
         encoding="utf-8",
