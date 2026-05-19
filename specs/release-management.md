@@ -869,4 +869,4 @@ adoption status.
 - [`templates/new-project/.coderabbit.yaml.tmpl`](../templates/new-project/.coderabbit.yaml.tmpl) — CodeRabbit config template applied in Profile A.
 - [`templates/new-project/.github/workflows/project-status.yml.tmpl`](../templates/new-project/.github/workflows/project-status.yml.tmpl) — auto-transition `Blocked → Todo` workflow (§6.3).
 - [`templates/new-project/.github/workflows/dep-check.yml.tmpl`](../templates/new-project/.github/workflows/dep-check.yml.tmpl) — optional hard dependency enforcement (§6.2).
-- [`templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl`](../templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl) — bump-bot with supersede logic (§3.4).
+- [`.github/workflows/propagate-playbook-bump.yml`](../.github/workflows/propagate-playbook-bump.yml) — bump-bot with supersede logic (§3.4). Lives in the playbook repo itself (not a consumer template).

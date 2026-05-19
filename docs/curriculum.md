@@ -27,7 +27,7 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 1. [start-here.md](start-here.md) — 60-second orientation + the 3-level dispatcher diagram.
 2. [quickstart.md](quickstart.md) — the 25–40-min walkthrough, end-to-end.
 3. [../AGENTS.md](../AGENTS.md) — the playbook's own project dispatcher (dogfooding example).
-4. [../CLAUDE.md](../CLAUDE.md) — the thin router that points at AGENTS.md.
+4. In a consumer repo: `CLAUDE.md` / `GEMINI.md` / `.cursor/rules/*.mdc` — thin LLM-specific routers that point at AGENTS.md. (The playbook itself has no `CLAUDE.md`; it dogfoods AGENTS.md only.)
 5. [../specs/dispatcher-chain.md](../specs/dispatcher-chain.md) — the 3-level contract.
 6. [../specs/projects-registry.md](../specs/projects-registry.md) — how `~/.ai-playbook/projects.yaml` is populated and consumed.
 
