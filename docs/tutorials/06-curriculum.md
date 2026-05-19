@@ -129,7 +129,7 @@ This is not a replacement for any existing doc. Every week points at docs and sp
 
 **Exit criteria**:
 
-- Your retro passes `scripts/lifecycle_check.py` (no "copy-paste retro" or "retro-as-blame" flags).
+- Your retro passes `scripts/telemetry/report.py (absorbed in Slice 6)` (no "copy-paste retro" or "retro-as-blame" flags).
 - Your patch release tag appears in `git tag -l` and the CHANGELOG entry follows the existing voice.
 - You can name the deprecation window rule (1 minor cycle OR 90 days, whichever is longer) from memory.
 

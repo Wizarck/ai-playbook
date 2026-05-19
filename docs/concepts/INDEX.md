@@ -56,6 +56,7 @@
 | [slos.md](slos.md) | — | Service-level objectives for the `ai-playbook` repo itself — the shared norms and tooling consumed… |
 | [STYLE.md](STYLE.md) | — | Declarative, present tense, third person. Concept docs explain; they do not bind. |
 | [taxonomy.md](taxonomy.md) | — | The playbook touches three LLM ecosystems (Claude, Gemini, Cursor), four documentation categories (… |
+| [telemetry-design.md](telemetry-design.md) | — | The v0.20.0 "world reference" milestone needs evidence, not assertion. Three forces drove the Slice… |
 | [upstream-sync.md](upstream-sync.md) | — | Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving |
 | [ux-track.md](ux-track.md) | — | The canonical workflow ([runbook-bmad-openspec.md](runbook-bmad-openspec.md)) was silent on UX befo… |
 | [v080-roadmap.md](v080-roadmap.md) | — | v0.7.0 was scoped as "alignment + bridges + audit incorporation": resolve the BMAD↔OpenSpec drift,… |

@@ -10,7 +10,8 @@
 #     cache_read_per_1k:  USD per 1000 cache-read tokens (Anthropic prompt caching)
 #
 # Model names match what providers report in `gen_ai.response.model` event attr.
-# Loader is at ai-playbook/scripts/cost_report.py:_load_pricing
+# Loader is at ai-playbook/scripts/telemetry/report.py:load_pricing (absorbed
+# from the deleted scripts/cost_report.py in Slice 6, v0.18.2).
 #
 # Last updated: 2026-04-26 (Anthropic Claude 4.x family + Gemini 2.5 + OpenRouter passthroughs)
 

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-rule-event-v1.json",
+  "title": "rule-event v1",
+  "description": "One JSONL row per L1 hook fire. Emitted by scripts/telemetry/rule_event_logger.py; consumed by scripts/telemetry/report.py. Privacy invariants enforced by scripts/telemetry/anonymize.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "timestamp",
+    "slug",
+    "llm",
+    "verdict",
+    "latency_ms",
+    "session_id_hash",
+    "trigger",
+    "self_check"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "rule-event/v1",
+      "description": "Schema version literal. Forward-compatible additions land as v2."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp, e.g. 2026-05-19T14:23:55Z."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "description": "Rule slug (D3 canonical regex)."
+    },
+    "llm": {
+      "type": "string",
+      "minLength": 1,
+      "description": "LLM model identifier, e.g. claude-opus-4-7, gemini-2.5-pro."
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["allow", "block", "warn"],
+      "description": "Outcome of the rule evaluation."
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time spent evaluating the rule, in milliseconds."
+    },
+    "session_id_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}$",
+      "description": "sha256(session_id)[:8]. One-way; the raw session_id MUST never appear in any event."
+    },
+    "trigger": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hook trigger label, e.g. PreToolUse:Edit, PostToolUse:Bash."
+    },
+    "self_check": {
+      "type": "boolean",
+      "description": "True when the LLM self-validated per the rule's `## Process supervision` block."
+    },
+    "tokens_in": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Input tokens for the LLM call that triggered this event. Optional — PreToolUse hooks do not have token counts."
+    },
+    "tokens_out": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Output tokens for the LLM call. Optional."
+    },
+    "cache_read_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Anthropic prompt-cache reads. Optional."
+    },
+    "escape_hatch": {
+      "type": "string",
+      "description": "Set when the rule was bypassed via a documented escape hatch (e.g. `[no-doc-impact]`, `AIPLAYBOOK_X_SKIP`). Absent on normal events."
+    },
+    "model": {
+      "type": "string",
+      "description": "Optional alias for `llm` used when copying gen_ai.response.model verbatim from log_event.py."
+    }
+  }
+}
