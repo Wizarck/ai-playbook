@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wizarck.github.io/ai-playbook/schemas/schema-runbook-v1.json",
+  "title": "ai-playbook runbook-doc frontmatter (v1)",
+  "description": "Frontmatter contract for docs/runbooks/<slug>.md. Disjoint with schema-rule-v1.json and schema-concept-v1.json per D9 — fields exclusive to other doc kinds are FORBIDDEN here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "slug", "description", "audience", "estimated_time"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "runbook/v1",
+      "description": "Schema versioning hook. MUST be 'runbook/v1' for this version."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "description": "Authoritative identifier (D3). MUST match the filename stem."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "One-line outcome statement. Surfaced in INDEX.md and mkdocs nav."
+    },
+    "audience": {
+      "type": "string",
+      "enum": ["operator", "developer", "reviewer"],
+      "description": "Who reads this runbook. 'operator' = production / incident-response operator; 'developer' = day-to-day dev workflow; 'reviewer' = PR / release reviewer."
+    },
+    "estimated_time": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "Human-readable estimate (e.g., '10-30 min', '1-4 h to mitigation'). Free-form."
+    },
+    "prerequisite_runbooks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{1,40}$"
+      },
+      "description": "Optional list of runbook slugs the operator should be familiar with first."
+    },
+    "last_validated": {
+      "type": "string",
+      "format": "date",
+      "description": "Optional D21 freshness marker. YYYY-MM-DD. Runbooks older than 180 days warn (non-fail)."
+    }
+  },
+  "$comment": "Rule-only fields (paired_hardrule, activation, status, triggers, break_glass, applies_to, globs, rule_bundle) and concept-only fields (title, summary, tags) are intentionally absent — additionalProperties:false enforces disjointness with schema-rule-v1.json and schema-concept-v1.json per D9."
+}
