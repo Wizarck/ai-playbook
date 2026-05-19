@@ -1,12 +1,23 @@
-# bootstrap-new-project.md
+---
+schema: tutorial/v1
+slug: bootstrap-new-project
+title: Bootstrap a new consumer project with one command
+description: Replace the 5-step manual quickstart with one invocation of scripts/bootstrap.py. Idempotent, schema-validated, ends with a green doctor verdict.
+estimated_time: "10 min"
+prerequisite_concepts: [dispatcher-chain, projects-registry]
+audience: operator
+order: 4
+---
 
-> **Status**: v1.0.0. Authored in T14a; full implementation landed in T22e.
+# Bootstrap a new consumer project with one command
 
-## Goal
+> **What you'll learn**: How to use `scripts/bootstrap.py` to take a fresh repo from zero to "Claude Code / Gemini CLI / Cursor / Antigravity can all honour the playbook's universal norms" in ≤10 minutes. By the end you will have run the one-shot script, watched the doctor verdict turn green, and know what every flag does.
+> **Estimated time**: 10 min
+> **Prerequisites**:
+> - The quickstart ([03-quickstart.md](03-quickstart.md)) — at least skimmed, so you know what `bootstrap.py` is automating
+> - All quickstart prereqs (Python 3.11+, git 2.40+, pipx, pre-commit, Node 20+, gh CLI, sops + age)
 
-Take a fresh repo from zero to "Claude Code / Gemini CLI / Cursor / Antigravity can all honour the playbook's universal norms" in ≤10 minutes. No hand-copying, no guessing which files matter.
-
-The entry point is `scripts/bootstrap.py` (~534 lines, fully implemented). It is idempotent: running it twice on the same repo is a no-op except for an OTel span.
+The entry point is `scripts/bootstrap.py`. It is idempotent: running it twice on the same repo is a no-op except for an OTel span.
 
 ## Usage
 
@@ -63,7 +74,7 @@ Every template file uses Mustache-style `{{TOKEN}}` placeholders. `bootstrap.py`
 
 ## Templates
 
-See [`templates/new-project/`](../templates/new-project/):
+See [`templates/new-project/`](../../templates/new-project/):
 
 - `AGENTS.md.tmpl`
 - `CLAUDE.md.tmpl`, `GEMINI.md.tmpl`
@@ -79,7 +90,7 @@ See [`templates/new-project/`](../templates/new-project/):
 
 ## Break-glass
 
-`--force-with-reason "<text>"` is accepted on the following sub-gates (see [break-glass.md](../docs/rules/break-glass.rule.md) for the full contract):
+`--force-with-reason "<text>"` is accepted on the following sub-gates (see [break-glass.md](../rules/break-glass.rule.md) for the full contract):
 
 - `--playbook-path <local>` without a released tag → breaks pinning invariant.
 - Doctor failure → proceed anyway (discouraged; shows up in `overrides.log`).
@@ -88,13 +99,15 @@ See [`templates/new-project/`](../templates/new-project/):
 
 ## Troubleshooting
 
-- **`ModuleNotFoundError: No module named 'scripts.mcp'`** when running playbook scripts from the consumer repo: use `PYTHONPATH=.ai-playbook python -m scripts.<name>` or invoke via the absolute path. See [quickstart-lessons.md](quickstart-lessons.md) §Windows.
+- **`ModuleNotFoundError: No module named 'scripts.mcp'`** when running playbook scripts from the consumer repo: use `PYTHONPATH=.ai-playbook python -m scripts.<name>` or invoke via the absolute path. See [05-quickstart-lessons.md](05-quickstart-lessons.md) §Windows.
 - **Pre-commit install fails** on fresh Windows: install `pre-commit` via `pipx install pre-commit` first.
 - **Registry file empty**: run `python .ai-playbook/scripts/discover_projects.py` once; bootstrap.py will then find the file.
 
-## See also
+## What's next
 
-- [quickstart.md](quickstart.md) — the manual 25–40 min walkthrough; `bootstrap.py` replaces steps 2–5.
-- [quickstart-lessons.md](quickstart-lessons.md) — per-OS friction and workarounds discovered during T15 dry-runs.
-- [../docs/rules/bootstrap-directive.rule.md](../docs/rules/bootstrap-directive.rule.md) — the directive the generated AGENTS.md §0 carries.
-- [../docs/concepts/projects-registry.md](../docs/concepts/projects-registry.md) — format of the registry file bootstrap writes to.
+- [03-quickstart.md](03-quickstart.md) — the manual 25–40 min walkthrough; `bootstrap.py` replaces steps 2–5.
+- [05-quickstart-lessons.md](05-quickstart-lessons.md) — per-OS friction and workarounds discovered during dry-runs.
+- [06-curriculum.md](06-curriculum.md) — the 4-week onboarding curriculum after your project is bootstrapped.
+- [Rule: bootstrap-directive](../rules/bootstrap-directive.rule.md) — the directive the generated AGENTS.md §0 carries.
+- [Concept: projects-registry](../concepts/projects-registry.md) — format of the registry file bootstrap writes to.
+- [Concept: dispatcher-chain](../concepts/dispatcher-chain.md) — the three-level inheritance bootstrap wires into.

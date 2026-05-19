@@ -1,6 +1,24 @@
-# quickstart.md
+---
+schema: tutorial/v1
+slug: quickstart
+title: Quickstart — bootstrap a fresh consumer project end-to-end
+description: A hands-on 25–40-minute walkthrough that takes a brand-new consumer project from empty directory to a fully wired AGENTS.md + MCP config + pre-commit gates + first OpenSpec change.
+estimated_time: "25–40 min"
+prerequisite_concepts: [dispatcher-chain, projects-registry]
+audience: operator
+order: 3
+---
 
-> **Status**: v1.0.0. Honest 25–40 min walkthrough for a new dev bootstrapping a fresh consumer project called `acme-shop`. Per-OS friction and timing deltas land in [quickstart-lessons.md](quickstart-lessons.md) after T15 dry-runs.
+# Quickstart — bootstrap a fresh consumer project end-to-end
+
+> **What you'll learn**: How to take a brand-new project (we will call it `acme-shop`) from `git init` to a fully wired consumer of the playbook in 25–40 minutes. By the end you will have the playbook as a pinned submodule, a valid `AGENTS.md`, MCP servers declared, pre-commit hooks installed, and a first OpenSpec change scaffolded.
+> **Estimated time**: 25–40 min (10 min one-time prereqs the first time)
+> **Prerequisites**:
+> - The architecture tour ([01-architecture-tour.md](01-architecture-tour.md)) — feel the four doc types first
+> - The orientation ([02-start-here.md](02-start-here.md)) — know the three-level dispatcher
+> - A fresh git repo where you can experiment (do NOT use this on production code)
+
+Per-OS friction and timing deltas land in [05-quickstart-lessons.md](05-quickstart-lessons.md).
 
 ---
 
@@ -48,7 +66,7 @@ The submodule MUST be pinned to a semver tag, never a branch. This is the inheri
 python -m scripts.bootstrap --project-name acme-shop --owner you@example.com
 ```
 
-Full flag list and contract live in [bootstrap-new-project.md](bootstrap-new-project.md). Summary of what runs:
+Full flag list and contract live in [04-bootstrap-new-project.md](04-bootstrap-new-project.md). Summary of what runs:
 
 1. Adds the playbook as a submodule at `.ai-playbook/`, pinned to the current released tag.
 2. Copies `templates/new-project/` → project root with `{{PLACEHOLDER}}` substitution for the tokens it knows (`{{PROJECT_NAME}}`, `{{OWNER_EMAIL}}`, `{{TODAY}}`).
@@ -59,7 +77,7 @@ Full flag list and contract live in [bootstrap-new-project.md](bootstrap-new-pro
 
 ### What can go wrong
 
-- **`ModuleNotFoundError: scripts`** → run with `PYTHONPATH=.ai-playbook python -m scripts.bootstrap ...` or invoke the script by absolute path (see the Windows section of [quickstart-lessons.md](quickstart-lessons.md)).
+- **`ModuleNotFoundError: scripts`** → run with `PYTHONPATH=.ai-playbook python -m scripts.bootstrap ...` or invoke the script by absolute path (see the Windows section of [05-quickstart-lessons.md](05-quickstart-lessons.md)).
 - **Template already exists** → bootstrap refuses to clobber. Move the old file aside or pass `--force-with-reason="..."` per `break-glass.md`.
 - **Windows vs POSIX paths** — the template writes forward slashes; Windows handles them fine but some editors auto-convert. Leave them as `/`.
 
@@ -108,7 +126,7 @@ This scans conventional roots plus `$AIPLAYBOOK_PROJECTS_ROOTS`, finds every dir
 python -m scripts.discover_projects --list
 ```
 
-Your `acme-shop` entry should appear with `path`, `owner`, `version`, `inherits_from` populated from the frontmatter. Reference layout: [../templates/projects.yaml.example](../templates/projects.yaml.example). Schema: [../docs/concepts/projects-registry.md](../docs/concepts/projects-registry.md).
+Your `acme-shop` entry should appear with `path`, `owner`, `version`, `inherits_from` populated from the frontmatter. Reference layout: [../../templates/projects.yaml.example](../../templates/projects.yaml.example). Schema: [../concepts/projects-registry.md](../concepts/projects-registry.md).
 
 ### What can go wrong
 
@@ -120,7 +138,7 @@ Your `acme-shop` entry should appear with `path`, `owner`, `version`, `inherits_
 
 ## Step 5 — Wire MCP servers (≈4 min)
 
-Open `mcp-servers.yaml` (copied in Step 2). Declare the MCP servers this project uses, per the schema at [../docs/concepts/mcp-servers-schema.md](../docs/concepts/mcp-servers-schema.md). Minimal shape:
+Open `mcp-servers.yaml` (copied in Step 2). Declare the MCP servers this project uses, per the schema at [../concepts/mcp-servers-schema.md](../concepts/mcp-servers-schema.md). Minimal shape:
 
 ```yaml
 schema: mcp-servers/v1
@@ -174,7 +192,7 @@ Pick a tiny feature to bootstrap the rhythm. Create the change folder:
 mkdir -p openspec/changes/acme-shop-bootstrap
 ```
 
-Write `openspec/changes/acme-shop-bootstrap/proposal.md` — one paragraph on problem, one on approach. Then `specs/` and `tasks.md` per the per-artefact sequence in [../docs/concepts/runbook-bmad-openspec.md](../docs/concepts/runbook-bmad-openspec.md) §3.1. Validate:
+Write `openspec/changes/acme-shop-bootstrap/proposal.md` — one paragraph on problem, one on approach. Then `specs/` and `tasks.md` per the per-artefact sequence in [../concepts/runbook-bmad-openspec.md](../concepts/runbook-bmad-openspec.md) §3.1. Validate:
 
 ```bash
 python .ai-playbook/scripts/openspec_validate.py acme-shop-bootstrap
@@ -188,7 +206,7 @@ If you're using Claude Code, the slash command flow is:
 /opsx:archive  → promotes specs to openspec/specs/ and runs post-archive retro
 ```
 
-Verdict contract for each artefact: [../docs/rules/verdict-contract.rule.md](../docs/rules/verdict-contract.rule.md). After archive, drop a retro per [../templates/retro/post-archive.md.tmpl](../templates/retro/post-archive.md.tmpl).
+Verdict contract for each artefact: [../rules/verdict-contract.rule.md](../rules/verdict-contract.rule.md). After archive, drop a retro per [../../templates/retro/post-archive.md.tmpl](../../templates/retro/post-archive.md.tmpl).
 
 ### What can go wrong
 
@@ -200,13 +218,13 @@ Verdict contract for each artefact: [../docs/rules/verdict-contract.rule.md](../
 
 ## Step 8 — Wire the SessionStart hook (≈3 min)
 
-If you use Claude Code, add the Hindsight context-injection hook so prior-session memory lands in every new session. Follow [session-start-hook.md](session-start-hook.md) end-to-end — it ships a ready-to-paste `~/.claude/settings.json` snippet.
+If you use Claude Code, add the Hindsight context-injection hook so prior-session memory lands in every new session. Follow [session-start-hook.md](../concepts/session-start-hook.md) end-to-end — it ships a ready-to-paste `~/.claude/settings.json` snippet.
 
 If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.py` can be wrapped in the CLI's equivalent startup hook; see the end of that doc for variants.
 
 ### What can go wrong
 
-- **Hook fires but Hindsight MCP is down** — degradation state flips to `DEGRADED_CONTEXT` (see [../docs/concepts/degradation-modes.md](../docs/concepts/degradation-modes.md)). The session continues without memory; the warning is expected.
+- **Hook fires but Hindsight MCP is down** — degradation state flips to `DEGRADED_CONTEXT` (see [../concepts/degradation-modes.md](../concepts/degradation-modes.md)). The session continues without memory; the warning is expected.
 - **Hook times out** — raise the harness timeout to 15 s; memory reads can be slow on cold cache.
 
 ---
@@ -225,12 +243,19 @@ If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.p
 | 7. First OpenSpec change | 8 min | 28 |
 | 8. SessionStart hook | 3 min | 31 |
 
-**Realistic total: 25–40 min** depending on OS, existing toolchain, and network. Cross-OS deltas logged in [quickstart-lessons.md](quickstart-lessons.md) after T15.
+**Realistic total: 25–40 min** depending on OS, existing toolchain, and network. Cross-OS deltas logged in [05-quickstart-lessons.md](05-quickstart-lessons.md) after T15.
 
 ---
 
-## You're live. Next steps
+## You're live
 
-- First retro: use [../templates/retro/post-archive.md.tmpl](../templates/retro/post-archive.md.tmpl) after your first archive.
-- Hit friction? Append a bullet to [../FEEDBACK.md](../FEEDBACK.md). One sentence, dated, signed.
-- Read [../docs/concepts/runbook-bmad-openspec.md](../docs/concepts/runbook-bmad-openspec.md) before your first real PRD.
+- First retro: use [../../templates/retro/post-archive.md.tmpl](../../templates/retro/post-archive.md.tmpl) after your first archive.
+- Read [../concepts/runbook-bmad-openspec.md](../concepts/runbook-bmad-openspec.md) before your first real PRD.
+
+## What's next
+
+- [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — replace steps 1–5 above with one `bootstrap.py` invocation.
+- [05-quickstart-lessons.md](05-quickstart-lessons.md) — per-OS friction you may hit during this quickstart.
+- [06-curriculum.md](06-curriculum.md) — go from "I ran the quickstart" to "I can review and contribute" in 4 weeks.
+- [Concept: enforcement-layers](../concepts/enforcement-layers.md) — why the pre-commit hooks you just installed are the L1 of a three-layer model.
+- [Concept: development-flow](../concepts/development-flow.md) — the canonical task↔PR↔release flow you will use for every future change.
