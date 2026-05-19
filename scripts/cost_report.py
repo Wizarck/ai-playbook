@@ -9,10 +9,10 @@ Only events that look like LLM calls are counted. An event qualifies if:
 - its ``name`` contains ``llm.call``; OR
 - its ``attrs`` carries a ``gen_ai.usage.input_tokens`` value.
 
-Pricing is **not** hardcoded. When ``<playbook>/pricing.yaml`` exists, its
-per-model ``input_per_1k`` / ``output_per_1k`` / ``cache_read_per_1k`` numbers
-are applied; otherwise ``estimated_cost_usd`` is ``None`` and a note lands in
-the summary row (see ``specs/model-routing.md`` §Cost).
+Pricing is **not** hardcoded. When ``<playbook>/configs/pricing.yaml`` exists,
+its per-model ``input_per_1k`` / ``output_per_1k`` / ``cache_read_per_1k``
+numbers are applied; otherwise ``estimated_cost_usd`` is ``None`` and a note
+lands in the summary row (see ``specs/model-routing.md`` §Cost).
 
 CLI
 ---
@@ -49,7 +49,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_EVENTS_PATH = _REPO_ROOT / ".ai-playbook" / "events.jsonl"
-_DEFAULT_PRICING_PATH = _REPO_ROOT / "pricing.yaml"
+_DEFAULT_PRICING_PATH = _REPO_ROOT / "configs" / "pricing.yaml"
 
 DEFAULT_SINCE_DAYS = 90
 
@@ -371,7 +371,7 @@ def render_table(rows: list[Aggregate], *, by: str, pricing_loaded: bool) -> str
     if not pricing_loaded:
         out.append(
             "Note: pricing catalog not configured — see specs/model-routing.md. "
-            "Populate <playbook>/pricing.yaml to enable estimated_cost_usd."
+            "Populate <playbook>/configs/pricing.yaml to enable estimated_cost_usd."
         )
     if not rows:
         out.append("(no qualifying LLM events in window)")
