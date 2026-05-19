@@ -17,13 +17,13 @@ The worker agent's task budget is finite (configurable, typically ≤10 min). If
 
 ### B. Worker agent writes a substantive `§4.5 self-review` section that misses the §4.5.3 markers
 
-Worker agents trained on prior PRs imitate the **shape** of past self-review sections without re-reading [`release-management.md`](../specs/release-management.md) §4.5.3 to learn that the **literal marker strings** (`Profile:`, `Reviewer:`, `Self-review findings:`) are regex-validated. They write good substantive prose under a `## §4.5 self-review` heading, miss the markers, and the `ai-self-review-required` status check fails. Observed on consumer-e PR #152: agent's body had a full self-review section with deprecation context, file counts, and cross-tenant handling — but no canonical block. Recovery required parent to edit the body + `gh run rerun` the L2 workflow (~6 min total).
+Worker agents trained on prior PRs imitate the **shape** of past self-review sections without re-reading [`release-management.md`](../docs/concepts/release-management.md) §4.5.3 to learn that the **literal marker strings** (`Profile:`, `Reviewer:`, `Self-review findings:`) are regex-validated. They write good substantive prose under a `## §4.5 self-review` heading, miss the markers, and the `ai-self-review-required` status check fails. Observed on consumer-e PR #152: agent's body had a full self-review section with deprecation context, file counts, and cross-tenant handling — but no canonical block. Recovery required parent to edit the body + `gh run rerun` the L2 workflow (~6 min total).
 
 Both failure modes are **prompt-engineering** problems: the agent-spawn prompt template the main agent assembles ad-hoc does not include the patterns. Codifying them in `release-management.md` makes the contract discoverable to any worker agent that follows the playbook.
 
 ## Proposed change
 
-Extend `specs/release-management.md` with two new subsections under §4.5:
+Extend `docs/concepts/release-management.md` with two new subsections under §4.5:
 
 ### §4.5.5 Worker-agent delegation: STOP-after-`gh pr create` directive
 
@@ -58,6 +58,6 @@ Reason: agents imitate shape, not contract. The §4.5.3 markers are regex-valida
 
 ## Acceptance
 
-- `specs/release-management.md` gains §4.5.5 + §4.5.6 (~30 lines added).
+- `docs/concepts/release-management.md` gains §4.5.5 + §4.5.6 (~30 lines added).
 - `CHANGELOG.md` gains a `[0.13.4]` entry.
 - Consumers (consumer-e, consumer-b, consumer-d, consumer-c) bump submodule to v0.13.4 in follow-up bump PRs (handled by `propagate_bump.py`, mechanical).

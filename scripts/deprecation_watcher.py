@@ -3,10 +3,10 @@
 Populated in T22i. Surfaces the following deprecation signals:
 
 1. **AGENTS.md v0 frontmatter** — `schema: agents-md/v0` or missing schema
-   (v0→v1 migration pending per ``specs/migration-guide.md``).
+   (v0→v1 migration pending per ``docs/concepts/migration-guide.md``).
 2. **Env-var aliases without their canonical counterparts** — currently
    ``ANTHROPIC_CACHE_TOKENS_MIN`` without ``AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN``
-   (see ``specs/env-vars.md`` resolution order).
+   (see ``docs/concepts/env-vars.md`` resolution order).
 3. **Deprecated MCP server IDs** in consumer ``mcp-servers.yaml`` / ``.mcp.json``
    — first entry: ``consumer-c-guardrails-mcp`` → canonical ``guardrails-mcp``.
    Configurable via ``specs/deprecations.yaml``; falls back to a hardcoded
@@ -240,7 +240,7 @@ def scan_env_aliases(env: dict[str, str], aliases: dict[str, str]) -> list[Findi
                     subject=alias,
                     detail=(
                         f"{alias} is set but {canonical} is not; export the canonical "
-                        "name (per specs/env-vars.md) and drop the alias before v2.0."
+                        "name (per docs/concepts/env-vars.md) and drop the alias before v2.0."
                     ),
                 )
             )

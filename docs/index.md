@@ -23,9 +23,9 @@
     The universal contracts every consumer inherits via `.ai-playbook/specs/*`.
 
     - [Full specs index](../specs/INDEX.md) — auto-generated, every file + status + summary.
-    - [dispatcher-chain](../specs/dispatcher-chain.md) — 3-level inheritance model.
-    - [verdict-contract](../specs/verdict-contract.md) — QA output shape.
-    - [error-message-standard](../specs/error-message-standard.md) — canonical error format.
+    - [dispatcher-chain](../docs/concepts/dispatcher-chain.md) — 3-level inheritance model.
+    - [verdict-contract](../docs/rules/verdict-contract.rule.md) — QA output shape.
+    - [error-message-standard](../docs/rules/error-message-standard.rule.md) — canonical error format.
 
 ## What the playbook stands for
 
@@ -47,4 +47,4 @@ Four of the eight universal principles the playbook is built on (the full list l
 
 - **Version**: `v0.1.0` — scaffold committed; `baseline` branch preserves the pre-refactor state.
 - **Active track**: T14–T16 (EX package, cross-OS dry-runs, docs hub).
-- **Changelog / migration notes**: see [migration-guide](../specs/migration-guide.md) for v0 → v1 procedure and the repo's `rfcs/` directory for per-version decisions.
+- **Changelog / migration notes**: see [migration-guide](../docs/concepts/migration-guide.md) for v0 → v1 procedure and the repo's `rfcs/` directory for per-version decisions.

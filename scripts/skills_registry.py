@@ -1,6 +1,6 @@
 """Query the consumer-d-skills HTTP registry for the catalog of available skills.
 
-Populated in T20. See ``specs/skills-registry.md`` for the full contract.
+Populated in T20. See ``docs/concepts/skills-registry.md`` for the full contract.
 
 The registry is the authoritative discovery surface for project skills —
 consumers stop copy-pasting ``SKILL.md`` under ``.claude/skills/`` and instead
@@ -67,7 +67,7 @@ MIN_OVERRIDE_REASON_LEN = 10
 def emit_error(
     *, why: str, where: str, fix: str, override_invocation: str | None
 ) -> None:
-    """Emit the canonical error shape (see specs/error-message-standard.md)."""
+    """Emit the canonical error shape (see docs/rules/error-message-standard.rule.md)."""
     print(f"❌ {why} at {where}", file=sys.stderr)
     print(f"   FIX: {fix}", file=sys.stderr)
     if override_invocation is None:
@@ -291,7 +291,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
             why="SKILLS_REGISTRY_URL not set",
             where="env:SKILLS_REGISTRY_URL",
             fix="export SKILLS_REGISTRY_URL=https://consumer-d-skills.consumer-bfood.com "
-                "(or pass --url); see specs/env-vars.md.",
+                "(or pass --url); see docs/concepts/env-vars.md.",
             override_invocation=(
                 f"{SCRIPT_BASENAME} list --force-with-reason=\"<≥10 char reason>\""
             ),
@@ -361,7 +361,7 @@ def _cmd_show(args: argparse.Namespace) -> int:
         emit_error(
             why="SKILLS_REGISTRY_URL not set",
             where="env:SKILLS_REGISTRY_URL",
-            fix="export SKILLS_REGISTRY_URL (or pass --url); see specs/env-vars.md.",
+            fix="export SKILLS_REGISTRY_URL (or pass --url); see docs/concepts/env-vars.md.",
             override_invocation=None,
         )
         return 2

@@ -5,7 +5,7 @@
 # runs the same chain against the playbook repo's own files, with script paths
 # relative to the repo root (no submodule prefix).
 #
-# Full hook chain lands in T09. Diagram: docs/architecture-diagrams.md §3.
+# Full hook chain lands in T09. Diagram: docs/concepts/architecture-diagrams.md §3.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

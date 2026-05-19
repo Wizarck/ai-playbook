@@ -3,7 +3,7 @@
 # CI gate (soft, warn-only): when a PR touches `openspec/changes/<id>/` files,
 # scan tasks.md and surface any `- [ ]` unchecked boxes as a sticky PR comment.
 #
-# Implements Followup #4 Option 2 from specs/v0.9.0-roadmap.md (filed
+# Implements Followup #4 Option 2 from docs/concepts/v0.9.0-roadmap.md (filed
 # 2026-05-01 after consumer-e slice 3 / PR #57 merged with 0/55 boxes
 # ticked despite being feature-complete).
 #
@@ -127,7 +127,7 @@ jobs:
                 '',
                 `🟡 OpenSpec change \`${changeId}\` has no \`tasks.md\` — skipping checkbox scan.`,
                 '',
-                'If this change should track tasks, create `openspec/changes/' + changeId + '/tasks.md` per [runbook-bmad-openspec.md §4](../blob/main/specs/runbook-bmad-openspec.md).',
+                'If this change should track tasks, create `openspec/changes/' + changeId + '/tasks.md` per [runbook-bmad-openspec.md §4](../blob/main/docs/concepts/runbook-bmad-openspec.md).',
               ].join('\n');
             } else if (total === 0) {
               body = [
@@ -165,7 +165,7 @@ jobs:
                 '',
                 '</details>',
                 '',
-                '_Spec_: [Followup #4](../blob/main/specs/v0.9.0-roadmap.md). _Hook_: [`templates/git-hooks/prepare-commit-msg`](../blob/main/templates/git-hooks/prepare-commit-msg). _Script_: [`scripts/auto_tick_tasks.py`](../blob/main/scripts/auto_tick_tasks.py).',
+                '_Spec_: [Followup #4](../blob/main/docs/concepts/v0.9.0-roadmap.md). _Hook_: [`templates/git-hooks/prepare-commit-msg`](../blob/main/templates/git-hooks/prepare-commit-msg). _Script_: [`scripts/auto_tick_tasks.py`](../blob/main/scripts/auto_tick_tasks.py).',
               ].join('\n');
             }
 

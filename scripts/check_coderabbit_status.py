@@ -3,7 +3,7 @@
 Per release-management.md §4.5.1: the worker AI MUST invoke this script
 after `gh pr create` (or any push that updates a PR) to determine
 whether CodeRabbit reviewed the diff or whether to apply Profile B
-fallback (in-session self-review per `runbooks/coderabbit-fallback.md`).
+fallback (in-session self-review per `docs/runbooks/coderabbit-fallback.md`).
 
 CLI
 ---

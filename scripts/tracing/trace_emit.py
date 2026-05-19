@@ -7,11 +7,11 @@ This module provides:
 - ``current_trace_id()`` — hex trace id (32 hex chars / 16 bytes) or ``None``.
 - ``add_event(name, attrs=None)`` — attach an event to the current span.
 - ``gen_ai_attrs(...)`` — canonical ``gen_ai.*`` dict per OTel Semantic
-  Conventions for Generative AI (see `specs/model-routing.md` §4).
+  Conventions for Generative AI (see `docs/concepts/model-routing.md` §4).
 - ``routing_attrs(...)`` — canonical ``ai_playbook.routing.*`` dict.
 - ``degradation_attrs(...)`` — canonical ``ai_playbook.degradation.*`` dict.
 - ``override_attrs(...)`` — canonical ``ai_playbook.override.*`` dict
-  (per `specs/break-glass.md`).
+  (per `docs/rules/break-glass.rule.md`).
 
 All helpers return plain dicts so callers can merge them into whatever span
 creation API they prefer. The no-op behaviour is imported lazily — this module
@@ -124,7 +124,7 @@ def gen_ai_attrs(
 ) -> dict[str, Any]:
     """Return the OTel Semantic-Conv `gen_ai.*` attribute set.
 
-    Keys per `specs/model-routing.md` §4:
+    Keys per `docs/concepts/model-routing.md` §4:
       - ``gen_ai.system``
       - ``gen_ai.request.model``
       - ``gen_ai.response.model`` (optional; defaults to ``model``)
@@ -150,7 +150,7 @@ def routing_attrs(
 ) -> dict[str, Any]:
     """Return the `ai_playbook.task_class` + `ai_playbook.routing.*` set.
 
-    Keys per `specs/model-routing.md` §4.
+    Keys per `docs/concepts/model-routing.md` §4.
     """
     out: dict[str, Any] = {
         "ai_playbook.task_class": task_class,
@@ -170,7 +170,7 @@ def degradation_attrs(
 ) -> dict[str, Any]:
     """Return the `ai_playbook.degradation.*` set.
 
-    Keys per `specs/degradation-modes.md` §5. ``state`` must be one of
+    Keys per `docs/concepts/degradation-modes.md` §5. ``state`` must be one of
     ``HEALTHY``, ``DEGRADED_CAPACITY``, ``DEGRADED_QUALITY``,
     ``DEGRADED_CONTEXT``, ``OFFLINE`` — but consumers tolerate unknown values
     by treating them as ``DEGRADED_CAPACITY`` (see spec §1).
@@ -194,7 +194,7 @@ def override_attrs(
 ) -> dict[str, Any]:
     """Return the `ai_playbook.override.*` set.
 
-    Keys per `specs/break-glass.md` — these flow through whenever a caller
+    Keys per `docs/rules/break-glass.rule.md` — these flow through whenever a caller
     invokes ``--force-with-reason``.
     """
     out: dict[str, Any] = {

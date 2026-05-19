@@ -19,7 +19,7 @@ Implement tasks from an OpenSpec change.
 
    Before reading any context files or performing implementation, signal that
    this apply session is skill-orchestrated. The PreToolUse hook installed
-   per `specs/apply-skill-enforcement.md` BLOCKS the first `Edit`/`Write` on a
+   per `docs/rules/apply-skill-enforcement.rule.md` BLOCKS the first `Edit`/`Write` on a
    slice's `write_paths` unless this marker exists for the current session.
 
    ```bash
@@ -32,7 +32,7 @@ Implement tasks from an OpenSpec change.
    missing — proceed; older consumers see no enforcement. Inform the user that
    their playbook bump is overdue.
 
-   See: `specs/apply-skill-enforcement.md` §1 (marker contract) and §3
+   See: `docs/rules/apply-skill-enforcement.rule.md` §1 (marker contract) and §3
    (break-glass via `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` env).
 
 1. **Select the change**
@@ -78,7 +78,7 @@ Implement tasks from an OpenSpec change.
 
 4b. **Preflight re-grep cited identifiers (added v0.11.0)**
 
-   Per [release-management.md](../../specs/release-management.md) §6.5 (pre-flight rebase) the worktree base is fresh, but `proposal.md` may have been written days earlier. Identifiers cited in the proposal (class names, function names, file paths, migration slot numbers, fact-kind enum values, ADR numbers) may have **changed on `main` since the proposal landed**. Apply silently against stale citations produces silent divergence.
+   Per [release-management.md](../../docs/concepts/release-management.md) §6.5 (pre-flight rebase) the worktree base is fresh, but `proposal.md` may have been written days earlier. Identifiers cited in the proposal (class names, function names, file paths, migration slot numbers, fact-kind enum values, ADR numbers) may have **changed on `main` since the proposal landed**. Apply silently against stale citations produces silent divergence.
 
    Before starting implementation, re-grep every identifier the proposal/design/tasks cites:
 

@@ -14,7 +14,7 @@ CLI
         [--dry-run]
 
 Reads the dependency graph from `docs/openspec-slice.md` (per
-specs/bmad-openspec-bridge.md §3.1). Reuses `parse_slicing()` from
+docs/concepts/bmad-openspec-bridge.md §3.1). Reuses `parse_slicing()` from
 `bootstrap_gh_project.py` so the parser is one-source-of-truth.
 
 For each item on the project board:

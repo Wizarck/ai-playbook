@@ -94,7 +94,7 @@ Hidden-but-essential dot-folders kept: `.github/` (workflows + tooling),
 ## Why not delete MAINTAINERS.md too
 
 It references `rfcs/` (slice 3 deleted that folder) and
-`docs/contributing.md` (TBD). Critical-eye says it's stale, but the file
+`docs/concepts/contributing.md` (TBD). Critical-eye says it's stale, but the file
 itself is 15 lines and answers the question "who do I email if there's a
 security issue?" — answer is non-trivial to find without it. Slice 5
 rewrites docs and will refresh this in passing. **Decision: KEEP** with

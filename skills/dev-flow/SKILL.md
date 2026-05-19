@@ -5,7 +5,7 @@ license: Apache-2.0
 metadata:
   author: ai-playbook
   version: "1.0"
-  spec: docs/development-flow.md
+  spec: docs/concepts/development-flow.md
 ---
 
 Orchestrate the playbook's canonical developer flow: from "I want to make a change" to "PR is open and CI is green" without re-reading 5+ specs each time.
@@ -56,7 +56,7 @@ If it exists without `archive/`: warn "extending an in-flight change; confirm in
 
 Read the type flag (default `feat`). Branch name: `<type>/<change-id>`.
 
-**Worktree decision** (per docs/development-flow.md §2 + git-worktree-bare-layout.md):
+**Worktree decision** (per docs/concepts/development-flow.md §2 + git-worktree-bare-layout.md):
 - Count branches with `git worktree list`. If `--no-worktree` is set OR count < 3 → simple branch:
   ```
   git checkout -b <type>/<change-id>
@@ -104,9 +104,9 @@ Next steps:
   4. When implementation-complete, run /dev-flow ship to open the PR.
 
 References:
-  - docs/development-flow.md  (canonical end-to-end flow)
-  - specs/release-management.md §4 §6.5 (PR shape, pre-flight rebase)
-  - specs/merge-policy.md (squash vs merge-commit decision)
+  - docs/concepts/development-flow.md  (canonical end-to-end flow)
+  - docs/concepts/release-management.md §4 §6.5 (PR shape, pre-flight rebase)
+  - docs/concepts/merge-policy.md (squash vs merge-commit decision)
 ```
 
 ## Steps — `/dev-flow ship`
@@ -268,11 +268,11 @@ Next steps:
   2. Once approved, merge:
        gh pr merge <N> --merge --delete-branch    # (multi-commit, semantic — D2.1)
        gh pr merge <N> --squash --delete-branch   # (single-commit / trivial — D2.2)
-     (See specs/merge-policy.md for the decision rule.)
+     (See docs/concepts/merge-policy.md for the decision rule.)
   3. After merge, archive the OpenSpec change:
        openspec archive <change-id>
      (Verifies tasks.md is N/N ticked per Followup #4.)
-  4. If this is the last PR for the next release, see runbooks/release.md
+  4. If this is the last PR for the next release, see docs/runbooks/release.md
      for the release-cut PR + tag procedure.
 ```
 
@@ -293,10 +293,10 @@ Next steps:
 
 ## Cross-references
 
-- [`docs/development-flow.md`](../../docs/development-flow.md) — the canonical doc this skill operationalises.
-- [`specs/release-management.md`](../../specs/release-management.md) — release process the skill respects.
-- [`specs/merge-policy.md`](../../specs/merge-policy.md) — squash vs merge-commit (skill suggests, doesn't decide).
-- [`specs/conflict-resolution-policy.md`](../../specs/conflict-resolution-policy.md) — what happens when 2 ships collide.
+- [`docs/concepts/development-flow.md`](../../docs/concepts/development-flow.md) — the canonical doc this skill operationalises.
+- [`docs/concepts/release-management.md`](../../docs/concepts/release-management.md) — release process the skill respects.
+- [`docs/concepts/merge-policy.md`](../../docs/concepts/merge-policy.md) — squash vs merge-commit (skill suggests, doesn't decide).
+- [`docs/rules/conflict-resolution-policy.rule.md`](../../docs/rules/conflict-resolution-policy.rule.md) — what happens when 2 ships collide.
 - [`scripts/auto_tick_tasks.py`](../../scripts/auto_tick_tasks.py) — the auto-tick implementation triggered by the hook.
 - [`templates/git-hooks/prepare-commit-msg`](../../templates/git-hooks/prepare-commit-msg) — the hook this skill installs.
 - [`scripts/wt_add.py`](../../scripts/wt_add.py) — worktree creation (when ≥ 3 concurrent slices).

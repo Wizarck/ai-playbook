@@ -172,26 +172,26 @@ ai-playbook/
 | `consumer-d` | `.ai-playbook/` as git submodule + `consumer-d.md` personal add-on. |
 | New projects | Run `python <playbook>/scripts/bootstrap.py --project-name X --owner Y` from a fresh repo. |
 
-Each consumer pins its own semver tag — see [`~/.ai-playbook/projects.yaml`](specs/projects-registry.md) for the current inventory per dev machine. Upgrading is opt-in; run `python <playbook>/scripts/bump_consumers.py --tag vX.Y.Z` to batch-bump every registered consumer.
+Each consumer pins its own semver tag — see [`~/.ai-playbook/projects.yaml`](docs/concepts/projects-registry.md) for the current inventory per dev machine. Upgrading is opt-in; run `python <playbook>/scripts/bump_consumers.py --tag vX.Y.Z` to batch-bump every registered consumer.
 
 ## Getting started
 
-1. **New consumer project**: see [docs/bootstrap-new-project.md](docs/bootstrap-new-project.md).
+1. **New consumer project**: see [docs/tutorials/03-bootstrap-new-project.md](docs/tutorials/03-bootstrap-new-project.md).
 2. **Working inside this repo**: see [AGENTS.md](AGENTS.md).
-3. **Onboarding a dev**: [docs/start-here.md](docs/start-here.md) → [docs/quickstart.md](docs/quickstart.md) → [docs/curriculum.md](docs/curriculum.md).
-4. **Contributing a spec / script**: [docs/contributing.md](docs/contributing.md) + [rfcs/README.md](rfcs/README.md) for breaking changes.
-5. **Running an operation** (cutting a release, rotating a secret, debugging a failed Action): [runbooks/INDEX.md](runbooks/INDEX.md).
+3. **Onboarding a dev**: [docs/tutorials/01-start-here.md](docs/tutorials/01-start-here.md) → [docs/tutorials/02-quickstart.md](docs/tutorials/02-quickstart.md) → [docs/tutorials/05-curriculum.md](docs/tutorials/05-curriculum.md).
+4. **Contributing a spec / script**: [docs/concepts/contributing.md](docs/concepts/contributing.md) + [rfcs/README.md](rfcs/README.md) for breaking changes.
+5. **Running an operation** (cutting a release, rotating a secret, debugging a failed Action): [docs/runbooks/INDEX.md](docs/runbooks/INDEX.md).
 
 ## Versioning
 
-Semver on the `master` branch. Consumers pin to a released tag, never `master`. Breaking changes require an RFC and a major bump (see [specs/rollout-strategy.md](specs/rollout-strategy.md)).
+Semver on the `master` branch. Consumers pin to a released tag, never `master`. Breaking changes require an RFC and a major bump (see [docs/concepts/rollout-strategy.md](docs/concepts/rollout-strategy.md)).
 
 Current: see [`VERSION`](VERSION).
 
 ## Status
 
 **v0.16.0 — architectural reset in progress.** Slice 2 of the v0.15.0 → v0.20.0 reset (see `~/.claude/plans/`). New in this version:
-- **Doc-drift CI gate** — `scripts/check_doc_drift.py` + `specs/co-edit-pairs.yaml` + `.github/workflows/doc-drift-check.yml`. Every PR is checked against the (code, doc) pair manifest; one-sided changes fail CI with a sticky comment. Escape hatch: `[no-doc-impact]` (case-insensitive) anywhere in PR title.
+- **Doc-drift CI gate** — `scripts/check_doc_drift.py` + `specs/co-edit-pairs.yaml` + `.github/workflows/doc-drift-enforcement.rule.yml`. Every PR is checked against the (code, doc) pair manifest; one-sided changes fail CI with a sticky comment. Escape hatch: `[no-doc-impact]` (case-insensitive) anywhere in PR title.
 - **Test isolation fix** for 3 pre-existing failing tests in `test_apply_enforce_hook_template.py` (env-var leakage from the harness — now scrubbed in the fixture).
 - **Audit drift fixes** — dead cross-refs cleaned up, enforcement-status row added for `doc-drift-enforcement.md`.
 

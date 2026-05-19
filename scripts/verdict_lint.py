@@ -2,8 +2,8 @@
 
 Populated in T09. Supersedes the T05 stub.
 
-Contract: `specs/verdict-contract.md` (verdict literals + severity codes) and
-`specs/error-message-standard.md` (error shape).
+Contract: `docs/rules/verdict-contract.rule.md` (verdict literals + severity codes) and
+`docs/rules/error-message-standard.rule.md` (error shape).
 
 CLI
 ---
@@ -17,14 +17,14 @@ Shapes
   its own line. If `⚠️`, every finding must carry a bracketed severity token
   `[S1]`..`[S4]`. `[S0]` only with `--audit`.
 - `error`: enforces the WHY / WHERE / FIX / OVERRIDE shape from
-  `specs/error-message-standard.md`. Reads from stdin if no path given.
+  `docs/rules/error-message-standard.rule.md`. Reads from stdin if no path given.
 - `script-cli`: CI-side lint for script CLIs that must support break-glass.
   Placeholder — emits a warning and exits 0 (populated in a future track).
 
 Override
 --------
 This gate protects a structural invariant. `--force-with-reason` is REJECTED;
-the script exits 3 when a reason is passed (per specs/break-glass.md table row
+the script exits 3 when a reason is passed (per docs/rules/break-glass.rule.md table row
 "never overridable").
 
 Exit codes
@@ -110,7 +110,7 @@ def lint_artifact(file_path: Path, *, audit: bool) -> int:
             fix=(
                 "append exactly one of `✅ APPROVED`, "
                 "`⚠️ ISSUES FOUND (iter N)`, or `❓ CLARIFICATION NEEDED` on its "
-                "own line. See specs/verdict-contract.md §1."
+                "own line. See docs/rules/verdict-contract.rule.md §1."
             ),
             override_invocation=None,
         )
@@ -121,7 +121,7 @@ def lint_artifact(file_path: Path, *, audit: bool) -> int:
             where=where,
             fix=(
                 "remove the extra verdict line(s); only the final top-level "
-                "verdict should remain. See specs/verdict-contract.md §1."
+                "verdict should remain. See docs/rules/verdict-contract.rule.md §1."
             ),
             override_invocation=None,
         )
@@ -150,7 +150,7 @@ def lint_artifact(file_path: Path, *, audit: bool) -> int:
                 where=where,
                 fix=(
                     "list each finding on its own line starting `- [S1] <title>` "
-                    "(or S2/S3/S4). See specs/verdict-contract.md §2."
+                    "(or S2/S3/S4). See docs/rules/verdict-contract.rule.md §2."
                 ),
                 override_invocation=None,
             )
@@ -161,7 +161,7 @@ def lint_artifact(file_path: Path, *, audit: bool) -> int:
                     why="`[S0]` is audit-only and rejected in normal verdict lint",
                     where=f"{file_path.resolve().as_posix()}:{line_idx + 1}",
                     fix=(
-                        "use S1..S4 per specs/verdict-contract.md §2; "
+                        "use S1..S4 per docs/rules/verdict-contract.rule.md §2; "
                         "S0 is reserved for retros run with `--audit`."
                     ),
                     override_invocation=None,
@@ -200,7 +200,7 @@ def lint_error_shape_text(text: str, where: str) -> int:
                 f"(found {len(header_matches)})"
             ),
             where=where,
-            fix="see specs/error-message-standard.md for the canonical shape.",
+            fix="see docs/rules/error-message-standard.rule.md for the canonical shape.",
             override_invocation=None,
         )
         return 1
@@ -230,7 +230,7 @@ def lint_error_shape_text(text: str, where: str) -> int:
                 "(must be `   OVERRIDE: none` or `   OVERRIDE: --force-with-reason=...`)"
             ),
             where=where,
-            fix="see specs/error-message-standard.md and specs/break-glass.md.",
+            fix="see docs/rules/error-message-standard.rule.md and docs/rules/break-glass.rule.md.",
             override_invocation=None,
         )
         return 1
@@ -278,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="verdict_lint",
         description=(
             "Lint QA artefacts for verdict + severity shape. See "
-            "specs/verdict-contract.md and specs/error-message-standard.md."
+            "docs/rules/verdict-contract.rule.md and docs/rules/error-message-standard.rule.md."
         ),
     )
     parser.add_argument(

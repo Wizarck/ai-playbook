@@ -7,10 +7,10 @@
 * `scripts/check_doc_drift.py`
 * `tests/test_check_doc_drift.py`
 * `specs/co-edit-pairs.yaml`
-* `specs/doc-drift-enforcement.md`
-* `.github/workflows/doc-drift-check.yml`
-* `specs/enforcement-status.md`
-* `docs/development-flow.md`
+* `docs/rules/doc-drift-enforcement.rule.md`
+* `.github/workflows/doc-drift-enforcement.rule.yml`
+* `docs/concepts/enforcement-status.md`
+* `docs/concepts/development-flow.md`
 * `README.md`
 * `tests/test_apply_enforce_hook_template.py`
 * `CHANGELOG.md`
@@ -19,10 +19,10 @@
 
 ## Reads
 
-* `scripts/cleanup_zombies.py` — argparse + exit-code convention reference
+* `scripts/rules/cleanup-zombies.rule.py` — argparse + exit-code convention reference
 * `scripts/_break_glass.py` — canonical error shape helper
-* `specs/break-glass.md` — `AIPLAYBOOK_*` env namespace + exit-code policy
-* `specs/error-message-standard.md` — error message format
+* `docs/rules/break-glass.rule.md` — `AIPLAYBOOK_*` env namespace + exit-code policy
+* `docs/rules/error-message-standard.rule.md` — error message format
 * `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl` — root cause for 3 failing tests
 * `.github/workflows/branch-name-validator.yml` — sticky-comment + CI gate precedent
 
@@ -76,10 +76,10 @@
 
 ### Phase E — Spec + workflow + audit drift fixes
 
-- [x] **T8 — write `specs/doc-drift-enforcement.md` v1.0.0**.
-- [x] **T9 — write `.github/workflows/doc-drift-check.yml`** with sticky-comment + hard-fail.
-- [x] **T10 — add doc-drift row to `specs/enforcement-status.md`**.
-- [x] **T11 — add doc-drift row to `docs/development-flow.md` §5**.
+- [x] **T8 — write `docs/rules/doc-drift-enforcement.rule.md` v1.0.0**.
+- [x] **T9 — write `.github/workflows/doc-drift-enforcement.rule.yml`** with sticky-comment + hard-fail.
+- [x] **T10 — add doc-drift row to `docs/concepts/enforcement-status.md`**.
+- [x] **T11 — add doc-drift row to `docs/concepts/development-flow.md` §5**.
 - [x] **T12 — fix 3 failing tests in `tests/test_apply_enforce_hook_template.py`** by tightening `_invoke_hook` env isolation.
 - [x] **T13 — bump README.md status to v0.16.0**.
 - [x] **T14 — audit `runbooks/` + `docs/` for 4 dead cross-refs and fix**.
@@ -89,6 +89,6 @@
 ### Phase F — Validation
 
 - [x] **T17 — `pytest tests/` all green** (incl. ≥15 new tests + 3 previously-failing now green).
-- [x] **T18 — `python scripts/cleanup_zombies.py validate` exit 0**.
-- [x] **T19 — synthetic probe**: `python scripts/check_doc_drift.py --diff-files scripts/cleanup_zombies.py` → exit 1.
+- [x] **T18 — `python scripts/rules/cleanup-zombies.rule.py validate` exit 0**.
+- [x] **T19 — synthetic probe**: `python scripts/check_doc_drift.py --diff-files scripts/rules/cleanup-zombies.rule.py` → exit 1.
 - [x] **T20 — synthetic escape-hatch probe**: same diff + `--pr-title "test [no-doc-impact]"` → exit 0.

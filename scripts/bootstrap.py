@@ -2,7 +2,7 @@
 
 Populated in T22e. Supersedes the T14a stub that merely printed args.
 
-Responsibilities (per specs/migration-guide.md + templates/new-project/):
+Responsibilities (per docs/concepts/migration-guide.md + templates/new-project/):
 
 1. Resolve target directory (--path or <cwd>/<project-name>). Create if absent;
    error if a non-directory collision exists.
@@ -256,7 +256,7 @@ def _substitute(
     owner: str,
     today_iso: str,
 ) -> str:
-    # Bank id is the lowercased project slug per specs/memory-hierarchy.md §2.
+    # Bank id is the lowercased project slug per docs/concepts/memory-hierarchy.md §2.
     bank_id = project_name.lower()
     return (
         text.replace("{{TODAY}}", today_iso)

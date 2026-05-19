@@ -113,9 +113,9 @@ def build_edit_plan(
     ]))
 
     # Runbooks reference upstream repos in examples.
-    for run in ("runbooks/release.md", "runbooks/rotate-secrets.md",
-                "runbooks/propagate-bump-troubleshooting.md",
-                "runbooks/hindsight-retain.md"):
+    for run in ("docs/runbooks/release.md", "docs/runbooks/rotate-secrets.md",
+                "docs/runbooks/propagate-bump-troubleshooting.md",
+                "docs/runbooks/hindsight-retain.md"):
         plan.append(FileEdit(run, [
             (f"{upstream_org}/", f"{org_name}/"),
         ]))
@@ -123,8 +123,8 @@ def build_edit_plan(
     # Hindsight URL across docs (only when explicit).
     if hindsight_url:
         url_targets = [
-            "specs/env-vars.md", "docs/session-start-hook.md",
-            "runbooks/hindsight-retain.md",
+            "docs/concepts/env-vars.md", "docs/concepts/session-start-hook.md",
+            "docs/runbooks/hindsight-retain.md",
             "templates/new-project/AGENTS.md.tmpl",
         ]
         for f in url_targets:
@@ -257,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  2. Set up your Hindsight instance (or skip if you don't want memory layer).")
         print("  3. Create your first consumer: copy templates/new-project/ → "
               "<org>/<repo>/, customise, add row to consumers.yaml, push.")
-        print("  4. Cut your first tag: see runbooks/release.md.")
+        print("  4. Cut your first tag: see docs/runbooks/release.md.")
 
     return 0
 

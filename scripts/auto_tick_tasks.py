@@ -1,7 +1,7 @@
 """auto_tick_tasks — auto-tick `tasks.md` checkboxes from a conventional-commit subject.
 
 Implements Followup #4 Option 1 (recommended path per
-specs/v0.9.0-roadmap.md): when a developer or agent commits with a
+docs/concepts/v0.9.0-roadmap.md): when a developer or agent commits with a
 conventional-commit subject naming task identifiers (groups, sections,
 or task numbers), the matching `- [ ]` checkboxes in
 `openspec/changes/<active>/tasks.md` are flipped to `- [x]` and the

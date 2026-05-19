@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wizarck.github.io/ai-playbook/schemas/schema-concept-v1.json",
+  "title": "ai-playbook concept-doc frontmatter (v1)",
+  "description": "Frontmatter contract for docs/concepts/<slug>.md. Disjoint with schema-rule-v1.json per D9 — rule-only fields are FORBIDDEN here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "slug", "title"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "concept/v1",
+      "description": "Schema versioning hook. MUST be 'concept/v1' for this version."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "description": "Authoritative identifier."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Human-readable title shown in INDEX.md and mkdocs nav."
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Optional one-paragraph summary."
+    },
+    "last_validated": {
+      "type": "string",
+      "format": "date"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "$comment": "Rule-only fields (paired_hardrule, activation, status, triggers, break_glass, applies_to, globs, rule_bundle) are intentionally absent — additionalProperties:false enforces disjointness with schema-rule-v1.json per D9."
+}

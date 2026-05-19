@@ -67,15 +67,15 @@ SUPERSEDE_PREFIX = "chore/bump-playbook-"
 # submodule pointer.
 PLAYBOOK_REPO_NAME = "ai-playbook"
 
-# Per specs/bootstrap-directive.md v1.2.0 (added 2026-05-05): every consumer's
+# Per docs/rules/bootstrap-directive.rule.md v1.2.0 (added 2026-05-05): every consumer's
 # AGENTS.md §2 Dispatcher index MUST contain a row pointing to
-# .ai-playbook/docs/development-flow.md. The migration runs as part of the
+# .ai-playbook/docs/concepts/development-flow.md. The migration runs as part of the
 # v0.9.3+ bump PR (this is "Opción 1" from the consumer-side migration plan
 # in development-flow.md §3.3). Idempotent — already-present link → no-op.
 DEV_FLOW_CROSS_REF_ROW = (
     "| **How to make a change in this project (canonical entry point)** "
-    "| [.ai-playbook/docs/development-flow.md]"
-    "(.ai-playbook/docs/development-flow.md) |"
+    "| [.ai-playbook/docs/concepts/development-flow.md]"
+    "(.ai-playbook/docs/concepts/development-flow.md) |"
 )
 DEV_FLOW_LINK_LITERAL = "development-flow.md"
 
@@ -155,7 +155,7 @@ def _clone_consumer(name: str, repo: str, token: str, workdir: Path) -> Path:
 def ensure_dev_flow_cross_ref(agents_md_path: Path) -> tuple[bool, str]:
     """Insert the development-flow.md cross-ref row in AGENTS.md §2 if absent.
 
-    Per specs/bootstrap-directive.md v1.2.0. Idempotent — if the literal
+    Per docs/rules/bootstrap-directive.rule.md v1.2.0. Idempotent — if the literal
     "development-flow.md" already appears anywhere in the body, return
     (False, "already-present") without modifying the file.
 
@@ -310,8 +310,8 @@ def _propagate_one(
         root / "AGENTS.md", PLAYBOOK_REPO_NAME, tag
     )
 
-    # Per specs/bootstrap-directive.md v1.2.0: ensure consumer's AGENTS.md
-    # §2 Dispatcher index has a row pointing to docs/development-flow.md.
+    # Per docs/rules/bootstrap-directive.rule.md v1.2.0: ensure consumer's AGENTS.md
+    # §2 Dispatcher index has a row pointing to docs/concepts/development-flow.md.
     # Migration "Opción 1" — runs in the same commit as the version bump so
     # the cross-ref lands across all consumers in one rollout pass.
     # Idempotent (no-op if already present).

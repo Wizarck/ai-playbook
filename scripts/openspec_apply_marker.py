@@ -9,9 +9,9 @@ this marker to allow Edit/Write on a slice's `write_paths` only when an
 `openspec-apply-change` skill session has signalled `start` first.
 
 Contracts:
-- specs/apply-skill-enforcement.md §1 (marker contract)
-- specs/error-message-standard.md (error shape)
-- specs/break-glass.md (override flow consumed elsewhere; this script just
+- docs/rules/apply-skill-enforcement.rule.md §1 (marker contract)
+- docs/rules/error-message-standard.rule.md (error shape)
+- docs/rules/break-glass.rule.md (override flow consumed elsewhere; this script just
   appends an `override` record when a caller invokes it).
 
 CLI

@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-playbook/schemas/schema-agent-contract.json",
+  "title": "Agent contract — input + return envelopes",
+  "oneOf": [
+    { "$ref": "#/$defs/input" },
+    { "$ref": "#/$defs/return" }
+  ],
+  "$defs": {
+    "uuidv7": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "traceId": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "✅ APPROVED",
+        "⚠️ ISSUES FOUND (iter 1)",
+        "⚠️ ISSUES FOUND (iter 2)",
+        "❓ CLARIFICATION NEEDED"
+      ]
+    },
+    "severity": { "type": "string", "enum": ["S1", "S2", "S3", "S4"] },
+    "input": {
+      "type": "object",
+      "required": ["agent_id", "agent_type", "parent_agent_id", "trace_id", "scope", "memory", "brief", "budget"],
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": { "$ref": "#/$defs/uuidv7" },
+        "agent_type": {
+          "type": "string",
+          "enum": ["reviewer", "builder", "doctor", "advisor", "retro", "dispatcher", "custom"]
+        },
+        "parent_agent_id": { "oneOf": [{ "$ref": "#/$defs/uuidv7" }, { "type": "null" }] },
+        "trace_id": { "$ref": "#/$defs/traceId" },
+        "scope": {
+          "type": "object",
+          "required": ["project", "change_id", "read_paths", "write_paths"],
+          "additionalProperties": false,
+          "properties": {
+            "project": { "type": "string", "minLength": 1 },
+            "change_id": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+            "read_paths": { "type": "array", "items": { "type": "string" } },
+            "write_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "memory": {
+          "type": "object",
+          "required": ["bank_id", "recall_depth"],
+          "additionalProperties": false,
+          "properties": {
+            "bank_id": { "type": "string", "minLength": 1 },
+            "recall_depth": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "brief": { "type": "string", "minLength": 1 },
+        "budget": {
+          "type": "object",
+          "required": ["max_tokens", "max_wall_seconds", "max_tool_calls"],
+          "additionalProperties": false,
+          "properties": {
+            "max_tokens": { "type": "integer", "minimum": 1 },
+            "max_wall_seconds": { "type": "integer", "minimum": 1 },
+            "max_tool_calls": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "return": {
+      "type": "object",
+      "required": ["agent_id", "verdict", "findings", "telemetry", "budget_consumed"],
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": { "$ref": "#/$defs/uuidv7" },
+        "verdict": { "$ref": "#/$defs/verdict" },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["severity", "title", "location", "detail"],
+            "additionalProperties": false,
+            "properties": {
+              "severity": { "$ref": "#/$defs/severity" },
+              "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "location": { "type": "string", "minLength": 1 },
+              "detail": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "telemetry": { "type": "object" },
+        "budget_consumed": {
+          "type": "object",
+          "required": ["tokens", "wall_seconds", "tool_calls"],
+          "additionalProperties": false,
+          "properties": {
+            "tokens": { "type": "integer", "minimum": 0 },
+            "wall_seconds": { "type": "integer", "minimum": 0 },
+            "tool_calls": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

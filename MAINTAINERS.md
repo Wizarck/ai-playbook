@@ -6,7 +6,7 @@
 
 ## Contribution
 
-Until the first external dev lands (0–3 months horizon), Arturo is the single maintainer. RFC / governance flow is defined in [docs/contributing.md](docs/contributing.md) (populated in T14). Breaking changes (schema bump, dispatcher semantics) require an RFC under [rfcs/](rfcs/).
+Until the first external dev lands (0–3 months horizon), Arturo is the single maintainer. RFC / governance flow is defined in [docs/concepts/contributing.md](docs/concepts/contributing.md) (populated in T14). Breaking changes (schema bump, dispatcher semantics) require an RFC under [rfcs/](rfcs/).
 
 ## Escalation
 

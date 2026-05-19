@@ -5,7 +5,7 @@ license: Apache-2.0
 metadata:
   author: ai-playbook
   version: "1.0"
-  spec: specs/release-management.md §6.6
+  spec: docs/concepts/release-management.md §6.6
 ---
 
 Implement a multi-group OpenSpec change with parallel subagents.
@@ -40,7 +40,7 @@ Read in this order:
 - `openspec/changes/<change-id>/proposal.md` — scope.
 - `openspec/changes/<change-id>/design.md` — design decisions.
 - `openspec/changes/<change-id>/tasks.md` — REQUIRED. Identify task groups + their write-path ownership headers.
-- `.ai-playbook/specs/release-management.md` §6.6 — the contract you'll follow.
+- `.ai-playbook/docs/concepts/release-management.md` §6.6 — the contract you'll follow.
 
 ### 3. Cross-check ownership (BEFORE spawning anything)
 
@@ -178,7 +178,7 @@ done
 
 ## Hard limit
 
-This pattern caps at the number of disjoint bounded contexts the slice covers. Most slices have 1–2 (use `/opsx:apply`); modules-as-foundation slices have 3–5; nothing in the playbook spawns >6 subagents inside one slice (above that, the slice is mis-sliced — see [runbook-bmad-openspec.md](../../specs/runbook-bmad-openspec.md) §2.2).
+This pattern caps at the number of disjoint bounded contexts the slice covers. Most slices have 1–2 (use `/opsx:apply`); modules-as-foundation slices have 3–5; nothing in the playbook spawns >6 subagents inside one slice (above that, the slice is mis-sliced — see [runbook-bmad-openspec.md](../../docs/concepts/runbook-bmad-openspec.md) §2.2).
 
 ## When this skill is the wrong tool
 
@@ -190,6 +190,6 @@ Fall back to `/opsx:apply` (sequential) when:
 
 ## References
 
-- `specs/release-management.md` §6.6 — the contract this skill implements.
-- `specs/runbook-bmad-openspec.md` §3.8 — pointer to §6.6.
+- `docs/concepts/release-management.md` §6.6 — the contract this skill implements.
+- `docs/concepts/runbook-bmad-openspec.md` §3.8 — pointer to §6.6.
 - `skills/openspec-apply-change/SKILL.md` — the sequential cousin.

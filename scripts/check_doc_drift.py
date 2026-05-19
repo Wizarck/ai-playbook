@@ -10,10 +10,10 @@ drift. Honours the `[no-doc-impact]` (case-insensitive) escape hatch in the
 PR title.
 
 Contracts:
-- specs/doc-drift-enforcement.md (this script's contract, in full)
+- docs/rules/doc-drift-enforcement.rule.md (this script's contract, in full)
 - specs/co-edit-pairs.yaml (canonical manifest)
-- specs/error-message-standard.md (WHY/FIX/OVERRIDE shape on exit 1 + 2)
-- specs/break-glass.md (exit-code convention)
+- docs/rules/error-message-standard.rule.md (WHY/FIX/OVERRIDE shape on exit 1 + 2)
+- docs/rules/break-glass.rule.md (exit-code convention)
 
 CLI
 ---
@@ -87,7 +87,7 @@ def _emit_schema_error(why: str, where: str, fix: str, override: str = "none —
     print(f"❌ {why} at {where}", file=sys.stderr)
     print(f"   FIX: {fix}", file=sys.stderr)
     print(f"   OVERRIDE: {override}", file=sys.stderr)
-    print("   See: specs/doc-drift-enforcement.md §2 (manifest schema).", file=sys.stderr)
+    print("   See: docs/rules/doc-drift-enforcement.rule.md §2 (manifest schema).", file=sys.stderr)
     return 2
 
 
@@ -112,7 +112,7 @@ def _emit_drift_block(pairs_drifted: list[tuple[Pair, list[str]]]) -> int:
     print("   FIX: edit the missing side in the same PR, OR add `[no-doc-impact]`", file=sys.stderr)
     print("        to the PR title if this change truly does not affect the doc contract.", file=sys.stderr)
     print('   OVERRIDE: add `[no-doc-impact]` (case-insensitive) anywhere in PR title.', file=sys.stderr)
-    print("   See: specs/doc-drift-enforcement.md §5 (escape hatch).", file=sys.stderr)
+    print("   See: docs/rules/doc-drift-enforcement.rule.md §5 (escape hatch).", file=sys.stderr)
     return 1
 
 
@@ -160,7 +160,7 @@ def _validate_manifest(data: dict[str, Any], path: Path) -> tuple[list[Pair] | N
             rc = _emit_schema_error(
                 why=f"missing required top-level key `{key}`",
                 where=str(path),
-                fix=f"add `{key}:` to the manifest (see specs/doc-drift-enforcement.md §2).",
+                fix=f"add `{key}:` to the manifest (see docs/rules/doc-drift-enforcement.rule.md §2).",
             )
             return None, rc
     if data["version"] != SCHEMA_VERSION:

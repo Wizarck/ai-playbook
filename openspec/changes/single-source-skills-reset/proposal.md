@@ -67,7 +67,7 @@ for the full decision rationale.
   only. Reads from `.ai-playbook/skills/`, writes the three mirrors. Idempotent.
   Removes orphans. No `skills_sources:` frontmatter parsing, no `.skills-sources/`
   submodule logic.
-- `specs/skills-distribution.md` — full rewrite reflecting single-source design.
+- `docs/concepts/skills-distribution.md` — full rewrite reflecting single-source design.
   References D1 + D2 + D17 explicitly.
 
 ### Edits

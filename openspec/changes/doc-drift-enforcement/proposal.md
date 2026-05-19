@@ -6,8 +6,8 @@
 
 ## Problem
 
-The playbook ships canonical scripts (e.g. `scripts/cleanup_zombies.py`) paired
-with normative documentation (e.g. `specs/cleanup-zombies.md`). When a contributor
+The playbook ships canonical scripts (e.g. `scripts/rules/cleanup-zombies.rule.py`) paired
+with normative documentation (e.g. `docs/rules/cleanup-zombies.rule.md`). When a contributor
 modifies one side of the pair without the other, the repo silently drifts:
 
 - **Code-without-doc**: the script gains a new flag, a new exit code, or a new
@@ -20,9 +20,9 @@ Concrete drift instances observed in 2026-05:
 
 | Pair | Symptom |
 |---|---|
-| `scripts/cleanup_zombies.py` ↔ `specs/cleanup-zombies.md` | Two PRs in slice 1 added new safety checks without updating the spec table |
-| `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl` ↔ `specs/apply-skill-enforcement.md` | Hook decision flow changed in a follow-up; spec §2.2 was a step behind |
-| `scripts/wt_add.py` ↔ `specs/git-worktree-bare-layout.md` | Bare-repo + worktree convention; script behaviour drifted from documented flow |
+| `scripts/rules/cleanup-zombies.rule.py` ↔ `docs/rules/cleanup-zombies.rule.md` | Two PRs in slice 1 added new safety checks without updating the spec table |
+| `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl` ↔ `docs/rules/apply-skill-enforcement.rule.md` | Hook decision flow changed in a follow-up; spec §2.2 was a step behind |
+| `scripts/wt_add.py` ↔ `docs/concepts/git-worktree-bare-layout.md` | Bare-repo + worktree convention; script behaviour drifted from documented flow |
 
 There is no PR-time gate that warns "you touched the code side of a known pair
 but not the doc side, was that intentional?". Reviewers catch drift only by
@@ -39,7 +39,7 @@ truly tangential changes (typos, formatting-only commits, etc.).
 
 | Tier | Behaviour | Examples |
 |---|---|---|
-| **1 — strict pair** | Both files must move together; CI fails on drift. | `scripts/cleanup_zombies.py` ↔ `specs/cleanup-zombies.md` |
+| **1 — strict pair** | Both files must move together; CI fails on drift. | `scripts/rules/cleanup-zombies.rule.py` ↔ `docs/rules/cleanup-zombies.rule.md` |
 | **2 — soft pair** *(future)* | CI warns but does not block. (Not enabled in v0.16.0 — reserved for slice 5+.) | n/a |
 | **3 — informational** *(future)* | Logged for telemetry only; no CI surface. (Reserved for slice 6 telemetry.) | n/a |
 
@@ -58,11 +58,11 @@ telemetry (escape-hatch abuse > 20% / month flags a review).
 |---|---|---|
 | `scripts/check_doc_drift.py` | NEW | argparse-driven CLI. Loads `specs/co-edit-pairs.yaml`, reads `git diff --name-only origin/main...HEAD` (or `--base-ref`/`--head-ref` overrides), fails on Tier 1 violations. Honours `--pr-title` arg for the escape hatch. Exit 0 = pass, 1 = violation, 2 = schema break. |
 | `specs/co-edit-pairs.yaml` | NEW | Declarative manifest. Schema: `version`, `manifest_version`, `pairs: [{id, tier, code, doc, reason, introduced_in}]`. v1 seeds ~10 grounded pairs. |
-| `specs/doc-drift-enforcement.md` | NEW | Normative contract (v1.0.0). Documents the manifest schema, exit-code policy, escape-hatch, interaction with future telemetry. |
-| `.github/workflows/doc-drift-check.yml` | NEW | Triggers on `pull_request: [opened, synchronize, reopened, edited]`. Invokes `check_doc_drift.py` with `--pr-title "${{ github.event.pull_request.title }}"`. Sticky comment on violation. Hard-fails the check. |
+| `docs/rules/doc-drift-enforcement.rule.md` | NEW | Normative contract (v1.0.0). Documents the manifest schema, exit-code policy, escape-hatch, interaction with future telemetry. |
+| `.github/workflows/doc-drift-enforcement.rule.yml` | NEW | Triggers on `pull_request: [opened, synchronize, reopened, edited]`. Invokes `check_doc_drift.py` with `--pr-title "${{ github.event.pull_request.title }}"`. Sticky comment on violation. Hard-fails the check. |
 | `tests/test_check_doc_drift.py` | NEW | ≥15 tests covering pair detection, escape hatch, schema validation, unknown files, multi-file PRs, edge cases. |
-| `specs/enforcement-status.md` | EDIT | Add row for `doc-drift-enforcement.md` (✅ wired). |
-| `docs/development-flow.md` | EDIT | §5 enforcement table — add doc-drift row. |
+| `docs/concepts/enforcement-status.md` | EDIT | Add row for `doc-drift-enforcement.md` (✅ wired). |
+| `docs/concepts/development-flow.md` | EDIT | §5 enforcement table — add doc-drift row. |
 | `README.md` | EDIT | Status section bumped to v0.16.0. |
 | `tests/test_apply_enforce_hook_template.py` | EDIT | Tighten `_invoke_hook` to clear `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` from inherited env unless the test explicitly sets it (root cause of 3 pre-existing failing tests). |
 | 4 dead cross-refs | FIX | Audit `runbooks/` and `docs/` for broken links left by past renames. |
@@ -89,7 +89,7 @@ telemetry (escape-hatch abuse > 20% / month flags a review).
   brings the other side into scope. Implementation uses `fnmatch` on
   forward-slash-normalised paths (mirrors the apply-enforce hook precedent).
 - **D2.6 — Exit codes match break-glass conventions**: 0 = pass, 1 = drift
-  detected, 2 = schema / config error (per `specs/break-glass.md` pattern).
+  detected, 2 = schema / config error (per `docs/rules/break-glass.rule.md` pattern).
 - **D2.7 — Sticky comment + check failure**: same UX pattern as
   `branch-name-validator.yml` — sticky comment surfaces the offending pair(s)
   and the suggested fix; check status is the merge gate.

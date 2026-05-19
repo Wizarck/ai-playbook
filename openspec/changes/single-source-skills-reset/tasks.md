@@ -19,7 +19,7 @@
 - `.github/workflows/propagate-skills-bump.yml`
 - `schemas/schema-agents-md-v1.json`
 - `specs/agents-md-v1.schema.json`
-- `specs/skills-distribution.md`
+- `docs/concepts/skills-distribution.md`
 - `specs/zombies-manifest.yaml`
 - `.pre-commit-hooks.yaml`
 - `.pre-commit-config.yaml`
@@ -48,7 +48,7 @@
   Reads `.ai-playbook/skills/`, writes `skills/`, `.claude/skills/`, `.gemini/skills/`.
   Idempotent (fingerprint hashes detect no-op). Removes orphan skills.
   No `skills_sources:` frontmatter parsing, no submodule logic.
-- [ ] Rewrite `specs/skills-distribution.md` to reflect single-source design (cite D1, D2, D17).
+- [ ] Rewrite `docs/concepts/skills-distribution.md` to reflect single-source design (cite D1, D2, D17).
 
 ## Edits
 
@@ -95,7 +95,7 @@
 ## Validation
 
 - [ ] `pytest tests/` green
-- [ ] `python scripts/cleanup_zombies.py validate` exits 0 with 18 entries
+- [ ] `python scripts/rules/cleanup-zombies.rule.py validate` exits 0 with 18 entries
 - [ ] `python scripts/materialise_skills.py --dry-run` on a fresh tmp dir runs idempotent
 - [ ] No new Spanish strings in `docs/`, `schemas/`, `templates/`, `tests/`, `.github/workflows/`, `AGENTS.md`, `README.md`, `CHANGELOG.md`
 - [ ] `pre-commit run --all-files` green (or document pre-existing failures)

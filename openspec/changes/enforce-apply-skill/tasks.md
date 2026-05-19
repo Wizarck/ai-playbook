@@ -1,6 +1,6 @@
 # tasks — `enforce-apply-skill`
 
-> TDD-ordered implementation steps. Each task is a worker→QA pair per [runbook-bmad-openspec.md](../../../specs/runbook-bmad-openspec.md) §3.2.
+> TDD-ordered implementation steps. Each task is a worker→QA pair per [runbook-bmad-openspec.md](../../../docs/concepts/runbook-bmad-openspec.md) §3.2.
 > Citations: [proposal.md](proposal.md), [design.md](design.md).
 
 ## Owns (write_paths)
@@ -11,10 +11,10 @@
 * `skills/openspec-apply-change/SKILL.md`
 * `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl`
 * `templates/new-project/.claude/settings.json.tmpl`
-* `specs/apply-skill-enforcement.md`
-* `specs/runbook-bmad-openspec.md` (additive — §3.1.1 only)
-* `specs/agentic-failures.md` (additive — new row in §2)
-* `specs/enforcement-status.md` (additive — new row + flip runbook row to 🟡→partial-with-detail)
+* `docs/rules/apply-skill-enforcement.rule.md`
+* `docs/concepts/runbook-bmad-openspec.md` (additive — §3.1.1 only)
+* `docs/concepts/agentic-failures.md` (additive — new row in §2)
+* `docs/concepts/enforcement-status.md` (additive — new row + flip runbook row to 🟡→partial-with-detail)
 * `CHANGELOG.md` (additive — v0.14.0 entry)
 * `VERSION`
 
@@ -37,7 +37,7 @@
   - `test_session_started_returns_true_after_start` — `session_started` exits 0 if any `start` exists for current session; exit 1 if marker file empty.
   - `test_corrupt_jsonl_is_recoverable` — pre-seed marker with a malformed line; `session_started` and `is_active` still find valid records on other lines.
   - `test_override_writes_audit_record` — `override` subcommand writes `event:"override"` with `reason` and `file_path`.
-  - `test_missing_change_folder_errors_per_standard` — `start --change-id nonexistent` exits non-zero with the canonical FIX/OVERRIDE error shape (per [error-message-standard.md](../../../specs/error-message-standard.md)).
+  - `test_missing_change_folder_errors_per_standard` — `start --change-id nonexistent` exits non-zero with the canonical FIX/OVERRIDE error shape (per [error-message-standard.md](../../../docs/rules/error-message-standard.rule.md)).
   - Run: `pytest tests/test_openspec_apply_marker.py -x` → RED.
 
 - [ ] **T2 — implement `scripts/openspec_apply_marker.py`**:
@@ -74,7 +74,7 @@
   - Walk `openspec/changes/*/tasks.md`; parse "Owns (write_paths)" section per design §1.3 + §2.2 step 4.
   - For each matching active change: invoke `python scripts/openspec_apply_marker.py session_started --change-id <id>` via subprocess.
   - Honour `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` env per design §2.2 step 6a.
-  - Print canonical error per [error-message-standard.md](../../../specs/error-message-standard.md) on block; exit 2.
+  - Print canonical error per [error-message-standard.md](../../../docs/rules/error-message-standard.rule.md) on block; exit 2.
   - Run: `pytest tests/test_apply_enforce_hook_template.py -x` → GREEN.
 
 - [ ] **T6 — update `templates/new-project/.claude/settings.json.tmpl`**:
@@ -88,7 +88,7 @@
   - Bump frontmatter `version: "1.0"` → `version: "1.1"`.
   - Insert new step 0 per design §3.
   - Renumber existing steps if necessary (existing numbering uses `1.`, `2.`, ... `4b.`; insert step 0 above step 1).
-  - Cross-reference: link to `specs/apply-skill-enforcement.md` from step 0.
+  - Cross-reference: link to `docs/rules/apply-skill-enforcement.rule.md` from step 0.
 
 - [ ] **T8 — manual smoke test of the updated skill** (since `/openspec-apply-change` is a Claude Code skill, no automated test):
   - In a clean worktree with `openspec/changes/enforce-apply-skill/` present, invoke `/openspec-apply-change enforce-apply-skill` (via Claude session).
@@ -98,20 +98,20 @@
 
 ### Phase D — Specs
 
-- [ ] **T9 — write `specs/apply-skill-enforcement.md`**:
+- [ ] **T9 — write `docs/rules/apply-skill-enforcement.rule.md`**:
   - Per design §5 invariants INV-1..INV-4.
-  - Sections: §1 Marker contract (lift from design.md §1) · §2 Hook contract (lift from §2) · §3 Break-glass (per [break-glass.md](../../../specs/break-glass.md)) · §4 Invariants · §5 Adoption checklist (for consumers) · §6 Retros + audit cadence.
+  - Sections: §1 Marker contract (lift from design.md §1) · §2 Hook contract (lift from §2) · §3 Break-glass (per [break-glass.md](../../../docs/rules/break-glass.rule.md)) · §4 Invariants · §5 Adoption checklist (for consumers) · §6 Retros + audit cadence.
   - Add to `specs/INDEX.md` alphabetically.
 
-- [ ] **T10 — update `specs/runbook-bmad-openspec.md`**:
+- [ ] **T10 — update `docs/concepts/runbook-bmad-openspec.md`**:
   - Add §3.1.1 immediately after §3.1: "Apply phase orchestration: skill-only".
-  - Body: 1-2 paragraphs pointing at `specs/apply-skill-enforcement.md`. Restate the rule + the failure mode + the break-glass clause. Cross-reference §3.4 (self-validation gates) and §3.2 (worker/QA pairing).
+  - Body: 1-2 paragraphs pointing at `docs/rules/apply-skill-enforcement.rule.md`. Restate the rule + the failure mode + the break-glass clause. Cross-reference §3.4 (self-validation gates) and §3.2 (worker/QA pairing).
 
-- [ ] **T11 — update `specs/agentic-failures.md`**:
+- [ ] **T11 — update `docs/concepts/agentic-failures.md`**:
   - Add a new row in §2 taxonomy: `2.X apply_phase_bypass` — definition, symptoms, detector (the hook), severity (S2: violates documented workflow gate).
   - Renumber subsequent rows if the file uses sequential numbering.
 
-- [ ] **T12 — update `specs/enforcement-status.md`**:
+- [ ] **T12 — update `docs/concepts/enforcement-status.md`**:
   - Add a new row for `apply-skill-enforcement.md` at ✅ wired with enforcement detail (script + hook + tests + pre-commit-equivalence note).
   - Update existing `runbook-bmad-openspec.md` row to mention the new spec's coverage of the apply gate.
 
@@ -123,16 +123,16 @@
   - Section: **Added**.
     - `scripts/openspec_apply_marker.py` — marker helper (6 subcommands, JSONL append).
     - `templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl` — PreToolUse hook blocking Edit/Write without marker.
-    - `specs/apply-skill-enforcement.md` — new spec, invariants INV-1..INV-4.
+    - `docs/rules/apply-skill-enforcement.rule.md` — new spec, invariants INV-1..INV-4.
     - Skill `openspec-apply-change` v1.1: new step 0 writes apply-session start marker.
   - Section: **Changed**.
-    - `specs/runbook-bmad-openspec.md` §3.1.1 (new) — apply phase orchestration rule.
-    - `specs/agentic-failures.md` §2 — new row `apply_phase_bypass`.
-    - `specs/enforcement-status.md` — new row + apply-gate detail on runbook row.
+    - `docs/concepts/runbook-bmad-openspec.md` §3.1.1 (new) — apply phase orchestration rule.
+    - `docs/concepts/agentic-failures.md` §2 — new row `apply_phase_bypass`.
+    - `docs/concepts/enforcement-status.md` — new row + apply-gate detail on runbook row.
     - `templates/new-project/.claude/settings.json.tmpl` — registers the new hook.
   - Section: **Migration** (for consumers).
     - 5-step adoption checklist (bump submodule, copy hook, update settings, add `apply.handler` to project schema if customised, point AGENTS.md at new spec).
-    - Link to `specs/apply-skill-enforcement.md` §5.
+    - Link to `docs/rules/apply-skill-enforcement.rule.md` §5.
   - Section: **Tests**.
     - 8 new tests in `test_openspec_apply_marker.py`; 7 new tests in `test_apply_enforce_hook_template.py`.
 
@@ -154,4 +154,4 @@
   - Branch: `slice/enforce-apply-skill` → base `main`.
   - PR title: `feat(enforce-apply-skill): L1+L2+L3 apply-phase orchestration enforcement (v0.14.0)`.
   - PR body: 3 sections — Summary, Test plan, Migration (cross-link CHANGELOG migration section).
-  - Request 4-layer review per [parallel-review.md](../../../specs/parallel-review.md) (Blind, Edge-case, Acceptance, Holistic).
+  - Request 4-layer review per [parallel-review.md](../../../docs/concepts/parallel-review.md) (Blind, Edge-case, Acceptance, Holistic).

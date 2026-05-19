@@ -29,8 +29,8 @@ Add `application: str | None = None` as a kwarg parallel to `consumer`. M:M card
 | Surface | Change |
 |---|---|
 | `scripts/_llm.py` | `call()` + `LLMResponse` gain `application`. `_resolve_application()` mirrors `_resolve_consumer()` with `AIPLAYBOOK_APPLICATION` env fallback. 4 OTel emission points propagate `ai_playbook.application`. CLI `--application` flag. |
-| `specs/model-routing.md` → v2.1.0 | NEW §5 "Application tags" with canonical 7-app roster + how-to recipe + worked examples showing consumer × application M:M. §4 OTel table gains `ai_playbook.application` + `ai_playbook.consumer` rows. §5/§6 renumbered to §6/§7. |
-| `specs/env-vars.md` | NEW "How to add a new consumer" recipe under §Per-consumer virtual keys. |
+| `docs/concepts/model-routing.md` → v2.1.0 | NEW §5 "Application tags" with canonical 7-app roster + how-to recipe + worked examples showing consumer × application M:M. §4 OTel table gains `ai_playbook.application` + `ai_playbook.consumer` rows. §5/§6 renumbered to §6/§7. |
+| `docs/concepts/env-vars.md` | NEW "How to add a new consumer" recipe under §Per-consumer virtual keys. |
 | `configs/litellm-router.yaml` | Top-of-file warning documenting the production-deploy mirror contract (LiteLLM accepts only ONE `--config` file → consumers must mirror task-class entries to project-local ConfigMaps). |
 
 ## Decisions
@@ -52,5 +52,5 @@ Add `application: str | None = None` as a kwarg parallel to `consumer`. M:M card
 ## Cross-references
 
 - Parent project: [Wizarck/consumer-d PR](https://github.com/Wizarck/consumer-d) — cost-by-tag-dashboard project, Phase 1.
-- Spec extended: [`specs/model-routing.md`](../../../specs/model-routing.md) v2.0.0 → v2.1.0.
+- Spec extended: [`docs/concepts/model-routing.md`](../../../docs/concepts/model-routing.md) v2.0.0 → v2.1.0.
 - Helper extended: [`scripts/_llm.py`](../../../scripts/_llm.py).

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-agents-md-v1.json",
   "title": "AGENTS.md frontmatter (v1)",
-  "description": "Strict JSON Schema for the YAML frontmatter block of every consumer project's AGENTS.md. Validated by scripts/schema_validate.py. The schema is evolvable (additionalProperties: true); tightening happens at playbook major bumps only. See specs/migration-guide.md for v0 -> v1 procedure and specs/dispatcher-chain.md for how the file is resolved. v0.17.0: the multi-source skills fields (skills_sources, skills_pins) were dropped from the canonical schema (RFC-0001 removed); legacy values still validate under additionalProperties: true but are advisory-flagged by specs/zombies-manifest.yaml entries.",
+  "description": "Strict JSON Schema for the YAML frontmatter block of every consumer project's AGENTS.md. Validated by scripts/schema_validate.py. The schema is evolvable (additionalProperties: true); tightening happens at playbook major bumps only. See docs/concepts/migration-guide.md for v0 -> v1 procedure and docs/concepts/dispatcher-chain.md for how the file is resolved. v0.17.0: the multi-source skills fields (skills_sources, skills_pins) were dropped from the canonical schema (RFC-0001 removed); legacy values still validate under additionalProperties: true but are advisory-flagged by specs/zombies-manifest.yaml entries.",
   "type": "object",
   "required": ["schema", "version", "updated", "project", "owner"],
   "properties": {
@@ -25,7 +25,7 @@
         "pattern": "^github\\.com/[^/]+/[^@]+@v?\\d+\\.\\d+\\.\\d+(-[\\w.]+)?$",
         "description": "Pin of shape 'github.com/<org>/<repo>@<semver>'. Leading 'v' optional. Pre-release suffix allowed (e.g. '@v0.8.0-rc1', '@v1.0.0-beta.3') — supports validating against an rc tag during dogfooding before promoting to stable."
       },
-      "description": "Ordered list of upstream playbook/spec pins this project inherits, evaluated left-to-right (later entries can override earlier ones — see specs/dispatcher-chain.md override semantics). Typically ONE entry pinning ai-playbook at a semver tag.",
+      "description": "Ordered list of upstream playbook/spec pins this project inherits, evaluated left-to-right (later entries can override earlier ones — see docs/concepts/dispatcher-chain.md override semantics). Typically ONE entry pinning ai-playbook at a semver tag.",
       "$comment": "A pin is a tag, not a branch or commit SHA. Pinning to a branch defeats reproducibility: the playbook mutates out from under downstream agents."
     },
     "updated": {
