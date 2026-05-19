@@ -106,3 +106,52 @@ def test_load_rules_ignores_invalid_frontmatter(tmp_path: Path) -> None:
     )
     rules = hd.load_rules(tmp_path)
     assert [r.slug for r in rules] == ["ok"]
+
+
+def test_telemetry_emission_overhead_under_5ms_per_rule(
+    fake_rules: list[hd.Rule], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Slice 6 budget: telemetry emission ≤5ms per rule (well under 50ms SLA)."""
+    import time
+
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "telemetry-state"))
+    n = 50
+    samples: list[float] = []
+    event = {"llm": "claude-opus-4-7", "session_id": "test"}
+    for _ in range(n):
+        t0 = time.perf_counter_ns()
+        hd.dispatch(fake_rules, "Edit", event, emit_telemetry=True)
+        t1 = time.perf_counter_ns()
+        # Per-call dispatch covers all 5 rules; per-rule budget is < 5ms.
+        per_rule_ms = ((t1 - t0) / 1e6) / max(len(fake_rules), 1)
+        samples.append(per_rule_ms)
+    samples.sort()
+    median = samples[len(samples) // 2]
+    # File IO can be slow on Windows; allow a 5ms per-rule budget.
+    assert median <= 5.0, f"per-rule telemetry overhead median={median:.2f}ms > 5ms"
+
+
+def test_dispatch_emit_telemetry_false_skips_logging(
+    fake_rules: list[hd.Rule], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = tmp_path / "no-events"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    hd.dispatch(fake_rules, "Edit", {"llm": "x"}, emit_telemetry=False)
+    assert not (state_dir / "rule-events.jsonl").exists()
+
+
+def test_dispatch_emit_telemetry_writes_jsonl(
+    fake_rules: list[hd.Rule], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = tmp_path / "with-events"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    hd.dispatch(
+        fake_rules,
+        "Edit",
+        {"llm": "claude-opus-4-7", "session_id": "abc"},
+        emit_telemetry=True,
+    )
+    log = state_dir / "rule-events.jsonl"
+    assert log.is_file()
+    lines = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == len(fake_rules)

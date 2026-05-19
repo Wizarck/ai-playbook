@@ -34,7 +34,7 @@ Out of scope: routine local dev glitches, flaky tests, CI hiccups that do not af
 
 IR flips from `wired-pending-trigger` to `active` on the **first** of any of:
 
-- **First paying SaaS customer.** Detection: an entry in `consumers.yaml` (per-consumer file at consumer-repo root) with `paying_tier: <enterprise|smb|other>` AND `sla_signed: <iso-date>` set within the last 30 days. Surfaced by [`scripts/lifecycle_check.py`](../../scripts/lifecycle_check.py) check `first_paying_client_detected`. State stored in `~/.ai-playbook/state/triggers.json` to avoid double-fire on subsequent runs.
+- **First paying SaaS customer.** Detection: an entry in `consumers.yaml` (per-consumer file at consumer-repo root) with `paying_tier: <enterprise|smb|other>` AND `sla_signed: <iso-date>` set within the last 30 days. Surfaced by [`scripts/telemetry/report.py (absorbed in Slice 6)`](../../scripts/telemetry/report.py (absorbed in Slice 6)) check `first_paying_client_detected`. State stored in `~/.ai-playbook/state/triggers.json` to avoid double-fire on subsequent runs.
 - **First non-Arturo operator.** Detection: a second entry under `consumers.yaml` with `oncall_eligible: true`. Treated as a soft trigger — flips on-call shape from "solo" to "family-of-3" path (§4) but leaves IR `active` only after the maintainer manually flips `enforcement-status.md`.
 - **First confirmed security incident.** Definition: confirmed unauthorised access, confirmed secret leak outside the contributor's own environment, confirmed prod data exfiltration. No automated detection — declared by Arturo (or successor) via `secrets_scan.py` exit ≥ 1 + manual confirmation. Forces full activation regardless of customer status.
 
@@ -110,7 +110,7 @@ Three documented states. The system today is **solo**; family-of-3 and team-of-N
 
 ## 6. 7-day post-mortem trigger (automated)
 
-Detector lives in [`scripts/lifecycle_check.py`](../../scripts/lifecycle_check.py) under check `post_mortem_overdue`:
+Detector lives in [`scripts/telemetry/report.py (absorbed in Slice 6)`](../../scripts/telemetry/report.py (absorbed in Slice 6)) under check `post_mortem_overdue`:
 
 - Scans `incidents.jsonl` for entries with `severity: S1` OR `severity: S2`.
 - For each, checks for a corresponding `runbooks/post-mortems/<incident-id>.md` (or per-consumer equivalent path).

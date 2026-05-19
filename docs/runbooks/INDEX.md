@@ -12,6 +12,7 @@
 | [propagate-bump-troubleshooting.md](propagate-bump-troubleshooting.md) | — | The failing propagate workflow's root cause is identified and one of the canonical fix patterns is… |
 | [release.md](release.md) | — | A new semver tag exists on `Wizarck/ai-playbook` with a matching `VERSION` file and a CHANGELOG ent… |
 | [rotate-secrets.md](rotate-secrets.md) | — | The old credential is revoked at the vendor side; the new credential is set on every consuming surf… |
+| [run-telemetry-report.md](run-telemetry-report.md) | — | A markdown (or JSON) report summarising the playbook's behaviour over the last 7, 30, or N days, co… |
 | [runbook-db-corruption.md](runbook-db-corruption.md) | — | The Hindsight DB is back to `PRAGMA integrity_check == ok`, the service is serving writes again, no… |
 | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) | — | Every leaked credential is revoked at the vendor side, replaced with a narrower-scoped credential,… |
 | [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) | — | The compromise vector is isolated; every credential potentially reachable from that vector is rotat… |

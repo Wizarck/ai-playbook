@@ -63,11 +63,11 @@ Each breaking change walks every row of this table. Skipping a row is a governan
 |---|---|---|---|
 | **Proposal** | RFC under `rfcs/NNNN-<slug>.md` per ../rfcs/README.md. | Maintainer + named reviewers per [contributing.md](contributing.md) §2. | Triage ≤7 days, decision ≤30 days per contributing.md §3.2. |
 | **Acceptance** | RFC merged with `Decided: accept`. CHANGELOG entry under the next minor. | Contributors + consumers (via GH Release notes). | Same day as merge. |
-| **Deprecation** | Entry added to `specs/deprecations.yaml` (schema: `{change-id, deprecated-in, remove-earliest, migration-link}`). Emitter wired into `scripts/deprecation_watcher.py` (owned by Subagent A, T22 track). | Consumers — surfaces on every CLI invocation that touches the deprecated path. | Ships in the minor that contains the RFC acceptance. |
+| **Deprecation** | Entry added to `specs/deprecations.yaml` (schema: `{change-id, deprecated-in, remove-earliest, migration-link}`). Emitter wired into `scripts/telemetry/report.py (absorbed in Slice 6)` (owned by Subagent A, T22 track). | Consumers — surfaces on every CLI invocation that touches the deprecated path. | Ships in the minor that contains the RFC acceptance. |
 | **Grace** | Warning emitted on every invocation during the window. Weekly `info`-level `deprecation.usage.observed` notification per [notification-policy.md](notification-policy.md). | Consumers. | Window = §3 rules. |
 | **Removal** | Hard fail (exit non-zero, `OVERRIDE: none` per [error-message-standard.md](../rules/error-message-standard.rule.md)) + migration recipe. CHANGELOG entry under the semver-major that removes it. | Consumers. | Ships in the minor or major after the window closes. |
 
-The **deprecation watcher** (`scripts/deprecation_watcher.py`, Subagent A-owned — **flag for race: ensure its emitter schema aligns with `specs/deprecations.yaml` shape above**) reads `deprecations.yaml`, inspects consumer `AGENTS.md` + CLI invocations, and emits the warnings. Without the watcher, the grace period is invisible and the removal phase surprises consumers.
+The **deprecation watcher** (`scripts/telemetry/report.py (absorbed in Slice 6)`, Subagent A-owned — **flag for race: ensure its emitter schema aligns with `specs/deprecations.yaml` shape above**) reads `deprecations.yaml`, inspects consumer `AGENTS.md` + CLI invocations, and emits the warnings. Without the watcher, the grace period is invisible and the removal phase surprises consumers.
 
 ---
 
@@ -122,5 +122,5 @@ Security vulnerabilities and data-corruption bugs bypass the deprecation window.
 - [break-glass.md](../rules/break-glass.rule.md) — single-invocation escape hatch during migration.
 - [notification-policy.md](notification-policy.md) §4 — `deprecation.usage.observed` event mapping.
 - [verdict-contract.md](../rules/verdict-contract.rule.md) — severity taxonomy that classifies emergency-path triggers.
-- `scripts/deprecation_watcher.py` — emitter of deprecation warnings (Subagent A, T22).
+- `scripts/telemetry/report.py (absorbed in Slice 6)` — emitter of deprecation warnings (Subagent A, T22).
 - `docs/concepts/post-mortem.md` — template for the §7 mandatory post-mortem (Subagent A, T22).
