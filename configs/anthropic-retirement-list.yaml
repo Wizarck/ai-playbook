@@ -1,8 +1,9 @@
 # anthropic-retirement-list.yaml
 #
 # Curated list of LLM provider model retirements. Drives the
-# `model_retirement_detected` check in scripts/lifecycle_check.py
-# (see specs/lifecycle-check.md and docs/concepts/model-migration.md).
+# `model_retirement_detected` check in scripts/telemetry/report.py
+# (absorbed from scripts/lifecycle_check.py in Slice 6, v0.18.2;
+# see docs/concepts/telemetry-design.md and docs/concepts/model-migration.md).
 #
 # Update protocol:
 #   1. Provider sends a deprecation announcement (email to API account, blog

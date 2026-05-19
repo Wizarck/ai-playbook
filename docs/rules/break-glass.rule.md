@@ -84,7 +84,7 @@ Exit code: `0`.
 
 - **Local** — `<repo>/.ai-playbook/overrides.log` (append-only, gitignored).
 - **Durable** — OTel spans flow to the observability backend; cross-project queries enabled.
-- **Retro** — `scripts/lifecycle_check.py` reports overrides per script per month; a `gate` overridden ≥3× in 30 days is flagged as systemic (gate miscalibrated or process gap; fix via RFC, never by loosening the gate).
+- **Retro** — `scripts/telemetry/report.py (absorbed in Slice 6)` reports overrides per script per month; a `gate` overridden ≥3× in 30 days is flagged as systemic (gate miscalibrated or process gap; fix via RFC, never by loosening the gate).
 
 ## See also
 

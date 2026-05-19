@@ -64,11 +64,11 @@ The first time a project generates retros, `reports/retros/` is auto-created by 
 
 ## 4. Automation
 
-[`scripts/lifecycle_check.py`](../../scripts/lifecycle_check.py) generates the **monthly retro skeleton** and powers the lifecycle-check output block (template §1). Humans fill narrative; the script fills evidence.
+[`scripts/telemetry/report.py (absorbed in Slice 6)`](../../scripts/telemetry/report.py (absorbed in Slice 6)) generates the **monthly retro skeleton** and powers the lifecycle-check output block (template §1). Humans fill narrative; the script fills evidence.
 
 Contract the script must satisfy:
 
-1. Invocable as `python scripts/lifecycle_check.py --month YYYY-MM [--format md|json]`.
+1. Invocable as `python scripts/telemetry/report.py (absorbed in Slice 6) --month YYYY-MM [--format md|json]`.
 2. Produces, in the markdown form, a section per topic below so the monthly template can paste it verbatim (§1 of `templates/retro/monthly.md.tmpl`):
    - Stale OpenSpec changes (no activity >30 days).
    - Outdated memories (hindsight entries older than the related code's last commit).
@@ -103,4 +103,4 @@ Retros fail when they become ritual. These four patterns are auditable by the mo
 - [agentic-failures.md](agentic-failures.md) §3 — failure-kind aggregation lands in monthly retros.
 - [runbook-bmad-openspec.md](runbook-bmad-openspec.md) §4 — runbook cross-references this spec for per-change cadence.
 - [migration-guide.md](migration-guide.md) — deprecation progress section of the monthly retro.
-- `scripts/lifecycle_check.py` — automation (Subagent A, T14i).
+- `scripts/telemetry/report.py (absorbed in Slice 6)` — automation (Subagent A, T14i).

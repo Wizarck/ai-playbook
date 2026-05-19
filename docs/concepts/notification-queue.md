@@ -303,7 +303,7 @@ Every queue state transition emits a `gen_ai.notification.<verb>` event to
 | `notification.retry_scheduled` | `silent` | row marked failed; backoff reset |
 | `notification.dropped` | `error` | row exceeded TTL; envelope included |
 
-`scripts/cost_report.py` and the consumer-d dashboard already aggregate
+`scripts/telemetry/report.py (absorbed in Slice 6)` and the consumer-d dashboard already aggregate
 `events.jsonl` — no new metrics infrastructure required.
 
 ### Restart survival

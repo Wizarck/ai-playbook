@@ -4,19 +4,116 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.18.x post-Slice 5)
+### Known gaps still pending (target: v0.18.x post-Slice 6)
 
-- **Slice 6 (telemetry, v0.18.2)**: absorb `cost_report.py` + `lifecycle_check.py`
-  into `scripts/telemetry/`; add `scripts/telemetry/rule_event_logger.py`;
-  start emitting events from `hook_dispatcher.py`. Also retires ~14 of the
-  24 deferred hardrules in `scripts/rules/deferred-hardrules.txt`.
 - **Slice 7 (polish, v0.18.3)**: Mermaid diagrams in
   `docs/concepts/enforcement-layers.md`; full content for
   `docs/tutorials/01-architecture-tour.md`; retires the remaining ~10
-  deferred hardrules (migrations, notifications, apply/break-glass).
+  deferred hardrules (migrations, notifications, apply/break-glass);
+  generator script `tools/render_telemetry_md.py` wiring `docs/telemetry.md`
+  from `report.py --json` output.
 - **Slice 8 (final cut, v0.20.0)**: visible milestone PR; tag pushed only on
   explicit user OK. v0.19.x is reserved for post-review fix iterations
   (versioning refined 2026-05-19).
+
+## [0.18.2] — 2026-05-19 — Slice 6 telemetry pipeline + 5-CLI absorption + 14 hardrules
+
+Closes the third tranche of the v0.20.0 architectural reset. Slice 4 reorganised
+the filesystem; Slice 5 rewrote the content; Slice 6 instruments the playbook
+with a rule-event telemetry pipeline, absorbs the five formerly-standalone
+cost / lifecycle / budget / deprecation / model-migration CLIs into one
+`scripts/telemetry/report.py`, and implements 14 of the 24 deferred paired
+hardrules.
+
+### Why now
+
+The v0.20.0 "world reference" milestone needs evidence, not assertion (per
+[plan](../../.claude/plans/vamos-a-identificar-los-elegant-marshmallow.md) D15).
+arXiv 2310.13361 + IFEval establish that LLMs drift on long instructions; the
+rate of drift is the metric a portfolio piece needs to publish. Per-rule-fire
+JSONL telemetry turns the L1 hook fleet into a measurement instrument, and the
+absorbed CLIs let a monthly report answer obey-rate × cost-per-rule-fire ×
+lifecycle in one call.
+
+### Added
+
+- `scripts/telemetry/` package:
+  - `rule_event_logger.py` — `log_event(slug, llm, verdict, latency_ms, ...)`
+    appends one JSONL row per L1 hook fire. Fail-safe; never raises into the
+    hook path.
+  - `anonymize.py` — `hash_session_id()` (sha256 → 8 hex chars one-way) +
+    `scrub_event()` (PII-key denylist: `file_path`, `path`, `diff`, `content`,
+    `body`, `message`, ...).
+  - `report.py` — unified CLI (`weekly` / `monthly` / `custom --window-days N`)
+    emitting markdown or JSON. Eight sections: obey-rate, cost-per-rule,
+    cost-per-session, spend-over-time, retirements, break-glass usage,
+    OpenSpec staleness, memory-decay stub.
+- `schemas/schema-rule-event-v1.json` — JSON-Schema for the event log; required
+  fields + optional token fields + optional `escape_hatch` field.
+- `docs/concepts/telemetry-design.md` — concept doc covering event schema,
+  privacy guarantees, cost methodology, academic references.
+- `docs/runbooks/run-telemetry-report.md` — runbook for weekly/monthly/custom
+  report generation.
+- `docs/telemetry.md` — mkdocs Telemetry nav page; static placeholder until
+  Slice 7 wires the generator.
+- Hook dispatcher integration: `scripts/hook_dispatcher.py::dispatch()` emits
+  one `rule-event/v1` row per matched rule (lazy-imported, fail-safe). Added
+  `emit_telemetry: bool = True` kwarg for benchmarks.
+- Escape-hatch tracking:
+  - `scripts/_break_glass.py::apply_break_glass` emits a `--force-with-reason`
+    rule-event.
+  - `scripts/check_doc_drift.py` emits a `[no-doc-impact]` rule-event per
+    bypassed pair.
+- 14 paired hardrules under `scripts/rules/`:
+  - Always-loaded (6): `verdict-contract`, `output-completeness`,
+    `verification-before-completion`, `error-message-standard`,
+    `apply-skill-enforcement`, `bootstrap-directive`.
+  - Workflow / contract (8): `ai-reviewer-signoff`, `auto-merge-discipline`,
+    `auto-pr-stream-closure`, `delegated-shipping-prompt`,
+    `doc-drift-enforcement`, `github-project-board-schema`,
+    `pr-tracker-reference`, `subagent-envelope-schema`.
+- Tests:
+  - `tests/test_telemetry.py` — 23 cases covering logger, report, compute
+    helpers, retirement / staleness / budget / migration absorbed logic.
+  - `tests/test_telemetry_privacy.py` — 10 cases enforcing the privacy
+    invariants (no PII keys, hashed session_id, pricing math correctness).
+  - One `tests/test_<slug>_rule.py` per implemented hardrule (≥5 cases each;
+    84 new rule tests total).
+  - `tests/test_hook_latency.py` extended with telemetry-emission overhead
+    assertion (<5ms median per rule).
+
+### Removed
+
+- `scripts/cost_report.py` (~544 LOC) — absorbed into `report.py`.
+- `scripts/lifecycle_check.py` (~1022 LOC) — absorbed.
+- `scripts/budget_disable_check.py` (~57 LOC) — absorbed as
+  `is_budget_disabled()` helper.
+- `scripts/deprecation_watcher.py` (~447 LOC) — absorbed.
+- `scripts/simulate_model_migration.py` (~361 LOC) — absorbed.
+- `tests/test_cost_report.py`, `tests/test_lifecycle_check.py`,
+  `tests/test_deprecation_watcher.py`, `tests/test_activation_triggers.py` —
+  coverage ported to `tests/test_telemetry.py`.
+
+### Changed
+
+- `scripts/rules/deferred-hardrules.txt` shrinks from 24 to 10 slugs (always-loaded
+  + workflow rules now enforced; migrations / notifications / apply / break-glass
+  trio still deferred to Slice 7).
+- `mkdocs.yml` — added `Telemetry: telemetry.md` nav entry.
+- `configs/pricing.yaml` + `configs/anthropic-retirement-list.yaml` — header
+  comments updated to point at `scripts/telemetry/report.py`.
+- `templates/retro/monthly.md.tmpl` — invokes `python -m scripts.telemetry.report
+  monthly` (replaces the old `scripts/lifecycle_check.py` invocation).
+- Operational doc pointers in `docs/concepts/{slos, retrospective-cadence,
+  notification-policy, notification-queue, rollout-strategy, model-migration,
+  issue-tracking, incident-response, channels}.md` + `docs/rules/break-glass.rule.md`
+  + `docs/tutorials/06-curriculum.md` — point at the absorbed CLI.
+
+### Versioning note
+
+Bumps 0.18.1 → **0.18.2**. Per user-refined versioning 2026-05-19, Slices 4–7
+all live in the v0.18.x band; v0.19.x is reserved for post-review fix
+iterations; v0.20.0 is the final visible milestone on explicit user OK.
 
 ## [0.18.1] — 2026-05-19 — Slice 5 doc content rewrite complete
 

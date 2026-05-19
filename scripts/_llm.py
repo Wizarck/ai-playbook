@@ -14,7 +14,7 @@ Why this layer:
    budgets so a runaway agent cannot drain budget across consumers. (D3.3)
 3. **Cost tracking unification**: every call emits the canonical
    ``gen_ai.usage.*`` attributes from `model-routing.md` §4 — one source of
-   truth for `cost_report.py`. (Proposal §Cost tracking unification)
+   truth for `scripts/telemetry/report.py` (absorbed `cost_report.py` in Slice 6).
 4. **Drift detection**: callers that bypass the helper are caught by
    `verify_llm_routing.py` (pre-commit hook, warn-only initially). (D3.5)
 

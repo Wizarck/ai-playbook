@@ -114,7 +114,7 @@ Events not in this table emit `silent` by default. Adding a row requires an RFC.
 
 ## 5. Retro surface
 
-`scripts/lifecycle_check.py` queries the notifications log per actor per week and produces:
+`scripts/telemetry/report.py (absorbed in Slice 6)` queries the notifications log per actor per week and produces:
 
 - Count per level per actor per project per week. Anomalies (±2σ from the 4-week rolling baseline) flagged in the monthly retro.
 - Top-N `event` types by volume — a chronic `info` spammer is usually a miscalibrated emit site, fix the emitter.

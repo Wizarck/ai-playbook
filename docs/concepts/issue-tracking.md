@@ -137,7 +137,7 @@ Zero-touch automation — no human intervention in the happy path. See
   emails via SMTP for severity ≥ `warn`. Rate-limited (≤5 info/min per event+actor, 60s
   dedup window). Stdlib-only (urllib + smtplib); zero runtime deps added.
 
-- **`scripts/lifecycle_check.py`** — monthly retro already flags `tracker_id-less` archived
+- **`scripts/telemetry/report.py (absorbed in Slice 6)`** — monthly retro already flags `tracker_id-less` archived
   changes; these get emitted as `warn` notifications.
 
 Consumer repos inherit the two workflows via `templates/new-project/.github/workflows/*.tmpl`
