@@ -1,0 +1,107 @@
+# co-edit-pairs.yaml
+#
+# Declarative manifest of (code, doc) tuples that MUST move together.
+# Read by `scripts/check_doc_drift.py` at PR time.
+#
+# Contract: `specs/doc-drift-enforcement.md` (v1.0.0).
+# Schema:
+#   version          — schema version (semver); breaking changes bump major
+#   manifest_version — data version (YYYY-MM-DD.N); monotonic per merge
+#   pairs:
+#     id             — kebab-case slug, ^[a-z][a-z0-9-]{1,40}$
+#     tier           — 1 = strict (block); 2 = soft (warn, reserved); 3 = informational (telemetry, reserved)
+#     code           — project-relative path or fnmatch glob (forward-slash only)
+#     doc            — project-relative path or fnmatch glob
+#     reason         — human-readable; surfaced in violation message
+#     introduced_in  — semver tag at which the pair entered the manifest
+#
+# v1 seeds 10 pairs grounded in real script ↔ spec relationships observed
+# in the repo. Add an entry whenever a new canonical script gains a paired
+# spec doc. Adding entries is additive (MINOR bump); changing tier of an
+# existing entry is BREAKING (MAJOR bump per `specs/migration-guide.md`).
+version: "1.0.0"
+manifest_version: "2026-05-19.1"
+pairs:
+  - id: cleanup-zombies
+    tier: 1
+    code: "scripts/cleanup_zombies.py"
+    doc: "specs/cleanup-zombies.md"
+    reason: "Consumer-side zombie cleanup script and its normative spec must move together."
+    introduced_in: "v0.16.0"
+
+  - id: zombies-manifest
+    tier: 1
+    code: "specs/zombies-manifest.yaml"
+    doc: "specs/cleanup-zombies.md"
+    reason: "Manifest YAML schema and the spec that defines it; touching one without the other is a schema drift."
+    introduced_in: "v0.16.0"
+
+  - id: apply-skill-enforcement-hook
+    tier: 1
+    code: "templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl"
+    doc: "specs/apply-skill-enforcement.md"
+    reason: "PreToolUse hook template and its contract spec; hook behaviour MUST be reflected in the spec."
+    introduced_in: "v0.16.0"
+
+  - id: apply-skill-enforcement-marker
+    tier: 1
+    code: "scripts/openspec_apply_marker.py"
+    doc: "specs/apply-skill-enforcement.md"
+    reason: "Marker helper CLI and the spec defining its API; CLI changes (subcommands, flags, exit codes) must update §1.3."
+    introduced_in: "v0.16.0"
+
+  - id: git-worktree-bare-layout
+    tier: 1
+    code: "scripts/wt_add.py"
+    doc: "specs/git-worktree-bare-layout.md"
+    reason: "Worktree-add script and the bare-layout convention spec; flow changes drift the spec."
+    introduced_in: "v0.16.0"
+
+  - id: auto-managed-sections
+    tier: 1
+    code: "scripts/auto_managed.py"
+    doc: "specs/auto-managed-sections.md"
+    reason: "Auto-managed section regenerator and its marker contract spec."
+    introduced_in: "v0.16.0"
+
+  - id: break-glass
+    tier: 1
+    code: "scripts/_break_glass.py"
+    doc: "specs/break-glass.md"
+    reason: "Canonical break-glass helper and its contract; MIN_REASON_LEN, audit log shape, env-var namespace all defined in the spec."
+    introduced_in: "v0.16.0"
+
+  - id: verdict-contract
+    tier: 1
+    code: "scripts/verdict_lint.py"
+    doc: "specs/verdict-contract.md"
+    reason: "Verdict-shape linter and the contract it enforces."
+    introduced_in: "v0.16.0"
+
+  - id: error-message-standard
+    tier: 1
+    code: "scripts/_break_glass.py"
+    doc: "specs/error-message-standard.md"
+    reason: "Canonical WHY/FIX/OVERRIDE shape lives in _break_glass helper; spec defines the shape."
+    introduced_in: "v0.16.0"
+
+  - id: doc-drift-enforcement
+    tier: 1
+    code: "scripts/check_doc_drift.py"
+    doc: "specs/doc-drift-enforcement.md"
+    reason: "This very pair: the doc-drift checker and the spec defining its behaviour. Dogfood the rule we ship."
+    introduced_in: "v0.16.0"
+
+  - id: doc-drift-manifest
+    tier: 1
+    code: "specs/co-edit-pairs.yaml"
+    doc: "specs/doc-drift-enforcement.md"
+    reason: "Manifest schema and the spec defining it; schema bumps must update the spec."
+    introduced_in: "v0.16.0"
+
+  - id: mcp-servers-schema
+    tier: 1
+    code: "scripts/mcp/validate.py"
+    doc: "specs/mcp-servers-schema.md"
+    reason: "MCP layered-config validator and its schema spec."
+    introduced_in: "v0.16.0"

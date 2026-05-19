@@ -236,6 +236,7 @@ Following [`specs/enforcement-status.md`](../specs/enforcement-status.md) shape:
 | Notification policy 4 levels | ✅ wired | `notify.py` |
 | 7-day post-mortem trigger | 🟠 wired-pending-trigger | `lifecycle_check.py` |
 | Consumer-side playbook zombie cleanup | 🟡 partial | `scripts/cleanup_zombies.py` + declarative manifest `specs/zombies-manifest.yaml` + hook templates `templates/new-project/scripts/git-hooks/{post-merge,post-checkout}.tmpl`. Auto-fires on consumer `git pull` / `git checkout`. Status flips ✅ when ≥ 1 consumer adopts and reports a quiet 30-day window. v0.15.0. |
+| Doc-drift on paired (code, doc) tuples | ✅ wired | `scripts/check_doc_drift.py` + declarative manifest `specs/co-edit-pairs.yaml` + CI workflow `.github/workflows/doc-drift-check.yml` (sticky PR comment + hard fail). Fires on every PR. Escape hatch: `[no-doc-impact]` (case-insensitive) anywhere in PR title; logged for slice 6 telemetry. v0.16.0. |
 
 **Status legend** (per [enforcement-status.md](../specs/enforcement-status.md)):
 - ✅ wired — code + tests + pre-commit/CI fires it
