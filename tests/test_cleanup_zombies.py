@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCRIPT_PATH = REPO_ROOT / "scripts" / "cleanup_zombies.py"
+SCRIPT_PATH = REPO_ROOT / "scripts" / "rules" / "cleanup-zombies.rule.py"
 MANIFEST_PATH = REPO_ROOT / "specs" / "zombies-manifest.yaml"
 
 

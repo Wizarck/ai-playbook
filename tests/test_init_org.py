@@ -22,18 +22,16 @@ def _make_fake_playbook(root: Path) -> None:
         "# Wizarck/ai-playbook\nConsumed at github.com/Wizarck/ai-playbook.\n",
         encoding="utf-8",
     )
-    runbooks = root / "runbooks"
-    runbooks.mkdir()
+    runbooks = root / "docs" / "runbooks"
+    runbooks.mkdir(parents=True)
     (runbooks / "release.md").write_text("Push to Wizarck/consumer-c.\n", encoding="utf-8")
     (runbooks / "rotate-secrets.md").write_text("Wizarck/consumer-d secret rotation.\n", encoding="utf-8")
     (runbooks / "propagate-bump-troubleshooting.md").write_text("Wizarck/* fork pattern.\n", encoding="utf-8")
     (runbooks / "hindsight-retain.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
-    specs = root / "specs"
-    specs.mkdir()
-    (specs / "env-vars.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
-    docs = root / "docs"
-    docs.mkdir()
-    (docs / "session-start-hook.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
+    concepts = root / "docs" / "concepts"
+    concepts.mkdir(parents=True)
+    (concepts / "env-vars.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
+    (concepts / "session-start-hook.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
     templates = root / "templates" / "new-project"
     templates.mkdir(parents=True)
     (templates / "AGENTS.md.tmpl").write_text(
@@ -109,7 +107,7 @@ def test_apply_replaces_wizarck_with_acme(tmp_path: Path) -> None:
     assert "acme" in readme
 
     # Hindsight URL applied.
-    sst = (tmp_path / "docs" / "session-start-hook.md").read_text(encoding="utf-8")
+    sst = (tmp_path / "docs" / "concepts" / "session-start-hook.md").read_text(encoding="utf-8")
     assert sst.strip() == "https://hindsight.acme.example"
 
     # SOPS path in templates.

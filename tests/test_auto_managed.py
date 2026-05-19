@@ -113,7 +113,7 @@ def test_compute_expected_verdict_levels() -> None:
 
 
 def test_compute_expected_generic_fallback() -> None:
-    out = am.compute_expected("specs/taxonomy:Runtime entities", PLAYBOOK_ROOT)
+    out = am.compute_expected("docs/concepts/taxonomy:Runtime entities", PLAYBOOK_ROOT)
     assert "| Agent |" in out
 
 
@@ -129,7 +129,7 @@ def test_compute_expected_unknown_source_raises() -> None:
 
 def test_compute_expected_missing_anchor_raises() -> None:
     with pytest.raises(LookupError):
-        am.compute_expected("specs/taxonomy:nonexistent-anchor-xyz", PLAYBOOK_ROOT)
+        am.compute_expected("docs/concepts/taxonomy:nonexistent-anchor-xyz", PLAYBOOK_ROOT)
 
 
 def test_compute_expected_missing_file_raises() -> None:
