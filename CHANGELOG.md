@@ -4,7 +4,147 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.17.0+)
+### Known gaps still pending (target: v0.18.0+)
+
+## [0.17.0] — 2026-05-19 — single-source skills reset + Gemini parity (BREAKING)
+
+**BREAKING.** Slice 3 of the v0.20.0 architectural reset
+(`~/.claude/plans/vamos-a-identificar-los-elegant-marshmallow.md`).
+Drops RFC-0001 (multi-source skills distribution) entirely. The playbook
+submodule is now the single source of truth for skills; the materialiser
+fans out to three gitignored mirrors at the consumer side.
+
+Why now: the multi-source pattern shipped 2026-04-26 with 2 submodules + 3
+scripts + 1 workflow + 1 pre-commit guard, paid by every consumer for a
+feature **no consumer actually used**. Geeplo had already deviated locally
+(PR #125, 2026-05-18) with a simpler `sync_skills_local.py`. This release
+promotes that pattern upstream and removes the legacy machinery.
+
+Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
+**D17** (skills perpendicular rules), **D19** (versioning to v0.20.0).
+
+### BREAKING — Migration table
+
+| Removed in v0.17.0 | Replacement | Consumer action |
+|---|---|---|
+| `scripts/_skills_materialiser.py` (multi-source) | `scripts/materialise_skills.py` (single-source) | Re-wire any direct invocation; new CLI flags (`--source`, `--quiet`, `--dry-run`). |
+| `scripts/propagate_skills_bump.py` | None (single-source = playbook tag IS the skills tag) | Remove any wrapper that invoked `.ai-playbook/scripts/propagate_skills_bump.py`. |
+| `scripts/validate_skills_mirror.py` | Built into the new materialiser (fingerprint-equality short-circuit) | Remove from `.pre-commit-config.yaml`. |
+| `.github/workflows/propagate-skills-bump.yml` | None (the existing `propagate-playbook-bump.yml` already covers it) | Remove consumer copies if any. |
+| `rfcs/RFC-0001-skills-distribution.md` + `rfcs/README.md` + `rfcs/` folder | `specs/skills-distribution.md` v2.0.0 | Migrate cross-references to the spec. |
+| `skills_sources:` block in AGENTS.md frontmatter | None — single-source needs no declaration | Drop the block from `AGENTS.md`. Zombies-manifest flags it as Tier 3 advisory. |
+| `skills_pins:` keys in `consumers.yaml` | None | Drop on the next `consumers.yaml` edit. Schema's `additionalProperties: true` keeps them valid as no-ops. |
+| `validate-skills-mirror` entry in `.pre-commit-hooks.yaml` | None (drift-detection built-in) | If your `.pre-commit-config.yaml` references it, remove the entry. |
+| `.skills-sources/<repo>/` submodule | None — single source is the playbook itself at `.ai-playbook/skills/` | Deregister via `git submodule deinit`, then let `cleanup_zombies.py --apply` remove the orphan directory (Tier 1 entry tightened to `removed_in: v0.17.0`). |
+
+### Added
+
+- **`scripts/materialise_skills.py`** (NEW, ~270 LOC). Single-source materialiser
+  with idempotency via sha256 fingerprint comparison per mirror. Reads from
+  `<consumer>/.ai-playbook/skills/`, fans out to `<consumer>/skills/`,
+  `<consumer>/.claude/skills/`, `<consumer>/.gemini/skills/`. CLI flags
+  `--consumer`, `--source`, `--dry-run`, `--quiet`. Exit codes 0/1/2 per spec.
+- **`scripts/gemini_start.py`** (NEW). Cross-platform Gemini CLI wrapper that
+  runs the materialiser + `inject_context.py` before exec'ing `gemini`. Brings
+  upstream the wrapper geeplo authored locally; adapted to derive `bank_id`
+  from cwd (no `geeplo` hard-codes). POSIX `os.execvp` + Windows `subprocess.run`.
+- **`templates/new-project/scripts/gemini_start.py.tmpl`** (NEW). Thin pointer
+  template — invokes the upstream `.ai-playbook/scripts/gemini_start.py` per D2.
+- **`templates/new-project/scripts/install-playbook-hooks.sh.tmpl`** (NEW). Bash
+  installer that points `core.hooksPath` at `scripts/git-hooks/` and runs the
+  first skills materialisation + zombie cleanup pass. Replaces geeplo's local
+  `install-skills-hooks.sh` with a broader-scope upstream template.
+- **`tests/test_materialise_skills.py`** (NEW, 15 tests). Covers fresh consumer,
+  idempotency, orphan removal, mirror parity (Claude vs Gemini vs generic),
+  dry-run, source missing, partial mirror regeneration, nested skill assets,
+  quiet/loud mode, `--source` override, CLI exit codes (0 / 2), subprocess
+  invocation smoke.
+- **`schemas/`** (NEW top-level folder per D9). Hosts `schema-agents-md-v1.json`
+  (relocated from `specs/`). Future schemas (rule-v1, concept-v1, rule-event-v1)
+  land here in slices 4-6.
+- **8 v2 entries in `specs/zombies-manifest.yaml`** documenting the multi-source
+  artefacts a consumer might still carry: `propagate-skills-bump-script`,
+  `validate-skills-mirror-script`, `propagate-skills-bump-workflow`,
+  `rfcs-folder-removed`, `skills-sources-submodule-v2` (Tier 1 safe-delete;
+  the rest Tier 3 advisory), `skills-sources-frontmatter`,
+  `skills-pins-consumers-yaml`, `validate-skills-mirror-precommit-hook`.
+  Manifest bumped to `2026-05-19.2` (18 total entries, all schema-valid).
+- **openspec change `single-source-skills-reset/`** — proposal + tasks + design
+  documenting this slice's scope, decisions, and acceptance criteria.
+
+### Changed
+
+- **`specs/skills-distribution.md`** rewritten to v2.0.0. Reflects single-source
+  design, cites D1 / D2 / D17. New §1 (decisions), §3 (consumer-side layout
+  with gitignored mirrors), §4 (materialisation algorithm + fingerprint
+  idempotency), §5 (hook wiring incl. Gemini-specific wrapper), §8 (updated KPIs).
+- **`scripts/bootstrap.py`** import updated from `scripts._skills_materialiser`
+  to `scripts.materialise_skills`. Exit-code mapping updated: exit 2 only when
+  source is missing (consumer needs `git submodule update --init`); exit 1 for
+  other failures.
+- **`scripts/schema_validate.py`** SCHEMA_RELPATH updated from
+  `specs/agents-md-v1.schema.json` to `schemas/schema-agents-md-v1.json`.
+  Documentation strings updated accordingly.
+- **`schemas/schema-agents-md-v1.json`** (moved from `specs/`). `$id` updated to
+  reflect the new path. Description annotates the v0.17.0 drop of
+  `skills_sources` + `skills_pins` properties (kept valid via
+  `additionalProperties: true`; flagged advisory by the zombies manifest).
+- **`specs/zombies-manifest.yaml`** existing entries refined:
+  - `skills-sources-submodule` (Tier 1) — `removed_in: v0.17.0` (was
+    `deprecation_only`); reason clarified.
+  - `skills-sources-frontmatter-simplify` (Tier 3) — `removed_in: v0.17.0`;
+    detection expanded to flag any `skills_sources:` block (was: single-entry
+    only); fix points to the new single-source materialiser.
+  - `pre-commit-deprecated-hooks` (Tier 3) — `removed_in: v0.17.0`; reason
+    updated to reflect that BOTH scripts are now deleted upstream (was: only
+    advisory based on consumer state).
+- **`templates/new-project/scripts/git-hooks/post-checkout.tmpl`** and
+  **`post-merge.tmpl`** — both now prefer
+  `.ai-playbook/scripts/materialise_skills.py` (upstream) over a consumer-local
+  `scripts/sync_skills_local.py` (legacy geeplo path). Fall-back to the legacy
+  path preserved for consumers still on v0.16.x.
+- **`.pre-commit-config.yaml`** — `validate-skills-mirror` hook entry removed
+  (comment retained for archeology).
+- **`.pre-commit-hooks.yaml`** — empty hook export with explanatory comment.
+  v0.18.0 (slice 4) populates this with the new L1+L2+L3 paired hooks.
+
+### Removed
+
+- `scripts/_skills_materialiser.py` (multi-source RFC-0001 materialiser).
+- `scripts/propagate_skills_bump.py` (per-source propagator).
+- `scripts/validate_skills_mirror.py` (drift validator — obsoleted by the new
+  materialiser's fingerprint check).
+- `tests/test_skills_materialiser.py`, `tests/test_propagate_skills_bump.py`,
+  `tests/test_validate_skills_mirror.py` (replaced by `tests/test_materialise_skills.py`).
+- `.github/workflows/propagate-skills-bump.yml`.
+- `rfcs/RFC-0001-skills-distribution.md`, `rfcs/README.md`, and the `rfcs/`
+  folder entirely.
+- `specs/agents-md-v1.schema.json` (moved to `schemas/schema-agents-md-v1.json`).
+
+### Validation
+
+- `pytest tests/` — 818 passed, 2 skipped (slice 2's `test_apply_enforce_hook_template.py` failures already fixed on main).
+- `python scripts/cleanup_zombies.py validate` — exit 0, manifest 2026-05-19.2
+  with 18 entries (10 v1 + 8 v2, all schema-valid).
+- `python scripts/materialise_skills.py --consumer <tmp> --dry-run` — exit 0
+  on a fresh tmp dir seeded with `.ai-playbook/skills/`; idempotent (second run
+  is a no-op).
+
+### Notes
+
+- Consumers that never migrated to the multi-source pattern (4 of 5 active:
+  nexandro, eligia-core, palafito-b2b, iguanatrader) require **no migration** —
+  their `consumers.yaml.<name>.skills_pins:` keys lingering as dead text is
+  the only artefact, and cleanup-zombies surfaces it as a Tier 3 advisory.
+- geeplo (the one consumer that DID migrate) already deviated with
+  `sync_skills_local.py`; the new upstream materialiser matches its pattern
+  byte-for-byte, so the only consumer-side fix needed is to point
+  `scripts/git-hooks/post-merge` at `.ai-playbook/scripts/materialise_skills.py`
+  instead of the local copy.
+- The new `templates/new-project/scripts/install-playbook-hooks.sh.tmpl` runs
+  the materialiser + zombie cleanup on first install; the existing
+  geeplo-local `install-skills-hooks.sh` (single-purpose) is now a Tier 3
+  zombie via `pre-commit-deprecated-hooks`.
 
 ## [0.16.0] — 2026-05-19 — doc-drift CI enforcement + audit drift fixes
 
