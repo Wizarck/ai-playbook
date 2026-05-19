@@ -95,6 +95,20 @@ def _invoke_hook(
     session_id: str = "test-session-1",
     override: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Invoke the rendered hook script in a hermetic env.
+
+    Test isolation note (slice doc-drift-enforcement, v0.16.0):
+    The parent test process may inherit `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE`
+    from a wrapper harness (e.g. a worker-orchestration session that sets the
+    env to signal "background work — auto-override the apply-skill gate").
+    That inheritance is correct for the harness but POLLUTES this test:
+    every "expect a block" assertion would silently pass through the
+    legitimate override path in the hook (`specs/apply-skill-enforcement.md`
+    §3) and report exit 0 instead of the expected block (exit 2).
+
+    Fix: drop the override env explicitly. When a test wants to exercise the
+    override path, it passes `override="..."` and we set it back.
+    """
     payload = {
         "tool_name": tool_name,
         "tool_input": {"file_path": str(project / file_path)},
@@ -102,6 +116,7 @@ def _invoke_hook(
         "session_id": session_id,
     }
     env = os.environ.copy()
+    env.pop("AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE", None)
     env["CLAUDE_SESSION_ID"] = session_id
     if override is not None:
         env["AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE"] = override

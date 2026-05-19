@@ -181,7 +181,14 @@ Current: see [`VERSION`](VERSION).
 
 ## Status
 
-**v0.2.0 — MVP deployed.** All core specs at v1.0.0, 504 tests passing, zero-touch automations (issue-sync + release-cut + notifications) live via GitHub Actions + k3s CronJobs, SMTP verified end-to-end. Deferred-by-design items (full incident-response runbook, model-migration playbook, Phase 5 dynamic model routing) activate at their documented triggers.
+**v0.16.0 — architectural reset in progress.** Slice 2 of the v0.15.0 → v0.20.0 reset (see `~/.claude/plans/`). New in this version:
+- **Doc-drift CI gate** — `scripts/check_doc_drift.py` + `specs/co-edit-pairs.yaml` + `.github/workflows/doc-drift-check.yml`. Every PR is checked against the (code, doc) pair manifest; one-sided changes fail CI with a sticky comment. Escape hatch: `[no-doc-impact]` (case-insensitive) anywhere in PR title.
+- **Test isolation fix** for 3 pre-existing failing tests in `test_apply_enforce_hook_template.py` (env-var leakage from the harness — now scrubbed in the fixture).
+- **Audit drift fixes** — dead cross-refs cleaned up, enforcement-status row added for `doc-drift-enforcement.md`.
+
+Prior milestone: **v0.15.0 — cleanup-zombies hook.** Consumer-side zombie cleanup driven by `specs/zombies-manifest.yaml`. Auto-fires on `git pull` / `git checkout` in adopting consumers.
+
+Earlier: All core specs at v1.0.0, 504+ tests passing, zero-touch automations (issue-sync + release-cut + notifications) live via GitHub Actions + k3s CronJobs, SMTP verified end-to-end. Deferred-by-design items (full incident-response runbook, model-migration playbook, Phase 5 dynamic model routing) activate at their documented triggers.
 
 ## Maintainer
 
