@@ -20,7 +20,7 @@
 #     (not playbook-driven).
 
 version: 1
-manifest_version: "2026-05-19.3"
+manifest_version: "2026-05-19.4"
 
 entries:
   # -------------------------------------------------------------------------
@@ -394,3 +394,97 @@ entries:
       underlying `scripts/issue_sync.py` is NOT deleted; slice 6 (telemetry,
       v0.19.1) may absorb it.
     evidence: ai-playbook v0.17.1 CHANGELOG
+
+  # -------------------------------------------------------------------------
+  # v4 — Slice 4 filesystem reorganisation (v0.18.0 BREAKING)
+  #
+  # Mass rename: specs/ -> docs/{rules,concepts}/, runbooks/ -> docs/runbooks/,
+  # scripts/cleanup_zombies.py -> scripts/rules/cleanup-zombies.rule.py,
+  # specs/agent-contract.schema.json -> schemas/schema-agent-contract.json,
+  # .github/workflows/doc-drift-check.yml -> .github/workflows/doc-drift-enforcement.rule.yml.
+  #
+  # Consumers' inherits_from: arrays in AGENTS.md frontmatter often listed
+  # `.ai-playbook/specs/<contract>.md` paths; those break on v0.18.0 bump.
+  # The entries below are Tier 3 (report-only) — the playbook does not own
+  # the consumer-side AGENTS.md, so cleanup-zombies surfaces the drift
+  # without auto-rewriting.
+  # -------------------------------------------------------------------------
+
+  - id: specs-folder-mixed-content-emptied-v0.18.0
+    tier: 3
+    action: report
+    safety: report_only
+    path: specs
+    introduced_in: v0.1.0
+    removed_in: v0.18.0
+    reason: >
+      v0.18.0 (slice filesystem-reorg-v018) moved all rule/concept markdown
+      out of `specs/` to `docs/{rules,concepts}/`. The `specs/` directory
+      now holds ONLY operational YAMLs (zombies-manifest.yaml,
+      co-edit-pairs.yaml). Consumer AGENTS.md `inherits_from:` arrays that
+      reference old paths (e.g. `.ai-playbook/specs/verdict-contract.md`)
+      will fail to resolve. Update consumer manifests to point to
+      `.ai-playbook/docs/rules/verdict-contract.rule.md`.
+    evidence: ai-playbook v0.18.0 CHANGELOG migration table
+
+  - id: scripts-cleanup-zombies-renamed-v0.18.0
+    tier: 3
+    action: report
+    safety: report_only
+    path: scripts/cleanup_zombies.py
+    introduced_in: v0.15.0
+    removed_in: v0.18.0
+    reason: >
+      v0.18.0 (slice filesystem-reorg-v018) moved
+      `scripts/cleanup_zombies.py` to
+      `scripts/rules/cleanup-zombies.rule.py` per the paired L1 hook
+      convention. Consumer git hooks (`post-merge` / `post-checkout`) that
+      invoke `python .ai-playbook/scripts/cleanup_zombies.py` will fail
+      after the v0.18.0 bump. Update the hook to invoke
+      `python .ai-playbook/scripts/rules/cleanup-zombies.rule.py`.
+      `templates/new-project/scripts/git-hooks/*.tmpl` already updated
+      upstream.
+    evidence: ai-playbook v0.18.0 CHANGELOG migration table
+
+  - id: runbooks-folder-moved-v0.18.0
+    tier: 3
+    action: report
+    safety: report_only
+    path: runbooks
+    introduced_in: v0.5.0
+    removed_in: v0.18.0
+    reason: >
+      v0.18.0 moved `runbooks/` to `docs/runbooks/` (Diátaxis layout).
+      Consumer docs that cross-link to upstream runbooks via
+      `.ai-playbook/runbooks/...` paths break. Update to
+      `.ai-playbook/docs/runbooks/...`.
+    evidence: ai-playbook v0.18.0 CHANGELOG migration table
+
+  - id: doc-drift-check-workflow-renamed-v0.18.0
+    tier: 3
+    action: report
+    safety: report_only
+    path: .github/workflows/doc-drift-check.yml
+    introduced_in: v0.16.0
+    removed_in: v0.18.0
+    reason: >
+      v0.18.0 renamed `.github/workflows/doc-drift-check.yml` to
+      `.github/workflows/doc-drift-enforcement.rule.yml` per the paired
+      enforcement naming convention. Consumer fork copies of this workflow
+      should be renamed; branch-protection required-check names need to be
+      updated by the repo admin.
+    evidence: ai-playbook v0.18.0 CHANGELOG migration table
+
+  - id: agent-contract-schema-moved-v0.18.0
+    tier: 3
+    action: report
+    safety: report_only
+    path: specs/agent-contract.schema.json
+    introduced_in: v0.4.0
+    removed_in: v0.18.0
+    reason: >
+      v0.18.0 moved `specs/agent-contract.schema.json` to
+      `schemas/schema-agent-contract.json` (top-level schemas/ per industry
+      convention). Consumer scripts that resolved the schema from the old
+      path break.
+    evidence: ai-playbook v0.18.0 CHANGELOG migration table

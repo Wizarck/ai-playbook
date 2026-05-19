@@ -4,7 +4,181 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.18.0+)
+### Known gaps still pending (target: v0.18.x post-Slice 4)
+
+- **Slice 5 (content rewrite, v0.18.1)**: rewrite every `docs/rules/*.rule.md`
+  to the canonical META/sandwich/RFC-2119 form per `docs/concepts/STYLE.md`;
+  add frontmatter to every `docs/concepts/*.md` that still lacks
+  `schema: concept/v1`; add `paired_hardrule` and `triggers` to all rules;
+  populate `docs/concepts/enforcement-pairing-exceptions.md` for advisory rules.
+- **Slice 6 (telemetry, v0.18.2)**: absorb `cost_report.py` + `lifecycle_check.py`
+  into `scripts/telemetry/`; add `scripts/telemetry/rule_event_logger.py`;
+  start emitting events from `hook_dispatcher.py`.
+- **Slice 7 (polish, v0.18.3)**: Mermaid diagrams in
+  `docs/concepts/enforcement-layers.md`; full content for
+  `docs/tutorials/01-architecture-tour.md`.
+
+## [0.18.0] — 2026-05-19 — filesystem reorg + paired enforcement tooling (BREAKING)
+
+Slice 4 of the v0.20.0 architectural reset
+([plan](../../.claude/plans/vamos-a-identificar-los-elegant-marshmallow.md)).
+Diátaxis-inspired layout under `docs/{rules,concepts,runbooks,tutorials}/`,
+top-level `schemas/` (industry convention), `.rule.<ext>` infix on paired
+artefacts (D5), and 9 new tooling scripts implementing the paired
+enforcement convention (D3 + D9 + D10 + D12 + D14).
+
+**Three commit phases inside one PR**:
+- **4.A** — `git mv` only (~135 files, history preserved).
+- **4.B** — mechanical cross-reference rewrites via a throwaway
+  `scripts/migrate_paths_v0.18.py` (then deleted; CHANGELOG entry IS the
+  historical record).
+- **4.C** — config + new tooling + new schemas + new tests + new workflows
+  + zombies-manifest v4 entries + VERSION bump.
+
+### Migration table
+
+| Old | New | Notes |
+|---|---|---|
+| `specs/cleanup-zombies.md` | `docs/rules/cleanup-zombies.rule.md` | Rule (paired with `scripts/rules/cleanup-zombies.rule.py`). |
+| `specs/apply-skill-enforcement.md` | `docs/rules/apply-skill-enforcement.rule.md` | Rule. |
+| `specs/bootstrap-directive.md` | `docs/rules/bootstrap-directive.rule.md` | Rule. |
+| `specs/verdict-contract.md` | `docs/rules/verdict-contract.rule.md` | Rule. |
+| `specs/output-completeness.md` | `docs/rules/output-completeness.rule.md` | Rule. |
+| `specs/verification-before-completion.md` | `docs/rules/verification-before-completion.rule.md` | Rule. |
+| `specs/error-message-standard.md` | `docs/rules/error-message-standard.rule.md` | Rule. |
+| `specs/break-glass.md` | `docs/rules/break-glass.rule.md` | Rule. |
+| `specs/doc-drift-enforcement.md` | `docs/rules/doc-drift-enforcement.rule.md` | Rule. |
+| `specs/apply-fix-contract.md` | `docs/rules/apply-fix-contract.rule.md` | Rule. |
+| `specs/conflict-resolution-policy.md` | `docs/rules/conflict-resolution-policy.rule.md` | Rule. |
+| `specs/cross-slice-additive-extension.md` | `docs/rules/cross-slice-additive-extension.rule.md` | Rule. |
+| `specs/migration-slot-reservation.md` | `docs/rules/migration-slot-reservation.rule.md` | Rule. |
+| `specs/hitl-approval-pattern.md` | `docs/rules/hitl-approval-pattern.rule.md` | Rule. |
+| `specs/<concept>.md` × 46 | `docs/concepts/<slug>.md` | All other former specs (agent-contract, channels, taxonomy, slos, etc.). |
+| `docs/start-here.md` | `docs/tutorials/01-start-here.md` | Numbered tutorial. |
+| `docs/quickstart.md` | `docs/tutorials/02-quickstart.md` | Numbered tutorial. |
+| `docs/bootstrap-new-project.md` | `docs/tutorials/03-bootstrap-new-project.md` | Numbered tutorial. |
+| `docs/quickstart-lessons.md` | `docs/tutorials/04-quickstart-lessons.md` | Numbered tutorial. |
+| `docs/curriculum.md` | `docs/tutorials/05-curriculum.md` | Numbered tutorial. |
+| `docs/why-these-choices.md` | `docs/tutorials/06-why-these-choices.md` | Numbered tutorial. |
+| `docs/fork-inventory.md` | `docs/tutorials/07-fork-inventory.md` | Numbered tutorial. |
+| `docs/architecture-diagrams.md` | `docs/concepts/architecture-diagrams.md` | Concept. |
+| `docs/contributing.md` | `docs/concepts/contributing.md` | Concept. |
+| `docs/development-flow.md` | `docs/concepts/development-flow.md` | Concept. |
+| `docs/model-migration.md` | `docs/concepts/model-migration.md` | Concept. |
+| `docs/session-start-hook.md` | `docs/concepts/session-start-hook.md` | Concept. |
+| `docs/zero-touch-automation.md` | `docs/concepts/zero-touch-automation.md` | Concept. |
+| `runbooks/<recipe>.md` × 14 + INDEX | `docs/runbooks/<slug>.md` | All recipes moved under `docs/runbooks/`. |
+| `scripts/cleanup_zombies.py` | `scripts/rules/cleanup-zombies.rule.py` | Paired L1 hook (only paired script today). |
+| `specs/agent-contract.schema.json` | `schemas/schema-agent-contract.json` | Top-level schemas/. |
+| `.github/workflows/doc-drift-check.yml` | `.github/workflows/doc-drift-enforcement.rule.yml` | Paired workflow. |
+
+`specs/` after Slice 4 contains ONLY operational YAMLs:
+`zombies-manifest.yaml` + `co-edit-pairs.yaml`. The plan's "specs/
+disappears" was hyperbole; what disappears is the mixed-purpose content,
+not the directory itself.
+
+### Added — new tooling (9 scripts)
+
+- **`scripts/validate_pairing.py`** — meta-validator enforcing D3 4-signal
+  pairing: filename slug ⇔ frontmatter slug ⇔ paired_hardrule cross-ref ⇔
+  AGENTS.md Rule Map entry. Eats own dogfood (paired
+  `docs/rules/validate-pairing.rule.md` lands in Slice 5). 35 drift-fixture
+  tests in `tests/test_validate_pairing.py`.
+- **`scripts/validate_pairing_oracle.sh`** — parallel pure-shell tripwire
+  re-implementing the slug-existence check (D12 defense-in-depth).
+- **`scripts/materialise_cursor_rules.py`** — generates
+  `.cursor/rules/<slug>.mdc` from `docs/rules/<slug>.rule.md` (D11).
+  Validates Cursor co-constraints: `activation: auto ⇒ globs:` required;
+  `activation: agent ⇒ description:` ≤300 chars.
+- **`scripts/check_doc_language.py`** — ENGLISH-only docs lint per D6.
+  `langdetect`-based when available; heuristic (Spanish diacritics) fallback.
+  Fails when >5% of files under `docs/` are non-English.
+- **`scripts/check_link_integrity.py`** — broken markdown-link detector.
+  Walks every relative `[text](path)` link under `docs/` and verifies the
+  target exists. Skips external URLs + in-document anchors.
+- **`scripts/hook_dispatcher.py`** — single-process L1 dispatcher (D10).
+  Loads all rules once per session; routes by `triggers:` frontmatter.
+  Hard SLA: p50 ≤50ms per tool call. `--benchmark` mode reports
+  p50/p95/p99. `tests/test_hook_latency.py` enforces the SLA.
+- **`scripts/check_agents_md_size.py`** — fails CI when AGENTS.md exceeds
+  500 lines (D14). Default cap 500; configurable via `--cap`.
+- **`scripts/check_deprecated_rules.py`** — warns at PR-time when editing
+  a `status: deprecated` rule (D18). Exit 1 (warn) by default; `--strict`
+  promotes to exit 2.
+- **`scripts/gen_indexes.py`** — already shipped pre-Slice 4; verified
+  works against the new `docs/{rules,concepts,runbooks,tutorials}/` layout.
+
+### Added — schemas (D9 disjoint)
+
+- **`schemas/schema-rule-v1.json`** — validates `.rule.md` frontmatter.
+  Required: `schema/slug/description/paired_hardrule/activation/status`.
+  Forbids fields specific to concept docs (`additionalProperties: false`).
+- **`schemas/schema-concept-v1.json`** — validates concept frontmatter.
+  Required minimal `schema/slug/title`. Forbids rule-only fields
+  (`paired_hardrule`, `activation`, `status`, `triggers`, `break_glass`,
+  `applies_to`, `globs`, `rule_bundle`). Disjoint per D9 — schemas force
+  the rule-vs-concept distinction at validation time.
+
+### Added — placeholder docs (Slice 5 rewrites content)
+
+- `docs/concepts/enforcement-layers.md` — L1/L2/L3 architecture explainer.
+- `docs/concepts/cross-llm-activation.md` — Cursor 4-mode mapping per LLM (D20).
+- `docs/concepts/enforcement-pairing-exceptions.md` — advisory-rule justification.
+- `docs/concepts/STYLE.md` — writing style guide for Slice 5 authors. ≤30 lines.
+- `docs/tutorials/01-architecture-tour.md` — cold-start entry point (content in Slice 7).
+
+### Added — tests (4 files, 70+ cases)
+
+- `tests/test_validate_pairing.py` — 35 drift fixtures (orphan hardrule,
+  orphan doc, slug mismatch, plural form, unicode, advisory justification,
+  include-local, etc.).
+- `tests/test_hook_latency.py` — 8 cases; enforces ≤50ms p50 SLA.
+- `tests/test_check_doc_language.py` — 14 cases (heuristic vs langdetect,
+  code-block stripping, threshold logic).
+- `tests/test_check_link_integrity.py` — 13 cases (external skip, anchor
+  skip, image syntax, relative resolution, line-number reporting).
+
+### Added — workflows (5 aggregated rule-workflows, D10/D14 burst mitigation)
+
+- `.github/workflows/validate-pairing.rule.yml`
+- `.github/workflows/check-doc-language.rule.yml`
+- `.github/workflows/check-link-integrity.rule.yml`
+- `.github/workflows/check-agents-md-size.rule.yml`
+- `.github/workflows/check-rule-schemas.rule.yml` (validates ALL `*.rule.md`
+  against `schema-rule-v1.json` and ALL `docs/concepts/*.md` against
+  `schema-concept-v1.json` in one job — avoids 1-workflow-per-rule burst).
+
+### Changed
+
+- **`pyproject.toml`** `[tool.setuptools.packages.find]` updated to reflect
+  new package layout; `scripts.rules` is now a sub-package.
+- **`.pre-commit-hooks.yaml`** exposes 4 paired hooks for consumers:
+  `validate-pairing`, `check-doc-language`, `check-link-integrity`,
+  `check-agents-md-size`.
+- **`specs/zombies-manifest.yaml`** extended with 5 v4 entries (Tier 3
+  report-only) for the path migrations. `manifest_version` bumped to
+  `2026-05-19.4`.
+- **`scripts/rules/cleanup-zombies.rule.py`** `_resolve_default_manifest`
+  walks 3 parents up (was 2) — script moved one level deeper.
+
+### Test results
+
+- `pytest tests/` — 916 passed, 2 skipped (e2e env-gated baseline).
+  Compared to pre-Slice-4 baseline: +70 new tests, all green.
+- `python scripts/validate_pairing.py` — exit 0 (current rules satisfy
+  signal #1 + #2; signal #3 + #4 enforced in Slice 5 once frontmatter is
+  authored).
+- `python scripts/check_link_integrity.py docs/` — exit 0.
+- `python scripts/check_agents_md_size.py` — exit 0 (AGENTS.md 92/500 lines).
+- `python scripts/check_doc_language.py docs/` — exit 0 (heuristic mode).
+- `python scripts/hook_dispatcher.py --benchmark` — p50 well under 50ms.
+- `python scripts/rules/cleanup-zombies.rule.py validate` — exit 0
+  (manifest version `2026-05-19.4`, 28 entries).
+
+### Versioning note (per D19, refined 2026-05-19)
+
+v0.18.0 starts the v0.18.x sequence for Slices 4-7. v0.19.x reserved for
+post-review fixes. v0.20.0 final by explicit user OK.
 
 ## [0.17.1] — 2026-05-19 — root folder cleanup audit (additive PATCH)
 
