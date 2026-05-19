@@ -23,8 +23,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "check_doc_drift.py"
 
@@ -168,7 +166,9 @@ def test_validate_fails_on_bad_pair_id(tmp_path: Path) -> None:
         'version: "1.0.0"\n'
         'manifest_version: "2026-05-19.1"\n'
         'pairs:\n'
-        '  - id: "Bad_Id_Here"\n    tier: 1\n    code: "a"\n    doc: "b"\n    reason: "r"\n    introduced_in: "v0.16.0"\n'
+        '  - id: "Bad_Id_Here"\n'
+        '    tier: 1\n    code: "a"\n    doc: "b"\n'
+        '    reason: "r"\n    introduced_in: "v0.16.0"\n'
     )
     m = _write_manifest(tmp_path / "m.yaml", body)
     proc = _run("validate", manifest=m, repo_root=tmp_path)
@@ -320,7 +320,9 @@ def test_check_tier_2_pair_does_not_block(tmp_path: Path) -> None:
         'version: "1.0.0"\n'
         'manifest_version: "2026-05-19.1"\n'
         'pairs:\n'
-        '  - id: soft\n    tier: 2\n    code: "scripts/soft.py"\n    doc: "specs/soft.md"\n    reason: "soft."\n    introduced_in: "v0.17.0"\n'
+        '  - id: soft\n'
+        '    tier: 2\n    code: "scripts/soft.py"\n    doc: "specs/soft.md"\n'
+        '    reason: "soft."\n    introduced_in: "v0.17.0"\n'
     )
     m = _write_manifest(tmp_path / "m.yaml", body)
     proc = _run(manifest=m, repo_root=tmp_path, diff_files=["scripts/soft.py"])

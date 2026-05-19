@@ -128,7 +128,7 @@ def _load_manifest(path: Path) -> tuple[dict[str, Any] | None, int | None]:
     """Load YAML; return (data, None) on success or (None, exit_code) on error."""
     if not path.is_file():
         rc = _emit_schema_error(
-            why=f"manifest not found",
+            why="manifest not found",
             where=str(path),
             fix=f"ensure {path} exists or pass --manifest <path>.",
         )
@@ -216,7 +216,7 @@ def _validate_manifest(data: dict[str, Any], path: Path) -> tuple[list[Pair] | N
             rc = _emit_schema_error(
                 why=f"duplicate pair id `{pid}`",
                 where=str(path),
-                fix=f"each entry's `id:` must be unique within the file.",
+                fix="each entry's `id:` must be unique within the file.",
             )
             return None, rc
         seen_ids.add(pid)
@@ -437,14 +437,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicit changed-file list; bypasses git diff (tests / synthetic probes)",
     )
 
-    p_val = subparsers.add_parser("validate", help="validate manifest schema only; exit 0/2")
+    subparsers.add_parser("validate", help="validate manifest schema only; exit 0/2")
     # No additional args.
 
-    return parser, p_check
+    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser, _ = build_parser()
+    parser = build_parser()
     raw = list(argv) if argv is not None else sys.argv[1:]
     # Default subcommand: `check`. If no subcommand is present (after optional
     # global flags), inject it. Global flags before the subcommand are: --manifest,
