@@ -105,4 +105,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from scripts.rules._telemetry import cli_emit
+    raise SystemExit(cli_emit("ai-reviewer-signoff", main))

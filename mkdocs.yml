@@ -88,37 +88,120 @@ nav:
       - "08 — Fork inventory": tutorials/08-fork-inventory.md
   - Concepts:
       - Index: concepts/INDEX.md
-      - Enforcement layers: concepts/enforcement-layers.md
-      - Cross-LLM activation: concepts/cross-llm-activation.md
-      - Rule use-cases matrix: concepts/rule-use-cases-matrix.md
-      - Academic foundations: concepts/academic-foundations.md
-      - Taxonomy: concepts/taxonomy.md
-      - Style: concepts/STYLE.md
-      - Telemetry design: concepts/telemetry-design.md
-      - Dispatcher chain: concepts/dispatcher-chain.md
-      - Development flow: concepts/development-flow.md
-      - Architecture diagrams: concepts/architecture-diagrams.md
-      - Agent contract: concepts/agent-contract.md
-      - Agent telemetry: concepts/agent-telemetry.md
-      - Agentic failures: concepts/agentic-failures.md
-      - Enforcement pairing exceptions: concepts/enforcement-pairing-exceptions.md
-      - Enforcement status: concepts/enforcement-status.md
+      - "Enforcement layers": concepts/enforcement-layers.md
+      - "Cross llm activation": concepts/cross-llm-activation.md
+      - "Rule use cases matrix": concepts/rule-use-cases-matrix.md
+      - "Academic foundations": concepts/academic-foundations.md
+      - "Taxonomy": concepts/taxonomy.md
+      - "STYLE": concepts/STYLE.md
+      - "Telemetry design": concepts/telemetry-design.md
+      - "Dispatcher chain": concepts/dispatcher-chain.md
+      - "Development flow": concepts/development-flow.md
+      - "Architecture diagrams": concepts/architecture-diagrams.md
+      - "Agent contract": concepts/agent-contract.md
+      - "Agent telemetry": concepts/agent-telemetry.md
+      - "Agentic failures": concepts/agentic-failures.md
+      - "Enforcement pairing exceptions": concepts/enforcement-pairing-exceptions.md
+      - "Enforcement status": concepts/enforcement-status.md
+      - "Auto managed sections": concepts/auto-managed-sections.md
+      - "Bmad openspec bridge": concepts/bmad-openspec-bridge.md
+      - "Channels": concepts/channels.md
+      - "Contributing": concepts/contributing.md
+      - "Cross language tooling": concepts/cross-language-tooling.md
+      - "Data retention": concepts/data-retention.md
+      - "Database numeric boundaries": concepts/database-numeric-boundaries.md
+      - "Degradation modes": concepts/degradation-modes.md
+      - "Dependency injection patterns": concepts/dependency-injection-patterns.md
+      - "Env vars": concepts/env-vars.md
+      - "Event and data patterns": concepts/event-and-data-patterns.md
+      - "Fusion integration pattern": concepts/fusion-integration-pattern.md
+      - "Git worktree bare layout": concepts/git-worktree-bare-layout.md
+      - "Incident response": concepts/incident-response.md
+      - "Issue tracking": concepts/issue-tracking.md
+      - "Mcp servers schema": concepts/mcp-servers-schema.md
+      - "Memory hierarchy": concepts/memory-hierarchy.md
+      - "Merge policy": concepts/merge-policy.md
+      - "Migration guide": concepts/migration-guide.md
+      - "Model migration": concepts/model-migration.md
+      - "Model routing": concepts/model-routing.md
+      - "Multi layer defense single operator": concepts/multi-layer-defense-single-operator.md
+      - "Notification policy": concepts/notification-policy.md
+      - "Notification queue": concepts/notification-queue.md
+      - "Parallel review": concepts/parallel-review.md
+      - "Post mortem": concepts/post-mortem.md
+      - "Project board sync": concepts/project-board-sync.md
+      - "Projects registry": concepts/projects-registry.md
+      - "Prompt caching": concepts/prompt-caching.md
+      - "Protocol fake deferred install": concepts/protocol-fake-deferred-install.md
+      - "Release management": concepts/release-management.md
+      - "Retrospective cadence": concepts/retrospective-cadence.md
+      - "Role matrix": concepts/role-matrix.md
+      - "Rollout strategy": concepts/rollout-strategy.md
+      - "Root folder audit": concepts/root-folder-audit.md
+      - "Runbook bmad openspec": concepts/runbook-bmad-openspec.md
+      - "Session start hook": concepts/session-start-hook.md
+      - "Skills distribution": concepts/skills-distribution.md
+      - "Skills registry": concepts/skills-registry.md
+      - "Slos": concepts/slos.md
+      - "Upstream sync": concepts/upstream-sync.md
+      - "Ux track": concepts/ux-track.md
+      - "V080 roadmap": concepts/v080-roadmap.md
+      - "V090 roadmap": concepts/v090-roadmap.md
+      - "Zero touch automation": concepts/zero-touch-automation.md
   - Rules:
       - Index: rules/INDEX.md
-      - Verdict contract: rules/verdict-contract.rule.md
-      - Bootstrap directive: rules/bootstrap-directive.rule.md
-      - Break-glass: rules/break-glass.rule.md
-      - Cleanup zombies: rules/cleanup-zombies.rule.md
-      - Error message standard: rules/error-message-standard.rule.md
-      - Output completeness: rules/output-completeness.rule.md
-      - Verification before completion: rules/verification-before-completion.rule.md
-      - Apply skill enforcement: rules/apply-skill-enforcement.rule.md
+      - "Verdict contract": rules/verdict-contract.rule.md
+      - "Bootstrap directive": rules/bootstrap-directive.rule.md
+      - "Break glass": rules/break-glass.rule.md
+      - "Cleanup zombies": rules/cleanup-zombies.rule.md
+      - "Error message standard": rules/error-message-standard.rule.md
+      - "Output completeness": rules/output-completeness.rule.md
+      - "Verification before completion": rules/verification-before-completion.rule.md
+      - "Apply skill enforcement": rules/apply-skill-enforcement.rule.md
+      - "Agentic failure catalog schema": rules/agentic-failure-catalog-schema.rule.md
+      - "Ai reviewer signoff": rules/ai-reviewer-signoff.rule.md
+      - "Alembic migration naming": rules/alembic-migration-naming.rule.md
+      - "Apply fix contract": rules/apply-fix-contract.rule.md
+      - "Auto merge discipline": rules/auto-merge-discipline.rule.md
+      - "Auto pr stream closure": rules/auto-pr-stream-closure.rule.md
+      - "Cleanup on bump": rules/cleanup-on-bump.rule.md
+      - "Conflict resolution policy": rules/conflict-resolution-policy.rule.md
+      - "Cross slice additive extension": rules/cross-slice-additive-extension.rule.md
+      - "Data handling": rules/data-handling.rule.md
+      - "Delegated shipping prompt": rules/delegated-shipping-prompt.rule.md
+      - "Doc drift enforcement": rules/doc-drift-enforcement.rule.md
+      - "English only docs": rules/english-only-docs.rule.md
+      - "Gemini session start": rules/gemini-session-start.rule.md
+      - "Github project board schema": rules/github-project-board-schema.rule.md
+      - "Hitl approval pattern": rules/hitl-approval-pattern.rule.md
+      - "Install playbook": rules/install-playbook.rule.md
+      - "Link integrity": rules/link-integrity.rule.md
+      - "Migration slot reservation": rules/migration-slot-reservation.rule.md
+      - "Notification channel adapter": rules/notification-channel-adapter.rule.md
+      - "Notification level declared": rules/notification-level-declared.rule.md
+      - "Notification no secrets": rules/notification-no-secrets.rule.md
+      - "Openspec apply enforcement": rules/openspec-apply-enforcement.rule.md
+      - "Parallel wave anti collision": rules/parallel-wave-anti-collision.rule.md
+      - "Pr tracker reference": rules/pr-tracker-reference.rule.md
+      - "Secrets handling": rules/secrets-handling.rule.md
+      - "Slice preflight": rules/slice-preflight.rule.md
+      - "Subagent envelope schema": rules/subagent-envelope-schema.rule.md
+      - "Update documentation": rules/update-documentation.rule.md
+      - "Update playbook": rules/update-playbook.rule.md
   - Runbooks:
       - Index: runbooks/INDEX.md
-      - Release: runbooks/release.md
-      - Rotate secrets: runbooks/rotate-secrets.md
-      - Onboard new project: runbooks/onboard-new-project.md
-      - Run telemetry report: runbooks/run-telemetry-report.md
-      - Windows dev environment: runbooks/windows-dev-environment.md
-      - Docs build + deploy: runbooks/docs-build-deploy.md
+      - "Release": runbooks/release.md
+      - "Rotate secrets": runbooks/rotate-secrets.md
+      - "Onboard new project": runbooks/onboard-new-project.md
+      - "Run telemetry report": runbooks/run-telemetry-report.md
+      - "Windows dev environment": runbooks/windows-dev-environment.md
+      - "Docs build deploy": runbooks/docs-build-deploy.md
+      - "Cascade failure template": runbooks/cascade-failure-template.md
+      - "Coderabbit fallback": runbooks/coderabbit-fallback.md
+      - "Git worktree bare setup": runbooks/git-worktree-bare-setup.md
+      - "Hindsight retain": runbooks/hindsight-retain.md
+      - "Runbook db corruption": runbooks/runbook-db-corruption.md
+      - "Runbook key rotation emergency": runbooks/runbook-key-rotation-emergency.md
+      - "Runbook secrets leak containment": runbooks/runbook-secrets-leak-containment.md
+      - "Runbook vps down": runbooks/runbook-vps-down.md
   - Telemetry: telemetry.md
