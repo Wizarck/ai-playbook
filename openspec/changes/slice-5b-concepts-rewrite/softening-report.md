@@ -306,4 +306,3 @@ Summary: 102 substitutions across 33 files.
   ->     `| **§4.5 spec update** | `docs/concepts/release-management.md` | Insert subsections §4.5.1 (worker-AI in-session check — must run after every PR push), §4.5.2 (CI safety net — auto-posts checklist if §4.5 unpopulated), §4.5.3 (PR-body §4.5 schema requirements that L2 regex-validates) | ~40 lines added |`
 - L81: `- [ ] A.4 Spec update `docs/concepts/release-management.md` §4.5: insert §4.5.1 codifying that worker AI MUST invoke the script after every `gh pr create` and follow the runbook if status is not `available`.`
   ->     `- [ ] A.4 Spec update `docs/concepts/release-management.md` §4.5: insert §4.5.1 codifying that worker AI must invoke the script after every `gh pr create` and follow the runbook if status is not `available`.`
-
