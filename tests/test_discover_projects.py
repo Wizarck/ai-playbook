@@ -97,14 +97,14 @@ def test_scan_skips_ignored_dirs(tmp_path: Path) -> None:
 
 
 def test_build_entry_personal_with_addon(tmp_path: Path) -> None:
-    project = _write_project(tmp_path, "consumer-d", personal=True, addon_name="consumer-d.md")
+    project = _write_project(tmp_path, "acme-corp", personal=True, addon_name="acme-corp.md")
     fm = dp.parse_frontmatter(project / "AGENTS.md")
     assert fm is not None
     entry = dp.build_entry(project, fm)
-    assert entry.name == "consumer-d"
+    assert entry.name == "acme-corp"
     assert entry.personal is True
     assert entry.personal_addon is not None
-    assert entry.personal_addon.endswith("consumer-d.md")
+    assert entry.personal_addon.endswith("acme-corp.md")
 
 
 def test_load_registry_missing_returns_skeleton(tmp_path: Path) -> None:
@@ -127,7 +127,7 @@ def test_write_and_load_roundtrip(tmp_path: Path) -> None:
 
 def test_main_refresh_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_project(tmp_path, "alpha")
-    _write_project(tmp_path / "subdir", "beta", personal=True, addon_name="consumer-d.md")
+    _write_project(tmp_path / "subdir", "beta", personal=True, addon_name="acme-corp.md")
     registry = tmp_path / "registry.yaml"
     # Isolate from the user's real env
     monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
@@ -137,7 +137,7 @@ def test_main_refresh_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     data = yaml.safe_load(registry.read_text(encoding="utf-8"))
     assert set(data["projects"].keys()) == {"alpha", "beta"}
     assert data["projects"]["beta"]["personal"] is True
-    assert data["projects"]["beta"]["personal_addon"].endswith("consumer-d.md")
+    assert data["projects"]["beta"]["personal_addon"].endswith("acme-corp.md")
 
 
 def test_main_dry_run_does_not_write(

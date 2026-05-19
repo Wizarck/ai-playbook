@@ -4,7 +4,7 @@ GATED — runs only when the env var ``AIPLAYBOOK_E2E=1`` is set AND a real
 ``HINDSIGHT_URL`` + auth pair are present. CI doesn't run these by default;
 local development does (via `sops exec-env`):
 
-    AIPLAYBOOK_E2E=1 sops exec-env consumer-d/secrets/secrets.env -- \\
+    AIPLAYBOOK_E2E=1 sops exec-env acme-corp/secrets/secrets.env -- \\
         python -m pytest tests/integration/test_e2e_loop.py -v
 
 What it verifies:

@@ -110,7 +110,23 @@ The pre-v0.19.2 base template carried a `rag` entry with
 real upstream value during the public-flip and no longer worked on any
 real consumer. The entry was moved out of the base in v0.19.2; consumers
 that ship a local RAG server now declare it in their own
-`mcp-servers.project.yaml` with the actual command for their stack.
+`mcp-servers.project.yaml` with the actual command for their stack:
+
+```yaml
+schema: mcp-servers/v1
+version: 1.0.0
+layer: project
+mcp_servers:
+  rag:
+    id: rag
+    description: Project-specific retrieval augmented generation server
+    transport: stdio
+    command: "python -m acme_corp.rag"
+    env:
+      required: [ACME_DB_URL, OPENAI_API_KEY]
+    auth: none
+    scope: project
+```
 
 ## 4. `skills-registry` server — deep-dive
 

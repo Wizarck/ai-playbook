@@ -10,7 +10,7 @@ canonical FastAPI surface documented at ``<HINDSIGHT_URL>/openapi.json``:
     GET  /health                                       — liveness
 
 Per [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) the bank_id
-matches the project slug (`consumer-c`, `consumer-d`, `consumer-b`, …) — see
+matches the project slug (`consumer-c`, `acme-corp`, `consumer-b`, …) — see
 [`docs/concepts/env-vars.md`](../docs/concepts/env-vars.md) for the env var contract.
 
 This client is **stdlib-only** (no SDK dep): consumers run it from
@@ -18,7 +18,7 @@ SessionStart hooks where minimising the dep graph matters.
 
 Auth resolution
 ---------------
-The client tries CF Access service auth first (current consumer-d deployment),
+The client tries CF Access service auth first (current acme-corp deployment),
 falls back to bearer token (legacy / future direct-network deploy).
 
     CF_ACCESS_CLIENT_ID + CF_ACCESS_CLIENT_SECRET → CF Access headers
@@ -99,7 +99,7 @@ class HindsightCreds:
         elif self.api_key:
             h["Authorization"] = f"Bearer {self.api_key}"
         # If a deployment requires both layers (CF Access + Bearer to the
-        # upstream API), the caller can extend this dict — for now consumer-d's
+        # upstream API), the caller can extend this dict — for now acme-corp's
         # deployment terminates auth at the CF Access layer.
         return h
 

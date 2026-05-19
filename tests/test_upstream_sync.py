@@ -43,8 +43,8 @@ def tmp_fork(tmp_path: Path) -> Path:
         "## Active patches\n\n"
         "| ID | Title | Branch | Upstream PR | Status | Last rebase | Notes |\n"
         "|---|---|---|---|---|---|---|\n"
-        "| P01 | demo patch | consumer-d/demo | — | staged | 2026-04-23 | — |\n"
-        "| P02 | second patch | consumer-d/second | #42 | submitted | 2026-04-20 | — |\n"
+        "| P01 | demo patch | acme-corp/demo | — | staged | 2026-04-23 | — |\n"
+        "| P02 | second patch | acme-corp/second | #42 | submitted | 2026-04-20 | — |\n"
         "\n"
         "## Merged upstream (archive)\n\n"
         "| ID | Title | Upstream commit | Merged on |\n"
@@ -78,7 +78,7 @@ def _mock_git(monkeypatch: pytest.MonkeyPatch):
         if sub == "for-each-ref":
             return SimpleNamespace(
                 returncode=0,
-                stdout="main\nconsumer-d/demo\nconsumer-d/second\nconsumer-d/orphan\n",
+                stdout="main\nacme-corp/demo\nacme-corp/second\nacme-corp/orphan\n",
                 stderr="",
             )
         return SimpleNamespace(returncode=0, stdout="", stderr="")
@@ -116,16 +116,16 @@ def test_parse_patches_md_extracts_active_rows(tmp_fork: Path) -> None:
     rows = upstream_sync.parse_patches_md(text)
     assert len(rows) == 2
     assert rows[0].id == "P01"
-    assert rows[0].branch == "consumer-d/demo"
+    assert rows[0].branch == "acme-corp/demo"
     assert rows[1].status == "submitted"
 
 
 def test_rewrite_patch_status_updates_only_active_row(tmp_fork: Path) -> None:
     text = (tmp_fork / "PATCHES.md").read_text(encoding="utf-8")
     new_text = upstream_sync.rewrite_patch_status(text, "P01", "merged")
-    assert "| P01 | demo patch | consumer-d/demo | — | merged |" in new_text
+    assert "| P01 | demo patch | acme-corp/demo | — | merged |" in new_text
     # Other row untouched.
-    assert "| P02 | second patch | consumer-d/second | #42 | submitted |" in new_text
+    assert "| P02 | second patch | acme-corp/second | #42 | submitted |" in new_text
 
 
 def test_rewrite_patch_status_raises_on_missing_id(tmp_fork: Path) -> None:
@@ -175,18 +175,18 @@ def test_status_detects_orphan_branch(
     out = capsys.readouterr().out
     assert rc == 0
     assert "orphan_branches" in out
-    assert "consumer-d/orphan" in out
+    assert "acme-corp/orphan" in out
 
 
 def test_status_detects_missing_branch(
     tmp_path: Path, tmp_fork: Path, registry_file: Path,
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    # Override for-each-ref to NOT list consumer-d/second (so it's "missing" from git
+    # Override for-each-ref to NOT list acme-corp/second (so it's "missing" from git
     # but still listed in PATCHES.md).
     def _fake_run(cmd, **kwargs):
         if cmd[1] == "for-each-ref":
-            return SimpleNamespace(returncode=0, stdout="main\nconsumer-d/demo\n", stderr="")
+            return SimpleNamespace(returncode=0, stdout="main\nacme-corp/demo\n", stderr="")
         if cmd[1] == "rev-list":
             return SimpleNamespace(returncode=0, stdout="0\n", stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
@@ -195,7 +195,7 @@ def test_status_detects_missing_branch(
     out = capsys.readouterr().out
     assert rc == 0
     assert "missing_branches" in out
-    assert "consumer-d/second" in out
+    assert "acme-corp/second" in out
 
 
 def test_status_missing_patches_md_errors(
@@ -276,7 +276,7 @@ def test_mark_merged_rewrites_row(registry_file: Path, tmp_fork: Path) -> None:
     ])
     assert rc == 0
     body = (tmp_fork / "PATCHES.md").read_text(encoding="utf-8")
-    assert "| P01 | demo patch | consumer-d/demo | — | merged |" in body
+    assert "| P01 | demo patch | acme-corp/demo | — | merged |" in body
 
 
 def test_mark_merged_unknown_patch_returns_1(registry_file: Path, tmp_fork: Path) -> None:

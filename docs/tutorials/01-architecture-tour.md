@@ -124,7 +124,7 @@ What just happened: the script loaded the YAML manifest, validated every entry a
 
 ## 6. Run the doc-language linter (≤2 min)
 
-Per decision D6, every doc body in `docs/` MUST be English. Spanish belongs in personal notes (`ELIGIA.md`) but never in normative docs that ship to consumers.
+Per decision D6, every doc body in `docs/` MUST be English. Spanish belongs in personal notes (`ACME.md`) but never in normative docs that ship to consumers.
 
 Run the linter:
 

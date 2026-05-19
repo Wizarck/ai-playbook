@@ -389,10 +389,16 @@ def run_discover(target_dir: Path, dry_run: bool) -> None:
 # Next-steps banner
 # ---------------------------------------------------------------------------
 
-
+def print_next_steps(target_dir: Path, project_name: str) -> None:
+    print()
+    print("✅ Bootstrap complete. Next steps:")
+    print(f"   1. cd {target_dir}")
+    print("   2. Fill placeholders in AGENTS.md (§1 identity, §3 active work, §4 rules).")
+    print("   3. Review the rendered .mcp.json + .gemini/settings.json; tweak "
+          "mcp-servers.project.yaml if you need to override base/personal layers.")
+    print("   4. Write your first OpenSpec change: `/opsx:propose <topic>`.")
     print(f"   5. Commit + push the consumer: "
           f"`git add . && git commit -m 'chore: bootstrap {project_name} via ai-playbook' && git push`.")
-
 
 # ---------------------------------------------------------------------------
 # CLI

@@ -49,7 +49,7 @@ def _wire_creds(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_retain_item_to_hindsight_minimal() -> None:
-    item = rl.RetainItem(content="hello world", bank="consumer-d")
+    item = rl.RetainItem(content="hello world", bank="acme-corp")
     out = item.to_hindsight()
     assert out["content"] == "hello world"
     # `kind` defaults to lesson, becomes context + tag
@@ -60,7 +60,7 @@ def test_retain_item_to_hindsight_minimal() -> None:
 def test_retain_item_to_hindsight_full() -> None:
     item = rl.RetainItem(
         content="rotated PAT to fine-grained scope",
-        bank="consumer-d",
+        bank="acme-corp",
         kind="decision",
         project="ai-playbook",
         why="least-privilege",
@@ -101,15 +101,15 @@ def test_cli_single_item_retain_ok(
     _patch_urlopen(monkeypatch, _cap)
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--content", "Test lesson here",
+        ["retain_memory", "--bank", "acme-corp", "--content", "Test lesson here",
          "--why", "Because reasons", "--kind", "decision", "--project", "ai-playbook"],
     )
     rc = rl.main()
     assert rc == 0
     out = capsys.readouterr().out
-    assert "retained 1 item(s) to bank=consumer-d" in out
+    assert "retained 1 item(s) to bank=acme-corp" in out
     assert "100" in out  # token usage echoed
-    assert "/banks/consumer-d/memories" in captured["url"]
+    assert "/banks/acme-corp/memories" in captured["url"]
 
 
 def test_cli_dry_run_does_not_post(
@@ -125,7 +125,7 @@ def test_cli_dry_run_does_not_post(
     _patch_urlopen(monkeypatch, _spy)
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--content", "x" * 50, "--dry-run"],
+        ["retain_memory", "--bank", "acme-corp", "--content", "x" * 50, "--dry-run"],
     )
     rc = rl.main()
     assert rc == 0
@@ -156,7 +156,7 @@ def test_cli_bulk_jsonl(
     _patch_urlopen(monkeypatch, _cap)
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--bulk", str(bulk)],
+        ["retain_memory", "--bank", "acme-corp", "--bulk", str(bulk)],
     )
     rc = rl.main()
     assert rc == 0
@@ -178,7 +178,7 @@ def test_cli_queues_on_unreachable(
     monkeypatch.delenv("HINDSIGHT_URL", raising=False)  # forces HindsightUrlMissing
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--content", "queued lesson"],
+        ["retain_memory", "--bank", "acme-corp", "--content", "queued lesson"],
     )
     rc = rl.main()
     assert rc == 0
@@ -188,7 +188,7 @@ def test_cli_queues_on_unreachable(
     assert queue.is_file()
     rec = json.loads(queue.read_text(encoding="utf-8").strip())
     assert rec["item"]["content"] == "queued lesson"
-    assert rec["bank"] == "consumer-d"
+    assert rec["bank"] == "acme-corp"
 
 
 def test_replay_queue_drains(
@@ -199,7 +199,7 @@ def test_replay_queue_drains(
     queue = tmp_path / ".ai-playbook" / "hindsight-queue.jsonl"
     queue.parent.mkdir(parents=True)
     queue.write_text(
-        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "consumer-d",
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme-corp",
                     "item": {"content": "queued"}}) + "\n" +
         json.dumps({"ts": "2026-04-24T00:01:00", "bank": "other-bank",
                     "item": {"content": "skip me"}}) + "\n",
@@ -209,7 +209,7 @@ def test_replay_queue_drains(
     _patch_urlopen(monkeypatch, lambda req, timeout: _resp(b'{"items_count":1}'))
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_memory", "--bank", "consumer-d", "--replay-queue"],
+        ["retain_memory", "--bank", "acme-corp", "--replay-queue"],
     )
     rc = rl.main()
     assert rc == 0
@@ -219,4 +219,4 @@ def test_replay_queue_drains(
     # The other-bank entry stays in the queue.
     remaining = queue.read_text(encoding="utf-8").strip()
     assert "other-bank" in remaining
-    assert "queued" not in remaining  # the consumer-d entry was drained
+    assert "queued" not in remaining  # the acme-corp entry was drained

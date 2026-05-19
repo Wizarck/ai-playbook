@@ -109,7 +109,7 @@ Each CLI sees the same content via its preferred entry point.
 
 **Why three levels win**:
 
-- Team devs (future) must not see the owner's personal add-on (`ELIGIA.md`).
+- Team devs (future) must not see the owner's personal add-on (`ACME.md`).
 - Projects must stay LLM-agnostic.
 - Personal overrides live at a third layer loaded only when cwd is a personal project — isolation by load-time, not by git.
 - A 2-level setup (universal + project) cannot express "load this only for me" without secrets-in-git.

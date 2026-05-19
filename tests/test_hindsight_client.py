@@ -82,8 +82,8 @@ def test_load_credentials_missing_auth(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_url_builders() -> None:
     creds = hs.HindsightCreds(url="https://h.example", api_key="k")
-    assert hs.recall_url(creds, "consumer-d") == "https://h.example/v1/default/banks/consumer-d/memories/recall"
-    assert hs.retain_url(creds, "consumer-d") == "https://h.example/v1/default/banks/consumer-d/memories"
+    assert hs.recall_url(creds, "acme-corp") == "https://h.example/v1/default/banks/acme-corp/memories/recall"
+    assert hs.retain_url(creds, "acme-corp") == "https://h.example/v1/default/banks/acme-corp/memories"
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ def test_post_recall_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch(monkeypatch, _cap)
     creds = hs.HindsightCreds(url="https://h.example", api_key="k")
-    r = hs.post_recall(creds, "consumer-d", "test query", max_tokens=512)
+    r = hs.post_recall(creds, "acme-corp", "test query", max_tokens=512)
     assert r.ok
     assert r.body == {"results": [{"text": "hi"}]}
     assert "memories/recall" in captured["url"]
@@ -120,10 +120,10 @@ def test_post_retain_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch(monkeypatch, _cap)
     creds = hs.HindsightCreds(url="https://h.example", api_key="k")
-    r = hs.post_retain(creds, "consumer-d", [{"content": "hello"}])
+    r = hs.post_retain(creds, "acme-corp", [{"content": "hello"}])
     assert r.ok
     assert r.body["items_count"] == 1
-    assert captured["url"].endswith("/banks/consumer-d/memories")
+    assert captured["url"].endswith("/banks/acme-corp/memories")
     sent = json.loads(captured["body"].decode("utf-8"))
     assert sent == {"items": [{"content": "hello"}], "async": False}
 
@@ -134,7 +134,7 @@ def test_post_failure_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch(monkeypatch, _boom)
     creds = hs.HindsightCreds(url="https://h.example", api_key="k")
-    r = hs.post_recall(creds, "consumer-d", "q")
+    r = hs.post_recall(creds, "acme-corp", "q")
     assert not r.ok
     assert r.reason == "error:http-500"
     assert r.status == 500
@@ -146,7 +146,7 @@ def test_post_failure_url_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch(monkeypatch, _boom)
     creds = hs.HindsightCreds(url="https://h.example", api_key="k")
-    r = hs.post_retain(creds, "consumer-d", [{"content": "x"}])
+    r = hs.post_retain(creds, "acme-corp", [{"content": "x"}])
     assert not r.ok
     assert r.reason.startswith("degraded:url")
 
@@ -157,7 +157,7 @@ def test_post_failure_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch(monkeypatch, _boom)
     creds = hs.HindsightCreds(url="https://h.example", api_key="k")
-    r = hs.post_recall(creds, "consumer-d", "q")
+    r = hs.post_recall(creds, "acme-corp", "q")
     assert not r.ok
     assert r.reason == "degraded:timeout"
 
@@ -165,6 +165,6 @@ def test_post_failure_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_post_failure_malformed_json(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch(monkeypatch, lambda req, timeout: _resp(b"not-json"))
     creds = hs.HindsightCreds(url="https://h.example", api_key="k")
-    r = hs.post_recall(creds, "consumer-d", "q")
+    r = hs.post_recall(creds, "acme-corp", "q")
     assert not r.ok
     assert r.reason == "error:malformed-json"

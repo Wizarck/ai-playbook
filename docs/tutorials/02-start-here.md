@@ -44,7 +44,7 @@ If you came here to make a change, jump to step 3.
                              ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  Level 3 — Personal add-on (optional)                          │
-│  e.g. eligia-core/ELIGIA.md                                    │
+│  e.g. acme-core/ACME.md                                    │
 │  Loaded conditionally via ~/.ai-playbook/projects.yaml.        │
 └────────────────────────────────────────────────────────────────┘
 ```

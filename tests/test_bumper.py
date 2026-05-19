@@ -75,7 +75,7 @@ schema: agents-md/v1
 version: 0.1.0
 skills_sources:
   - Wizarck/ai-playbook@v0.9.0
-  - Wizarck/consumer-d-skills@v0.3.0
+  - Wizarck/acme-corp-skills@v0.3.0
 updated: 2026-04-30
 ---
 """
@@ -84,7 +84,7 @@ updated: 2026-04-30
     assert changed is True
     out = p.read_text(encoding="utf-8")
     assert "- Wizarck/ai-playbook@v0.9.1" in out
-    assert "- Wizarck/consumer-d-skills@v0.3.0" in out, "non-target source must not be touched"
+    assert "- Wizarck/acme-corp-skills@v0.3.0" in out, "non-target source must not be touched"
 
 
 def test_bump_agents_md_pin_rewrites_both_blocks_in_one_pass(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ inherits_from:
   - github.com/Wizarck/ai-playbook@v0.8.6
 skills_sources:
   - Wizarck/ai-playbook@v0.8.6
-  - Wizarck/consumer-d-skills@v0.3.0
+  - Wizarck/acme-corp-skills@v0.3.0
 updated: 2026-04-30
 ---
 """
@@ -126,7 +126,7 @@ def test_bump_agents_md_pin_not_found_returns_not_found(tmp_path: Path) -> None:
 ---
 schema: agents-md/v1
 inherits_from:
-  - github.com/Wizarck/consumer-d-skills@v0.3.0
+  - github.com/Wizarck/acme-corp-skills@v0.3.0
 ---
 """
     p = _agents_md(src, tmp_path)
@@ -177,7 +177,7 @@ updated: 2026-04-30
         ("chore/bump-playbook-v0.9.0-rc2", True),
         ("chore/bump-playbook-v0.10.5", True),
         ("chore/bump-skills-ai-playbook-v0.9.0", True),
-        ("chore/bump-skills-consumer-d-skills-v0.3.0-rc1", True),
+        ("chore/bump-skills-acme-corp-skills-v0.3.0-rc1", True),
         ("chore/something-else-v1.0.0", False),
         ("feat/persistence-tenant-enforcement", False),
         ("chore/bump-playbook-not-a-version", False),

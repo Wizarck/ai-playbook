@@ -1,7 +1,7 @@
 """upstream_sync.py — local inspection + manual-triage tool for tracked forks.
 
 Populated in T23a. Implements the human-side half of `docs/concepts/upstream-sync.md`.
-The LangGraph `upstream_refresher.py` workflow in consumer-d is the automated
+The LangGraph `upstream_refresher.py` workflow in acme-corp is the automated
 half; this CLI is the read-only / manually-triggered counterpart.
 
 Commands
@@ -306,7 +306,7 @@ def cmd_status(
     # Mismatch A: patches listed but branch missing.
     missing_branches = sorted(b for b in listed_branches if b not in branches)
     # Mismatch B: tenant-prefixed branches that aren't in PATCHES.md.
-    tenant_prefixes = ("consumer-d/", "consumer-b/")
+    tenant_prefixes = ("acme-corp/", "consumer-b/")
     orphan_branches = sorted(
         b for b in branches
         if b.startswith(tenant_prefixes) and b not in listed_branches
