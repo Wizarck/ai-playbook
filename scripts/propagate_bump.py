@@ -455,7 +455,13 @@ def main() -> int:
 
     consumers_path = Path(args.consumers).resolve()
     if not consumers_path.exists():
-        print(f"❌ consumers registry not found at {consumers_path}", file=sys.stderr)
+        print(
+            f"❌ consumers registry not found at {consumers_path}\n"
+            f"   FIX: cp consumers.yaml.example consumers.yaml  (then fill in real data).\n"
+            f"   consumers.yaml is gitignored — your real consumer inventory never\n"
+            f"   enters the repo. consumers.yaml.example is the schema template.",
+            file=sys.stderr,
+        )
         return 1
 
     _configure_git_credentials(token)
