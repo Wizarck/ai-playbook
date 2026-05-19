@@ -69,9 +69,12 @@ Its body explains the rubric in prose, gives preferred / avoided examples, and i
 
 | Rule slug | Condition | Rationale |
 |---|---|---|
-| _(populated as Slice 5.A authors advisory-only rules)_ | _(#1 / #2 / #3)_ | _(one-line justification)_ |
+| `conflict-resolution-policy` | #1 (non-deterministic) | Conflict-tier classification (T1 / T2 / T3 / T4) requires judgment of intent; no Python check distinguishes "overlapping lines with disjoint intent" from "overlapping lines with combinable intent". Reviewer-driven; persistent ad-hoc resolutions surface in the monthly retro. |
+| `parallel-wave-anti-collision` | #1 (non-deterministic) | Wave-N anti-collision contract is enforced socially via the `docs/openspec-slice.md` "Anti-collision contract" section plus reviewer discipline. A grep-style L1 could surface drift but cannot judge whether two slices' touch-lists are genuinely disjoint or only superficially so. |
+| `slice-preflight` | #2 (informational) | Records the preflight checklist any slice must satisfy before the first task commit. The individual checks are already L1-enforced by the underlying skills (apply-skill-enforcement, validate_pairing, openspec_validate); this rule's value is the assembled checklist, not a new enforcement layer. |
+| `parallel-review-verdict-dismissal` | #2 (informational) | Documents the verdict-contract branch for parallel-review aggregation. The verdict literals themselves are paired-hardrule-checked in `verdict-contract.rule.md`; this entry exists for discoverability when triaging a dismissed reviewer verdict. |
 
-Slice 5.A is the first slice that may add entries here. Until then, the table is intentionally empty: the v0.18.0 corpus has no advisory-only rules yet.
+Slice 5.A added the first four entries (one for the existing `conflict-resolution-policy` and three for new advisory rules picked up from `flagged-for-rule-migration.md`).
 
 ## Further reading
 

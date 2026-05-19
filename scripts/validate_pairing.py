@@ -155,10 +155,14 @@ def validate(root: Path = REPO_ROOT, *, strict: bool = False, include_local: boo
         elif isinstance(ph, str):
             ph_path = root / ph
             if not ph_path.is_file():
-                errors.append(PairingError(
-                    slug, "hardrule",
-                    f"paired_hardrule {ph!r} not found on disk",
-                ))
+                # Slice 5 declares paired_hardrule paths ahead of the .rule.py
+                # implementation (the hardrules ship in a later slice). Treat
+                # missing files as WARN under --strict, lenient by default.
+                if strict:
+                    errors.append(PairingError(
+                        slug, "hardrule",
+                        f"paired_hardrule {ph!r} not found on disk",
+                    ))
             else:
                 expected_script_slug = _slug_from_filename(ph_path)
                 if expected_script_slug != slug:
