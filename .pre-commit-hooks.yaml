@@ -1,16 +1,59 @@
 # Pre-commit hooks exported by ai-playbook (as a hook provider).
 #
-# v0.17.0: the `validate-skills-mirror` hook was REMOVED. The single-source
-# materialiser (`scripts/materialise_skills.py`) now performs a fingerprint-
-# equality short-circuit that obsoletes the drift-detection pre-commit gate.
-# Consumers that still list `validate-skills-mirror` in their
-# `.pre-commit-config.yaml` get a Tier 3 advisory entry in
-# `specs/zombies-manifest.yaml` (`validate-skills-mirror-precommit-hook`) on
-# every cleanup run.
+# Consumers reference these via:
 #
-# No active hooks are exported here at this time. Slice 4 (filesystem reorg,
-# v0.18.0) introduces the canonical L1+L2+L3 paired hooks
-# (`validate-pairing`, `check-doc-language`, `check-link-integrity`,
-# `check-agents-md-size`); those will be registered here.
+#   repos:
+#     - repo: https://github.com/Wizarck/ai-playbook
+#       rev: v0.18.0
+#       hooks:
+#         - id: validate-pairing
+#         - id: check-doc-language
+#         - id: check-link-integrity
+#         - id: check-agents-md-size
+#
+# All four hooks were added in v0.18.0 (slice filesystem-reorg-v018) to
+# enforce the L1+L2+L3 paired enforcement convention. They run only on
+# .rule.md / .rule.py / docs/** edits — they are no-ops on unrelated changes.
 
-[]
+- id: validate-pairing
+  name: validate-pairing (rule slug + paired_hardrule cross-reference)
+  description: >-
+    Enforces the 4-signal pairing per D3: filename slug, frontmatter slug,
+    paired_hardrule field, AGENTS.md Rule Map entry. Exit 0 when every rule
+    has all 4 signals consistent; exit 2 on any drift.
+  entry: python -m scripts.validate_pairing
+  language: system
+  files: ^(docs/rules/|scripts/rules/|tests/test_).*$
+  pass_filenames: false
+
+- id: check-doc-language
+  name: check-doc-language (ENGLISH-only docs/ enforcement)
+  description: >-
+    Per D6 — fails when more than 5% of tokens outside code blocks under
+    docs/ are non-English. langdetect-based.
+  entry: python -m scripts.check_doc_language
+  language: system
+  files: ^docs/.*\.md$
+  pass_filenames: true
+
+- id: check-link-integrity
+  name: check-link-integrity (broken markdown links under docs/)
+  description: >-
+    Walks every relative markdown link under docs/ and verifies the target
+    file exists. Exit 0 on clean; exit 2 with file:line on the first dead
+    link.
+  entry: python -m scripts.check_link_integrity
+  language: system
+  files: ^docs/.*\.md$
+  pass_filenames: false
+  args: [docs/]
+
+- id: check-agents-md-size
+  name: check-agents-md-size (D14 — 500-line cap)
+  description: >-
+    Fails CI when AGENTS.md exceeds 500 lines. Forces the situational
+    pointer-list discipline.
+  entry: python -m scripts.check_agents_md_size
+  language: system
+  files: ^AGENTS\.md$
+  pass_filenames: false
