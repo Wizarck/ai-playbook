@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import fnmatch
+import os
 import re
 import subprocess
 import sys
@@ -336,6 +337,33 @@ def _detect_drift(pairs: list[Pair], changed: list[str]) -> list[tuple[Pair, lis
     return drift
 
 
+def _emit_no_doc_impact_telemetry(*, bypassed: list[str]) -> None:
+    """Slice 6 (v0.18.2) — emit one `rule-event/v1` row per bypassed pair.
+
+    Lets `scripts/telemetry/report.py` §6 surface `[no-doc-impact]` usage so
+    abuse (>20% of all events) gets flagged in the monthly report.
+    """
+    try:
+        from scripts.telemetry.rule_event_logger import log_event
+    except Exception:  # noqa: BLE001 — telemetry never breaks the check.
+        return
+    for pair_id in bypassed:
+        try:
+            log_event(
+                slug="doc-drift-enforcement",
+                llm="unknown",
+                verdict="warn",
+                latency_ms=0.0,
+                trigger="DocDrift:no-doc-impact",
+                session_id=os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
+                self_check=False,
+                escape_hatch="[no-doc-impact]",
+                extra={"pair_id": pair_id},
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _escape_hatch_active(pr_title: str | None) -> bool:
     if not pr_title:
         return False
@@ -396,6 +424,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                 f"   Pairs bypassed: {', '.join(p.id for p, _ in drift)}",
                 file=sys.stderr,
             )
+        _emit_no_doc_impact_telemetry(bypassed=[p.id for p, _ in drift])
         return 0
 
     return _emit_drift_block(drift)

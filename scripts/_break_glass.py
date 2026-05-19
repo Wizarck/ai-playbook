@@ -164,8 +164,35 @@ def apply_break_glass(
         f.write(f'{ts} {actor} {script} {gate} "{stripped}"\n')
 
     _emit_override_span(script=script, gate=gate, reason=stripped, actor=actor, ts=ts)
+    _emit_escape_hatch_telemetry(gate=gate, script=script, reason=stripped)
 
     return OverrideResult(applied=True, reason=stripped)
+
+
+def _emit_escape_hatch_telemetry(*, gate: str, script: str, reason: str) -> None:
+    """Emit a `rule-event/v1` row with `escape_hatch` set (Slice 6 telemetry).
+
+    Lets `scripts/telemetry/report.py` surface break-glass usage in §6 of the
+    monthly report. Best-effort — never raises into the caller path.
+    """
+    try:
+        from scripts.telemetry.rule_event_logger import log_event
+    except Exception:  # noqa: BLE001 — telemetry never breaks override path.
+        return
+    try:
+        log_event(
+            slug=gate,
+            llm="unknown",
+            verdict="warn",
+            latency_ms=0.0,
+            trigger=f"BreakGlass:{script}",
+            session_id=os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
+            self_check=False,
+            escape_hatch="--force-with-reason",
+            extra={"reason_length": len(reason)},
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _emit_override_span(
