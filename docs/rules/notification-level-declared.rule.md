@@ -2,9 +2,9 @@
 schema: rule/v1
 slug: notification-level-declared
 description: Every notification emitted by a playbook-driven actor MUST declare one of four levels (`info`, `warn`, `error`, `urgent`); `warn` and `error` notifications MUST carry the emitting OTel `trace_id` so the recipient can jump directly to the trace.
-paired_hardrule: scripts/rules/notification-level-declared.rule.py
+paired_hardrule: null
 activation: auto
-status: enforced
+status: advisory
 applies_to: all
 globs: ["scripts/notifications/*.py", "scripts/notify.py"]
 last_validated: "2026-05-19"
@@ -31,7 +31,7 @@ The notification level routes the payload (channel, rate-limit, page-vs-email). 
 
 ## Process supervision
 
-The hardrule at `scripts/rules/notification-level-declared.rule.py` runs as a pre-commit hook over `scripts/notifications/*.py` and `scripts/notify.py`, jsonschema-validating against the notification-payload schema. Runtime: `notify.send()` validates the payload at entry and refuses to emit on schema breach.
+The rule is currently **advisory** because `scripts/notifications/` is a consumer-side directory — the playbook does not ship the notification adapters or the `notify.send()` runtime; consumers do. Pairing the rule with a playbook-internal hardrule would shadow contract enforcement that belongs in the consumer tree. Consumer projects MAY add a paired hardrule under their own `scripts/rules/` namespace; the playbook tracks the deferral in [../concepts/enforcement-pairing-exceptions.md](../concepts/enforcement-pairing-exceptions.md).
 
 ## Examples
 

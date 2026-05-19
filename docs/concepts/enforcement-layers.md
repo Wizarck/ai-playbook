@@ -27,6 +27,31 @@ The paired-layer model also addresses cross-LLM portability. Claude Code has nat
 
 Every L1 hook is required to have a paired L2 doc (and vice versa); the invariant is enforced by `scripts/validate_pairing.py`. Exceptions — advisory-only rules with `paired_hardrule: null` — are documented in `enforcement-pairing-exceptions.md`.
 
+### Diagram 1 — the L1 / L2 / L3 flow
+
+```mermaid
+flowchart TD
+    Tool["Tool call<br/>(Edit / Write / Bash)"] --> Hook["PreToolUse hook<br/>scripts/hook_dispatcher.py"]
+    Hook -->|matches no rule| Pass1["Tool proceeds"]
+    Hook -->|matches L1 rule| L1["L1 hardrule<br/>scripts/rules/&lt;slug&gt;.rule.py validate"]
+    L1 -->|exit 0| Pass2["Tool proceeds<br/>(rule-event logged)"]
+    L1 -->|exit non-zero| Abort["Tool aborted<br/>structured error<br/>(WHY / WHERE / FIX / OVERRIDE)"]
+    Pass2 --> Self["LLM self-check<br/>via 'Process supervision' block<br/>in docs/rules/&lt;slug&gt;.rule.md (L2)"]
+    Self --> PR["PR opened"]
+    PR --> L3["L3 workflow<br/>.github/workflows/&lt;slug&gt;.rule.yml<br/>runs the same validator on the PR diff"]
+    L3 -->|exit 0| Merge["Merge allowed"]
+    L3 -->|exit non-zero| Block["Merge blocked<br/>(branch protection)"]
+
+    classDef l1 fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef l2 fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef l3 fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef fail fill:#ffebee,stroke:#c62828,color:#b71c1c
+    class L1 l1
+    class Self,L2 l2
+    class L3 l3
+    class Abort,Block fail
+```
+
 ### Same-rubric-two-enforcers protocol
 
 1. The L2 doc declares the rubric in its `## Process supervision` section: "run `scripts/rules/<slug>.rule.py validate`, expect exit 0".
@@ -40,9 +65,63 @@ Outcomes:
 - LLM skips self-check ⇒ L1 PostToolUse catches it.
 - LLM attempts to bypass ⇒ L3 catches it at PR merge.
 
+### Diagram 2 — paired enforcement (one rubric, three enforcers)
+
+```mermaid
+flowchart LR
+    Rubric["Rubric<br/>(one CLI invocation)"]
+    Rubric --> Doc["docs/rules/&lt;slug&gt;.rule.md<br/>L2 — text-form contract<br/>'## Process supervision' block"]
+    Rubric --> Script["scripts/rules/&lt;slug&gt;.rule.py<br/>L1 — executable<br/>validate / apply CLI"]
+    Rubric --> Workflow[".github/workflows/&lt;slug&gt;.rule.yml<br/>L3 — server-side gate<br/>invokes the same CLI"]
+
+    Doc -- "documents" --> Script
+    Workflow -- "invokes" --> Script
+    Script -. "wins on disagreement (D8)" .-> Doc
+
+    Tests["tests/test_&lt;slug&gt;.py<br/>(≥3 fixture cases)"] -- "covers" --> Script
+
+    classDef rubric fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    classDef l1 fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef l2 fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef l3 fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef test fill:#fffde7,stroke:#f9a825,color:#f57f17
+    class Rubric rubric
+    class Script l1
+    class Doc l2
+    class Workflow l3
+    class Tests test
+```
+
 ### Tie-break protocol (D8)
 
 When L1 and L2 disagree, L1 is authoritative. The `.rule.md` doc documents the hook; the hook owns the truth. The validator enforces byte-identical CLI invocation between the doc's `## Process supervision` block and the actual hook entrypoint — drift is treated as a doc bug, not a hook bug.
+
+### Diagram 3 — cross-LLM degradation
+
+Different LLM hosts expose different enforcement surfaces. The playbook compensates by stacking L2 + L3 wherever L1 is unavailable.
+
+```mermaid
+flowchart TB
+    subgraph Claude["Claude Code (full stack)"]
+        C1["L1 — PreToolUse hook<br/>(native)"] --> C2["L2 — AGENTS.md + rule.md<br/>loaded into context"] --> C3["L3 — GitHub Actions"]
+    end
+
+    subgraph Cursor["Cursor (.mdc-based)"]
+        U1["L1 — none<br/>(no PreToolUse equivalent)"] -.-> U2["L2 — .cursor/rules/&lt;slug&gt;.mdc<br/>auto-materialised from rule.md<br/>+ 4-mode activation"] --> U3["L3 — GitHub Actions"]
+    end
+
+    subgraph Gemini["Gemini CLI (minimal)"]
+        G1["L1 — none<br/>(no PreToolUse equivalent)"] -.-> G2["L2 — gemini_start.py injects<br/>always-loaded rules into context"] --> G3["L3 — GitHub Actions"]
+    end
+
+    classDef have fill:#e8f5e9,stroke:#2e7d32
+    classDef lack fill:#ffebee,stroke:#c62828,stroke-dasharray: 5 5
+    classDef ok fill:#e3f2fd,stroke:#1565c0
+    class C1,C2,C3,U2,U3,G2,G3 have
+    class U1,G1 lack
+```
+
+Cursor and Gemini lose L1 but retain L2 + L3 — the floor stays intact. The cost is latency: a violating commit that would have been caught at edit time under Claude is now caught at PR merge time. The trade-off is documented in `cross-llm-activation.md`.
 
 ## How it relates to other concepts
 
@@ -50,6 +129,8 @@ When L1 and L2 disagree, L1 is authoritative. The `.rule.md` doc documents the h
 - Per-LLM behaviour of the L2 layer (Cursor 4-mode activation, Gemini degradation) is documented in `cross-llm-activation.md`.
 - The slug regex that binds the four artefacts (`.rule.py` / `.rule.md` / test / `.rule.yml`) at a single name is documented in `taxonomy.md` under "slug".
 - Current enforcement status across the rule corpus is tracked in `enforcement-status.md`.
+- Per-rule trigger / binding clause / workflow / live obey-rate is tabulated in `rule-use-cases-matrix.md`.
+- Academic grounding for the paired-enforcement model lives in `academic-foundations.md`.
 
 ## Concrete example
 
@@ -73,5 +154,5 @@ The byte-identical invocation in the doc's `## Process supervision` block is `py
 ## Further reading
 
 - D8 (L1 authoritative on disagreement) — see the Slice-5 plan decisions doc.
-- IBM Neuro-Symbolic AI patterns for paired symbolic + neural enforcement (arXiv 2305.20050).
+- IBM Neuro-Symbolic AI patterns for paired symbolic + neural enforcement (see `academic-foundations.md`).
 - OWASP LLM Top 10 — LLM01 prompt-injection countermeasures rely on L2 sandwich-defence + L3 server gates.

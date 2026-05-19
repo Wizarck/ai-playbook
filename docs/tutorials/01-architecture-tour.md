@@ -84,16 +84,16 @@ If you see `ModuleNotFoundError` in any later step, this is the line that failed
 
 ## 4. Run the test suite (≤2 min)
 
-The playbook ships ~920 tests. They run in under a minute on a modern laptop:
+The playbook ships ~1000 tests as of v0.18.3. They run in under a minute on a modern laptop:
 
 ```bash
 python -m pytest tests/ -q
 ```
 
-Expected tail of output:
+Expected tail of output (numbers move slice over slice):
 
 ```
-918 passed, 2 skipped in 19.30s
+~1080 passed, 2 skipped in 25.00s
 ```
 
 The 2 skipped tests are end-to-end integration tests that require remote services (`AIPLAYBOOK_E2E=1`, Hindsight URL, Cloudflare Access tokens). They are designed to skip in local environments; that is correct.
@@ -190,7 +190,19 @@ If you ever see a cap violation, the fix is to extract long sections to `docs/co
 
 ---
 
-## 9. What's next
+## 9. What you can build next
+
+You have run four validators against the playbook itself. The same APIs power consumer tooling. Five small projects you can take from here to internalise the L1 / L2 / L3 model:
+
+- **Modify a real rule + watch CI catch you.** Edit `docs/rules/verdict-contract.rule.md` so its body contradicts its frontmatter (e.g. set `paired_hardrule: null` in the frontmatter but leave the binding clause that says "the hardrule…"). Re-run `python scripts/validate_pairing.py`. The validator should refuse — and that refusal is the L1 layer working as designed.
+- **Generate a telemetry report on your own session.** Run `python -m scripts.telemetry.report monthly` after a real Claude Code session. The report exits 0 even with zero events on a fresh clone; the markdown output documents the empty state and points you at the event log location.
+- **Add a new concept doc.** Pick a small idea you encountered in this tour (e.g. "what makes a rule advisory vs enforced") and author `docs/concepts/<your-slug>.md` against the [STYLE.md](../concepts/STYLE.md) exemplar. Run `python scripts/check_doc_language.py docs/<your-slug>.md` and `mkdocs build --strict` — both should be green before you propose a PR.
+- **Wire a Cursor mirror.** Run `python scripts/materialise_cursor_rules.py` and inspect `.cursor/rules/` — every `docs/rules/<slug>.rule.md` materialises as a `.cursor/rules/<slug>.mdc` with Cursor's 4-mode activation field set from the frontmatter `activation:`.
+- **Add a smoke test for one of your own scripts.** Pick any script under `scripts/` that does not yet have a `tests/test_<name>.py`. Author 3 fixture cases. Run them. The fast-feedback loop (under 1 second per test) is the playbook's preferred dev cycle.
+
+The full breakdown of every rule's L1 / L2 / L3 surface lives in [rule-use-cases-matrix.md](../concepts/rule-use-cases-matrix.md). The academic grounding for the layered model lives in [academic-foundations.md](../concepts/academic-foundations.md).
+
+## 10. What's next
 
 You now have:
 

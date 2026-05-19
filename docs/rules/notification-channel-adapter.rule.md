@@ -2,9 +2,9 @@
 schema: rule/v1
 slug: notification-channel-adapter
 description: Notification channel adapters live under `scripts/notifications/<name>.py` and MUST export `send(payload) -> SendResult`, `healthcheck() -> bool`, `name() -> str`; adapters MUST fail open — a broken channel never blocks the emit, it logs to the fallback channel and returns a non-fatal SendResult.
-paired_hardrule: scripts/rules/notification-channel-adapter.rule.py
+paired_hardrule: null
 activation: auto
-status: enforced
+status: advisory
 applies_to: all
 globs: ["scripts/notifications/*.py"]
 last_validated: "2026-05-19"
@@ -31,7 +31,7 @@ YOU MUST author every channel adapter so it (1) lives under `scripts/notificatio
 
 ## Process supervision
 
-The hardrule at `scripts/rules/notification-channel-adapter.rule.py` validates every adapter module via AST: required functions present, signatures match, no `raise` outside helper functions, no `secrets_scan` import. Run on pre-commit; fails the commit on missing exports.
+The rule is **advisory** in the playbook tree because `scripts/notifications/` does not exist upstream — channel adapters live in each consumer's repo (Slack / PagerDuty / SMTP / etc. wiring is consumer-specific). Consumers MAY add a paired hardrule under their own `scripts/rules/` namespace that AST-validates their adapter contract; the playbook tracks the deferral in [../concepts/enforcement-pairing-exceptions.md](../concepts/enforcement-pairing-exceptions.md).
 
 ## Examples
 

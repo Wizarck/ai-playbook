@@ -1,9 +1,9 @@
 site_name: "ai-playbook"
-site_description: "Universal AI-dev norms, specs, scripts, and templates for Wizarck org projects."
+site_description: "L1/L2/L3 paired-enforcement playbook for LLM-driven development — Claude / Gemini / Cursor portable, Diátaxis-inspired."
 site_url: "https://wizarck.github.io/ai-playbook/"
 repo_url: "https://github.com/Wizarck/ai-playbook"
 repo_name: "Wizarck/ai-playbook"
-edit_uri: "edit/master/docs/"
+edit_uri: "edit/main/docs/"
 
 # Dogfood the existing docs/ tree instead of duplicating content under a separate docs_dir.
 docs_dir: docs
@@ -11,17 +11,33 @@ docs_dir: docs
 theme:
   name: material
   palette:
-    - scheme: slate
+    # Light mode (default).
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: indigo
       accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode.
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.tabs
-    - navigation.sections
+    - navigation.expand
     - navigation.top
+    - navigation.indexes
     - toc.integrate
     - content.code.copy
+    - content.code.annotate
     - search.suggest
     - search.highlight
+    - search.share
   icon:
     repo: fontawesome/brands/github
 
@@ -30,7 +46,11 @@ markdown_extensions:
   - attr_list
   - md_in_html
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - toc:
@@ -39,39 +59,66 @@ markdown_extensions:
 plugins:
   - search
 
+# Many docs intentionally link to siblings outside docs_dir (scripts/, schemas/, .github/).
+# mkdocs cannot resolve those, but the playbook's own check_link_integrity.py validates
+# them on the actual filesystem. Soften link validation so --strict does not fail on
+# expected cross-tree references.
+validation:
+  nav:
+    omitted_files: info
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: ignore
+    absolute_links: ignore
+    unrecognized_links: ignore
+    anchors: warn
+
 nav:
   - Home: index.md
-  - Start here: start-here.md
+  - Tutorials:
+      - Index: tutorials/INDEX.md
+      - "01 — Architecture tour": tutorials/01-architecture-tour.md
+      - "02 — Start here": tutorials/02-start-here.md
+      - "03 — Quickstart": tutorials/03-quickstart.md
+      - "04 — Bootstrap new project": tutorials/04-bootstrap-new-project.md
+      - "05 — Quickstart lessons": tutorials/05-quickstart-lessons.md
+      - "06 — Curriculum": tutorials/06-curriculum.md
+      - "07 — Why these choices": tutorials/07-why-these-choices.md
+      - "08 — Fork inventory": tutorials/08-fork-inventory.md
+  - Concepts:
+      - Index: concepts/INDEX.md
+      - Enforcement layers: concepts/enforcement-layers.md
+      - Cross-LLM activation: concepts/cross-llm-activation.md
+      - Rule use-cases matrix: concepts/rule-use-cases-matrix.md
+      - Academic foundations: concepts/academic-foundations.md
+      - Taxonomy: concepts/taxonomy.md
+      - Style: concepts/STYLE.md
+      - Telemetry design: concepts/telemetry-design.md
+      - Dispatcher chain: concepts/dispatcher-chain.md
+      - Development flow: concepts/development-flow.md
+      - Architecture diagrams: concepts/architecture-diagrams.md
+      - Agent contract: concepts/agent-contract.md
+      - Agent telemetry: concepts/agent-telemetry.md
+      - Agentic failures: concepts/agentic-failures.md
+      - Enforcement pairing exceptions: concepts/enforcement-pairing-exceptions.md
+      - Enforcement status: concepts/enforcement-status.md
+  - Rules:
+      - Index: rules/INDEX.md
+      - Verdict contract: rules/verdict-contract.rule.md
+      - Bootstrap directive: rules/bootstrap-directive.rule.md
+      - Break-glass: rules/break-glass.rule.md
+      - Cleanup zombies: rules/cleanup-zombies.rule.md
+      - Error message standard: rules/error-message-standard.rule.md
+      - Output completeness: rules/output-completeness.rule.md
+      - Verification before completion: rules/verification-before-completion.rule.md
+      - Apply skill enforcement: rules/apply-skill-enforcement.rule.md
+  - Runbooks:
+      - Index: runbooks/INDEX.md
+      - Release: runbooks/release.md
+      - Rotate secrets: runbooks/rotate-secrets.md
+      - Onboard new project: runbooks/onboard-new-project.md
+      - Run telemetry report: runbooks/run-telemetry-report.md
+      - Windows dev environment: runbooks/windows-dev-environment.md
+      - Docs build + deploy: runbooks/docs-build-deploy.md
   - Telemetry: telemetry.md
-  - Onboarding:
-      - Quickstart: quickstart.md
-      - Quickstart lessons: quickstart-lessons.md
-      - SessionStart hook: session-start-hook.md
-      - Contributing: contributing.md
-  - Architecture:
-      - Diagrams: architecture-diagrams.md
-      - Bootstrap new project: bootstrap-new-project.md
-      - Why these choices: why-these-choices.md
-      - Model migration: model-migration.md
-  - Specs:
-      - Index: ../specs/INDEX.md
-      - Agent contract: ../docs/concepts/agent-contract.md
-      - Agentic failures: ../docs/concepts/agentic-failures.md
-      - Bootstrap directive: ../docs/rules/bootstrap-directive.rule.md
-      - Break-glass: ../docs/rules/break-glass.rule.md
-      - Degradation modes: ../docs/concepts/degradation-modes.md
-      - Dispatcher chain: ../docs/concepts/dispatcher-chain.md
-      - Env vars: ../docs/concepts/env-vars.md
-      - Error message standard: ../docs/rules/error-message-standard.rule.md
-      - MCP servers schema: ../docs/concepts/mcp-servers-schema.md
-      - Memory hierarchy: ../docs/concepts/memory-hierarchy.md
-      - Migration guide: ../docs/concepts/migration-guide.md
-      - Model routing: ../docs/concepts/model-routing.md
-      - Notification policy: ../docs/concepts/notification-policy.md
-      - Parallel review: ../docs/concepts/parallel-review.md
-      - Projects registry: ../docs/concepts/projects-registry.md
-      - Prompt caching: ../docs/concepts/prompt-caching.md
-      - Retrospective cadence: ../docs/concepts/retrospective-cadence.md
-      - Runbook (BMAD + OpenSpec): ../docs/concepts/runbook-bmad-openspec.md
-      - Taxonomy: ../docs/concepts/taxonomy.md
-      - Verdict contract: ../docs/rules/verdict-contract.rule.md
