@@ -95,15 +95,24 @@ def test_main_exits_zero_on_clean(tmp_path: Path) -> None:
     assert code == 0
 
 
-def test_main_exits_two_on_dead_strict(tmp_path: Path) -> None:
+def test_main_exits_two_on_dead_default_strict(tmp_path: Path) -> None:
+    """Default mode is strict since Slice 5.F (v0.18.1)."""
+    (tmp_path / "src.md").write_text("[dead](missing.md)\n", encoding="utf-8")
+    code = cli.main([str(tmp_path), "--quiet"])
+    assert code == 2
+
+
+def test_main_exits_two_on_dead_strict_flag_kept_for_compat(tmp_path: Path) -> None:
+    """`--strict` flag is now a no-op (default is strict) but still accepted."""
     (tmp_path / "src.md").write_text("[dead](missing.md)\n", encoding="utf-8")
     code = cli.main([str(tmp_path), "--quiet", "--strict"])
     assert code == 2
 
 
-def test_main_exits_zero_on_dead_non_strict(tmp_path: Path) -> None:
+def test_main_exits_zero_on_dead_warn_only(tmp_path: Path) -> None:
+    """`--warn-only` is the legacy lenient mode; exits 0 on dead links."""
     (tmp_path / "src.md").write_text("[dead](missing.md)\n", encoding="utf-8")
-    code = cli.main([str(tmp_path), "--quiet"])
+    code = cli.main([str(tmp_path), "--quiet", "--warn-only"])
     assert code == 0
 
 
