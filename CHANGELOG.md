@@ -11,6 +11,41 @@ All notable changes to `ai-playbook` are documented here. Semver.
 - **v0.20.0 (final cut)**: visible milestone PR; tagged only on explicit
   user approval.
 
+## [0.19.2] — 2026-05-19 — MCP tenant-specific decoupling (post-flip cleanup)
+
+Fixes two latent issues from the v0.18.x public-flip that surfaced when
+bumping a real consumer (geeplo) to v0.19.x:
+
+### Changed
+
+- **`templates/rendered/mcp-servers-base.yaml.tmpl`**: removed the `rag`
+  server entry. Its `command: "python -m consumer-d.rag"` was a redacted
+  literal that never matched any real consumer install. The base layer is
+  now reserved for servers whose every field is parametric; tenant-specific
+  `command` / `endpoint` values belong in the project or personal layer.
+- **`scripts/mcp/validate.py::resolve_personal_file()`**: removed the
+  legacy `~/Projects/consumer-d/mcp-servers.yaml` + `C:/Projects/consumer-d/
+  mcp-servers.yaml` fallback paths. They were a pre-flip maintainer
+  convenience that only resolved against a redacted name no longer matching
+  any real local checkout. The resolver now walks: explicit `--personal-file`
+  arg → `$AIPLAYBOOK_PERSONAL_MCP_FILE` → `~/.config/mcp-servers.yaml`.
+  Maintainers whose personal layer lives elsewhere must export the env var
+  in their shell profile.
+- **`docs/concepts/mcp-servers-schema.md`** §3.1 "Tenant-specific servers"
+  added — documents the rule that any server whose `command` or `endpoint`
+  carries a tenant-specific literal belongs in the project or personal
+  layer, never in `base`.
+
+### Migration
+
+- **Consumers that relied on the `rag` server**: add the entry to your own
+  `mcp-servers.project.yaml` with the actual command for your stack, e.g.
+  `command: "python -m myorg.rag"`.
+- **Maintainers whose personal layer lives in a non-XDG location** (e.g.
+  `C:/Projects/<your-real-stack>/mcp-servers.yaml`): set
+  `AIPLAYBOOK_PERSONAL_MCP_FILE=<absolute-path>` in your shell profile.
+  Otherwise the personal layer will be silently skipped.
+
 ## [0.19.1] — 2026-05-19 — telemetry wiring + retroactive v0.18.0 + archive cleanup + mkdocs nav
 
 Closes the four secondary audit items called out in CHANGELOG v0.18.3

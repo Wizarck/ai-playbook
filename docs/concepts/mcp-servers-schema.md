@@ -25,7 +25,7 @@ recipe.
 |---|---|---|---|---|
 | 1 | **Base** | `ai-playbook/mcp-servers-base.yaml` | This repo. Templates for well-known servers. | Yes — public. |
 | 2 | **Project** | `<consumer>/mcp-servers.yaml` | Each consumer. Project-specific servers or per-project tuning. | Yes — consumer repo. |
-| 3 | **Personal** | `$AIPLAYBOOK_PERSONAL_MCP_FILE`, else `~/.config/mcp-servers.yaml`, else `<HOME>/Projects/consumer-d/mcp-servers.yaml` (legacy). | Individual developer. OAuth tokens, tenant-specific credentials. | **No** — gitignored. |
+| 3 | **Personal** | `$AIPLAYBOOK_PERSONAL_MCP_FILE`, else `~/.config/mcp-servers.yaml` (XDG). | Individual developer. OAuth tokens, tenant-specific credentials. | **No** — gitignored. |
 
 Every layer uses the same v1 schema (`schema: mcp-servers/v1`). The only
 difference is the `layer:` field (`base` | `project` | `personal`) which the
@@ -88,6 +88,30 @@ Field rules:
 | `scope` | yes | `personal` only allowed in personal layer. `project` scope declares the server is meaningful only inside the project layer. `universal` means the template is reusable. |
 | `capabilities_hint` | no | Free-form short tokens. Used by the router/health checks and dashboards, not by MCP itself. |
 
+## 3.1 Tenant-specific servers (rag, local RAG, helm-launched stdio commands)
+
+Some servers expose a `command` field whose value embeds a tenant-specific
+Python module, npm package, or filesystem path — e.g. `python -m
+<your-org>.rag` for a local-vault RAG server, or `npx @<your-org>/<server>`
+for a private MCP. Those values are NOT safe to encode in the public
+`mcp-servers-base.yaml.tmpl` (the v0.18.x public-flip would either redact
+them to a placeholder that no longer matches the real local install, or
+leak the real org name through git history).
+
+**Rule**: if a server's `command` or `endpoint` depends on a tenant-specific
+literal that the playbook cannot know in advance, declare the entry in
+the **project layer** (committed to the consumer's own repo) or the
+**personal layer** (gitignored, per-dev). The base layer is reserved for
+servers whose every field is parametric (env vars, null commands, well-known
+public endpoints).
+
+The pre-v0.19.2 base template carried a `rag` entry with
+`command: "python -m consumer-d.rag"`. That literal was redacted from the
+real upstream value during the public-flip and no longer worked on any
+real consumer. The entry was moved out of the base in v0.19.2; consumers
+that ship a local RAG server now declare it in their own
+`mcp-servers.project.yaml` with the actual command for their stack.
+
 ## 4. `skills-registry` server — deep-dive
 
 The `skills-registry` entry deserves special call-out because its auth and
@@ -117,7 +141,7 @@ Layer-specific overrides:
   `endpoint` to the production URL and leave `auth: none` if only
   `scope=public` skills are consumed. `env.required` may add
   `SKILLS_REGISTRY_API_KEY` if the project needs `scope=<project-slug>` entries.
-- **Personal layer (e.g. `consumer-d/mcp-servers.yaml`)**: upgrades `auth` to
+- **Personal layer (e.g. `~/.config/mcp-servers.yaml`)**: upgrades `auth` to
   `bearer` and adds `SKILLS_REGISTRY_API_KEY` to `env.required` because the
   personal layer queries `scope=personal` entries.
 

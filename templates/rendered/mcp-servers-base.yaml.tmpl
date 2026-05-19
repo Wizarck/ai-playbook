@@ -135,15 +135,9 @@ servers:
     scope: universal
     capabilities_hint: [crm-contact, crm-company, crm-deal]
 
-  rag:
-    id: rag
-    description: Local vault + codebase RAG search (Obsidian vault + project source).
-    transport: stdio
-    endpoint: null
-    command: "python -m consumer-d.rag"
-    env:
-      required: [RAG_VAULT_PATH]
-      optional: [RAG_INDEX_PATH, RAG_TOP_K]
-    auth: none
-    scope: universal
-    capabilities_hint: [vault-search, code-search, semantic-search]
+  # NOTE (v0.19.2): the `rag` server was removed from the base layer because
+  # its `command` field is tenant-specific (e.g. `python -m <real-module>.rag`)
+  # and can't be safely encoded in a public template. If your stack ships a
+  # local-vault RAG server, declare it in your `mcp-servers.project.yaml` (the
+  # project layer) — see docs/concepts/mcp-servers-schema.md "Tenant-specific
+  # servers" section for the canonical shape.
