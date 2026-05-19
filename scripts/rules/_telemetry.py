@@ -35,11 +35,14 @@ Public API: ``cli_emit(slug, main_fn, argv=None)``.
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections.abc import Callable
 
 __all__ = ["cli_emit", "verdict_from_rc"]
+
+_logger = logging.getLogger(__name__)
 
 
 def verdict_from_rc(rc: int) -> str:
@@ -82,6 +85,6 @@ def cli_emit(
             self_check=False,
         )
     except Exception:  # noqa: BLE001 — telemetry must never break the rule
-        pass
+        _logger.warning("cli_emit(%r) telemetry drop", slug, exc_info=True)
 
     return rc

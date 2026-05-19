@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
@@ -62,6 +63,8 @@ except ImportError:  # pragma: no cover - dep bootstrap
     print("   OVERRIDE: none", file=sys.stderr)
     raise SystemExit(2) from None
 
+
+_logger = logging.getLogger(__name__)
 
 SCHEMA = "mcp-servers/v1"
 LAYER_BASE = "base"
@@ -224,6 +227,14 @@ def resolve_personal_file(explicit: Path | None) -> Path | None:
     xdg = Path.home() / ".config" / "mcp-servers.yaml"
     if xdg.is_file():
         return xdg.resolve()
+    _logger.warning(
+        "personal MCP layer not found; searched: --personal-file, "
+        "$AIPLAYBOOK_PERSONAL_MCP_FILE, %s. Set "
+        "$AIPLAYBOOK_PERSONAL_MCP_FILE in your shell profile if your "
+        "personal layer lives elsewhere. Render will proceed with "
+        "base + project layers only.",
+        xdg,
+    )
     return None
 
 

@@ -101,6 +101,17 @@ Semantics:
 - The override writes a `break-glass.md`-compliant audit entry, and the retrospective (T14i) lists every force event in its window.
 - Forcing a model that is **completely unreachable** (hard DNS failure, 401, etc.) still fails — break-glass overrides policy, not physics.
 
+## 8. Reconciling `DEGRADED_CONTEXT` writes
+
+When Hindsight is unreachable, `scripts/retain_memory.py` appends each retain to `<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored) and exits 0 — fail-open. The queue is drained back into Hindsight by **opportunistic triggers** rather than a daemon:
+
+1. **On the next successful `retain_memory.py` POST** for the same bank — the just-completed POST is proof Hindsight is reachable right now. The helper `try_opportunistic_drain(consumer_root, bank)` is invoked from the success path; it best-effort drains the queue and emits a one-line stderr notice (`📤 opportunistically drained N previously queued item(s)`). Any failure during drain is swallowed silently so the primary retain is never blocked.
+2. **On the next successful `inject_context.py` recall** during a `SessionStart` hook fire — same helper, same swallow-all error policy. Stderr notice: `📤 SessionStart drain: replayed N queued item(s) to bank <X>`.
+
+This means a developer never has to remember to run `--replay-queue` manually unless the queue is sitting idle (no retains and no Claude Code session in between Hindsight returning and "now"). The manual `--replay-queue` flag continues to work identically; it is the escape hatch, not the primary path.
+
+The drain helper filters by bank — items for other banks remain queued until that bank's own retain or session start fires. This keeps multi-project developers safe when only one of N Hindsight banks is reachable.
+
 ## See also
 
 - [model-routing.md](model-routing.md) — the fallback chains this state machine composes with.
