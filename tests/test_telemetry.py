@@ -21,9 +21,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts.telemetry import rule_event_logger as rel
 from scripts.telemetry import report as rpt
-
+from scripts.telemetry import rule_event_logger as rel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PRICING_YAML = REPO_ROOT / "configs" / "pricing.yaml"
@@ -95,7 +94,8 @@ def test_rotate_if_stale_archives_old_log(tmp_path: Path) -> None:
     log = tmp_path / rel.EVENTS_FILENAME
     log.write_text("old\n", encoding="utf-8")
     # Backdate mtime by 10 days.
-    import os, time
+    import os
+    import time
     backdate = time.time() - 10 * 86400
     os.utime(log, (backdate, backdate))
     arc = rel.rotate_if_stale(tmp_path, retain_days=7)
@@ -145,9 +145,22 @@ def test_report_custom_requires_window_days(capsys) -> None:
     assert "window-days" in err.lower()
 
 
-def test_report_custom_with_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+def test_report_custom_with_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
     monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path))
-    rc = rpt.main(["custom", "--window-days", "14", "--json", "--state-dir", str(tmp_path), "--openspec-dir", str(tmp_path / "x")])
+    rc = rpt.main(
+        [
+            "custom",
+            "--window-days",
+            "14",
+            "--json",
+            "--state-dir",
+            str(tmp_path),
+            "--openspec-dir",
+            str(tmp_path / "x"),
+        ]
+    )
     out = capsys.readouterr().out
     assert rc == 0
     data = json.loads(out)

@@ -38,10 +38,11 @@ import json
 import os
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 try:
     import yaml  # type: ignore[import-untyped]
@@ -372,10 +373,7 @@ def check_retirement_window(
         if not model_id or not ret_raw:
             continue
         try:
-            if isinstance(ret_raw, date):
-                ret_date = ret_raw
-            else:
-                ret_date = date.fromisoformat(str(ret_raw))
+            ret_date = ret_raw if isinstance(ret_raw, date) else date.fromisoformat(str(ret_raw))
         except ValueError:
             continue
         days_remaining = (ret_date - today).days

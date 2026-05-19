@@ -22,7 +22,6 @@ from scripts.telemetry import rule_event_logger as rel
 from scripts.telemetry.anonymize import hash_session_id, scrub_event
 from scripts.telemetry.report import load_pricing
 
-
 SESSION_ID_RAW = "session-abc-123-DO-NOT-LEAK"
 
 
