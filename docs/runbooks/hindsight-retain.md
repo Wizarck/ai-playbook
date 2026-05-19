@@ -98,7 +98,17 @@ Skip retain when the content is already trivially recoverable from `git log`, `g
 
 ### Symptom: `degraded:retain_failed` or network error
 **Cause**: `HINDSIGHT_URL` unset OR Hindsight unreachable. The script appended the item to `<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored) and exited 0.
-**Fix**: when Hindsight returns, drain the queue:
+**Fix**: in most cases you don't need to do anything — the queue drains automatically:
+
+- **On next successful `retain_memory.py` run**: after a POST returns ok, any
+  queued items for the same bank are drained opportunistically. You'll see
+  `📤 opportunistically drained N previously queued item(s)` on stderr.
+- **On the next `SessionStart` hook fire** (i.e. when you open Claude Code):
+  after a successful recall, the queue is drained the same way. You'll see
+  `📤 SessionStart drain: replayed N queued item(s)` on stderr.
+
+If you want to force a manual drain (e.g. you have queued items but won't
+retain/open a session for a while):
 ```bash
 sops exec-env ../consumer-d/secrets/secrets.env -- \
   python .ai-playbook/scripts/retain_memory.py --bank consumer-d --replay-queue

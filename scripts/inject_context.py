@@ -436,6 +436,21 @@ def main(argv: list[str] | None = None) -> int:
         timeout=args.timeout,
     )
 
+    # Opportunistic queue drain: a successful recall is proof Hindsight is reachable
+    # right now, so flush any retains queued during a prior degraded session.
+    if result.ok:
+        try:
+            from scripts.retain_memory import try_opportunistic_drain
+            drained, _kept = try_opportunistic_drain(consumer_root, bank_id)
+            if drained:
+                print(
+                    f"📤 SessionStart drain: replayed {drained} queued item(s) "
+                    f"to bank `{bank_id}`.",
+                    file=sys.stderr,
+                )
+        except Exception:  # noqa: BLE001 — never block SessionStart on drain failure.
+            pass
+
     # Sanitise every entry's text in-place before rendering.
     sanitiser_active = False
     if result.ok:

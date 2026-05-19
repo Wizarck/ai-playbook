@@ -326,6 +326,67 @@ def test_main_degraded_hindsight_still_exits_0(
     assert "DEGRADED_CONTEXT" in body
 
 
+def test_main_successful_recall_drains_queue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """SessionStart hook: successful recall opportunistically drains the queue."""
+    monkeypatch.setenv("HINDSIGHT_URL", "https://h.example/")
+    monkeypatch.setenv("HINDSIGHT_API_KEY", "test-key")
+    consumer = _write_consumer(tmp_path, project="acme")
+
+    # Seed the queue with an item targeting the same bank (project slug = bank_id).
+    queue = consumer / ".ai-playbook" / "hindsight-queue.jsonl"
+    queue.parent.mkdir(parents=True)
+    queue.write_text(
+        json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme",
+                    "item": {"content": "previously queued lesson"}}) + "\n",
+        encoding="utf-8",
+    )
+
+    # urlopen handles BOTH POST /recall (returns entries) AND POST /retain (success).
+    def _route(req, timeout):  # noqa: ANN001
+        url = req.full_url
+        if url.endswith("/recall"):
+            return _fake_response(json.dumps(
+                {"results": [{"type": "lesson", "text": "recalled"}]}
+            ).encode("utf-8"))
+        return _fake_response(b'{"success":true,"items_count":1}')
+
+    _patch_urlopen(monkeypatch, _route)
+    rc = ic.main(["--consumer-root", str(consumer)])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "SessionStart drain: replayed 1 queued item(s)" in err
+    # Queue is now empty.
+    assert queue.read_text(encoding="utf-8") == ""
+
+
+def test_main_degraded_recall_does_not_drain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """If recall fails, opportunistic drain does NOT fire — queue is preserved."""
+    monkeypatch.setenv("HINDSIGHT_URL", "https://h.example/")
+    monkeypatch.setenv("HINDSIGHT_API_KEY", "test-key")
+    consumer = _write_consumer(tmp_path, project="acme")
+
+    queue = consumer / ".ai-playbook" / "hindsight-queue.jsonl"
+    queue.parent.mkdir(parents=True)
+    original = (json.dumps({"ts": "2026-04-24T00:00:00", "bank": "acme",
+                            "item": {"content": "untouched"}}) + "\n")
+    queue.write_text(original, encoding="utf-8")
+
+    def _boom(*a, **kw):
+        raise urlerror.URLError("unreachable")
+
+    _patch_urlopen(monkeypatch, _boom)
+    rc = ic.main(["--consumer-root", str(consumer)])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "SessionStart drain" not in err
+    # Queue is preserved bit-for-bit.
+    assert queue.read_text(encoding="utf-8") == original
+
+
 def test_main_bank_id_override_used(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
