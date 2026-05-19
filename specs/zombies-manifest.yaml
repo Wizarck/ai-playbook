@@ -1,0 +1,180 @@
+# zombies-manifest.yaml — declarative inventory of consumer-side fossils
+#
+# Shipped with the ai-playbook submodule and consumed by
+# `scripts/cleanup_zombies.py` on consumer-side `git pull` / `git checkout`.
+#
+# Contract: `specs/cleanup-zombies.md`. Schema: §2. Tier semantics: §3.
+# Safety checks: §4.
+#
+# Rolling document. When a playbook release REMOVES or RENAMES any
+# consumer-surface artefact (file the bootstrap script propagated, a
+# frontmatter field, a literal name a consumer wired against), the release
+# PR MUST append an entry here AND bump `manifest_version`. See
+# `runbooks/release.md` pre-cut checklist.
+#
+# DO NOT add entries for:
+#   - Files removed from the playbook root that the consumer never received
+#     (e.g. an internal workflow not in `templates/new-project/`).
+#   - Files that still exist as templates (consumers still expect them).
+#   - Operational scratch in `tmp/` / `__pycache__/` / `.ruff_cache/`
+#     (not playbook-driven).
+
+version: 1
+manifest_version: "2026-05-19.1"
+
+entries:
+  # -------------------------------------------------------------------------
+  # Tier 1 — safe-delete (auto-removed by `cleanup_zombies.py --apply`)
+  # -------------------------------------------------------------------------
+
+  - id: skills-sources-submodule
+    tier: 1
+    action: delete
+    safety: check_gitmodules_first
+    path: .skills-sources
+    introduced_in: v0.4.0
+    removed_in: deprecation_only   # consumers may still opt into multi-source
+    reason: >
+      RFC-0001 multi-source pattern. When a consumer simplifies to single-source
+      (per consumer-a §7.6 / 2026-05-18), the `.skills-sources/` directory is
+      deregistered from `.gitmodules` but the directory often lingers.
+    evidence: github.com/consumer-a/consumer-a/pull/125
+
+  - id: skills-sources-git-modules-orphan
+    tier: 1
+    action: delete
+    safety: directory_orphan
+    path: .git/modules/.skills-sources
+    introduced_in: v0.4.0
+    removed_in: deprecation_only
+    reason: >
+      Git stores submodule metadata under `.git/modules/<name>/` and does not
+      clean it on `git submodule deinit`. Once `.gitmodules` no longer lists
+      the submodule, this directory is an orphan.
+    evidence: github.com/consumer-a/consumer-a/pull/125
+
+  - id: auto-managed-orphan-blocks
+    tier: 1
+    action: prune_blocks
+    safety: auto_managed_orphan
+    path: "**/*.md"
+    introduced_in: v0.2.0
+    removed_in: deprecation_only
+    reason: >
+      `<!-- BEGIN auto-managed: <source> -->` blocks whose `<source>` no longer
+      resolves to a playbook anchor. Detected by `scripts/auto_managed.py
+      --prune-orphans`.
+    evidence: specs/auto-managed-sections.md
+
+  - id: hindsight-queue-rotation
+    tier: 1
+    action: rotate
+    safety: file_mtime_and_drained
+    path: .ai-playbook/hindsight-queue.jsonl
+    introduced_in: v0.3.0
+    removed_in: deprecation_only
+    reason: >
+      DEGRADED_CONTEXT retain queue. Once entries are marked
+      `state: drained` AND file mtime > 30 days, rotate to
+      `hindsight-queue.<date>.jsonl.archive` so the active queue stays small.
+    evidence: specs/memory-hierarchy.md
+    rotation_days: 30
+
+  # -------------------------------------------------------------------------
+  # Tier 2 — textual changes (auto-applied; logged for audit)
+  # -------------------------------------------------------------------------
+
+  - id: consumer-c-legacy-rename
+    tier: 2
+    action: rename
+    safety: yaml_literal_rename
+    path: "**/*.{yaml,yml,json}"
+    rename_from: consumer-c-legacy
+    rename_to: consumer-c
+    rename_in_files:
+      - mcp-servers.project.yaml
+      - mcp-servers.yaml
+      - consumers.yaml
+      - .mcp.json
+    introduced_in: v0.1.0
+    removed_in: v0.14.1
+    reason: >
+      Consumer name change in playbook v0.14.1 (commit 0c3cd59 +
+      release cb5c6f2). Consumers that hard-coded `consumer-c-legacy` in MCP /
+      consumers YAML/JSON files need the literal updated to `consumer-c`.
+    evidence: 0c3cd59
+
+  # -------------------------------------------------------------------------
+  # Tier 3 — report only (advisory; never modifies FS)
+  # -------------------------------------------------------------------------
+
+  - id: skills-sources-frontmatter-simplify
+    tier: 3
+    action: report
+    safety: report_only
+    path: AGENTS.md
+    introduced_in: v0.4.0
+    removed_in: deprecation_only
+    reason: >
+      `AGENTS.md` declares `skills_sources:` with a single entry that mirrors
+      `inherits_from:`. This is the multi-source overhead with no benefit —
+      see consumer-a §7.6 simplification. Drop the field + run a local skills
+      sync script (`scripts/sync_skills_local.py` pattern).
+    evidence: github.com/consumer-a/consumer-a/pull/125
+
+  - id: inherits-from-too-old
+    tier: 3
+    action: report
+    safety: report_only
+    path: AGENTS.md
+    introduced_in: v0.2.0
+    removed_in: deprecation_only
+    reason: >
+      `inherits_from:` is pinned more than 3 MINOR versions behind the
+      playbook bundled here. Many specs/skills/templates have changed since.
+      Bump the pin and rerun bootstrap doctor.
+    evidence: specs/dispatcher-chain.md
+    max_minor_drift: 3
+
+  - id: extra-skills-in-mirror
+    tier: 3
+    action: report
+    safety: report_only
+    path: "{skills,.claude/skills,.gemini/skills}/**/SKILL.md"
+    introduced_in: v0.4.0
+    removed_in: deprecation_only
+    reason: >
+      Skills present in a consumer mirror but NOT in the current
+      `.ai-playbook/skills/` source. Causes: (a) playbook renamed/removed
+      the skill (v0.7.0 alignment, commit ade4ca2; survivor list 4833403);
+      (b) consumer has a local custom skill — keep it but note the drift.
+      Manual review required.
+    evidence: 4833403
+
+  - id: orphan-specs
+    tier: 3
+    action: report
+    safety: report_only
+    path: openspec/specs/**/*.md
+    introduced_in: v0.2.0
+    removed_in: deprecation_only
+    reason: >
+      Specs in `openspec/specs/` not referenced by any `openspec/changes/*/specs/`
+      delta. Often residue from archived changes whose archive deleted the
+      change folder but left the cumulative spec in place. Review and remove
+      manually if no longer canonical.
+    evidence: specs/runbook-bmad-openspec.md
+
+  - id: pre-commit-deprecated-hooks
+    tier: 3
+    action: report
+    safety: report_only
+    path: .pre-commit-config.yaml
+    introduced_in: v0.4.0
+    removed_in: deprecation_only
+    reason: >
+      Pre-commit entries invoking `propagate_skills_bump.py` or
+      `validate_skills_mirror.py` when the consumer no longer carries
+      `skills_sources:` in `AGENTS.md` (i.e. dropped multi-source). These
+      hooks become no-ops at best and confusing CI noise at worst.
+    evidence: github.com/consumer-a/consumer-a/pull/125
