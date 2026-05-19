@@ -37,7 +37,7 @@ Common flags:
 | `--owner <email>` | Required. Owner email stamped into `AGENTS.md` frontmatter. |
 | `--playbook-tag <tag>` | Optional. Semver tag to pin the submodule to. Default: latest released tag. |
 | `--playbook-path <path>` | Offline fallback — use a local playbook checkout instead of cloning. Requires `--force-with-reason` (breaks the "always pin to released tag" invariant). |
-| `--personal` | Registers the project as `personal: true` in `~/.ai-playbook/projects.yaml`. Only for Arturo. |
+| `--personal` | Registers the project as `personal: true` in `~/.ai-playbook/projects.yaml`. Only for the maintainer's personal repos. |
 | `--dry-run` | Print the plan without mutating disk. |
 
 ## What it does (in order)
@@ -99,15 +99,14 @@ See [`templates/new-project/`](../../templates/new-project/):
 
 ## Troubleshooting
 
-- **`ModuleNotFoundError: No module named 'scripts.mcp'`** when running playbook scripts from the consumer repo: use `PYTHONPATH=.ai-playbook python -m scripts.<name>` or invoke via the absolute path. See [05-quickstart-lessons.md](05-quickstart-lessons.md) §Windows.
+- **`ModuleNotFoundError: No module named 'scripts.mcp'`** when running playbook scripts from the consumer repo: use `PYTHONPATH=.ai-playbook python -m scripts.<name>` or invoke via the absolute path.
 - **Pre-commit install fails** on fresh Windows: install `pre-commit` via `pipx install pre-commit` first.
 - **Registry file empty**: run `python .ai-playbook/scripts/discover_projects.py` once; bootstrap.py will then find the file.
 
 ## What's next
 
 - [03-quickstart.md](03-quickstart.md) — the manual 25–40 min walkthrough; `bootstrap.py` replaces steps 2–5.
-- [05-quickstart-lessons.md](05-quickstart-lessons.md) — per-OS friction and workarounds discovered during dry-runs.
-- [06-curriculum.md](06-curriculum.md) — the 4-week onboarding curriculum after your project is bootstrapped.
+- [06-learning-path.md](06-learning-path.md) — self-paced reading order once your project is bootstrapped.
 - [Rule: bootstrap-directive](../rules/bootstrap-directive.rule.md) — the directive the generated AGENTS.md §0 carries.
 - [Concept: projects-registry](../concepts/projects-registry.md) — format of the registry file bootstrap writes to.
 - [Concept: dispatcher-chain](../concepts/dispatcher-chain.md) — the three-level inheritance bootstrap wires into.

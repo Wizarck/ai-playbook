@@ -3,7 +3,7 @@ schema: concept/v1
 slug: upstream-sync
 title: Upstream Sync
 summary: |
-  Fork governance for upstream-tracked projects. Arturo runs forks of a
+  Fork governance for upstream-tracked projects. The maintainer runs forks of a
   handful of fast-moving upstream repos (Hindsight, Hermes, Paperclip,
   LightRAG, and others). Upstream commits land at hundreds-per-day rates in
   some of them; a naive git pull upstream main silently clobbers…
@@ -12,7 +12,7 @@ last_validated: "2026-05-19"
 
 # Upstream Sync
 
-Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving
+Fork governance for upstream-tracked projects. The maintainer runs forks of a handful of fast-moving
 upstream repos (Hindsight, Hermes, Paperclip, LightRAG, and others). Upstream commits land at
 hundreds-per-day rates in some of them; a naive `git pull upstream main` silently clobbers local
 patches. This spec defines how forks are tracked, how local patches are inventoried, and how the

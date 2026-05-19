@@ -116,7 +116,7 @@ Terms describing the repository layout and consumer integration.
 |---|---|
 | ai-playbook | The upstream repository this glossary belongs to. Consumed as a git submodule by downstream projects. |
 | CHANGELOG | Markdown file at repo root tracking releases. One entry per VERSION bump; user-facing language. |
-| Consumer | A downstream project that inherits from ai-playbook via git submodule. The 5 known consumers are private to Arturo. |
+| Consumer | A downstream project that inherits from ai-playbook via git submodule. The 5 known consumers are private to the maintainer. |
 | gen_indexes.py | The script that auto-generates `INDEX.md` files inside each `docs/<category>/` folder from the per-doc frontmatter. |
 | Gemini CLI | One of three target LLM harnesses. Lacks PreToolUse hook support; gets injected rules via `scripts/gemini_start.py`. |
 | Migration script | One-shot script under `scripts/one_shot_migrations/` deleted after the migration verifies. The CHANGELOG entry preserves history. |

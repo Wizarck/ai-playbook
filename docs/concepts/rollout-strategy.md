@@ -117,7 +117,7 @@ Security vulnerabilities and data-corruption bugs bypass the deprecation window.
 
 - [migration-guide.md](migration-guide.md) — v0→v1 migration and the template for future major migrations.
 - ../rfcs/README.md — RFC template and SLA.
-- [../docs/concepts/contributing.md](contributing.md) §3 — RFC process, reviewer matrix.
+- [../../CONTRIBUTING.md](../../CONTRIBUTING.md) — RFC trigger conditions.
 - [slos.md](slos.md) — the break-glass-ratio SLO tracks consumers who get stuck during a deprecation window.
 - [break-glass.md](../rules/break-glass.rule.md) — single-invocation escape hatch during migration.
 - [notification-policy.md](notification-policy.md) §4 — `deprecation.usage.observed` event mapping.

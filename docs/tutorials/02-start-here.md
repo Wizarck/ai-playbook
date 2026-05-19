@@ -19,7 +19,7 @@ order: 2
 
 ## 1. What this repo is (≤15 s)
 
-`ai-playbook` is the universal norms + tooling repo consumed as a git submodule by every Wizarck project. It is **LLM-agnostic** — Claude Code, Gemini CLI, Cursor, and Antigravity all read the same files — and it **dogfoods** its own schemas, hooks, and validators. Most files here are thin contracts; implementation lives in the consumer projects that inherit.
+`ai-playbook` is the universal norms + tooling repo consumed as a git submodule by every consumer project. It is **LLM-agnostic** — Claude Code, Gemini CLI, Cursor, and Antigravity all read the same files — and it **dogfoods** its own schemas, hooks, and validators. Most files here are thin contracts; implementation lives in the consumer projects that inherit.
 
 If you came here to make a change, jump to step 3.
 
@@ -40,7 +40,7 @@ If you came here to make a change, jump to step 3.
 │  <consumer>/AGENTS.md  (project dispatcher; thin)              │
 │  Identity, active work, hard rules, capability map.            │
 └────────────────────────────────────────────────────────────────┘
-                             │ personal: true (Arturo only)
+                             │ personal: true (maintainer only)
                              ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  Level 3 — Personal add-on (optional)                          │
@@ -85,6 +85,5 @@ Each of these prints either `OK` / `✅` or an error line with a `FIX:` suggesti
 | I want hands-on contact with the repo | [01-architecture-tour.md](01-architecture-tour.md) — 15 min |
 | I want the full walkthrough on a fresh consumer project | [03-quickstart.md](03-quickstart.md) — 25–40 min |
 | I'd rather a script does the bootstrap for me | [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — 10 min |
-| Something broke on my OS | [05-quickstart-lessons.md](05-quickstart-lessons.md) — 10 min |
-| I want the 4-week onboarding curriculum | [06-curriculum.md](06-curriculum.md) |
+| I want a self-paced learning path | [06-learning-path.md](06-learning-path.md) |
 | I want the rationale behind the architecture | [07-why-these-choices.md](07-why-these-choices.md) — 15 min |

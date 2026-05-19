@@ -18,8 +18,6 @@ order: 3
 > - The orientation ([02-start-here.md](02-start-here.md)) — know the three-level dispatcher
 > - A fresh git repo where you can experiment (do NOT use this on production code)
 
-Per-OS friction and timing deltas land in [05-quickstart-lessons.md](05-quickstart-lessons.md).
-
 ---
 
 ## Prereqs (one-time, ~10 min if you don't have them)
@@ -77,7 +75,7 @@ Full flag list and contract live in [04-bootstrap-new-project.md](04-bootstrap-n
 
 ### What can go wrong
 
-- **`ModuleNotFoundError: scripts`** → run with `PYTHONPATH=.ai-playbook python -m scripts.bootstrap ...` or invoke the script by absolute path (see the Windows section of [05-quickstart-lessons.md](05-quickstart-lessons.md)).
+- **`ModuleNotFoundError: scripts`** → run with `PYTHONPATH=.ai-playbook python -m scripts.bootstrap ...` or invoke the script by absolute path.
 - **Template already exists** → bootstrap refuses to clobber. Move the old file aside or pass `--force-with-reason="..."` per `break-glass.md`.
 - **Windows vs POSIX paths** — the template writes forward slashes; Windows handles them fine but some editors auto-convert. Leave them as `/`.
 
@@ -243,7 +241,7 @@ If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.p
 | 7. First OpenSpec change | 8 min | 28 |
 | 8. SessionStart hook | 3 min | 31 |
 
-**Realistic total: 25–40 min** depending on OS, existing toolchain, and network. Cross-OS deltas logged in [05-quickstart-lessons.md](05-quickstart-lessons.md) after T15.
+**Realistic total: 25–40 min** depending on OS, existing toolchain, and network.
 
 ---
 
@@ -255,7 +253,6 @@ If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.p
 ## What's next
 
 - [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — replace steps 1–5 above with one `bootstrap.py` invocation.
-- [05-quickstart-lessons.md](05-quickstart-lessons.md) — per-OS friction you may hit during this quickstart.
-- [06-curriculum.md](06-curriculum.md) — go from "I ran the quickstart" to "I can review and contribute" in 4 weeks.
+- [06-learning-path.md](06-learning-path.md) — go from "I ran the quickstart" to "I can review and contribute", self-paced.
 - [Concept: enforcement-layers](../concepts/enforcement-layers.md) — why the pre-commit hooks you just installed are the L1 of a three-layer model.
 - [Concept: development-flow](../concepts/development-flow.md) — the canonical task↔PR↔release flow you will use for every future change.

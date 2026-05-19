@@ -795,7 +795,7 @@ Consumer projects on v0.8.0+ inherit this spec automatically; new consumers boot
 
 ### 8.1 Migration matrix (v0.7.x → v0.8.0)
 
-For Arturo's current consumer constellation (May 2026):
+For the maintainer's current consumer constellation (May 2026):
 
 | Project | Visibility | Profile | Migration owner | Notes |
 |---|---|---|---|---|

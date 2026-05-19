@@ -82,8 +82,7 @@ nav:
       - "02 — Start here": tutorials/02-start-here.md
       - "03 — Quickstart": tutorials/03-quickstart.md
       - "04 — Bootstrap new project": tutorials/04-bootstrap-new-project.md
-      - "05 — Quickstart lessons": tutorials/05-quickstart-lessons.md
-      - "06 — Curriculum": tutorials/06-curriculum.md
+      - "06 — Learning path": tutorials/06-learning-path.md
       - "07 — Why these choices": tutorials/07-why-these-choices.md
       - "08 — Fork inventory": tutorials/08-fork-inventory.md
   - Concepts:
@@ -105,8 +104,6 @@ nav:
       - "Enforcement status": concepts/enforcement-status.md
       - "Auto managed sections": concepts/auto-managed-sections.md
       - "Bmad openspec bridge": concepts/bmad-openspec-bridge.md
-      - "Channels": concepts/channels.md
-      - "Contributing": concepts/contributing.md
       - "Cross language tooling": concepts/cross-language-tooling.md
       - "Data retention": concepts/data-retention.md
       - "Database numeric boundaries": concepts/database-numeric-boundaries.md

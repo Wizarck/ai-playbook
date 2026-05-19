@@ -74,10 +74,10 @@ scripts/release_cut.py
 |---|---|
 | New `proposal.md` lands on main | Workflow fires automatically on PR merge. |
 | Tracker already present (`tracker_id`/`tracker_issue` in frontmatter) | `issue_sync` skips; emits `silent` notification. Idempotent. |
-| Jira/GH API down | Sync queues to `.ai-playbook/issue_sync_queue.jsonl` for next run. Emits `warn`. Notifies Arturo. |
+| Jira/GH API down | Sync queues to `.ai-playbook/issue_sync_queue.jsonl` for next run. Emits `warn`. Notifies the maintainer. |
 | Jira/GH credentials missing | Same as above — queue + `warn`. No hard fail unless `--strict`. |
 | Tag pushed | Release auto-cut. GH Release + Jira fixVersion + notification. |
-| Existing GH Release on that tag | Hard fail (prevents clobber). `error` notification. Arturo inspects. |
+| Existing GH Release on that tag | Hard fail (prevents clobber). `error` notification. The maintainer inspects. |
 | Jira fixVersion already exists | No duplicate — reuses and marks issues Released. Idempotent. |
 | Email disabled (no SMTP env) | JSONL still writes; dashboard bell still works; no email silently. |
 | Rate-limit blast | ≤5 info/min per event+actor; overages coalesce into a single `burst` notification. |
@@ -130,7 +130,7 @@ ATLASSIAN_API_TOKEN=<jira-api-token>
 AIPLAYBOOK_JIRA_DEFAULT_PROJECT=consumer-a        # or consumer-b
 
 # GitHub
-AIPLAYBOOK_GH_PROJECT_NUMBER=1                 # optional; 1 = Arturo's board
+AIPLAYBOOK_GH_PROJECT_NUMBER=1                 # optional; 1 = the maintainer's board
 GITHUB_TOKEN=<auto-in-Actions>
 
 # Notification addresses (optional)

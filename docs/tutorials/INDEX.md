@@ -6,9 +6,8 @@
 | --- | --- | --- |
 | [01-architecture-tour.md](01-architecture-tour.md) | — | Take this tour cold. Do NOT read the rest of the docs first. The point is to feel the shape of the… |
 | [02-start-here.md](02-start-here.md) | — | --- |
-| [03-quickstart.md](03-quickstart.md) | — | Per-OS friction and timing deltas land in [05-quickstart-lessons.md](05-quickstart-lessons.md). |
+| [03-quickstart.md](03-quickstart.md) | — | A hands-on 25–40-min walkthrough that takes a brand-new consumer project from empty directory to a … |
 | [04-bootstrap-new-project.md](04-bootstrap-new-project.md) | — | The entry point is `scripts/bootstrap.py`. It is idempotent: running it twice on the same repo is a… |
-| [05-quickstart-lessons.md](05-quickstart-lessons.md) | — | This file is the field guide. The quickstart tells you what to do; this file tells you what to expe… |
-| [06-curriculum.md](06-curriculum.md) | — | This is not a replacement for any existing doc. Every week points at docs and specs that already ex… |
+| [06-learning-path.md](06-learning-path.md) | — | A self-paced reading order for getting from "I ran the quickstart" to "I can review PRs and cut a r… |
 | [07-why-these-choices.md](07-why-these-choices.md) | — | Use this tutorial when you find yourself thinking "why is the playbook shaped this way?" Each secti… |
 | [08-fork-inventory.md](08-fork-inventory.md) | — | This tutorial is intentionally short. Treat it as a guided read of the fork catalog plus a thought… |

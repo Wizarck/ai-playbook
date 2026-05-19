@@ -10,8 +10,6 @@
 | [architecture-diagrams.md](architecture-diagrams.md) | — | Mermaid diagrams visualising how the 3-level dispatcher, OpenSpec flow, and pre-commit gates compos… |
 | [auto-managed-sections.md](auto-managed-sections.md) | — | Contract for the `<!-- BEGIN auto-managed: <source_spec> -->` / `<!-- END auto-managed -->` markers… |
 | [bmad-openspec-bridge.md](bmad-openspec-bridge.md) | — | The hybrid BMAD+OpenSpec workflow has a seam between phases: |
-| [channels.md](channels.md) | — | The communication surfaces the playbook team uses, by purpose, with triage cadence and the line bet… |
-| [contributing.md](contributing.md) | — | --- |
 | [cross-language-tooling.md](cross-language-tooling.md) | — | Most ai-playbook consumer projects are single-language by primary intent |
 | [cross-llm-activation.md](cross-llm-activation.md) | — | ai-playbook claims cross-LLM portability (Claude Code, Gemini CLI, Cursor). Cursor was the first to… |
 | [data-retention.md](data-retention.md) | — | Retention is a safety surface. Too little retention makes audits impossible; too much creates a GDP… |
@@ -57,7 +55,7 @@
 | [STYLE.md](STYLE.md) | — | Declarative, present tense, third person. Concept docs explain; they do not bind. |
 | [taxonomy.md](taxonomy.md) | — | The playbook touches three LLM ecosystems (Claude, Gemini, Cursor), four documentation categories (… |
 | [telemetry-design.md](telemetry-design.md) | — | The v0.20.0 "world reference" milestone needs evidence, not assertion. Three forces drove the Slice… |
-| [upstream-sync.md](upstream-sync.md) | — | Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving |
+| [upstream-sync.md](upstream-sync.md) | — | Fork governance for upstream-tracked projects. The maintainer runs forks of a handful of fast-moving |
 | [ux-track.md](ux-track.md) | — | The canonical workflow ([runbook-bmad-openspec.md](runbook-bmad-openspec.md)) was silent on UX befo… |
 | [v080-roadmap.md](v080-roadmap.md) | — | v0.7.0 was scoped as "alignment + bridges + audit incorporation": resolve the BMAD↔OpenSpec drift,… |
 | [v090-roadmap.md](v090-roadmap.md) | — | v0.8.x shipped the release-management contract (§4.5 codifies that the worker AI must consume the A… |

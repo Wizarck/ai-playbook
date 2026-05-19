@@ -4,7 +4,7 @@ slug: mcp-servers-schema
 title: Mcp Servers Schema
 summary: |
   Single-source-of-truth contract for the 3-layer MCP server configuration
-  stack that all Wizarck-org consumers render from. Defines file shape, merge
+  stack that all consumers render from. Defines file shape, merge
   semantics, validator rules, render rules, and the well-known-server
   extension recipe.
 last_validated: "2026-05-19"
@@ -13,7 +13,7 @@ last_validated: "2026-05-19"
 # Mcp Servers Schema
 
 Single-source-of-truth contract for the 3-layer MCP server configuration
-stack that all Wizarck-org consumers render from. Defines file shape, merge
+stack that all consumers render from. Defines file shape, merge
 semantics, validator rules, render rules, and the well-known-server extension
 recipe.
 

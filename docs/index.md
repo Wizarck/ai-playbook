@@ -1,6 +1,6 @@
 # ai-playbook
 
-> Universal AI-dev norms, specs, scripts, and templates consumed via **git submodule** by every Wizarck project — LLM-agnostic, dogfooded, and dispatch-file shaped.
+> Universal AI-dev norms, specs, scripts, and templates consumed via **git submodule** by every consumer project — LLM-agnostic, dogfooded, and dispatch-file shaped.
 
 === "Start here"
 
@@ -14,9 +14,8 @@
     Stand up a new consumer repo or a fresh machine.
 
     - [tutorials/03-quickstart.md](tutorials/03-quickstart.md) — 25–40 min bootstrap of `acme-shop` end-to-end.
-    - [tutorials/05-quickstart-lessons.md](tutorials/05-quickstart-lessons.md) — real friction recorded from dry-runs.
     - [concepts/session-start-hook.md](concepts/session-start-hook.md) — wire `SessionStart` context injection.
-    - [concepts/contributing.md](concepts/contributing.md) — how PRs land; governance for the 0–3 month horizon.
+    - [CONTRIBUTING.md](../CONTRIBUTING.md) — how PRs land.
 
 === "Specs"
 
