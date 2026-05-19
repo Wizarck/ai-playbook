@@ -106,7 +106,7 @@ See [`templates/new-project/`](../../templates/new-project/):
 ## What's next
 
 - [03-quickstart.md](03-quickstart.md) — the manual 25–40 min walkthrough; `bootstrap.py` replaces steps 2–5.
-- [06-learning-path.md](06-learning-path.md) — self-paced reading order once your project is bootstrapped.
+- [05-learning-path.md](05-learning-path.md) — self-paced reading order once your project is bootstrapped.
 - [Rule: bootstrap-directive](../rules/bootstrap-directive.rule.md) — the directive the generated AGENTS.md §0 carries.
 - [Concept: projects-registry](../concepts/projects-registry.md) — format of the registry file bootstrap writes to.
 - [Concept: dispatcher-chain](../concepts/dispatcher-chain.md) — the three-level inheritance bootstrap wires into.

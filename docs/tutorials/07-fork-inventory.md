@@ -86,7 +86,7 @@ If we stop tracking a fork (upstream dead, we no longer use it, we vendored perm
 - [Concept: upstream-sync](../concepts/upstream-sync.md) — the governance spec this catalog implements.
 - [`../../templates/PATCHES.md.tmpl`](../../templates/PATCHES.md.tmpl) — per-fork manifest template you use in §3 step 3.
 - `scripts/upstream_sync.py` — CLI inspection + triage tool that reads `~/.ai-playbook/forks.yaml`.
-- [06-learning-path.md](06-learning-path.md) — fork onboarding sits inside the contributor stage.
+- [05-learning-path.md](05-learning-path.md) — fork onboarding sits inside the contributor stage.
 
 ---
 

@@ -85,5 +85,5 @@ If a check is intrinsically human-only (judgement calls, code review tone), keep
 
 ## See also
 
-- [contributing.md](contributing.md) — RFC process for spec changes.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — RFC process for spec changes.
 - [rollout-strategy.md](rollout-strategy.md) — breaking-change protocol when flipping a row's status changes the contract shape.

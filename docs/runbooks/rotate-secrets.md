@@ -39,7 +39,7 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 | `GITHUB_TOKEN` | SOPS `secrets/secrets.env` in `consumer-d` | Local dev + ad-hoc direct push fallback | 30 d (god-mode) / 90 d (scoped) | maintainer |
 | `AI_PLAYBOOK_AGE_KEY` | `~/.config/sops/age/keys.txt` per dev machine | SOPS decrypt of all encrypted secrets | Never (root of trust) | maintainer personal |
 
-> **v0.19.0 update**: `PLAYBOOK_PROPAGATION_TOKEN` was retired alongside the push pipeline. The playbook no longer holds any PAT with write access to consumer repos. Consumers manage their own bump credentials (Dependabot, Renovate, or local cron). If your fork still has the secret set, revoke it at <https://github.com/settings/tokens>.
+> The playbook does not hold any PAT with write access to consumer repos. Consumers manage their own bump credentials (Dependabot, Renovate, or local cron).
 
 ## Steps
 

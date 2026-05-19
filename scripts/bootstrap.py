@@ -61,7 +61,6 @@ DEFAULT_PIN = "v0.3.0"
 SUBMODULE_PATH = ".ai-playbook"
 TEMPLATE_SUBDIR = Path("templates") / "new-project"
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
-CONSUMERS_FILE = "consumers.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -79,11 +78,6 @@ class BootstrapArgs:
     personal: bool
     force_reason: str | None
     dry_run: bool
-    register_in: Path | None = None  # Path to a playbook checkout whose
-                                      # consumers.yaml should be updated with a
-                                      # row for this project.
-    visibility: str = "private"       # GitHub repo visibility (public|private).
-    default_branch: str = "main"      # for consumers.yaml registration.
     refresh_skills: bool = False      # If True, only run skills materialisation
                                       # against the resolved target dir + exit.
 
@@ -396,25 +390,8 @@ def run_discover(target_dir: Path, dry_run: bool) -> None:
 # ---------------------------------------------------------------------------
 
 
-def print_next_steps(target_dir: Path, project_name: str, *, registered: bool = False) -> None:
-    print()
-    print("✅ Bootstrap complete. Next steps:")
-    print(f"   1. cd {target_dir}")
-    print("   2. Fill placeholders in AGENTS.md (§1 identity, §3 active work, §4 rules).")
-    print("   3. Review the rendered .mcp.json + .gemini/settings.json; tweak "
-          "mcp-servers.project.yaml if you need to override base/personal layers.")
-    print("   4. Write your first OpenSpec change: `/opsx:propose <topic>`.")
     print(f"   5. Commit + push the consumer: "
           f"`git add . && git commit -m 'chore: bootstrap {project_name} via ai-playbook' && git push`.")
-    if registered:
-        print("   6. Commit + push the playbook's consumers.yaml change so the "
-              "propagation Action picks up your repo on the next tag.")
-    else:
-        print("   6. (Optional) Add a row for this project to "
-              "<playbook>/consumers.yaml so the propagation Action auto-bumps "
-              "the submodule when ai-playbook releases a new tag. Re-run "
-              "bootstrap with --register-in <playbook-path> to do this in one "
-              "step.")
 
 
 # ---------------------------------------------------------------------------
@@ -440,17 +417,6 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                         help="Offline fallback: copy from a local playbook checkout instead of cloning "
                              "from GitHub. Requires --force-with-reason.")
     parser.add_argument("--personal", action="store_true", help="Mark the new AGENTS.md with `personal: true`.")
-    parser.add_argument("--register-in", type=Path, default=None,
-                        help="Path to a playbook checkout. If set, append a row for this "
-                             "project to <playbook>/consumers.yaml so the propagation "
-                             "Action picks it up on the next tag push. The dev still "
-                             "needs to commit + push the playbook change.")
-    parser.add_argument("--visibility", choices=["public", "private"], default="private",
-                        help="Repository visibility for the consumers.yaml entry "
-                             "(default: private).")
-    parser.add_argument("--default-branch", default="main",
-                        help="Default branch name written to consumers.yaml "
-                             "(default: main).")
     parser.add_argument("--dry-run", action="store_true", help="Report actions without side effects.")
     parser.add_argument("--refresh-skills", action="store_true",
                         help="Skip the full bootstrap flow and only run "
@@ -474,9 +440,6 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         personal=ns.personal,
         force_reason=ns.force_reason,
         dry_run=ns.dry_run,
-        register_in=ns.register_in,
-        visibility=ns.visibility,
-        default_branch=ns.default_branch,
         refresh_skills=ns.refresh_skills,
     )
 
@@ -625,19 +588,7 @@ def main(argv: list[str] | None = None) -> int:
     # Step 5: render .mcp.json + .gemini/settings.json from the merged layers.
     render_mcp_configs(target_dir, args.project_name, args.dry_run)
 
-    # Step 6: optional registration in playbook's consumers.yaml.
-    if args.register_in is not None:
-        register_consumer(
-            playbook_root=args.register_in,
-            project_name=args.project_name,
-            owner=owner,
-            visibility=args.visibility,
-            default_branch=args.default_branch,
-            personal=args.personal,
-            dry_run=args.dry_run,
-        )
-
-    print_next_steps(target_dir, args.project_name, registered=args.register_in is not None)
+    print_next_steps(target_dir, args.project_name)
     return 0
 
 
@@ -671,55 +622,6 @@ def render_mcp_configs(target_dir: Path, project_name: str, dry_run: bool) -> No
         return
     print(f"✓ rendered .mcp.json + .gemini/settings.json for {project_name}.")
 
-
-def register_consumer(
-    *,
-    playbook_root: Path,
-    project_name: str,
-    owner: str,
-    visibility: str,
-    default_branch: str,
-    personal: bool,
-    dry_run: bool,
-) -> None:
-    """Append a consumer row to <playbook>/consumers.yaml (idempotent: skips if
-    the row already exists)."""
-    cf = playbook_root / CONSUMERS_FILE
-    if not cf.is_file():
-        print(
-            f"⚠️ {cf} not found — skipping consumers.yaml registration."
-        )
-        return
-    text = cf.read_text(encoding="utf-8")
-    if f"\n  {project_name}:\n" in text:
-        print(f"✓ {project_name} already in {cf} — no change.")
-        return
-
-    # Try to infer the org from existing entries (first repo: <org>/<name>).
-    import re as _re
-    m = _re.search(r"^\s+repo:\s+(\S+)/", text, _re.MULTILINE)
-    org = m.group(1).strip() if m else "Wizarck"
-
-    notes = "Personal infra." if personal else "Project repo."
-    row = (
-        f"\n  {project_name}:\n"
-        f"    repo: {org}/{project_name}\n"
-        f"    default_branch: {default_branch}\n"
-        f"    visibility: {visibility}\n"
-        + ("    personal: true\n" if personal else "")
-        + "    status: active\n"
-        + f"    notes: {notes}\n"
-    )
-
-    if dry_run:
-        print(f"(dry-run) Would append to {cf}:\n{row}")
-        return
-
-    # Append before the trailing newline-only block.
-    new_text = text.rstrip("\n") + row + "\n"
-    cf.write_text(new_text, encoding="utf-8")
-    print(f"✓ added {project_name} row to {cf}.")
-    print(f"  Next: cd {playbook_root} && git add consumers.yaml && git commit && git push")
 
 
 if __name__ == "__main__":

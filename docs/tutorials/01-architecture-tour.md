@@ -218,9 +218,9 @@ Pick the next tutorial based on what you came here to do:
 | Get the 60-second elevator pitch and the dispatcher diagram | [02-start-here.md](02-start-here.md) — 1 min |
 | Onboard a real new consumer project end-to-end | [03-quickstart.md](03-quickstart.md) — 25–40 min |
 | Use the one-shot bootstrap script instead of doing it by hand | [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — 10 min |
-| Follow a self-paced reading order as a contributor | [06-learning-path.md](06-learning-path.md) |
-| Understand the design decisions (why submodule, why LLM-agnostic) | [07-why-these-choices.md](07-why-these-choices.md) — 15 min |
-| Track the upstream forks the project maintains | [08-fork-inventory.md](08-fork-inventory.md) — 10 min |
+| Follow a self-paced reading order as a contributor | [05-learning-path.md](05-learning-path.md) |
+| Understand the design decisions (why submodule, why LLM-agnostic) | [06-why-these-choices.md](06-why-these-choices.md) — 15 min |
+| Track the upstream forks the project maintains | [07-fork-inventory.md](07-fork-inventory.md) — 10 min |
 
 If you want depth before doing more tutorials, read these concept docs in this order:
 

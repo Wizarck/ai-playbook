@@ -85,5 +85,5 @@ Each of these prints either `OK` / `✅` or an error line with a `FIX:` suggesti
 | I want hands-on contact with the repo | [01-architecture-tour.md](01-architecture-tour.md) — 15 min |
 | I want the full walkthrough on a fresh consumer project | [03-quickstart.md](03-quickstart.md) — 25–40 min |
 | I'd rather a script does the bootstrap for me | [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — 10 min |
-| I want a self-paced learning path | [06-learning-path.md](06-learning-path.md) |
-| I want the rationale behind the architecture | [07-why-these-choices.md](07-why-these-choices.md) — 15 min |
+| I want a self-paced learning path | [05-learning-path.md](05-learning-path.md) |
+| I want the rationale behind the architecture | [06-why-these-choices.md](06-why-these-choices.md) — 15 min |

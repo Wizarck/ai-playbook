@@ -82,9 +82,9 @@ nav:
       - "02 — Start here": tutorials/02-start-here.md
       - "03 — Quickstart": tutorials/03-quickstart.md
       - "04 — Bootstrap new project": tutorials/04-bootstrap-new-project.md
-      - "06 — Learning path": tutorials/06-learning-path.md
-      - "07 — Why these choices": tutorials/07-why-these-choices.md
-      - "08 — Fork inventory": tutorials/08-fork-inventory.md
+      - "05 — Learning path": tutorials/05-learning-path.md
+      - "06 — Why these choices": tutorials/06-why-these-choices.md
+      - "07 — Fork inventory": tutorials/07-fork-inventory.md
   - Concepts:
       - Index: concepts/INDEX.md
       - "Enforcement layers": concepts/enforcement-layers.md
@@ -201,4 +201,4 @@ nav:
       - "Runbook key rotation emergency": runbooks/runbook-key-rotation-emergency.md
       - "Runbook secrets leak containment": runbooks/runbook-secrets-leak-containment.md
       - "Runbook vps down": runbooks/runbook-vps-down.md
-  - Telemetry: telemetry.md
+  - "Telemetry report": concepts/telemetry-report.md

@@ -41,7 +41,7 @@ Four of the eight universal principles the playbook is built on (the full list l
 - [AGENTS.md](https://github.com/Wizarck/ai-playbook/blob/master/AGENTS.md) — the self-hosted dispatcher for agents editing THIS repo.
 - [tutorials/02-start-here.md](tutorials/02-start-here.md) — the 60-second pitch, with the first 5 commands and the situation → reading matrix.
 - [concepts/architecture-diagrams.md](concepts/architecture-diagrams.md) — Mermaid views of the dispatcher chain and pre-commit gates.
-- [tutorials/07-why-these-choices.md](tutorials/07-why-these-choices.md) — the rationale behind every load-bearing decision.
+- [tutorials/06-why-these-choices.md](tutorials/06-why-these-choices.md) — the rationale behind every load-bearing decision.
 
 ## Status
 

@@ -26,7 +26,7 @@ from unittest.mock import patch
 
 import pytest
 
-# Force-import the module fresh; same pattern as test_propagate_bump.py.
+# Force-import the module fresh.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts import _bumper  # noqa: I001, E402
 

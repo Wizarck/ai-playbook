@@ -122,4 +122,4 @@ Each CLI sees the same content via its preferred entry point.
 - [Concept: mcp-servers-schema](../concepts/mcp-servers-schema.md) — the schema behind §3.
 - [Concept: agent-telemetry](../concepts/agent-telemetry.md) — the observability design behind §4.
 - [Concept: development-flow](../concepts/development-flow.md) — the day-to-day flow that builds on all five choices.
-- [06-learning-path.md](06-learning-path.md) — internalise these choices via the self-paced learning path.
+- [05-learning-path.md](05-learning-path.md) — internalise these choices via the self-paced learning path.

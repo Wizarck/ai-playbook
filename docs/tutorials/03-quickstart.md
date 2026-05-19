@@ -253,6 +253,6 @@ If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.p
 ## What's next
 
 - [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — replace steps 1–5 above with one `bootstrap.py` invocation.
-- [06-learning-path.md](06-learning-path.md) — go from "I ran the quickstart" to "I can review and contribute", self-paced.
+- [05-learning-path.md](05-learning-path.md) — go from "I ran the quickstart" to "I can review and contribute", self-paced.
 - [Concept: enforcement-layers](../concepts/enforcement-layers.md) — why the pre-commit hooks you just installed are the L1 of a three-layer model.
 - [Concept: development-flow](../concepts/development-flow.md) — the canonical task↔PR↔release flow you will use for every future change.

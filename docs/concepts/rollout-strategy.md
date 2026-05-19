@@ -61,7 +61,7 @@ Each breaking change walks every row of this table. Skipping a row is a governan
 
 | Phase | Artefact | Audience | SLA |
 |---|---|---|---|
-| **Proposal** | RFC under `rfcs/NNNN-<slug>.md` per ../rfcs/README.md. | Maintainer + named reviewers per [contributing.md](contributing.md) §2. | Triage ≤7 days, decision ≤30 days per contributing.md §3.2. |
+| **Proposal** | RFC under `rfcs/NNNN-<slug>.md` per ../rfcs/README.md. | Maintainer + named reviewers per [CONTRIBUTING.md](../../CONTRIBUTING.md) §2. | Triage ≤7 days, decision ≤30 days per CONTRIBUTING.md §3.2. |
 | **Acceptance** | RFC merged with `Decided: accept`. CHANGELOG entry under the next minor. | Contributors + consumers (via GH Release notes). | Same day as merge. |
 | **Deprecation** | Entry added to `specs/deprecations.yaml` (schema: `{change-id, deprecated-in, remove-earliest, migration-link}`). Emitter wired into `scripts/telemetry/report.py (absorbed in Slice 6)` (owned by Subagent A, T22 track). | Consumers — surfaces on every CLI invocation that touches the deprecated path. | Ships in the minor that contains the RFC acceptance. |
 | **Grace** | Warning emitted on every invocation during the window. Weekly `info`-level `deprecation.usage.observed` notification per [notification-policy.md](notification-policy.md). | Consumers. | Window = §3 rules. |
@@ -88,7 +88,7 @@ Consumers are not forced onto any release. Three escape hatches:
 
 1. **Pin the submodule.** `inherits_from: github.com/Wizarck/ai-playbook@v0.3.0` stays on v0.3.0 forever. The deprecation watcher prints a weekly `warn` on every CLI invocation: "Playbook v0.5.0 is current; you are on v0.3.0, N deprecations pending migration." The warning rate-limits per [notification-policy.md](notification-policy.md) §2.
 2. **`--force-with-reason="..."` per [break-glass.md](../rules/break-glass.rule.md).** For a single invocation past a hard-fail gate during emergency migration work. Logged to `.ai-playbook/overrides.log`, surfaces in the next retro.
-3. **Open an RFC** to push the removal-earliest window back. Must cite concrete consumer blockers; the maintainer evaluates per contributing.md §3 SLAs.
+3. **Open an RFC** to push the removal-earliest window back. Must cite concrete consumer blockers; the maintainer evaluates per CONTRIBUTING.md §3 SLAs.
 
 ---
 
