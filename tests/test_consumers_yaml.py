@@ -1,10 +1,10 @@
-"""Schema check for consumers.yaml — guards against drift like the v0.6.0 routing fix.
+"""Schema check for consumers.yaml.example — guards against drift like the v0.6.0 routing fix.
 
 Every active consumer must declare tracker_kind explicitly. tracker_kind=jira
-also requires jira_project. This test runs against the committed consumers.yaml
-at the repo root; if a consumer is added without tracker_kind, CI fails loudly
-instead of letting the silent-fallback heuristic that caused the v0.5.x drift
-recur.
+also requires jira_project. The committed consumers.yaml.example is the schema
+canonical instance; the real consumers.yaml is per-org (gitignored). If a
+consumer is added to the example without tracker_kind, CI fails loudly instead
+of letting the silent-fallback heuristic that caused the v0.5.x drift recur.
 
 Why this lives in tests/ (not tools/): the existing test rig already runs in
 CI on every PR, so the guard fires automatically. No separate workflow wiring.
@@ -17,7 +17,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CONSUMERS_YAML = REPO_ROOT / "consumers.yaml"
+CONSUMERS_YAML = REPO_ROOT / "consumers.yaml.example"
 
 VALID_TRACKER_KINDS = {"github", "jira"}
 VALID_STATUSES = {"active", "paused", "archived"}
@@ -28,7 +28,7 @@ def _load() -> dict:
     return yaml.safe_load(text) or {}
 
 
-def test_consumers_yaml_exists() -> None:
+def test_consumers_yaml_example_exists() -> None:
     assert CONSUMERS_YAML.is_file(), f"{CONSUMERS_YAML} missing"
 
 

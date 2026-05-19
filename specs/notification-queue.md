@@ -19,7 +19,7 @@ notify(event, severity, summary, ...)
    ├─► severity ∈ {warn, error}:
    │     ┌──────────────────────────────────────────────────┐
    │     │ §8 Durable queue   (when consumer opts in via    │
-   │     │   project-d_NOTIFICATIONS_QUEUE_ENABLED=1 AND        │
+   │     │   PROJECT_D_NOTIFICATIONS_QUEUE_ENABLED=1 AND        │
    │     │   `notifications.queue` package importable —     │
    │     │   project-d only at v1)                         │
    │     │   → SQLite enqueue → worker → Telegram/WhatsApp  │
@@ -185,7 +185,7 @@ sends until they land or the TTL expires.
 
 Two AND-gated conditions:
 
-1. `project-d_NOTIFICATIONS_QUEUE_ENABLED=1` is set in the consumer's environment
+1. `PROJECT_D_NOTIFICATIONS_QUEUE_ENABLED=1` is set in the consumer's environment
    (default: unset → legacy SMTP path).
 2. The consumer-side Python package `notifications.queue` is importable.
    Today this means **only project-d** at v1 — the queue lives at
@@ -200,7 +200,7 @@ project-e, gamma) are unaffected by this change.
 ### Storage
 
 SQLite at `~/.project-d/state/notifications-queue.db` (host-writer pattern;
-overridable via `project-d_NOTIFICATIONS_DB`). Schema (full DDL in
+overridable via `PROJECT_D_NOTIFICATIONS_DB`). Schema (full DDL in
 `scripts/db/migrations/notifications-queue-001.sql`):
 
 ```sql
@@ -241,7 +241,7 @@ A single `asyncio.Task` (no multi-worker — D2.2). Polling cycle every 10 s:
    envelope + `last_error`).
 
 Disable the worker (e.g. for unit tests of just the watchdog) via
-`project-d_NOTIFICATIONS_WORKER_DISABLED=1`.
+`PROJECT_D_NOTIFICATIONS_WORKER_DISABLED=1`.
 
 ### Backoff schedule
 

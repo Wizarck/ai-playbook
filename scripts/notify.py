@@ -13,7 +13,7 @@ Zero-touch contract
   ``event``+``actor``; excess is coalesced into a single ``notification.burst``
   summary.
 - ``warn`` / ``error`` → JSONL + (a) durable queue (when
-  ``project-d_NOTIFICATIONS_QUEUE_ENABLED=1`` AND a consumer-side
+  ``PROJECT_D_NOTIFICATIONS_QUEUE_ENABLED=1`` AND a consumer-side
   ``notifications.queue`` package is importable — Phase 5 Change B); OR
   (b) synchronous SMTP email when the queue is disabled / unavailable AND
   SMTP env vars are set AND severity meets
@@ -304,7 +304,7 @@ def _send_email(
 #
 # The durable queue lives in the consumer (project-d) under
 # `langgraph-aiops/notifications/`. When it's importable AND
-# `project-d_NOTIFICATIONS_QUEUE_ENABLED=1`, warn/error notifications are
+# `PROJECT_D_NOTIFICATIONS_QUEUE_ENABLED=1`, warn/error notifications are
 # enqueued to a SQLite-backed retry layer instead of fired through SMTP
 # synchronously. Other consumers (project-b, project-c, project-e,
 # gamma) that lack the queue package fall through to SMTP unchanged.
@@ -329,7 +329,7 @@ def _try_enqueue(*, envelope: dict[str, Any], severity: str) -> tuple[bool, str]
           ``"queue-package-missing"`` (consumer does not vendor the package),
           ``"queue-error:<exc-class>"`` (enqueue raised — never re-raised).
     """
-    if os.environ.get("project-d_NOTIFICATIONS_QUEUE_ENABLED", "").strip() != "1":
+    if os.environ.get("PROJECT_D_NOTIFICATIONS_QUEUE_ENABLED", "").strip() != "1":
         return False, "queue-disabled"
     try:
         from notifications import queue as _queue  # type: ignore

@@ -125,8 +125,8 @@ def run(args: argparse.Namespace) -> int:
 
     if not base.present:
         _emit(CanonicalError(
-            why="base layer `mcp-servers-base.yaml` not found",
-            where=_path_str(playbook_root / "mcp-servers-base.yaml"),
+            why="base layer `templates/rendered/mcp-servers-base.yaml.tmpl` not found",
+            where=_path_str(playbook_root / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl"),
             fix=("set --playbook-root to the ai-playbook checkout, set $AIPLAYBOOK_ROOT, "
                  "or ensure .ai-playbook/ is submoduled under the consumer repo"),
         ))
@@ -203,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         _emit(CanonicalError(
             why=f"unexpected failure during mcp.render: {type(exc).__name__}: {exc}",
             where="scripts/mcp/render.py",
-            fix="report with full stacktrace to FEEDBACK.md",
+            fix="open a GitHub issue at github.com/Wizarck/ai-playbook with the full stacktrace",
         ))
         return 2
 

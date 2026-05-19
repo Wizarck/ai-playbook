@@ -11,8 +11,8 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 | Prefix | Owner | Example | Source |
 |---|---|---|---|
 | `AIPLAYBOOK_` | This repo's scripts. | `AIPLAYBOOK_PROJECTS_FILE` | Runtime env. |
-| `project-d_` | project-d (personal). | `project-d_CORE_DIR`, `project-d_VPS_HOST` | SOPS-decrypted + shell env. |
-| `project-c_` | project-c consumer. | `project-c_DATABASE_URL` | `.env` + secret store. |
+| `project-d_` | project-d (personal). | `PROJECT_D_CORE_DIR`, `PROJECT_D_VPS_HOST` | SOPS-decrypted + shell env. |
+| `project-c_` | project-c consumer. | `PROJECT_C_DATABASE_URL` | `.env` + secret store. |
 | `HINDSIGHT_` | Hindsight MCP credentials. | `HINDSIGHT_API_KEY` | SOPS-decrypted. |
 | `LANGFUSE_` | Langfuse tracing. | `LANGFUSE_HOST` | SOPS-decrypted. |
 | `OTEL_` | OpenTelemetry SDK. | `OTEL_EXPORTER_OTLP_ENDPOINT` | Local Collector or VPS pointer. |
@@ -50,8 +50,8 @@ When both canonical and alias are set, the canonical value wins and the alias is
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `project-d_CORE_DIR` | `project-d_` | Path to project-d checkout. | yes (if project-d consumer) | unset | project-d dispatchers, not playbook scripts |
-| `project-d_VPS_HOST` | `project-d_` | SSH target for VPS k3s. | yes (project-d ops) | unset | project-d runbooks |
+| `PROJECT_D_CORE_DIR` | `project-d_` | Path to project-d checkout. | yes (if project-d consumer) | unset | project-d dispatchers, not playbook scripts |
+| `PROJECT_D_VPS_HOST` | `project-d_` | SSH target for VPS k3s. | yes (project-d ops) | unset | project-d runbooks |
 
 Playbook scripts MUST NOT read these directly — they flow through the project-d dispatcher (see `C:\Projects\project-d\project-d.md`).
 

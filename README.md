@@ -29,13 +29,22 @@ One repo, one source of truth for:
 ai-playbook/
 ├── AGENTS.md                    # self-hosted dispatcher (agents working ON this repo)
 ├── CHANGELOG.md                 # semver history
-├── FEEDBACK.md                  # low-friction gripe channel (append-only)
 ├── MAINTAINERS.md               # who owns what
 ├── README.md                    # this file
 ├── VERSION                      # current semver tag (authoritative)
-├── mcp-servers-base.yaml        # generic MCP server templates (no endpoints)
+├── consumers.yaml               # org-level registry of downstream consumers
 ├── mkdocs.yml                   # optional MkDocs site (github.io)
 ├── pyproject.toml               # Python deps + [project.scripts] entry points
+│
+├── configs/                     # runtime config data
+│   ├── anthropic-retirement-list.yaml  # model retirement calendar
+│   ├── litellm-router.yaml             # LiteLLM router config
+│   └── pricing.yaml                    # per-model $/1k tokens for cost_report
+│
+├── templates/                   # rendered + example templates for consumers
+│   ├── rendered/                # materialised at the consumer side (.tmpl)
+│   │   └── mcp-servers-base.yaml.tmpl  # MCP base layer (well-known servers)
+│   └── new-project/             # bootstrap scaffolding
 │
 ├── specs/                       # 35 normative specs (the contract surface)
 │   ├── INDEX.md                 # auto-generated table of contents

@@ -35,7 +35,7 @@ FLAG_DIR_DEFAULT = "/var/lib/project-d"
 
 def flag_path(provider: str, flag_dir: str | None = None) -> str:
     """Return the canonical sentinel-flag path for a provider."""
-    base = flag_dir or os.environ.get("project-d_FLAG_DIR", FLAG_DIR_DEFAULT)
+    base = flag_dir or os.environ.get("PROJECT_D_FLAG_DIR", FLAG_DIR_DEFAULT)
     return os.path.join(base, f"budget-disabled-{provider}.flag")
 
 

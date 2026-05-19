@@ -60,7 +60,11 @@ def _stack(tmp_path: Path, *, base: dict | None = None, project: dict | None = N
     consumer = tmp_path / "consumer"
     playbook.mkdir()
     consumer.mkdir()
-    _write_yaml(playbook / "mcp-servers-base.yaml", base if base is not None else BASE_MIN)
+    (playbook / "templates" / "rendered").mkdir(parents=True, exist_ok=True)
+    _write_yaml(
+        playbook / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl",
+        base if base is not None else BASE_MIN,
+    )
     if project is not None:
         _write_yaml(consumer / "mcp-servers.yaml", project)
     if personal is not None:

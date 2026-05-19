@@ -20,7 +20,7 @@
 #     (not playbook-driven).
 
 version: 1
-manifest_version: "2026-05-19.2"
+manifest_version: "2026-05-19.3"
 
 entries:
   # -------------------------------------------------------------------------
@@ -304,3 +304,93 @@ entries:
       entries referencing the remote `repo: <ai-playbook>` hook get a missing-hook
       error.
     evidence: ai-playbook v0.17.0 CHANGELOG
+
+  # -------------------------------------------------------------------------
+  # v3 entries — added by ai-playbook v0.17.1
+  # (slice root-folder-audit; clean root before slice 4 filesystem reorg)
+  # See docs/concepts/root-folder-audit.md for the per-file ledger.
+  # -------------------------------------------------------------------------
+
+  - id: feedback-md-removed
+    tier: 3
+    action: report
+    safety: report_only
+    path: FEEDBACK.md
+    introduced_in: v0.2.0
+    removed_in: v0.17.1
+    reason: >
+      `FEEDBACK.md` was deleted from the playbook in v0.17.1 (slice
+      root-folder-audit). It was an append-only gripe channel designed for
+      multi-contributor triage; under sole-consumer reality it was never
+      triaged. Consumers that templated a copy at their own root should
+      remove it. Error messages in `scripts/mcp/render.py` +
+      `scripts/mcp/validate.py` that previously pointed here now point at a
+      GitHub issue.
+    evidence: ai-playbook v0.17.1 CHANGELOG
+
+  - id: mcp-servers-base-relocated
+    tier: 3
+    action: report
+    safety: report_only
+    path: mcp-servers-base.yaml
+    introduced_in: v0.3.0
+    removed_in: v0.17.1
+    reason: >
+      `mcp-servers-base.yaml` moved from the playbook root to
+      `templates/rendered/mcp-servers-base.yaml.tmpl` in v0.17.1 (slice
+      root-folder-audit). Consumers MUST NOT reference the old path
+      directly. The upstream loaders (`scripts/mcp/validate.py:load_layers`,
+      `scripts/mcp/render.py`) already read from the new location; any
+      hand-rolled consumer script that hard-coded the old path needs an
+      update.
+    evidence: ai-playbook v0.17.1 CHANGELOG
+
+  - id: pricing-yaml-relocated
+    tier: 3
+    action: report
+    safety: report_only
+    path: pricing.yaml
+    introduced_in: v0.4.0
+    removed_in: v0.17.1
+    reason: >
+      `pricing.yaml` moved from the playbook root to `configs/pricing.yaml`
+      in v0.17.1 (slice root-folder-audit). `scripts/cost_report.py` now
+      reads from the new path by default; consumer scripts that invoked
+      `cost_report` with an explicit `--pricing <playbook>/pricing.yaml`
+      argument MUST update the path. Slice 6 (telemetry, v0.19.1) will
+      continue to load from `configs/pricing.yaml`.
+    evidence: ai-playbook v0.17.1 CHANGELOG
+
+  - id: ai-playbook-egg-info-orphan
+    tier: 1
+    action: delete
+    safety: directory_orphan
+    path: ai_playbook.egg-info
+    introduced_in: v0.2.0
+    removed_in: v0.17.1
+    reason: >
+      `ai_playbook.egg-info/` is a `pip install -e .` build artefact that
+      should never live in git. `.gitignore` already covers `*.egg-info/`,
+      so the directory is always untracked. Consumers that happened to
+      commit the directory pre-gitignore (rare) get it cleaned up via the
+      `directory_orphan` safety check (deletes only if no tracked files
+      under it). Removing on the playbook side too in v0.17.1 to keep the
+      root tidy.
+    evidence: ai-playbook v0.17.1 CHANGELOG
+
+  - id: issue-sync-workflow-removed
+    tier: 3
+    action: report
+    safety: report_only
+    path: .github/workflows/issue-sync.yml
+    introduced_in: v0.3.0
+    removed_in: v0.17.1
+    reason: >
+      `.github/workflows/issue-sync.yml` was deleted from the playbook in
+      v0.17.1 (slice root-folder-audit). The workflow opened Jira tickets
+      or GH Issues on every merged `openspec/changes/**/proposal.md`;
+      sole consumer (Arturo) does not use it. Consumers that bootstrapped a
+      copy at `.github/workflows/issue-sync.yml` should remove it. The
+      underlying `scripts/issue_sync.py` is NOT deleted; slice 6 (telemetry,
+      v0.19.1) may absorb it.
+    evidence: ai-playbook v0.17.1 CHANGELOG

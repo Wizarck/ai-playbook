@@ -75,7 +75,11 @@ def _stack(tmp_path: Path, *, base: dict | None = None, project: dict | None = N
     consumer = tmp_path / "consumer"
     playbook.mkdir()
     consumer.mkdir()
-    _write_yaml(playbook / "mcp-servers-base.yaml", base if base is not None else BASE_MIN)
+    (playbook / "templates" / "rendered").mkdir(parents=True, exist_ok=True)
+    _write_yaml(
+        playbook / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl",
+        base if base is not None else BASE_MIN,
+    )
     if project is not None:
         _write_yaml(consumer / "mcp-servers.yaml", project)
     if personal is not None:
@@ -294,17 +298,18 @@ def test_missing_base_layer_is_env_error(tmp_path: Path, all_env_set: None,
     ])
     err = capsys.readouterr().err
     assert rc == 2
-    assert "mcp-servers-base.yaml" in err
+    assert "mcp-servers-base.yaml.tmpl" in err
 
 
 def test_real_base_yaml_is_structurally_valid(tmp_path: Path, all_env_set: None,
                                               capsys: pytest.CaptureFixture[str]) -> None:
-    """The populated mcp-servers-base.yaml in the playbook repo itself must pass shape check."""
+    """The populated mcp-servers-base.yaml.tmpl in the playbook repo itself must pass shape check."""
     repo_root = Path(__file__).resolve().parent.parent
     consumer = tmp_path / "consumer"
     consumer.mkdir()
     # Set every env required by the real base file.
-    real = yaml.safe_load((repo_root / "mcp-servers-base.yaml").read_text(encoding="utf-8"))
+    real_path = repo_root / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl"
+    real = yaml.safe_load(real_path.read_text(encoding="utf-8"))
     for _sid, entry in (real.get("servers") or {}).items():
         for var in (entry.get("env") or {}).get("required", []):
             os.environ.setdefault(var, "test")
@@ -334,7 +339,8 @@ def test_malformed_yaml_is_env_error(tmp_path: Path, capsys: pytest.CaptureFixtu
     consumer = tmp_path / "consumer"
     playbook.mkdir()
     consumer.mkdir()
-    (playbook / "mcp-servers-base.yaml").write_text(
+    (playbook / "templates" / "rendered").mkdir(parents=True, exist_ok=True)
+    (playbook / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl").write_text(
         "schema: mcp-servers/v1\nlayer: base\nservers:\n  foo: {transport: http",
         encoding="utf-8",
     )
