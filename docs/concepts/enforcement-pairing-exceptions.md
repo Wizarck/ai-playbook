@@ -3,35 +3,78 @@ schema: concept/v1
 slug: enforcement-pairing-exceptions
 title: Pairing exceptions — advisory-only rules
 summary: |
-  Justifies rules that declare `paired_hardrule: null` (advisory-only).
-  Every entry must explain why an L1 hook would be impractical or
-  counter-productive. Slice 5 populates concrete entries.
+  Most ai-playbook rules carry a paired L1 hardrule. A handful do not —
+  they declare paired_hardrule null and rely on L2 + L3 only. This doc
+  defines when that exception is legitimate and how the audit trail works.
+last_validated: "2026-05-19"
 ---
 
-# Pairing exceptions
+# Enforcement pairing exceptions
 
-> **Slice 4 placeholder**: stub. Slice 5 populates concrete entries as
-> rules are rewritten.
+## Why
 
-A rule may declare `paired_hardrule: null` only when:
+The pairing invariant (every L1 hook has an L2 doc and vice versa) is the backbone of the three-layer enforcement architecture described in `enforcement-layers.md`. But three real-world cases break it:
 
-1. **No deterministic L1 check exists** (e.g., "tone of voice in user-facing
-   error messages" — needs human or LLM judgment).
-2. **The rule is informational** (e.g., a doc listing approved technologies
-   — no per-edit enforcement applicable).
-3. **The hook would create a false-positive storm** (e.g., a rule that fires
-   on every line of code; an L3 PR-time check is the right cadence).
+1. The rubric is non-deterministic and resists a Python check (judgement on prose tone, on a code-style nuance, on intent).
+2. The rule is informational rather than enforced (a list of approved technologies, a routing table read by humans).
+3. A Python hook would fire on so many normal edits that the false-positive storm degrades developer trust faster than the rule's enforcement gain warrants.
 
-For each `paired_hardrule: null` rule, add an entry below:
+Without an explicit escape hatch, authors either invent fragile hooks that get disabled in the first incident, or skip writing the rule altogether. Both outcomes are worse than an honest advisory-only rule with documented justification.
 
-| Rule slug | Reason |
-|---|---|
-| _(populated in Slice 5)_ | _(populated in Slice 5)_ |
+## What
 
-The pairing validator (`scripts/validate_pairing.py --strict`) checks that
-every advisory-only rule has an entry in this file.
+A rule may declare `paired_hardrule: null` in its frontmatter only when one of three conditions holds:
 
-## See also
+1. **No deterministic L1 check exists.** Example: "tone of voice in user-facing error messages" — needs human or LLM judgement.
+2. **The rule is purely informational.** Example: a doc listing approved technologies — no per-edit enforcement applicable.
+3. **The hook would produce a false-positive storm.** Example: a rule that fires on every line of code; an L3 PR-time check at the diff level is the correct cadence.
 
-- [`enforcement-layers.md`](enforcement-layers.md)
-- [`enforcement-status.md`](enforcement-status.md)
+The validator (`scripts/validate_pairing.py --strict`) enforces three follow-on invariants:
+
+- Every advisory-only rule has an entry in the table below.
+- The entry names which of the three conditions applies.
+- The rule's L2 doc body explicitly states "L1 enforcement: advisory-only" so the LLM reading it knows the rubric is not testable by a hook.
+
+The frontmatter shape:
+
+```yaml
+schema: rule/v1
+slug: <slug>
+paired_hardrule: null
+activation: ...
+status: advisory   # status is not enforced; the rule is documented but unenforced
+```
+
+## How it relates to other concepts
+
+- The full three-layer model is described in `enforcement-layers.md`. `paired_hardrule: null` removes the L1 layer; L2 (markdown rule) and L3 (CI gate, if any) still apply.
+- Schema disjointness (D9) requires every `docs/rules/*.rule.md` to carry `paired_hardrule:` as a field — `null` is a valid value, the field is not absent.
+- Per-LLM degradation from `cross-llm-activation.md` is sharper for advisory-only rules: with no L1 hook to fall back on, the rule depends entirely on L2 loading correctly. Gemini's narrower activation framework matters more here.
+
+## Concrete example
+
+Hypothetical rule `error-message-tone`: every user-facing error string should be concise, blameless, and actionable. There is no Python regex that distinguishes a blameless message from a blame-y one. The rule lives at `docs/rules/error-message-tone.rule.md` with:
+
+```yaml
+schema: rule/v1
+slug: error-message-tone
+paired_hardrule: null
+activation: agent       # loaded by LLM when editing error strings
+status: advisory
+```
+
+Its body explains the rubric in prose, gives preferred / avoided examples, and includes the line "L1 enforcement: advisory-only — see enforcement-pairing-exceptions.md condition #1". The table below carries an entry naming condition #1.
+
+## Pairing-exception register
+
+| Rule slug | Condition | Rationale |
+|---|---|---|
+| _(populated as Slice 5.A authors advisory-only rules)_ | _(#1 / #2 / #3)_ | _(one-line justification)_ |
+
+Slice 5.A is the first slice that may add entries here. Until then, the table is intentionally empty: the v0.18.0 corpus has no advisory-only rules yet.
+
+## Further reading
+
+- `enforcement-layers.md` — full three-layer model.
+- `enforcement-status.md` — live status of the rule corpus, including which rules are enforced vs advisory.
+- D9 (disjoint rule / concept schemas) — Slice-5 plan decisions doc.

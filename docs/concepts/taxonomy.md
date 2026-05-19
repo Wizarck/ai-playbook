@@ -1,103 +1,156 @@
-# taxonomy.md
-
-> **Status**: v1.0.0.
-
-Canonical glossary for terms used across `ai-playbook/specs/*`, consumer AGENTS.md files,
-and all tooling. When a spec uses any of these words it means the definition below — no
-synonyms, no drift. Cross-reference this file before inventing a new term.
-
 ---
+schema: concept/v1
+slug: taxonomy
+title: Taxonomy — canonical glossary
+summary: |
+  Authoritative term glossary for ai-playbook. When a spec, rule, runbook,
+  or tutorial uses a word from this list, it means the definition below —
+  no synonyms, no drift. Organised by category, alphabetical within.
+last_validated: "2026-05-19"
+---
+
+# Taxonomy — canonical glossary
+
+## Why
+
+The playbook touches three LLM ecosystems (Claude, Gemini, Cursor), four documentation categories (rules, concepts, runbooks, tutorials), and five consumer projects. Without a single agreed glossary, the same word picks up subtly different meanings across files — "agent" can mean an LLM instance, a session, or a process; "spec" can mean a rule, a contract, or a schema. The taxonomy fixes the vocabulary so cross-references resolve cleanly.
+
+The doc has a second, contractual purpose: `scripts/auto_managed.py` extracts the Runtime entities and Config artefacts sections by heading and republishes them verbatim into consumer dispatchers. The headings below are therefore load-bearing; renaming them breaks the auto-managed pipeline.
+
+## What
+
+Each entry is one row, ≤3 lines. Definitions are intentionally narrow; if a term needs more nuance, it gets its own concept doc and the taxonomy entry points there.
 
 ## 1 Runtime entities
 
 Things that exist at execution time, inside or alongside an agent session.
 
-| Term | Definition | Example | Scope |
-|---|---|---|---|
-| Agent | An LLM-driven entity with a system prompt, a tool set, a session context, and a goal. | Claude Sonnet instance running via Claude Code CLI in `C:\Projects\consumer-c`. | runtime |
-| Subagent | Agent spawned by another agent with a fresh context window and a bounded brief; returns a single structured result to the parent. | Reviewer invoked via the `Task` tool in `bmad-code-review` to run the Blind Hunter pass. | runtime |
-| Tool | Machine-callable function with a typed JSON Schema I/O contract the agent invokes deterministically. | `Read`, `Bash`, `hindsight.recall`, `mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql`. | runtime |
-| MCP server | Tool-providing network service following the Model Context Protocol; exposes one or more tools over stdio or HTTP. | `hindsight` (project memory), `litellm` on `localhost:4000`, `guardrails-mcp` (planned T10). | infra |
-| Session | Single continuous turn sequence between a user and an agent, sharing one context window and one transcript. | A Claude Code run from `claude` invocation to exit; preserved by `--resume`. | runtime |
-| Context | The ordered list of messages, tool results, and system content the LLM sees on a given turn. | 180k tokens of prompt + history in an Opus 4.7 1M-context session. | runtime |
-| Token budget | Upper bound on context-window usage before `/compact` or session split is required. | "Compact at ~50% of context" — principle #4 in `C:\Users\Arturo\.claude\CLAUDE.md`. | process |
-| Trace (OTel) | Structured span emitted to an observability backend recording a single logical operation (tool call, skill run, LLM request). | Langfuse span emitted by `lib/telemetry/trace_anthropic(...)` in `consumer-d`. | infra |
+| Term | Definition |
+|---|---|
+| Agent | An LLM-driven entity with a system prompt, a tool set, a session context, and a goal. |
+| Context | The ordered list of messages, tool results, and system content the LLM sees on a given turn. |
+| MCP server | Tool-providing network service following the Model Context Protocol; exposes one or more tools over stdio or HTTP. |
+| Session | A single continuous turn sequence between a user and an agent, sharing one context window and one transcript. |
+| Subagent | An agent spawned by another agent with a fresh context window and a bounded brief, returning a single structured result. |
+| Token budget | The upper bound on context-window usage before `/compact` or session split is needed. |
+| Tool | A machine-callable function with a typed JSON Schema I/O contract the agent invokes deterministically. |
+| Trace (OTel) | Structured span emitted to an observability backend recording a single logical operation (tool call, skill run, LLM request). |
 
 ## 2 Config artefacts
 
-Files and declarative records that shape agent behavior. They exist on disk; they are
-read, not executed, by the LLM.
+Files and declarative records that shape agent behavior. They exist on disk; they are read, not executed, by the LLM.
 
-| Term | Definition | Example | Scope |
-|---|---|---|---|
-| Skill | Reusable natural-language procedure spec the LLM executes step-by-step; invoked by name via the Skill tool. | `bmad-code-review`, `openspec-propose` (discoverable from the system-reminder skills block). | config |
-| Command | Slash-invocable skill or action, registered under `.claude/commands/` or a plugin namespace. | `/opsx:propose`, `/init`, `/review`. | config |
-| Hook | Trigger script bound by the CLI to a lifecycle event (`PreToolUse`, `PostToolUse`, `Stop`); executes deterministically without LLM involvement. | Pre-commit formatting hook declared in `settings.json` running `ruff format` after `Edit`. | infra |
-| Script | Cross-platform Python tool under `ai-playbook/scripts/*.py`, runnable by humans, hooks, or CI. | `C:\Projects\ai-playbook\scripts\schema_validate.py`, `discover_projects.py`. | infra |
-| Dispatcher | A markdown file an agent reads to learn how to operate in a given context; lean, pointer-heavy. | `AGENTS.md`, `C:\Projects\consumer-d\consumer-d.md`, `D:\OneDrive\BRAIN.md`. | config |
-| Router | Thin (5–10 line) CLI-specific file that redirects the agent to the real dispatcher. | `C:\Users\Arturo\.claude\CLAUDE.md`, `GEMINI.md`, `.cursor/rules/00-dispatcher.mdc`. | config |
-| Registry | Machine-readable index mapping logical names to resolved on-disk locations. | `~/.ai-playbook/projects.yaml` (per-dev, gitignored). | config |
-| Spec | Normative document under `specs/` defining a contract, schema, or rule that consumers rely on. | `C:\Projects\ai-playbook\specs\verdict-contract.md`. | config |
-| Template | Skeleton file copied on bootstrap to seed a new artefact of a known type. | `openspec/changes/<change-name>/proposal.md` template. | config |
-| RFC | Request-for-Comment document under `rfcs/` proposing a breaking change or major new spec, merged before the spec lands. | `rfcs/0001-schema-v2.md` (hypothetical). | process |
+| Term | Definition |
+|---|---|
+| AGENTS.md | The primary dispatcher file consumers read. ≤500 lines (D14). |
+| Concept doc | Reference / explanation doc under `docs/concepts/*.md`. No RFC 2119 vocabulary. Validated by `schema-concept-v1.json`. |
+| Contract | A typed, schema-validated artefact (frontmatter, JSON, YAML) between two components — versioned via `schema:` field. |
+| Dispatcher | A substantive markdown file an agent reads to learn norms and pointers. `AGENTS.md` is the primary one. |
+| Frontmatter | The YAML block at the top of a markdown doc, delimited by `---` on its own line. Carries machine-readable metadata. |
+| Hook | A trigger script bound by the CLI harness to a lifecycle event (`PreToolUse`, `PostToolUse`, `Stop`). |
+| INDEX.md | Auto-generated per-folder index listing every doc with its title and summary, regenerated by `gen_indexes.py`. |
+| Registry | `~/.ai-playbook/projects.yaml`, per-developer, gitignored. Maps cwd to project dispatcher for the CLI bootstrap. |
+| Router | Thin 5–10 line CLI-specific file redirecting an agent to the real dispatcher. `~/.claude/CLAUDE.md` is a router. |
+| Rule doc | Markdown rule under `docs/rules/<slug>.rule.md`. RFC 2119 vocabulary allowed. Validated by `schema-rule-v1.json`. |
+| Schema | A JSON Schema document under `schemas/schema-*-vN.json`. Versioned; disjoint by domain (D9). |
+| Script | A portable Python tool under `scripts/*.py`. Runnable by humans, hooks, or CI. Hooks call scripts; scripts are reusable. |
+| Skill | A reusable natural-language procedure the LLM executes step-by-step; invoked by name via the harness's Skill tool. |
+| Template | Skeleton file copied on bootstrap to seed a new artefact of a known type. |
 
 ## 3 Process concepts
 
 Ritual and review mechanics used by humans and agents alike during the worker→QA loop.
 
-| Term | Definition | Example | Scope |
-|---|---|---|---|
-| Verdict | The structured output of a QA pass on a worker artefact: one of `✅ APPROVED`, `⚠️ ISSUES FOUND`, `❓ CLARIFICATION NEEDED`. | QA subagent returns `⚠️ ISSUES FOUND (iter 2): S2 traceability gap`. | process |
-| Severity | S0–S4 tag on each issue in a verdict. S1/S2 block approval; S3/S4 are advisory. | See `C:\Projects\ai-playbook\specs\verdict-contract.md`. S0 = must fix before merge; S4 = nit. | process |
-| Rework cycle | One round of worker fix + QA re-review after a non-approving verdict. Cap is 2 cycles per artefact. | After the 2nd `⚠️ ISSUES FOUND` verdict on the same artefact, escalate to the user as a systemic issue. | process |
-| Break-glass | Explicit override of an inherited rule or gate, invoked with `--force-with-reason "<justification>"` and logged. | `openspec apply --force-with-reason "prod outage; spec drift acknowledged"`. See `docs/rules/break-glass.rule.md`. | process |
-| Self-validation gate | One of 5 silent checks a worker runs on its own output before invoking QA: Scope, Anti-duplication, Traceability, TDD compliance, Naming. | Worker detects the proposal references Jira PROJ-42 but fails Traceability gate when the cited issue doesn't exist; reworks before QA. | process |
-| Parallel review | Multiple independent QA subagents examining the same artefact simultaneously with orthogonal briefs. | `bmad-code-review` invokes Blind Hunter + Edge Case Hunter + Acceptance Auditor in parallel. | process |
-| Retro cadence | Scheduled retrospective ritual extracting lessons from completed epics or quarters. | Post-epic retro run via `bmad-retrospective` skill; frequency in `C:\Projects\ai-playbook\specs\retrospective-cadence.md`. | process |
+| Term | Definition |
+|---|---|
+| Audit log | Append-only JSONL trail of break-glass invocations at `<consumer>/.ai-playbook-state/break-glass-audit.jsonl`. |
+| Break-glass | Explicit override of a rule, invoked via env var or `--force-with-reason "<justification>"`, audited. |
+| Doc-drift | Mismatch between a doc and the code it documents. CI gate `check_doc_drift.py` blocks PRs that bump scripts without doc updates. |
+| OpenSpec change | A folder under `openspec/changes/<change-id>/` carrying proposal + tasks + design before implementation lands. |
+| Parallel review | Multiple independent QA subagents examining the same artefact simultaneously with orthogonal briefs. |
+| PR | A GitHub pull request. Conventional-commit titled; `[no-doc-impact]` tag means no doc-drift check applies. |
+| Retro cadence | Scheduled retrospective ritual extracting lessons from completed epics or quarters. |
+| Rework cycle | One round of worker fix + QA re-review after a non-approving verdict. Cap is 2 cycles per artefact. |
+| Self-validation gate | One of 5 silent checks a worker runs on its own output before invoking QA. |
+| Severity | S0–S4 tag on each issue in a verdict. S0/S1/S2 block approval; S3/S4 are advisory. |
+| Slice | A scoped unit of work under the architectural-reset plan. 5.B is the slice this glossary belongs to. |
+| Sub-slice | A scoped sub-unit of a slice. Slice 5 has six sub-slices: 5.A through 5.F. |
+| Verdict | The structured output of a QA pass: one of `✅ APPROVED`, `⚠️ ISSUES FOUND`, `❓ CLARIFICATION NEEDED`. |
 
-## 4 Distinctions worth hammering
+## 4 Enforcement architecture
 
-The places teams drift if these aren't kept crisp.
+Terms specific to the L1 / L2 / L3 layered enforcement architecture described in `enforcement-layers.md`.
 
-### Tool vs Skill
-A **tool** is machine-callable with a JSON Schema contract — the agent *calls* it, gets a
-deterministic typed result. A **skill** is a natural-language procedure the LLM *executes*
-step by step. Tools are deterministic infra; skills are LLM behavior. `Read` is a tool.
-`bmad-create-prd` is a skill.
+| Term | Definition |
+|---|---|
+| Activation mode | One of Cursor's four rule-loading modes: `always`, `auto`, `agent`, `manual`. Other LLMs degrade per `cross-llm-activation.md`. |
+| Advisory-only rule | Rule with `paired_hardrule: null`. Documented but not L1-enforced. Justified in `enforcement-pairing-exceptions.md`. |
+| Always-loaded rule | Rule with `activation: always`. Loaded into every LLM session unconditionally. Six exist (D16). |
+| Anchor | The `#slug` fragment identifier within a markdown doc URL. Concept docs anchor on their frontmatter `slug`. |
+| Disjoint schemas | The rule schema and concept schema each forbid fields the other requires (D9). Mislabelling is caught at validation. |
+| Globs | File-pattern scoping field in rule frontmatter (`globs: ["src/**/*.py"]`). Required when `activation: auto`. |
+| Hook dispatcher | Single-process daemon (`scripts/hook_dispatcher.py`) that loads all rules once per session for ≤50ms SLA (D10). |
+| L1 | Hard terminal enforcement layer: Python PreToolUse / PostToolUse hooks at `scripts/rules/<slug>.rule.py`. |
+| L2 | Soft declarative enforcement layer: markdown rules at `docs/rules/<slug>.rule.md`, loaded as LLM context. |
+| L3 | Hard server enforcement layer: GitHub Actions at `.github/workflows/<slug>.rule.yml`, branch-protection required. |
+| last_validated | Optional date field in concept frontmatter. Warns at >180d via `check_rule_freshness.py` (D21). |
+| Local rules | Consumer-side rules under `local-rules/*.rule.py` not maintained upstream. Schema `scope: local`. |
+| Materialiser | Script that emits gitignored mirrors of upstream artefacts (`materialise_cursor_rules.py`, `materialise_skills.py`). |
+| Normative reference | The Diátaxis-inspired subcategory hosting rules (D4). Reference content with binding semantics, hence the `rules/` folder. |
+| paired_hardrule | Rule frontmatter field pointing at the L1 Python hook or `null` for advisory-only rules. |
+| Pairing invariant | Every L1 hook has an L2 doc and vice versa; bound by slug. Enforced by `scripts/validate_pairing.py`. |
+| Plugin extensibility | The convention that lets consumers add local rules without forking upstream (D13). |
+| Process supervision | Section in a rule body declaring the L1 hook's CLI invocation, byte-identical to the actual entrypoint (D8). |
+| Rule lifecycle | Status progression: `enforced` → `warn` → `advisory` → `deprecated` (D18). Tracked in frontmatter `status:` field. |
+| Same-rubric-two-enforcers | The protocol where L1, L2 self-check, and L3 all run the same validator (D8). |
+| Session-start hook | The first hook fired when a Claude Code or Gemini CLI session starts. Injects always-loaded rules. |
+| Slug | The authoritative identifier for a rule or concept. Matches the regex `^[a-z][a-z0-9-]{1,40}$` (D3). |
+| Telemetry event | A JSONL row at `.ai-playbook-state/rule-events.jsonl` emitted on every L1 hook fire (D15). Schema-validated. |
+| Trigger | A rule frontmatter field declaring which tool events the L1 hook cares about (`PreToolUse:Edit`, `Bash`, …). |
 
-### Hook vs Script
-A **hook** is CLI-bound: registered in `settings.json`, triggered by a specific event
-(`PostToolUse`, `Stop`), non-portable semantics (depends on the harness). A **script** is
-portable Python under `ai-playbook/scripts/*.py` that can be reused by hooks, CI, or humans
-at the command line. Hooks CALL scripts; the script is the reusable unit, the hook is the
-binding.
+## 5 Project structure
 
-### Subagent vs Agent
-Both are agents. "Subagent" emphasizes it was *spawned* by a parent agent with a bounded
-brief and a fresh context window, and that its job is to return a single structured result
-(a verdict, a file, a summary) to the parent — not to hold a stateful conversation with the
-user. An agent talking directly to the user in a session is not a subagent.
+Terms describing the repository layout and consumer integration.
 
-### Personal add-on vs Project dispatcher
-A **project dispatcher** (`AGENTS.md`) is public-safe, shipped to every team dev cloning
-the repo. A **personal add-on** (e.g. `consumer-d.md`) is loaded conditionally via the projects
-registry (`personal: true` flag) and carries inline gotchas that are *not* universalizable
-(VPS port numbers, local startup order, specific MCP auth choices). Team devs cloning a
-personal repo never load the add-on — the registry on their machine lacks the flag.
+| Term | Definition |
+|---|---|
+| ai-playbook | The upstream repository this glossary belongs to. Consumed as a git submodule by downstream projects. |
+| CHANGELOG | Markdown file at repo root tracking releases. One entry per VERSION bump; user-facing language. |
+| Consumer | A downstream project that inherits from ai-playbook via git submodule. The 5 known consumers are private to Arturo. |
+| gen_indexes.py | The script that auto-generates `INDEX.md` files inside each `docs/<category>/` folder from the per-doc frontmatter. |
+| Gemini CLI | One of three target LLM harnesses. Lacks PreToolUse hook support; gets injected rules via `scripts/gemini_start.py`. |
+| Migration script | One-shot script under `scripts/one_shot_migrations/` deleted after the migration verifies. The CHANGELOG entry preserves history. |
+| Repo root | The directory containing `VERSION`, `AGENTS.md`, `README.md`, and the `docs/` / `scripts/` / `schemas/` subtrees. |
+| RFC 2119 | The IETF document defining `MUST` / `MUST NOT` / `SHOULD` / `MAY` keywords as normative vocabulary. Banned in concept bodies. |
+| STYLE.md | The style guide at `docs/concepts/STYLE.md`. Authoritative for concept-doc rewrites; refined in Slice 5.B. |
+| Spec | Generic term for a normative document. Within `docs/`, prefer "rule" (normative) or "concept" (reference) for clarity. |
+| Tutorial | A learning-oriented doc under `docs/tutorials/*.md`. Numbered (`01-architecture-tour.md` is canonical entry). |
+| Runbook | A how-to procedural doc under `docs/runbooks/*.md`. ≤500 body lines (D7). |
+| VERSION | The repo-root file carrying the current semver tag (`0.18.0`). Bumped per slice (D19). |
+| Validate-pairing | The cross-artefact validator at `scripts/validate_pairing.py`. Enforces the slug-bound four-artefact pairing. |
+| Worktree | A git working directory other than the primary checkout. Used to run parallel slices without branch-switching cost. |
+| Zombie | A consumer-side artefact left behind by an upstream rename or deletion. Cleaned by `cleanup_zombies.py` per the manifest. |
 
-### Dispatcher vs Router
-A **dispatcher** is a substantive file the agent reads to learn norms, identity, and
-pointers. It contains actual content (§0–§8 in AGENTS.md). A **router** is a 5–10 line
-pointer file whose only job is telling a specific CLI ("when you are Claude Code / Gemini /
-Cursor, go read AGENTS.md instead"). `~/.claude/CLAUDE.md` is a router. `AGENTS.md` is a
-dispatcher. Never put norms in a router; never inline a router's pointer text into a
-dispatcher.
+## How it relates to other concepts
 
----
+- The frontmatter `slug:` field is defined here and validated by `schemas/schema-concept-v1.json` (rule version: `schemas/schema-rule-v1.json`).
+- "L1 / L2 / L3" definitions in this glossary expand into the full architecture at `enforcement-layers.md`.
+- "Activation mode" definitions expand into the per-LLM matrix at `cross-llm-activation.md`.
+- "Advisory-only rule" definitions expand into the exception register at `enforcement-pairing-exceptions.md`.
 
-## See also
+## Concrete example
 
-- `C:\Projects\ai-playbook\specs\dispatcher-chain.md` — 3-level inheritance model using these terms.
-- `C:\Projects\ai-playbook\specs\verdict-contract.md` — verdict + severity formal contract.
-- `C:\Projects\ai-playbook\specs\agents-md-v1.schema.json` — schema whose fields reference project/owner/inherits_from.
-- `C:\Projects\ai-playbook\specs\projects-registry.md` — registry as defined above.
+A new author drafting a rule about test-output formatting starts here. The taxonomy resolves the candidate words:
+
+- "test runner" — not in glossary; not a load-bearing playbook concept, so prose-only mention is fine.
+- "PreToolUse" — not a glossary term; reference the underlying "Hook" entry and let the rule body cite the harness-specific event name.
+- "slug" — glossary-defined; use exactly `slug`, never "name" or "id".
+- "binding clause" — not in glossary but defined in the rule-doc template at `docs/rules/<slug>.rule.md`; the glossary entry "Rule doc" points there.
+
+Result: the rule author writes prose that matches the rest of the corpus without inventing synonyms.
+
+## Further reading
+
+- D3 (slug-based pairing) — Slice-5 plan decisions doc.
+- D9 (disjoint rule / concept schemas).
+- Diátaxis framework (`https://diataxis.fr`) for the reference / how-to / tutorial / explanation distinction the playbook adopts.
