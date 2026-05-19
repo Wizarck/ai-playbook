@@ -31,7 +31,7 @@ BASE_MIN = {
             "description": "Vault RAG.",
             "transport": "stdio",
             "endpoint": None,
-            "command": "python -m consumer-d.rag",
+            "command": "python -m vault_rag",
             "env": {"required": [], "optional": []},
             "auth": "none",
             "scope": "universal",
@@ -93,9 +93,9 @@ def test_render_writes_claude_and_gemini(tmp_path: Path) -> None:
     gemini_doc = json.loads((consumer / ".gemini" / "settings.json").read_text(encoding="utf-8"))
     assert set(claude_doc["mcpServers"].keys()) == {"hindsight", "rag"}
     assert claude_doc["mcpServers"]["hindsight"]["url"] == "https://project.example/mcp/"
-    assert claude_doc["mcpServers"]["rag"]["command"] == "python -m consumer-d.rag"
+    assert claude_doc["mcpServers"]["rag"]["command"] == "python -m vault_rag"
     assert set(gemini_doc["mcpServers"].keys()) == {"hindsight", "rag"}
-    assert gemini_doc["mcpServers"]["rag"]["command"] == "python -m consumer-d.rag"
+    assert gemini_doc["mcpServers"]["rag"]["command"] == "python -m vault_rag"
 
 
 def test_render_dry_run_does_not_write(tmp_path: Path,

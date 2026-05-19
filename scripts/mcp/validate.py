@@ -5,8 +5,11 @@ Three layers — each a YAML file, same v1 schema:
 1. **Base**     — ``<playbook>/templates/rendered/mcp-servers-base.yaml.tmpl`` (well-known templates).
 2. **Project**  — ``<consumer>/mcp-servers.yaml`` (project-scoped servers).
 3. **Personal** — ``$AIPLAYBOOK_PERSONAL_MCP_FILE`` if set, else
-                  ``~/.config/mcp-servers.yaml``, else
-                  ``<HOME>/Projects/consumer-d/mcp-servers.yaml`` (legacy convention).
+                  ``~/.config/mcp-servers.yaml`` (XDG convention).
+                  (The pre-flip ``<HOME>/Projects/consumer-d/mcp-servers.yaml``
+                  legacy fallback was removed in v0.19.2 — it only resolved
+                  against a redacted name that no longer matches any real
+                  local checkout.)
 
 Merge precedence: **personal > project > base**, field-by-field deep merge.
 
@@ -194,14 +197,18 @@ def resolve_playbook_root(explicit: Path | None, cwd: Path) -> Path:
 def resolve_personal_file(explicit: Path | None) -> Path | None:
     """Resolve the personal-layer YAML path (may not exist — returns the candidate).
 
-    Search order:
+    Search order (v0.19.2+ — the pre-flip legacy `~/Projects/consumer-d/...`
+    fallbacks were removed; they only resolved against a name that no longer
+    matches any real consumer dir post-public-flip):
+
         1. ``--personal-file`` CLI arg.
         2. ``$AIPLAYBOOK_PERSONAL_MCP_FILE`` env var.
         3. ``~/.config/mcp-servers.yaml`` (XDG convention).
-        4. ``~/Projects/consumer-d/mcp-servers.yaml`` (legacy fallback;
-           emits a stderr notice so the dev sees the cross-project read).
-        5. ``C:/Projects/consumer-d/mcp-servers.yaml`` (Windows legacy
-           fallback; same notice).
+
+    If none resolve, returns ``None`` and the render proceeds with base +
+    project only. Maintainers running the playbook against a personal layer
+    that lives outside ``~/.config`` MUST set ``$AIPLAYBOOK_PERSONAL_MCP_FILE``
+    in their shell profile (or pass ``--personal-file``).
     """
     if explicit is not None:
         return explicit.expanduser().resolve()
@@ -211,23 +218,6 @@ def resolve_personal_file(explicit: Path | None) -> Path | None:
     xdg = Path.home() / ".config" / "mcp-servers.yaml"
     if xdg.is_file():
         return xdg.resolve()
-
-    def _legacy_notice(path: Path) -> None:
-        print(
-            f"ℹ️  mcp-validate: using legacy personal-layer fallback at {path} "
-            f"(no ~/.config/mcp-servers.yaml found). Set $AIPLAYBOOK_PERSONAL_MCP_FILE "
-            f"or create ~/.config/mcp-servers.yaml to override.",
-            file=sys.stderr,
-        )
-
-    legacy = Path.home() / "Projects" / "consumer-d" / "mcp-servers.yaml"
-    if legacy.is_file():
-        _legacy_notice(legacy)
-        return legacy.resolve()
-    win_legacy = Path("C:/Projects/consumer-d/mcp-servers.yaml")
-    if win_legacy.is_file():
-        _legacy_notice(win_legacy)
-        return win_legacy.resolve()
     return None
 
 
@@ -260,8 +250,8 @@ def _resolve_project_layer_file(consumer_root: Path) -> Path:
     """Resolve the v1 project-layer YAML for a consumer.
 
     A consumer may ship its own legacy ``mcp-servers.yaml`` as SSOT for other
-    tooling (e.g. consumer-d's helm chart + desktop-stack scripts predate the
-    playbook v1 layer schema). Those files declare ``metadata:`` rather than
+    tooling (helm charts, desktop-stack scripts) that predate the playbook
+    v1 layer schema. Those files declare ``metadata:`` rather than
     ``schema: mcp-servers/v1`` and would fail playbook validation.
 
     Resolution order:
