@@ -84,7 +84,10 @@ def test_advisory_only_rule_validates_non_strict(fake_repo: Path) -> None:
 def test_orphan_doc_detected(fake_repo: Path) -> None:
     docs = _make_docs_rules(fake_repo)
     _write_rule_doc(docs / "lonely.rule.md", slug="lonely", paired="scripts/rules/lonely.rule.py")
-    errors = vp.validate(fake_repo)
+    # Slice 5 contract: missing paired_hardrule on disk is a STRICT-only error
+    # while the corpus is being rewritten and the .rule.py implementations
+    # ship in a later slice. validate_pairing remains lenient by default.
+    errors = vp.validate(fake_repo, strict=True)
     assert any(e.signal == "hardrule" for e in errors)
 
 
@@ -200,9 +203,18 @@ def test_missing_frontmatter_non_strict_tolerated(fake_repo: Path) -> None:
 def test_paired_hardrule_missing_on_disk(fake_repo: Path) -> None:
     docs = _make_docs_rules(fake_repo)
     _write_rule_doc(docs / "foo.rule.md", slug="foo", paired="scripts/rules/foo.rule.py")
-    # No script file written.
-    errors = vp.validate(fake_repo)
+    # No script file written. Slice 5 contract: missing hardrule is STRICT-only.
+    errors = vp.validate(fake_repo, strict=True)
     assert any(e.signal == "hardrule" for e in errors)
+
+
+def test_paired_hardrule_missing_on_disk_lenient(fake_repo: Path) -> None:
+    docs = _make_docs_rules(fake_repo)
+    _write_rule_doc(docs / "lenient.rule.md", slug="lenient", paired="scripts/rules/lenient.rule.py")
+    # Lenient mode (default) does NOT flag missing-on-disk during the Slice 5
+    # rewrite window. Strict comes back in Slice 5.F.
+    errors = vp.validate(fake_repo, strict=False)
+    assert not any(e.slug == "lenient" and e.signal == "hardrule" for e in errors)
 
 
 def test_paired_hardrule_slug_mismatch(fake_repo: Path) -> None:
@@ -358,7 +370,8 @@ def test_main_exits_zero_on_clean(fake_repo: Path) -> None:
 def test_main_exits_two_on_drift(fake_repo: Path) -> None:
     docs = _make_docs_rules(fake_repo)
     _write_rule_doc(docs / "orphan.rule.md", slug="orphan", paired="scripts/rules/orphan.rule.py")
-    code = vp.main(["--root", str(fake_repo)])
+    # Missing-on-disk is STRICT-only during the Slice 5 rewrite window.
+    code = vp.main(["--root", str(fake_repo), "--strict"])
     assert code == 2
 
 
@@ -372,14 +385,18 @@ def test_slug_with_numbers_accepted(fake_repo: Path) -> None:
 def test_paired_hardrule_with_wrong_extension(fake_repo: Path) -> None:
     docs = _make_docs_rules(fake_repo)
     _write_rule_doc(docs / "foo.rule.md", slug="foo", paired="scripts/rules/foo.py")
-    errors = vp.validate(fake_repo)
+    # Strict mode catches paired_hardrule paths that do not exist on disk; the
+    # wrong-extension form is caught by schema validation upstream (the JSON
+    # Schema pattern rejects non-`.rule.py` suffix), but the validator's own
+    # check is a strict-only "missing on disk" gate.
+    errors = vp.validate(fake_repo, strict=True)
     assert any(e.signal == "hardrule" for e in errors)
 
 
 def test_paired_hardrule_pointing_outside_scripts_rules(fake_repo: Path) -> None:
     docs = _make_docs_rules(fake_repo)
     _write_rule_doc(docs / "foo.rule.md", slug="foo", paired="scripts/foo.py")
-    errors = vp.validate(fake_repo)
+    errors = vp.validate(fake_repo, strict=True)
     assert any(e.signal == "hardrule" for e in errors)
 
 
