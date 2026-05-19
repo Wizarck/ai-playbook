@@ -10,13 +10,24 @@ Enforces 4 defense signals per rule:
 
 CLI:
 
-    python -m scripts.validate_pairing          # default: validate all
-    python -m scripts.validate_pairing --strict # also fail on advisory exceptions
+    python -m scripts.validate_pairing            # default: STRICT (Slice 5.F)
+    python -m scripts.validate_pairing --lenient  # legacy Slice-4 lifeline mode
     python -m scripts.validate_pairing --include-local  # D13 local-rules/
 
 Exit codes:
     0 — all signals consistent
     2 — drift detected (prints offending paths)
+
+Default mode flipped to STRICT in Slice 5.F (v0.18.1). The lenient mode is
+preserved as `--lenient` for legacy CI callers that still need the Slice-4
+window where frontmatter / paired_hardrule paths could be absent.
+
+Deferred hardrules: rules whose `paired_hardrule:` names a `.rule.py` that
+ships in a later slice can be listed in `scripts/rules/deferred-hardrules.txt`
+(one slug per line, `#` comments allowed). The "not found on disk" check is
+downgraded to a no-op for listed slugs. Every entry is mirrored in
+`openspec/changes/slice-5f-harmonization/deferred-strict-failures.md` for
+audit-trail discoverability.
 
 Self-test fixtures live in `tests/test_validate_pairing.py` (≥30 cases per
 D12 defense-in-depth). A parallel shell oracle
@@ -91,7 +102,27 @@ def _slug_from_filename(p: Path) -> str:
     return p.stem
 
 
-def validate(root: Path = REPO_ROOT, *, strict: bool = False, include_local: bool = False) -> list[PairingError]:
+def _load_deferred_hardrules(root: Path) -> set[str]:
+    """Load slugs whose paired_hardrule .py is acknowledged as deferred.
+
+    The Slice 5 rewrite landed 38 rule docs but only 9 paired hardrule scripts.
+    The remaining ~25 rules name a `paired_hardrule:` that ships in a future
+    slice. Listing the slug here downgrades the "not found on disk" strict
+    check to a no-op so CI can run strict-by-default without faking either
+    side of the contract.
+    """
+    deferred_path = root / "scripts" / "rules" / "deferred-hardrules.txt"
+    if not deferred_path.is_file():
+        return set()
+    slugs: set[str] = set()
+    for line in deferred_path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            slugs.add(line)
+    return slugs
+
+
+def validate(root: Path = REPO_ROOT, *, strict: bool = True, include_local: bool = False) -> list[PairingError]:
     errors: list[PairingError] = []
 
     # Index slugs known via each signal.
@@ -119,6 +150,9 @@ def validate(root: Path = REPO_ROOT, *, strict: bool = False, include_local: boo
     # AGENTS.md Rule Map text (signal #4).
     agents_path = root / "AGENTS.md"
     agents_text = agents_path.read_text(encoding="utf-8") if agents_path.is_file() else ""
+
+    # Slugs whose paired_hardrule .py ships in a later slice.
+    deferred_slugs = _load_deferred_hardrules(root)
 
     # Cross-validate each doc.
     for slug, doc in doc_slugs.items():
@@ -156,9 +190,11 @@ def validate(root: Path = REPO_ROOT, *, strict: bool = False, include_local: boo
             ph_path = root / ph
             if not ph_path.is_file():
                 # Slice 5 declares paired_hardrule paths ahead of the .rule.py
-                # implementation (the hardrules ship in a later slice). Treat
-                # missing files as WARN under --strict, lenient by default.
-                if strict:
+                # implementation (the hardrules ship in a later slice). Strict
+                # mode (default since 5.F) flags this unless the slug appears
+                # in scripts/rules/deferred-hardrules.txt — the audit-trail
+                # allowlist for known-deferred hardrules.
+                if strict and slug not in deferred_slugs:
                     errors.append(PairingError(
                         slug, "hardrule",
                         f"paired_hardrule {ph!r} not found on disk",
@@ -208,9 +244,20 @@ def main(argv: list[str] | None = None) -> int:
         description="Validate ai-playbook rule pairing (D3 + D12).",
     )
     parser.add_argument(
+        "--lenient",
+        action="store_true",
+        help=(
+            "Run in legacy Slice-4 mode — skip frontmatter, hardrule-on-disk, "
+            "and AGENTS.md Rule Map gates. Default is strict (Slice 5.F)."
+        ),
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
-        help="Also fail on AGENTS.md Rule Map drift + advisory justification absence.",
+        help=(
+            "Deprecated no-op — strict is the default since Slice 5.F. Kept "
+            "for backward compatibility with older CI workflows; ignored."
+        ),
     )
     parser.add_argument(
         "--include-local",
@@ -220,7 +267,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", default=str(REPO_ROOT), help="Repo root.")
     args = parser.parse_args(argv)
 
-    errors = validate(Path(args.root), strict=args.strict, include_local=args.include_local)
+    strict = not args.lenient  # default strict, --lenient opts back to legacy
+    errors = validate(Path(args.root), strict=strict, include_local=args.include_local)
     if errors:
         print(_format_errors(errors), file=sys.stderr)
         return 2

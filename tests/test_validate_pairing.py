@@ -363,6 +363,8 @@ def test_main_exits_zero_on_clean(fake_repo: Path) -> None:
     scripts = _make_scripts_rules(fake_repo)
     _write_rule_doc(docs / "ok.rule.md", slug="ok", paired="scripts/rules/ok.rule.py")
     _write_rule_script(scripts / "ok.rule.py")
+    # Strict-by-default since Slice 5.F: slug must appear in AGENTS.md.
+    (fake_repo / "AGENTS.md").write_text("# AGENTS\n\nok\n", encoding="utf-8")
     code = vp.main(["--root", str(fake_repo)])
     assert code == 0
 
@@ -370,9 +372,49 @@ def test_main_exits_zero_on_clean(fake_repo: Path) -> None:
 def test_main_exits_two_on_drift(fake_repo: Path) -> None:
     docs = _make_docs_rules(fake_repo)
     _write_rule_doc(docs / "orphan.rule.md", slug="orphan", paired="scripts/rules/orphan.rule.py")
-    # Missing-on-disk is STRICT-only during the Slice 5 rewrite window.
-    code = vp.main(["--root", str(fake_repo), "--strict"])
+    # Default mode is strict since Slice 5.F; missing-on-disk hardrule fails.
+    code = vp.main(["--root", str(fake_repo)])
     assert code == 2
+
+
+def test_main_lenient_flag_restores_legacy_mode(fake_repo: Path) -> None:
+    """`--lenient` reproduces the Slice-4 lifeline: missing-on-disk does not fail."""
+    docs = _make_docs_rules(fake_repo)
+    _write_rule_doc(docs / "lenient-orphan.rule.md", slug="lenient-orphan",
+                    paired="scripts/rules/lenient-orphan.rule.py")
+    code = vp.main(["--root", str(fake_repo), "--lenient"])
+    assert code == 0
+
+
+def test_deferred_hardrules_allowlist(fake_repo: Path) -> None:
+    """Slugs listed in scripts/rules/deferred-hardrules.txt skip the 'not on disk' gate."""
+    docs = _make_docs_rules(fake_repo)
+    scripts = _make_scripts_rules(fake_repo)
+    scripts.mkdir(parents=True, exist_ok=True)
+    (scripts / "deferred-hardrules.txt").write_text(
+        "# deferred\nfuture-rule\n", encoding="utf-8",
+    )
+    _write_rule_doc(docs / "future-rule.rule.md", slug="future-rule",
+                    paired="scripts/rules/future-rule.rule.py")
+    (fake_repo / "AGENTS.md").write_text("# AGENTS\n\nfuture-rule\n", encoding="utf-8")
+    errors = vp.validate(fake_repo)
+    assert not any(e.signal == "hardrule" for e in errors)
+
+
+def test_deferred_hardrules_allowlist_respects_comments(fake_repo: Path) -> None:
+    """`#` comments in deferred-hardrules.txt are ignored when matching slugs."""
+    docs = _make_docs_rules(fake_repo)
+    scripts = _make_scripts_rules(fake_repo)
+    scripts.mkdir(parents=True, exist_ok=True)
+    (scripts / "deferred-hardrules.txt").write_text(
+        "# leading comment\nfuture-rule  # trailing comment\n",
+        encoding="utf-8",
+    )
+    _write_rule_doc(docs / "future-rule.rule.md", slug="future-rule",
+                    paired="scripts/rules/future-rule.rule.py")
+    (fake_repo / "AGENTS.md").write_text("# AGENTS\n\nfuture-rule\n", encoding="utf-8")
+    errors = vp.validate(fake_repo)
+    assert not any(e.signal == "hardrule" for e in errors)
 
 
 def test_slug_with_numbers_accepted(fake_repo: Path) -> None:

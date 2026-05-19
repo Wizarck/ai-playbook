@@ -4,19 +4,74 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (target: v0.18.x post-Slice 4)
+### Known gaps still pending (target: v0.18.x post-Slice 5)
 
-- **Slice 5 (content rewrite, v0.18.1)**: rewrite every `docs/rules/*.rule.md`
-  to the canonical META/sandwich/RFC-2119 form per `docs/concepts/STYLE.md`;
-  add frontmatter to every `docs/concepts/*.md` that still lacks
-  `schema: concept/v1`; add `paired_hardrule` and `triggers` to all rules;
-  populate `docs/concepts/enforcement-pairing-exceptions.md` for advisory rules.
 - **Slice 6 (telemetry, v0.18.2)**: absorb `cost_report.py` + `lifecycle_check.py`
   into `scripts/telemetry/`; add `scripts/telemetry/rule_event_logger.py`;
-  start emitting events from `hook_dispatcher.py`.
+  start emitting events from `hook_dispatcher.py`. Also retires ~14 of the
+  24 deferred hardrules in `scripts/rules/deferred-hardrules.txt`.
 - **Slice 7 (polish, v0.18.3)**: Mermaid diagrams in
   `docs/concepts/enforcement-layers.md`; full content for
-  `docs/tutorials/01-architecture-tour.md`.
+  `docs/tutorials/01-architecture-tour.md`; retires the remaining ~10
+  deferred hardrules (migrations, notifications, apply/break-glass).
+- **Slice 8 (final cut, v0.20.0)**: visible milestone PR; tag pushed only on
+  explicit user OK. v0.19.x is reserved for post-review fix iterations
+  (versioning refined 2026-05-19).
+
+## [0.18.1] — 2026-05-19 — Slice 5 doc content rewrite complete
+
+Closes the second half of the v0.20.0 architectural reset
+([plan](../../.claude/plans/vamos-a-identificar-los-elegant-marshmallow.md)).
+Slice 4 (v0.18.0) reorganised the filesystem; Slice 5 rewrites the content
+to the canonical formats locked there. Six sub-slices over 24 hours: 5.B
+first (sequential anchor lock), then 5.A/5.C/5.D/5.E in parallel, then 5.F
+sequential harmonisation (this entry).
+
+### Sub-slices summary
+
+| Sub-slice | PR | Scope | Files touched |
+|---|---|---|---|
+| 5.B — concepts rewrite | [#67](https://github.com/Wizarck/ai-playbook/pull/67) | `docs/concepts/*.md` × 57 — canonical `concept/v1` frontmatter, RFC 2119 softening (102 substitutions across 33 files), anchor lock, `flagged-for-rule-migration.md` (20 entries for 5.A pickup), refined `STYLE.md` as authoritative exemplar | 57 concept docs + 1 style guide |
+| 5.A — rules rewrite | [#71](https://github.com/Wizarck/ai-playbook/pull/71) | `docs/rules/*.rule.md` × ~24 existing rules rewritten + 14 new rules picked up from 5.B flagged passages (ai-reviewer-signoff, auto-merge-discipline, alembic-migration-naming, subagent-envelope-schema, notification trio, etc.); `cross-rule-redundancies.md` R1-R10 report | 38 total rule docs |
+| 5.C — runbooks rewrite | [#70](https://github.com/Wizarck/ai-playbook/pull/70) | `docs/runbooks/*.md` × 14 — canonical procedural format (Goal / Prereqs / Steps / Validation / Rollback / See also); `runbook/v1` schema | 14 runbooks |
+| 5.D — tutorials rewrite | [#68](https://github.com/Wizarck/ai-playbook/pull/68) | `docs/tutorials/*.md` × 8 — Diátaxis tutorial style; new `01-architecture-tour.md` 15-min cold-start | 8 tutorials |
+| 5.E — new process rules | [#69](https://github.com/Wizarck/ai-playbook/pull/69) | 10 new process rules (install-playbook, update-playbook, cleanup-on-bump, update-documentation, openspec-apply-enforcement, gemini-session-start, data-handling, secrets-handling, english-only-docs, link-integrity); 9 paired `.rule.py` stubs; 6 cross-rule integration tests in `tests/integration/test_rule_interactions.py` | 10 rule docs + 9 hardrule stubs + 6 tests |
+| 5.F — harmonisation (this PR) | this | Strict-by-default validators, AGENTS.md Rule Map, deferred-hardrules allowlist, dead-link fixes, VERSION bump, comprehensive CHANGELOG entry | See "Changes in 5.F" below |
+
+### Changes in 5.F (this PR)
+
+- **Strict-by-default validators**:
+  - `scripts/validate_pairing.py`: default flipped lenient → strict. New `--lenient` flag preserves the Slice-4 lifeline mode. `--strict` kept as a no-op for backward CI compatibility.
+  - `scripts/check_link_integrity.py`: default flipped warn-only → fail. New `--warn-only` flag preserves the legacy WARN-only mode. `--strict` kept as a no-op for backward CI compatibility.
+  - `.github/workflows/validate-pairing.rule.yml`, `.github/workflows/check-link-integrity.rule.yml`, `.github/workflows/check-rule-schemas.rule.yml`: invocations already match the new strict default; verified consistent.
+- **Deferred-hardrules allowlist** (`scripts/rules/deferred-hardrules.txt`): 24 rule slugs whose `paired_hardrule:` names a `.rule.py` not yet on disk. The validator downgrades the "not found" check to a no-op for listed slugs; the audit register in `openspec/changes/slice-5f-harmonization/deferred-strict-failures.md` documents each deferral and the target slice (6 or 7).
+- **AGENTS.md Rule Map** (`§9`): hand-curated table of every `docs/rules/<slug>.rule.md` slug grouped by status (10 enforced / 5 advisory / 24 deferred). Required for D3 signal #4 (every slug present in AGENTS.md text). AGENTS.md grew from 92 → 145 lines, well under the 500-line D14 cap.
+- **Dead-link fixes**: 13 dead links resolved (docs/index.md 11 + docs/concepts/slos.md 1 + docs/concepts/upstream-sync.md 2 — all pointing to pre-Slice-4 paths or pre-Slice-5.D tutorial filenames).
+- **Tone normalisation**: 2 remaining RFC 2119 keywords in concept-doc frontmatter summaries softened (`agent-contract.md`, `v090-roadmap.md`) — the 5.B softening script had focused on body prose.
+- **Cross-reference dedupe (R1-R10 from cross-rule-redundancies.md)**: 5.A already shipped the consolidations; 5.F verified each pair (R1 break-glass restatement, R2 verdict-contract preconditions, R3 error-shape, R4 globs+triggers, R5 ai-reviewer triad, R6 migrations chain, R7 notification trio, R8 parallel-wave vs conflict, R9 subagent envelope vs delegated shipping, R10 verdict-contract parallel-review branch). No further extraction required.
+- **Pairing-exception register**: `docs/concepts/enforcement-pairing-exceptions.md` table extended with `data-handling` (Slice 5.E rule that strict mode surfaced as missing justification).
+- **New tests** (4 added; baseline 925 → 929 passing):
+  - `test_main_lenient_flag_restores_legacy_mode` — validates `--lenient` opt-back.
+  - `test_deferred_hardrules_allowlist` — validates the deferred-slugs allowlist.
+  - `test_deferred_hardrules_allowlist_respects_comments` — validates `#` comment handling.
+  - `test_main_exits_two_on_dead_default_strict` (link integrity) — validates new strict default.
+  - `test_main_exits_zero_on_dead_warn_only` (link integrity) — validates `--warn-only` opt-back.
+- **VERSION**: 0.18.0 → **0.18.1**.
+
+### Versioning note
+
+Aligns with user-refined versioning 2026-05-19: Slices 4-7 use v0.18.x;
+v0.19.x is reserved for post-review fix iterations; v0.20.0 final cut on
+explicit user approval only. Slice 5 (PRs #67-#71 + this PR) closes with
+v0.18.1. Slice 6 targets v0.18.2 (telemetry). Slice 7 targets v0.18.3
+(polish for showcase).
+
+### Migration
+
+None — content rewrites preserve every slug. Strict-mode validators apply
+to the playbook repo's own CI only; consumer-side invocations continue to
+work unchanged (consumers can opt into the new strict modes by removing
+their workflow's `--lenient` / `--warn-only` flag, if any).
 
 ## [0.18.0] — 2026-05-19 — filesystem reorg + paired enforcement tooling (BREAKING)
 

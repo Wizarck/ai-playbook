@@ -5,8 +5,8 @@ title: Agent Contract
 summary: |
   Every Task-spawned subagent — whether a reviewer, a builder, a doctor, or an
   advisor — carries an explicit identity, scope, memory binding, and budget.
-  This spec defines the input envelope the parent agent MUST send when
-  spawning, and the return envelope the child MUST emit.…
+  This spec defines the input envelope the parent agent must send when
+  spawning, and the return envelope the child must emit.…
 last_validated: "2026-05-19"
 ---
 
