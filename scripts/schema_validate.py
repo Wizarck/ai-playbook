@@ -1,4 +1,4 @@
-"""Validate an AGENTS.md YAML frontmatter against specs/agents-md-v1.schema.json.
+"""Validate an AGENTS.md YAML frontmatter against schemas/schema-agents-md-v1.json.
 
 Populated in T09. Supersedes the T03a stub.
 
@@ -10,7 +10,7 @@ Behaviour
 ---------
 - If `<path>` is omitted, validates `AGENTS.md` in the current working directory.
 - Reads the frontmatter (delimited by `---` on its own line) and validates it
-  against `specs/agents-md-v1.schema.json`.
+  against `schemas/schema-agents-md-v1.json`.
 - On failure: emits a canonical error in WHY / WHERE / FIX / OVERRIDE shape and
   exits 1.
 - `--autofix`: applies the "WILL" list from `specs/migration-guide.md`:
@@ -65,7 +65,7 @@ from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa
 SCRIPT_BASENAME = "schema_validate.py"
 GATE_NAME = "agents-md-schema"
 DEFAULT_PINNED_VERSION = "v0.1.0"
-SCHEMA_RELPATH = Path("specs") / "agents-md-v1.schema.json"
+SCHEMA_RELPATH = Path("schemas") / "schema-agents-md-v1.json"
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -516,7 +516,7 @@ def validate_one(
             where=f"{_format_path(file_path)}:1",
             fix=(
                 "add a `---` fenced frontmatter at the top of the file per "
-                "specs/agents-md-v1.schema.json; or run with --autofix."
+                "schemas/schema-agents-md-v1.json; or run with --autofix."
             ),
             override_invocation=(
                 f"python -m scripts.schema_validate {file_path} "
@@ -550,7 +550,7 @@ def validate_one(
             why=f"AGENTS.md frontmatter invalid: {err}",
             where=f"{_format_path(file_path)}:{fm.start_line}",
             fix=(
-                "see specs/agents-md-v1.schema.json for the contract; "
+                "see schemas/schema-agents-md-v1.json for the contract; "
                 "`--autofix` repairs the common cases."
             ),
             override_invocation=(
@@ -590,7 +590,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="schema_validate",
         description=(
             "Validate AGENTS.md frontmatter against the v1 JSON schema. "
-            "See specs/agents-md-v1.schema.json and specs/migration-guide.md."
+            "See schemas/schema-agents-md-v1.json and specs/migration-guide.md."
         ),
     )
     parser.add_argument(

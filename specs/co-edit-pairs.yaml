@@ -20,8 +20,15 @@
 # spec doc. Adding entries is additive (MINOR bump); changing tier of an
 # existing entry is BREAKING (MAJOR bump per `specs/migration-guide.md`).
 version: "1.0.0"
-manifest_version: "2026-05-19.1"
+manifest_version: "2026-05-19.2"
 pairs:
+  - id: materialise-skills
+    tier: 1
+    code: "scripts/materialise_skills.py"
+    doc: "specs/skills-distribution.md"
+    reason: "Single-source skills materialiser and its v2.0.0 spec must move together (D1, D2). Behaviour changes (mirror set, idempotency contract, CLI flags) MUST reflect in §4."
+    introduced_in: "v0.17.0"
+
   - id: cleanup-zombies
     tier: 1
     code: "scripts/cleanup_zombies.py"

@@ -1,6 +1,6 @@
 # doc-drift-enforcement.md
 
-> **Status**: v1.0.0 — shipped in ai-playbook v0.16.0. Authored under OpenSpec change `doc-drift-enforcement` on 2026-05-19.
+> **Status**: v1.0.0 — shipped in ai-playbook v0.16.0. Authored under OpenSpec change `doc-drift-enforcement` on 2026-05-19. v0.17.0 (slice `single-source-skills-reset`) registered the `materialise-skills` pair (`scripts/materialise_skills.py` ↔ `specs/skills-distribution.md`), bringing the manifest to 13 pairs (`manifest_version: 2026-05-19.2`).
 >
 > **Audience**: anyone authoring a PR against the playbook upstream. Authoritative contract for `scripts/check_doc_drift.py` and `specs/co-edit-pairs.yaml`.
 

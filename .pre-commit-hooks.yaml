@@ -1,40 +1,16 @@
 # Pre-commit hooks exported by ai-playbook (as a hook provider).
 #
-# Consumers wire these into their own `.pre-commit-config.yaml` like:
+# v0.17.0: the `validate-skills-mirror` hook was REMOVED. The single-source
+# materialiser (`scripts/materialise_skills.py`) now performs a fingerprint-
+# equality short-circuit that obsoletes the drift-detection pre-commit gate.
+# Consumers that still list `validate-skills-mirror` in their
+# `.pre-commit-config.yaml` get a Tier 3 advisory entry in
+# `specs/zombies-manifest.yaml` (`validate-skills-mirror-precommit-hook`) on
+# every cleanup run.
 #
-#   - repo: local
-#     hooks:
-#       - id: validate-skills-mirror
-#         name: validate-skills-mirror (RFC-0001 drift guard)
-#         entry: python -m scripts.validate_skills_mirror
-#         language: system
-#         pass_filenames: false
-#         files: ^(skills|\.claude/skills|\.gemini/skills)/
-#
-# Or — preferred for consumers using the playbook submodule — the equivalent
-# entry that calls into `.ai-playbook/scripts/`:
-#
-#   - repo: local
-#     hooks:
-#       - id: validate-skills-mirror
-#         name: validate-skills-mirror (RFC-0001 drift guard)
-#         entry: python .ai-playbook/scripts/validate_skills_mirror.py
-#         language: system
-#         pass_filenames: false
-#         files: ^(skills|\.claude/skills|\.gemini/skills)/
-#
-# This file is for consumers who add ai-playbook to their `.pre-commit-config.yaml`
-# as a remote `repo:` entry (less common; the canonical wiring is local).
+# No active hooks are exported here at this time. Slice 4 (filesystem reorg,
+# v0.18.0) introduces the canonical L1+L2+L3 paired hooks
+# (`validate-pairing`, `check-doc-language`, `check-link-integrity`,
+# `check-agents-md-size`); those will be registered here.
 
-- id: validate-skills-mirror
-  name: validate-skills-mirror (RFC-0001 drift guard)
-  description: |
-    Validates that a consumer's .claude/skills/ and .gemini/skills/ are
-    byte-for-byte copies of skills/. Pre-commit hook for RFC-0001 (skills
-    distribution).
-  entry: python -m scripts.validate_skills_mirror
-  language: system
-  pass_filenames: false
-  # Run when any skill content changes — canonical or mirror.
-  files: ^(skills|\.claude/skills|\.gemini/skills)/
-  stages: [pre-commit]
+[]

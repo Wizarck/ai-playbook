@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Wizarck/ai-playbook/specs/agents-md-v1.schema.json",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-agents-md-v1.json",
   "title": "AGENTS.md frontmatter (v1)",
-  "description": "Strict JSON Schema for the YAML frontmatter block of every consumer project's AGENTS.md. Validated by scripts/schema_validate.py. The schema is evolvable (additionalProperties: true); tightening happens at playbook major bumps only. See specs/migration-guide.md for v0 -> v1 procedure and specs/dispatcher-chain.md for how the file is resolved.",
+  "description": "Strict JSON Schema for the YAML frontmatter block of every consumer project's AGENTS.md. Validated by scripts/schema_validate.py. The schema is evolvable (additionalProperties: true); tightening happens at playbook major bumps only. See specs/migration-guide.md for v0 -> v1 procedure and specs/dispatcher-chain.md for how the file is resolved. v0.17.0: the multi-source skills fields (skills_sources, skills_pins) were dropped from the canonical schema (RFC-0001 removed); legacy values still validate under additionalProperties: true but are advisory-flagged by specs/zombies-manifest.yaml entries.",
   "type": "object",
   "required": ["schema", "version", "updated", "project", "owner"],
   "properties": {

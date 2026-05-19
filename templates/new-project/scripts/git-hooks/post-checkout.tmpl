@@ -13,8 +13,15 @@ fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# 1) Skills sync
-if [ -f "$REPO_ROOT/scripts/sync_skills_local.py" ]; then
+# 1) Skills sync — single-source materialiser (v0.17.0+).
+#    Per D2, the script is invoked directly from the playbook submodule;
+#    no consumer-side copy. Falls back to legacy local copy for consumers
+#    that haven't bumped past v0.16.x.
+if [ -f "$REPO_ROOT/.ai-playbook/scripts/materialise_skills.py" ]; then
+    python "$REPO_ROOT/.ai-playbook/scripts/materialise_skills.py" --quiet || {
+        echo "warn: skills materialiser failed (post-checkout); run manually" >&2
+    }
+elif [ -f "$REPO_ROOT/scripts/sync_skills_local.py" ]; then
     python "$REPO_ROOT/scripts/sync_skills_local.py" --quiet || {
         echo "warn: skills sync failed (post-checkout); run manually" >&2
     }

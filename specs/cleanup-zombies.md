@@ -1,6 +1,6 @@
 # cleanup-zombies.md
 
-> **Status**: v1.0.0 — shipped in ai-playbook v0.15.0. Authored under OpenSpec change `add-cleanup-zombies-hook` on 2026-05-19.
+> **Status**: v1.1.0 — shipped in ai-playbook v0.15.0 (initial); v0.17.0 expansion (slice `single-source-skills-reset`) added 8 v2 manifest entries deprecating RFC-0001 multi-source artefacts (`propagate-skills-bump-script`, `validate-skills-mirror-script`, `propagate-skills-bump-workflow`, `rfcs-folder-removed`, `skills-sources-submodule-v2`, `skills-sources-frontmatter`, `skills-pins-consumers-yaml`, `validate-skills-mirror-precommit-hook`) plus refined 3 existing entries (`skills-sources-submodule`, `skills-sources-frontmatter-simplify`, `pre-commit-deprecated-hooks`) with `removed_in: v0.17.0`. Manifest version bumped 2026-05-19.1 → 2026-05-19.2. Authored under OpenSpec change `add-cleanup-zombies-hook` on 2026-05-19.
 >
 > **Audience**: any agent or developer touching consumer-side hygiene. Authoritative contract for `scripts/cleanup_zombies.py` and `specs/zombies-manifest.yaml`.
 
