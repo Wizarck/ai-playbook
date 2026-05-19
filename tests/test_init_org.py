@@ -31,7 +31,10 @@ def _make_fake_playbook(root: Path) -> None:
     concepts = root / "docs" / "concepts"
     concepts.mkdir(parents=True)
     (concepts / "env-vars.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
-    (concepts / "session-start-hook.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
+    (concepts / "session-start-hook.md").write_text(
+        "https://consumer-d-hindsight.consumer-bfood.com\n",
+        encoding="utf-8",
+    )
     templates = root / "templates" / "new-project"
     templates.mkdir(parents=True)
     (templates / "AGENTS.md.tmpl").write_text(

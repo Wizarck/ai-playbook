@@ -71,6 +71,11 @@ extend-exclude = [
     # Skills tree (RFC-0001) is content + assets, not playbook code.
     # Some assets are templates with placeholder syntax that trip lint.
     "skills",
+    # Slice 4 paired hooks under scripts/rules/ use the `.rule.py` filename
+    # convention (D5). The kebab-case slug in the filename violates PEP 8
+    # module naming (N999), but these files are invoked via subprocess
+    # (D2 — scripts not imported), so the naming is intentional.
+    "scripts/rules",
 ]
 
 [tool.ruff.lint]

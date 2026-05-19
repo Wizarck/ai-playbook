@@ -7,9 +7,7 @@ include-local D13 path, etc.
 """
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
-from typing import Callable
 
 import pytest
 
@@ -220,7 +218,14 @@ def test_paired_hardrule_non_string_rejected(fake_repo: Path) -> None:
     docs = _make_docs_rules(fake_repo)
     # `paired_hardrule: 42` — YAML int.
     (docs / "foo.rule.md").write_text(
-        "---\nschema: rule/v1\nslug: foo\ndescription: x\npaired_hardrule: 42\nactivation: always\nstatus: enforced\n---\n",
+        "---\n"
+        "schema: rule/v1\n"
+        "slug: foo\n"
+        "description: x\n"
+        "paired_hardrule: 42\n"
+        "activation: always\n"
+        "status: enforced\n"
+        "---\n",
         encoding="utf-8",
     )
     errors = vp.validate(fake_repo)

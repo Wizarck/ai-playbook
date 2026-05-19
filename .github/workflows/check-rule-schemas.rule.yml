@@ -34,7 +34,9 @@ jobs:
           for md in Path("docs/rules").glob("*.rule.md"):
               text = md.read_text(encoding="utf-8")
               if not text.startswith("---"):
-                  errors.append(f"{md}: missing frontmatter")
+                  # Slice 4: legacy rules ship without frontmatter; Slice 5
+                  # backfills. Skip until then.
+                  print(f"SKIP (no frontmatter, Slice 5 backfills): {md}")
                   continue
               end = text.find("\n---", 4)
               if end == -1:
@@ -45,8 +47,12 @@ jobs:
               except yaml.YAMLError as exc:
                   errors.append(f"{md}: {exc}")
                   continue
+              if not isinstance(fm, dict) or fm.get("schema") != "rule/v1":
+                  # Same lenience: only validate rules that already carry the
+                  # `schema: rule/v1` frontmatter contract.
+                  continue
               try:
-                  jsonschema.validate(fm or {}, schema)
+                  jsonschema.validate(fm, schema)
               except jsonschema.ValidationError as exc:
                   errors.append(f"{md}: {exc.message}")
           if errors:

@@ -93,7 +93,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Exit 2 on any dead link. Without --strict, exit 0 and print warnings — Slice 4 ships content debt that Slice 5 resolves.",
+        help=(
+            "Exit 2 on any dead link. Without --strict, exit 0 and print warnings "
+            "— Slice 4 ships content debt that Slice 5 resolves."
+        ),
     )
     parser.add_argument(
         "--max-warnings",
@@ -114,7 +117,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.strict:
             print(f"FAIL: {len(dead)} dead link(s) in {len(files)} file(s)", file=sys.stderr)
             return 2
-        print(f"WARN: {len(dead)} dead link(s) in {len(files)} file(s) — non-strict, exit 0. Run with --strict to fail.", file=sys.stderr)
+        print(
+            f"WARN: {len(dead)} dead link(s) in {len(files)} file(s) — "
+            f"non-strict, exit 0. Run with --strict to fail.",
+            file=sys.stderr,
+        )
         return 0
 
     if not args.quiet:

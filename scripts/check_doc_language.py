@@ -104,8 +104,18 @@ def walk(paths: list[Path]) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="ENGLISH-only docs lint (D6).")
-    parser.add_argument("paths", nargs="*", default=[str(REPO_ROOT / "docs")], help="Files/dirs to scan (default: docs/).")
-    parser.add_argument("--threshold-percent", type=int, default=5, help="Max %% of non-English files allowed (default 5).")
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        default=[str(REPO_ROOT / "docs")],
+        help="Files/dirs to scan (default: docs/).",
+    )
+    parser.add_argument(
+        "--threshold-percent",
+        type=int,
+        default=5,
+        help="Max %% of non-English files allowed (default 5).",
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
@@ -118,14 +128,22 @@ def main(argv: list[str] | None = None) -> int:
 
     total = max(len(files), 1)
     pct = (len(bad) / total) * 100
-    if pct > args.threshold_percent:
-        for p, reason in bad:
-            print(f"non-english: {p} ({reason})", file=sys.stderr)
-        print(f"FAIL: {len(bad)}/{total} files ({pct:.1f}%) non-English; threshold {args.threshold_percent}%", file=sys.stderr)
+    threshold = args.threshold_percent
+    if pct > threshold:
+        for bad_path, reason in bad:
+            print(f"non-english: {bad_path} ({reason})", file=sys.stderr)
+        print(
+            f"FAIL: {len(bad)}/{total} files ({pct:.1f}%) non-English; "
+            f"threshold {threshold}%",
+            file=sys.stderr,
+        )
         return 2
 
     if not args.quiet:
-        print(f"check_doc_language: OK ({len(files)} files; {len(bad)} non-English / {pct:.1f}%; threshold {args.threshold_percent}%)")
+        print(
+            f"check_doc_language: OK ({len(files)} files; {len(bad)} non-English / "
+            f"{pct:.1f}%; threshold {threshold}%)",
+        )
     return 0
 
 

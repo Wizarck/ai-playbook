@@ -1,21 +1,34 @@
 """SLA test for scripts/hook_dispatcher.py (D10 — ≤50ms p50)."""
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 import pytest
 
 from scripts import hook_dispatcher as hd
 
+_RULE_TEMPLATE = (
+    "---\n"
+    "schema: rule/v1\n"
+    "slug: {name}\n"
+    "description: x\n"
+    "paired_hardrule: null\n"
+    "activation: always\n"
+    "status: enforced\n"
+    "triggers:\n"
+    "  - Edit\n"
+    "  - Bash\n"
+    "---\n# body\n"
+)
+
 
 @pytest.fixture()
 def fake_rules(tmp_path: Path) -> list[hd.Rule]:
     docs = tmp_path / "docs" / "rules"
     docs.mkdir(parents=True)
-    for i, name in enumerate(["alpha", "beta", "gamma", "delta", "epsilon"]):
+    for name in ["alpha", "beta", "gamma", "delta", "epsilon"]:
         (docs / f"{name}.rule.md").write_text(
-            f"---\nschema: rule/v1\nslug: {name}\ndescription: x\npaired_hardrule: null\nactivation: always\nstatus: enforced\ntriggers:\n  - Edit\n  - Bash\n---\n# body\n",
+            _RULE_TEMPLATE.format(name=name),
             encoding="utf-8",
         )
     return hd.load_rules(tmp_path)
@@ -42,7 +55,14 @@ def test_rule_without_triggers_fires_always(tmp_path: Path) -> None:
     docs = tmp_path / "docs" / "rules"
     docs.mkdir(parents=True)
     (docs / "any.rule.md").write_text(
-        "---\nschema: rule/v1\nslug: any\ndescription: x\npaired_hardrule: null\nactivation: always\nstatus: enforced\n---\n# body\n",
+        "---\n"
+        "schema: rule/v1\n"
+        "slug: any\n"
+        "description: x\n"
+        "paired_hardrule: null\n"
+        "activation: always\n"
+        "status: enforced\n"
+        "---\n# body\n",
         encoding="utf-8",
     )
     rules = hd.load_rules(tmp_path)
@@ -74,7 +94,14 @@ def test_load_rules_ignores_invalid_frontmatter(tmp_path: Path) -> None:
     docs.mkdir(parents=True)
     (docs / "broken.rule.md").write_text("not a yaml frontmatter\n", encoding="utf-8")
     (docs / "ok.rule.md").write_text(
-        "---\nschema: rule/v1\nslug: ok\ndescription: x\npaired_hardrule: null\nactivation: always\nstatus: enforced\n---\n",
+        "---\n"
+        "schema: rule/v1\n"
+        "slug: ok\n"
+        "description: x\n"
+        "paired_hardrule: null\n"
+        "activation: always\n"
+        "status: enforced\n"
+        "---\n",
         encoding="utf-8",
     )
     rules = hd.load_rules(tmp_path)

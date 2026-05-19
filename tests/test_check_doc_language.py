@@ -3,15 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from scripts import check_doc_language as cdl
 
 
 def test_pure_english_passes_heuristic() -> None:
     text = "# Hello\n\nThis is plain English prose.\n"
-    p = Path("ignored")
-    # Avoid disk I/O.
+    # Avoid disk I/O — pure function test.
     ok = cdl._is_english_heuristic(cdl._strip_code_and_frontmatter(text))
     assert ok is True
 
