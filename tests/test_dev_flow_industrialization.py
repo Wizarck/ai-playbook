@@ -17,17 +17,16 @@ Coverage:
     - validate_one strict path: missing link → exit 1 + canonical error
     - validate_one happy path: link present → exit 0 silent
 
-- scripts/propagate_bump (Opción 1 — cross-ref migration during bump):
-    - ensure_dev_flow_cross_ref idempotent (already-present → no-op)
-    - inserts row as first data row of §2 Dispatcher index
-    - returns descriptive detail when AGENTS.md absent / no §2 / no separator
+NOTE (v0.19.0): Opción 1 (``propagate_bump.ensure_dev_flow_cross_ref``) was
+retired when the push pipeline was removed — the cross-ref row had long
+since landed in every consumer's AGENTS.md, so the migration is complete.
+The validator (Opción 2) is the surviving guarantee.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 from scripts import auto_tick_tasks as att
-from scripts import propagate_bump as pb
 from scripts import schema_validate as sv
 
 # ---------------------------------------------------------------------------
@@ -354,93 +353,8 @@ class TestSchemaCrossRef:
         assert rc == 0
 
 
-# ---------------------------------------------------------------------------
-# propagate_bump cross-ref insertion (Opción 1)
-# ---------------------------------------------------------------------------
-
-
-CANONICAL_AGENTS = """\
----
-schema: agents-md/v1
-version: 1.0.0
-inherits_from:
-  - github.com/Wizarck/ai-playbook@v0.9.2
-updated: 2026-05-05
-project: testproj
-owner: test@example.com
-capabilities_map: true
----
-
-# testproj — AGENTS.md
-
-## 0 Bootstrap directive
-
-Stuff.
-
-## 2 Dispatcher index
-
-| Topic | Pointer |
-|---|---|
-| Daily-dev runbook | [docs/runbook.md](docs/runbook.md) |
-| Universal playbook norms | [.ai-playbook/specs/](.ai-playbook/specs/) |
-
-## 3 Active work
-
-None.
-"""
-
-
-class TestPropagateCrossRef:
-    def test_inserts_as_first_data_row(self, tmp_path: Path):
-        f = tmp_path / "AGENTS.md"
-        f.write_text(CANONICAL_AGENTS, encoding="utf-8")
-        changed, detail = pb.ensure_dev_flow_cross_ref(f)
-        assert changed is True
-        assert "inserted" in detail
-        body = f.read_text(encoding="utf-8")
-        # The cross-ref row must appear immediately after `|---|---|`
-        # and before `Daily-dev runbook`.
-        idx_sep = body.find("|---|---|")
-        idx_xref = body.find("development-flow.md")
-        idx_daily = body.find("Daily-dev runbook")
-        assert idx_sep < idx_xref < idx_daily
-
-    def test_idempotent_when_already_present(self, tmp_path: Path):
-        f = tmp_path / "AGENTS.md"
-        f.write_text(CANONICAL_AGENTS, encoding="utf-8")
-        # First insertion.
-        pb.ensure_dev_flow_cross_ref(f)
-        first_body = f.read_text(encoding="utf-8")
-        # Second call → no-op.
-        changed, detail = pb.ensure_dev_flow_cross_ref(f)
-        assert changed is False
-        assert detail == "already-present"
-        assert f.read_text(encoding="utf-8") == first_body
-
-    def test_missing_file_returns_descriptive_detail(self, tmp_path: Path):
-        f = tmp_path / "absent.md"
-        changed, detail = pb.ensure_dev_flow_cross_ref(f)
-        assert changed is False
-        assert "absent" in detail.lower()
-
-    def test_no_dispatcher_index_returns_descriptive_detail(self, tmp_path: Path):
-        f = tmp_path / "AGENTS.md"
-        f.write_text(
-            "---\nschema: agents-md/v1\nversion: 0.1.0\nupdated: 2026-05-05\n"
-            "project: x\nowner: t@e.com\n---\n\n# x\n\nNo dispatcher index here.\n",
-            encoding="utf-8",
-        )
-        changed, _ = pb.ensure_dev_flow_cross_ref(f)
-        assert changed is False
-
-    def test_no_table_separator_returns_descriptive_detail(self, tmp_path: Path):
-        f = tmp_path / "AGENTS.md"
-        f.write_text(
-            "---\nschema: agents-md/v1\nversion: 0.1.0\nupdated: 2026-05-05\n"
-            "project: x\nowner: t@e.com\n---\n\n"
-            "# x\n\n## 2 Dispatcher index\n\nProse-only section, no table.\n",
-            encoding="utf-8",
-        )
-        changed, detail = pb.ensure_dev_flow_cross_ref(f)
-        assert changed is False
-        assert "manual insert" in detail.lower() or "no table separator" in detail.lower()
+# NOTE: TestPropagateCrossRef (Opción 1 — propagate_bump.ensure_dev_flow_cross_ref)
+# was removed in v0.19.0 along with scripts/propagate_bump.py. The dev-flow
+# cross-ref row migration completed in every consumer's AGENTS.md before the
+# push pipeline retired; the validator (Opción 2, TestSchemaValidateCrossRef)
+# remains as the surviving guarantee.

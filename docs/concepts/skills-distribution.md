@@ -318,8 +318,8 @@ This spec deliberately does **not** cover:
 - [`skills-registry.md`](skills-registry.md) — discovery surface (HTTP catalog;
   registry contract unchanged in v0.17.0, only the upstream source field
   semantics simplify).
-- [`../docs/runbooks/skills-version-bump.md`](../runbooks/skills-version-bump.md) —
-  maintainer procedure for cutting a new playbook tag (now incorporates skill
+- [`../runbooks/release.md`](../runbooks/release.md) —
+  maintainer procedure for cutting a new playbook tag (incorporates skill
   changes by definition — tagging the playbook = tagging the skill set).
 - [`dispatcher-chain.md`](dispatcher-chain.md) — three-level dispatcher
   resolution; skills participate per D17.

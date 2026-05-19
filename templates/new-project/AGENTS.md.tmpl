@@ -2,11 +2,18 @@
 schema: agents-md/v1
 version: 0.1.0
 inherits_from:
-  - github.com/Wizarck/ai-playbook@v0.13.2
+  - github.com/Wizarck/ai-playbook@v0.19.0
 updated: {{TODAY}}
 project: {{PROJECT_NAME}}
 owner: {{OWNER_EMAIL}}
 capabilities_map: true
+# Tracker surface for change-tracking tickets (per docs/concepts/issue-tracking.md).
+# Required by scripts/issue_sync.py. Pick one: github | jira.
+#   github → opens issues against this repo on GitHub.
+#   jira   → opens issues against `jira_project` (key below; required iff jira).
+tracker_kind: github
+# jira_project: PROJ
+# personal: true   # uncomment for personal repos (always GH Issues regardless of tracker_kind)
 ---
 
 # {{PROJECT_NAME}} — AGENTS.md

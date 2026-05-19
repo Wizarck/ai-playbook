@@ -18,7 +18,7 @@ last_validated: "2026-05-19"
 
 ## Trigger
 
-A consumer repository already contains `.ai-playbook/` AND the agent is asked to "bump the playbook", "update the submodule pin", or merges a `propagate-playbook-bump` PR.
+A consumer repository already contains `.ai-playbook/` AND the agent is asked to "bump the playbook", "update the submodule pin", or merges a Dependabot/Renovate submodule-update PR.
 
 ## Binding clause
 

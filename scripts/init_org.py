@@ -17,7 +17,6 @@ Usage:
 
 What it touches:
 
-    - consumers.yaml  → empties the consumer list (your fork starts fresh)
     - README.md       → replaces "Wizarck" + "ai-playbook" branding refs
     - runbooks/*.md   → replaces "Wizarck/<repo>" examples
     - docs/*.md       → replaces "Wizarck" + endpoint examples
@@ -59,17 +58,21 @@ class FileEdit:
 
 
 def _detect_playbook_root(path: Path) -> Path:
-    """Walk up from `path` until we find the playbook root (has both
-    templates/rendered/mcp-servers-base.yaml.tmpl + consumers.yaml). Raise if not found."""
+    """Walk up from `path` until we find the playbook root.
+
+    Heuristic: presence of ``templates/rendered/mcp-servers-base.yaml.tmpl``
+    + ``AGENTS.md``. (Pre-v0.19.0 also checked for ``consumers.yaml`` — that
+    central registry was removed when the push pipeline was retired.)
+    """
     cur = path.resolve()
     while True:
         base_tmpl = cur / "templates" / "rendered" / "mcp-servers-base.yaml.tmpl"
-        if base_tmpl.is_file() and (cur / "consumers.yaml").is_file():
+        if base_tmpl.is_file() and (cur / "AGENTS.md").is_file():
             return cur
         if cur == cur.parent:
             print(
                 "❌ not inside an ai-playbook checkout (no templates/rendered/"
-                "mcp-servers-base.yaml.tmpl + consumers.yaml found walking up)",
+                "mcp-servers-base.yaml.tmpl + AGENTS.md found walking up)",
                 file=sys.stderr,
             )
             print("   FIX: cd into your ai-playbook fork and rerun.", file=sys.stderr)
@@ -101,11 +104,6 @@ def build_edit_plan(
     (find, replace) tuples applied in order."""
     plan: list[FileEdit] = []
 
-    # consumers.yaml → reset to a stub for this org.
-    plan.append(FileEdit("consumers.yaml", [
-        ("__RESET_CONSUMERS__", _consumers_stub(org_name)),
-    ]))
-
     # README.md → swap upstream branding.
     plan.append(FileEdit("README.md", [
         (f"github.com/{upstream_org}/", f"github.com/{org_name}/"),
@@ -114,7 +112,6 @@ def build_edit_plan(
 
     # Runbooks reference upstream repos in examples.
     for run in ("docs/runbooks/release.md", "docs/runbooks/rotate-secrets.md",
-                "docs/runbooks/propagate-bump-troubleshooting.md",
                 "docs/runbooks/hindsight-retain.md"):
         plan.append(FileEdit(run, [
             (f"{upstream_org}/", f"{org_name}/"),
@@ -146,31 +143,6 @@ def build_edit_plan(
     return plan
 
 
-def _consumers_stub(org_name: str) -> str:
-    return f"""\
-# ai-playbook consumers registry — {org_name} fork.
-#
-# This file enumerates every downstream repo that consumes the playbook as
-# a git submodule. The propagate-playbook-bump.yml GitHub Action reads it
-# on every tag push and opens chore/bump-playbook-<tag> PRs across every
-# active consumer.
-#
-# To add a consumer: PR against this file with the row below filled in.
-
-schema: ai-playbook/consumers/v1
-version: 1
-
-consumers: {{}}
-  # example:
-  # my-app:
-  #   repo: {org_name}/my-app
-  #   default_branch: main
-  #   visibility: private
-  #   status: active
-  #   notes: ""
-"""
-
-
 def apply_edits(root: Path, plan: list[FileEdit], *, dry_run: bool) -> tuple[int, int]:
     """Apply (or simulate) edits. Returns ``(files_touched, total_replacements)``."""
     files_touched = 0
@@ -185,11 +157,6 @@ def apply_edits(root: Path, plan: list[FileEdit], *, dry_run: bool) -> tuple[int
         new_text = text
         local_replacements = 0
         for find, replace in edit.replacements:
-            if find == "__RESET_CONSUMERS__":
-                if new_text != replace:
-                    new_text = replace
-                    local_replacements += 1
-                continue
             count = new_text.count(find)
             if count > 0:
                 new_text = new_text.replace(find, replace)
@@ -256,7 +223,8 @@ def main(argv: list[str] | None = None) -> int:
         print("  1. Review the diff: git diff")
         print("  2. Set up your Hindsight instance (or skip if you don't want memory layer).")
         print("  3. Create your first consumer: copy templates/new-project/ → "
-              "<org>/<repo>/, customise, add row to consumers.yaml, push.")
+              "<org>/<repo>/, customise its AGENTS.md frontmatter (tracker_kind, "
+              "jira_project if applicable), commit.")
         print("  4. Cut your first tag: see docs/runbooks/release.md.")
 
     return 0
