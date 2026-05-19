@@ -4,13 +4,74 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (post-v0.19.0, post-review gate)
+### Known gaps still pending (post-v0.19.1, post-review gate)
 
 - **v0.19.x (subsequent post-review fix iterations)**: reserved for any
-  user-review feedback that lands after this v0.19.0 pull-model migration;
-  tagged on a per-iteration basis.
+  further user-review feedback after v0.19.1.
 - **v0.20.0 (final cut)**: visible milestone PR; tagged only on explicit
-  user approval after the v0.19.x review iterations close.
+  user approval.
+
+## [0.19.1] — 2026-05-19 — telemetry wiring + retroactive v0.18.0 + archive cleanup + mkdocs nav
+
+Closes the four secondary audit items called out in CHANGELOG v0.18.3
+"Known gaps". Non-breaking.
+
+### Added
+
+- **Retroactive `v0.18.0` tag** at SHA `d612350` (Slice 4 merge — where
+  `VERSION` first read `0.18.0`). The tag was missed at the time;
+  re-issuing it preserves an honest history.
+- **`scripts/rules/_telemetry.py`** — thin CLI wrapper exposing
+  `cli_emit(slug, main_fn, argv=None)`. Times the rule script's `main()`
+  call, maps the exit code to a `rule-event/v1` verdict
+  (`0=allow`, `1=block`, `>=2=warn`), and forwards to
+  `scripts.telemetry.rule_event_logger.log_event`. Fail-safe — any
+  logger exception is swallowed; the rule's rc is never altered by
+  telemetry side-effects. Reads `AI_PLAYBOOK_LLM`,
+  `AI_PLAYBOOK_HOOK_TRIGGER`, `CLAUDE_CODE_SESSION_ID` env vars to
+  enrich events.
+- **`tests/test_rules_telemetry.py`** — 9 tests covering the verdict
+  mapping, rc passthrough, JSONL write, fail-safe behaviour, and argv
+  handling.
+- **`openspec/changes/archive/`** — new directory; the 20 already-shipped
+  slice proposals (`add-cleanup-zombies-hook` through `v019-pull-model`)
+  moved here. `openspec list` no longer surfaces them as in-progress.
+
+### Changed
+
+- **29 rule scripts re-wired** — every `scripts/rules/<slug>.rule.py`
+  bottom block replaced from `raise SystemExit(main())` (or
+  `sys.exit(main())`) to:
+
+      if __name__ == "__main__":
+          from scripts.rules._telemetry import cli_emit
+          raise SystemExit(cli_emit("<slug>", main))
+
+  This is a CLI-surface-preserving change — rule scripts still accept
+  the same arguments and exit with the same codes. Telemetry collection
+  is now ACTIVE: every L1 hook invocation (pre-commit, PreToolUse,
+  manual `python scripts/rules/<slug>.rule.py validate`) appends a
+  JSONL row to `<consumer>/.ai-playbook-state/rule-events.jsonl`.
+- **`mkdocs.yml` nav** rebuilt for completeness. Every doc under
+  `docs/{tutorials,concepts,rules,runbooks}/` (excluding the
+  auto-generated `INDEX.md` per category) appears under its section's
+  nav. Curated head order is preserved for the high-priority entries
+  (verdict-contract, enforcement-layers, etc.); the long tail is
+  alphabetical. `mkdocs build --strict` passes.
+
+### Notes
+
+- The 9 `docs/rules/*.rule.md` files without a matching `.rule.py`
+  (`apply-fix-contract`, `conflict-resolution-policy`, `data-handling`,
+  `hitl-approval-pattern`, `notification-channel-adapter`,
+  `notification-level-declared`, `notification-no-secrets`,
+  `parallel-wave-anti-collision`, `slice-preflight`) are intentional
+  advisory-only rules. They have no L1 hook and therefore no
+  telemetry event. The validate-pairing CI workflow already accepts
+  this via the pairing-exception condition #3 ("consumer-side surface").
+- The propagate-playbook-bump CI workflow is gone since v0.19.0, so
+  this release tag's CI surface is just `test` + `docs-deploy`. No
+  per-consumer PRs are opened.
 
 ## [0.19.0] — 2026-05-19 — pull-model migration (BREAKING) — push pipeline retired
 
