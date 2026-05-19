@@ -18,8 +18,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RULES_SCRIPTS = REPO_ROOT / "scripts" / "rules"
 RULES_DOCS = REPO_ROOT / "docs" / "rules"
