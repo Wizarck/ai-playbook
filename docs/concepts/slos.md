@@ -4,15 +4,15 @@ slug: slos
 title: Slos
 summary: |
   Service-level objectives for the ai-playbook repo itself — the shared norms
-  and tooling consumed as a submodule by every Wizarck project. These SLOs
-  target the playbook-as-product: the contract it makes with Arturo (solo
-  maintainer) and future team devs who inherit from it.
+  and tooling consumed as a submodule by every consumer project. These SLOs
+  target the playbook-as-product: the contract it makes with the maintainer
+  (solo) and future team devs who inherit from it.
 last_validated: "2026-05-19"
 ---
 
 # Slos
 
-Service-level objectives for the `ai-playbook` repo itself — the shared norms and tooling consumed as a submodule by every Wizarck project. These SLOs target the playbook-as-product: the contract it makes with Arturo (solo maintainer) and future team devs who inherit from it.
+Service-level objectives for the `ai-playbook` repo itself — the shared norms and tooling consumed as a submodule by every consumer project. These SLOs target the playbook-as-product: the contract it makes with the maintainer (solo) and future team devs who inherit from it.
 
 ---
 
@@ -30,7 +30,7 @@ The SLOs codified here answer one question: **"Is the playbook still a net win f
 |---|---|---|---|
 | **Drift resolution time** | 95% of drift findings closed within 7 days of first detection. | `scripts/drift_check.py` weekly output (GH Action) compared against issue-close timestamps. | Drift rot between playbook norms and consumer `AGENTS.md` is the #1 silent killer of the LLM-agnostic promise. If drift sits, the submodule contract erodes. |
 | **Retro freshness** | 100% of OpenSpec archives have a post-archive retro committed within 7 days of the archive. | `scripts/telemetry/report.py (absorbed in Slice 6)` monthly aggregation of `reports/retros/<YYYY-MM>/post-archive-*.md` vs archive timestamps. | Retros are the learning loop per [retrospective-cadence.md](retrospective-cadence.md). Missed retros mean lessons evaporate. |
-| **Doctor-green on new machines** | `scripts/doctor.py` reports zero `fail`-level findings on a fresh supported OS within 30 min of clone. | Timings captured in [../tutorials/05-quickstart-lessons.md](../tutorials/05-quickstart-lessons.md) per T15 dry-runs. | Onboarding friction compounds. A 30-min time-to-green is the ceiling before a new dev defects to ad-hoc solutions. |
+| **Doctor-green on new machines** | `scripts/doctor.py` reports zero `fail`-level findings on a fresh supported OS within 30 min of clone. | Manual smoke at release time on each supported OS. | Onboarding friction compounds. A 30-min time-to-green is the ceiling before a new dev defects to ad-hoc solutions. |
 | **CI green rate on `main`** | ≥98% over any rolling 30-day window. | GitHub Actions run history on `master`. | Flakiness destroys trust in the gates. A playbook whose own CI is flaky cannot credibly ask consumers to block on its hooks. |
 | **Spec ambiguity aging** | 0 `TODO: clarify with maintainer` markers older than 30 days across `specs/*.md`. | Grep of `specs/` timestamped against git blame. | Ambiguity rot — an unresolved TODO is a silent invitation to break-glass or goal drift. 30 days is the outer bound; most should close within 7. |
 | **Break-glass ratio** | <5% of gate evaluations across all consumers invoke `--force-with-reason` over any rolling 30-day window. | `.ai-playbook/overrides.log` aggregated by `scripts/telemetry/report.py (absorbed in Slice 6)` per [break-glass.md](../rules/break-glass.rule.md) §audit. | A high override rate means a gate is miscalibrated; [break-glass.md](../rules/break-glass.rule.md) §audit escalates after ≥3 overrides of the same gate in 30 days, this SLO is the org-wide aggregate. |

@@ -1,7 +1,7 @@
 # Gotcha entry — template
 
 > Copy the block below into a consumer project's `AGENTS.md` §8 Gotchas OR into
-> its personal add-on (e.g. `consumer-d.md`). One bullet per gotcha, ordered newest
+> its personal add-on (e.g. `acme-corp.md`). One bullet per gotcha, ordered newest
 > first. Do NOT batch multiple gotchas into one line.
 
 ## Public gotcha (goes in AGENTS.md §8 — team devs see it)
@@ -25,7 +25,7 @@
 
 ---
 
-## Personal gotcha (goes in consumer-d.md / add-on — Arturo-only)
+## Personal gotcha (goes in acme-corp.md / add-on — maintainer-only)
 
 Same shape, but add a `[personal]` tag so the deprecation watcher can tell the
 two apart in monthly retros:
@@ -40,7 +40,7 @@ two apart in monthly retros:
 - 2026-04-23 [personal] — **LiteLLM restart loops Hindsight even when
   Hindsight itself is healthy.** Always `curl localhost:4000/health/liveliness`
   first; if LiteLLM is down, Hindsight embeddings cannot resolve and it crash
-  loops. Mentioned in `docs/operations/consumer-d-stack-troubleshooting.md`
+  loops. Mentioned in `docs/operations/acme-corp-stack-troubleshooting.md`
   (March 2026 incident).
 ```
 

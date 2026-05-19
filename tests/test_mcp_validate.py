@@ -140,11 +140,11 @@ def test_base_plus_project_plus_personal_merge(tmp_path: Path, all_env_set: None
         "schema": "mcp-servers/v1", "layer": "personal",
         "servers": {
             "hindsight": {"endpoint": "https://personal.example/mcp/"},
-            "google-workspace-arturo": {
-                "id": "google-workspace-arturo",
+            "google-workspace-acme": {
+                "id": "google-workspace-acme",
                 "description": "Gmail+Drive.",
                 "transport": "http",
-                "endpoint": "https://gws-arturo.example/",
+                "endpoint": "https://gws-acme.example/",
                 "env": {"required": [], "optional": []},
                 "auth": "oauth",
                 "scope": "personal",
@@ -161,8 +161,8 @@ def test_base_plus_project_plus_personal_merge(tmp_path: Path, all_env_set: None
     merged, provenance = mcp_validate.merge_servers(base_layer, project_layer, personal_layer)
     assert merged["hindsight"]["endpoint"] == "https://personal.example/mcp/"
     assert provenance["hindsight"] == ["base", "project", "personal"]
-    assert "google-workspace-arturo" in merged
-    assert merged["google-workspace-arturo"]["scope"] == "personal"
+    assert "google-workspace-acme" in merged
+    assert merged["google-workspace-acme"]["scope"] == "personal"
 
 
 def test_scope_personal_in_base_is_error(tmp_path: Path, all_env_set: None,

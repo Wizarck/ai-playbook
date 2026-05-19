@@ -54,7 +54,7 @@ Each CLI sees the same content via its preferred entry point.
 
 **Why this wins**:
 
-- Arturo uses all four CLIs in parallel; the playbook serves all of them.
+- We use all four CLIs in parallel; the playbook serves all of them.
 - A CLI-specific playbook (`CLAUDE.md`-only) would force duplication every time a new CLI emerges.
 - The cost is one extra file per CLI (~10 lines each) — cheap.
 
@@ -100,7 +100,7 @@ Each CLI sees the same content via its preferred entry point.
 
 1. The LLM CLI (needs project-specific rules and identity).
 2. Team devs (need everything *except* the personal owner's notes).
-3. The personal owner (Arturo) who also wants personal context loaded.
+3. The personal owner who also wants personal context loaded.
 
 **Walk through the decision**:
 
@@ -109,7 +109,7 @@ Each CLI sees the same content via its preferred entry point.
 
 **Why three levels win**:
 
-- Team devs (future) must not see Arturo's personal add-on (`ELIGIA.md`).
+- Team devs (future) must not see the owner's personal add-on (`ACME.md`).
 - Projects must stay LLM-agnostic.
 - Personal overrides live at a third layer loaded only when cwd is a personal project — isolation by load-time, not by git.
 - A 2-level setup (universal + project) cannot express "load this only for me" without secrets-in-git.
@@ -122,4 +122,4 @@ Each CLI sees the same content via its preferred entry point.
 - [Concept: mcp-servers-schema](../concepts/mcp-servers-schema.md) — the schema behind §3.
 - [Concept: agent-telemetry](../concepts/agent-telemetry.md) — the observability design behind §4.
 - [Concept: development-flow](../concepts/development-flow.md) — the day-to-day flow that builds on all five choices.
-- [06-curriculum.md](06-curriculum.md) — internalise these choices over 4 weeks via the structured curriculum.
+- [05-learning-path.md](05-learning-path.md) — internalise these choices via the self-paced learning path.

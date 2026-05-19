@@ -1,4 +1,4 @@
-"""Query the consumer-d-skills HTTP registry for the catalog of available skills.
+"""Query the acme-corp-skills HTTP registry for the catalog of available skills.
 
 Populated in T20. See ``docs/concepts/skills-registry.md`` for the full contract.
 
@@ -290,7 +290,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
         emit_error(
             why="SKILLS_REGISTRY_URL not set",
             where="env:SKILLS_REGISTRY_URL",
-            fix="export SKILLS_REGISTRY_URL=https://consumer-d-skills.consumer-bfood.com "
+            fix="export SKILLS_REGISTRY_URL=https://acme-corp-skills.consumer-bfood.com "
                 "(or pass --url); see docs/concepts/env-vars.md.",
             override_invocation=(
                 f"{SCRIPT_BASENAME} list --force-with-reason=\"<≥10 char reason>\""
@@ -421,7 +421,7 @@ def _cmd_show(args: argparse.Namespace) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="skills_registry",
-        description="Query the consumer-d-skills HTTP registry (T20).",
+        description="Query the acme-corp-skills HTTP registry (T20).",
     )
     sub = p.add_subparsers(dest="command", required=True)
 

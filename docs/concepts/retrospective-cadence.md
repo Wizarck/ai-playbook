@@ -21,7 +21,7 @@ Retros are not a ritual. They are the feedback loop that keeps the playbook hone
 | Cadence | Trigger | Scope | Participants | Output path |
 |---|---|---|---|---|
 | **Post-archive** | Every `openspec archive` call (per [runbook-bmad-openspec.md](runbook-bmad-openspec.md) §4). | The single change that was archived: its artefacts, iter counts, break-glass usages, lessons retained. | Main agent + human approver (same human who approved Gate F). | `reports/retros/<YYYY-MM>/post-archive-<change-id>.md` |
-| **Weekly** | Monday per local time. Missed Monday → run Tuesday; log the slip. | All post-archives from the week + FEEDBACK.md gripes + break-glass aggregate + top frictions. | Maintainer (Arturo solo at v0.1.0). | `reports/retros/<YYYY-MM>/weekly-<YYYY-WW>.md` |
+| **Weekly** | Monday per local time. Missed Monday → run Tuesday; log the slip. | All post-archives from the week + FEEDBACK.md gripes + break-glass aggregate + top frictions. | Maintainer (solo at v0.1.0). | `reports/retros/<YYYY-MM>/weekly-<YYYY-WW>.md` |
 | **Monthly** | First Monday of each month. | Lifecycle-check output, systemic flags, deprecation progress, cost report, aggregate of weekly retros. | Maintainer. | `reports/retros/<YYYY-MM>/monthly.md` |
 
 "Log the slip" means the delayed retro still runs but its opening paragraph names the slip and the cause. Three slips in a row escalates to a systemic flag in the next monthly.

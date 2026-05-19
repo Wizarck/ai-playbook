@@ -57,7 +57,7 @@ def test_shim_main_emits_deprecation_warning(
                         lambda req, timeout: _resp(b'{"items_count":1}'))
     monkeypatch.setattr(
         "sys.argv",
-        ["retain_lesson", "--bank", "consumer-d", "--content", "x" * 30, "--dry-run"],
+        ["retain_lesson", "--bank", "acme-corp", "--content", "x" * 30, "--dry-run"],
     )
 
     with warnings.catch_warnings(record=True) as caught:

@@ -65,7 +65,7 @@ DEFAULT_OPENSPEC_DIR = REPO_ROOT / "openspec" / "changes"
 MODEL_RETIREMENT_HORIZON_DAYS = 90
 STALE_OPENSPEC_DAYS = 30
 MEMORY_DECAY_DAYS = 90
-BUDGET_FLAG_DIR_DEFAULT = "/var/lib/consumer-d"
+BUDGET_FLAG_DIR_DEFAULT = "/var/lib/acme-corp"
 
 
 # ---------------------------------------------------------------------------

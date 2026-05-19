@@ -6,7 +6,7 @@ Three layers — each a YAML file, same v1 schema:
 2. **Project**  — ``<consumer>/mcp-servers.yaml`` (project-scoped servers).
 3. **Personal** — ``$AIPLAYBOOK_PERSONAL_MCP_FILE`` if set, else
                   ``~/.config/mcp-servers.yaml`` (XDG convention).
-                  (The pre-flip ``<HOME>/Projects/consumer-d/mcp-servers.yaml``
+                  (The pre-flip ``<HOME>/Projects/acme-corp/mcp-servers.yaml``
                   legacy fallback was removed in v0.19.2 — it only resolved
                   against a redacted name that no longer matches any real
                   local checkout.)
@@ -197,7 +197,7 @@ def resolve_playbook_root(explicit: Path | None, cwd: Path) -> Path:
 def resolve_personal_file(explicit: Path | None) -> Path | None:
     """Resolve the personal-layer YAML path (may not exist — returns the candidate).
 
-    Search order (v0.19.2+ — the pre-flip legacy `~/Projects/consumer-d/...`
+    Search order (v0.19.2+ — the pre-flip legacy `~/Projects/acme-corp/...`
     fallbacks were removed; they only resolved against a name that no longer
     matches any real consumer dir post-public-flip):
 
@@ -211,10 +211,16 @@ def resolve_personal_file(explicit: Path | None) -> Path | None:
     in their shell profile (or pass ``--personal-file``).
     """
     if explicit is not None:
-        return explicit.expanduser().resolve()
+        p = explicit.expanduser().resolve()
+        if not p.is_file():
+            print(f"⚠️  [mcp] WARNING: Explicit personal file not found at {p}", file=sys.stderr)
+        return p
     env = os.environ.get("AIPLAYBOOK_PERSONAL_MCP_FILE")
     if env:
-        return Path(env).expanduser().resolve()
+        p = Path(env).expanduser().resolve()
+        if not p.is_file():
+            print(f"⚠️  [mcp] WARNING: $AIPLAYBOOK_PERSONAL_MCP_FILE not found at {p}", file=sys.stderr)
+        return p
     xdg = Path.home() / ".config" / "mcp-servers.yaml"
     if xdg.is_file():
         return xdg.resolve()

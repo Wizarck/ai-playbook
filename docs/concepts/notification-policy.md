@@ -5,14 +5,14 @@ title: Notification Policy
 summary: |
   Canonical policy for every user-visible notification a playbook-driven agent
   or script emits. Levels are abstract; channels are pluggable. The contract
-  protects Arturo's (and future team devs') attention budget and keeps the
-  audit trail uniform across projects.
+  protects the maintainer's (and future team devs') attention budget and keeps
+  the audit trail uniform across projects.
 last_validated: "2026-05-19"
 ---
 
 # Notification Policy
 
-Canonical policy for every user-visible notification a playbook-driven agent or script emits. Levels are abstract; channels are pluggable. The contract protects Arturo's (and future team devs') attention budget and keeps the audit trail uniform across projects.
+Canonical policy for every user-visible notification a playbook-driven agent or script emits. Levels are abstract; channels are pluggable. The contract protects the maintainer's (and future team devs') attention budget and keeps the audit trail uniform across projects.
 
 ---
 
@@ -24,7 +24,7 @@ Exactly four levels. Any notification emitted by a playbook-driven actor must de
 |---|---|---|---|---|
 | `silent` | Successful routine signal; for machine audit only. | Trace/log only (OTel span, JSONL append). No human surface. | `qa.verdict.approved`, tool call ok. | OTel backend, local JSONL. |
 | `info` | Normal progress worth recording but not interrupting. | Dashboard card + daily digest. | `qa.verdict.issues_found`, new OpenSpec change proposed, FEEDBACK.md bullet appended. | Dashboard (T19) + `reports/digest-<YYYY-MM-DD>.md`. |
-| `warn` | Abnormal but recoverable; action within 24h. | Dashboard + Slack/Telegram (Arturo personal initially). | `break-glass.applied`, `degradation.transition.DEGRADED_QUALITY`, `lifecycle_check.systemic`. | Dashboard + Telegram chat @arturo-playbook. |
+| `warn` | Abnormal but recoverable; action within 24h. | Dashboard + Slack/Telegram (maintainer's personal channel initially). | `break-glass.applied`, `degradation.transition.DEGRADED_QUALITY`, `lifecycle_check.systemic`. | Dashboard + Telegram chat `<maintainer-channel>`. |
 | `error` | Safety / correctness / data loss; action immediate. | Dashboard + Slack/Telegram + (future) on-call page. | `secrets_scan.match`, `degradation.transition.OFFLINE`, `credential_exposure` detected. | Dashboard + Telegram + (T22) PagerDuty. |
 
 `silent` is the default. If you are adding a notification, you must justify why it beats the noise floor. "It might be useful someday" is not a justification.
@@ -69,7 +69,7 @@ Channels are an **abstract surface**. This spec defines the contract; concrete w
 | Local JSONL | `silent`, `info`, `warn`, `error` | Append to `.ai-playbook/notifications.jsonl` (gitignored) | Always on. Diagnostic surface for retros. |
 | Dashboard | `info`, `warn`, `error` | Dashboard widget (T19) queries OTel backend | Lands T19. |
 | Daily digest | `info` | Markdown file at `reports/digest-<YYYY-MM-DD>.md` | Lands alongside T19. |
-| Telegram (personal) | `warn`, `error` | Bot → chat @arturo-playbook | Arturo only at v1; team channels lands T22. |
+| Telegram (personal) | `warn`, `error` | Bot → chat `<maintainer-channel>` | Maintainer only at v1; team channels lands T22. |
 | Slack (team) | `warn`, `error` | Webhook → `#playbook-ops` | Lands T22. |
 | On-call page (PagerDuty or OpsGenie) | `error` | Webhook | Lands T22 with SLO contract. |
 

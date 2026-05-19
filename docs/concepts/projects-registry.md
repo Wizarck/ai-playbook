@@ -5,7 +5,7 @@ title: Projects Registry
 summary: |
   A per-dev, gitignored YAML file mapping project logical names to absolute
   paths on the current machine. Dispatchers resolve project locations through
-  the registry, NOT through hardcoded paths. Benefit: - Arturo moves
+  the registry, NOT through hardcoded paths. Benefit: - the maintainer moves
   consumer-c from C:\consumer-c to C:\Projects\consumer-c →…
 last_validated: "2026-05-19"
 ---
@@ -17,7 +17,7 @@ last_validated: "2026-05-19"
 A **per-dev, gitignored YAML file** mapping project logical names to absolute paths on the current machine. Dispatchers resolve project locations through the registry, NOT through hardcoded paths.
 
 Benefit:
-- Arturo moves `consumer-c` from `C:\consumer-c` to `C:\Projects\consumer-c` → rerun discovery → dispatchers keep working. No markdown edits.
+- The maintainer moves `consumer-c` from `C:\consumer-c` to `C:\Projects\consumer-c` → rerun discovery → dispatchers keep working. No markdown edits.
 - A second dev clones projects under `/Users/jane/code/` → same dispatcher files work.
 - Mac / Linux / Windows / WSL coexist with the same sources.
 
@@ -25,7 +25,7 @@ Benefit:
 
 | Tier | Path | Purpose |
 |---|---|---|
-| Default | `~/.ai-playbook/projects.yaml` | Arturo + team default. |
+| Default | `~/.ai-playbook/projects.yaml` | Maintainer + team default. |
 | Override | `$AIPLAYBOOK_PROJECTS_FILE` | Testing, sandboxes, CI. |
 
 The file lives in the **user's home** (not in any repo) because it encodes local truths.
@@ -59,7 +59,7 @@ projects:
 | `owner` | no | `AGENTS.md` frontmatter | Contact email. |
 | `version` | no | `AGENTS.md` frontmatter | Project's AGENTS.md version. |
 | `inherits_from` | no | `AGENTS.md` frontmatter | Playbook pin list. |
-| `personal` | no | `AGENTS.md` frontmatter | `true` if this is Arturo's personal repo (loads the add-on). Default `false`. |
+| `personal` | no | `AGENTS.md` frontmatter | `true` if this is the maintainer's personal repo (loads the add-on). Default `false`. |
 | `personal_addon` | no | computed | Absolute path to the add-on file (e.g. `consumer-d.md`). Resolved from frontmatter `personal_addon` relative to project root. |
 
 ## Discovery script
@@ -93,7 +93,7 @@ Given a current working directory `cwd`:
 
 ## Gitignore
 
-`projects.yaml` must not be committed to any repo. It's per-dev truth. The root `.gitignore` of this playbook excludes `.ai-playbook/` (Arturo's local registry dir if ever placed inside a repo). Consumers should add `projects.yaml` to their own `.gitignore` too.
+`projects.yaml` must not be committed to any repo. It's per-dev truth. The root `.gitignore` of this playbook excludes `.ai-playbook/` (the maintainer's local registry dir if ever placed inside a repo). Consumers should add `projects.yaml` to their own `.gitignore` too.
 
 ## Maintenance
 

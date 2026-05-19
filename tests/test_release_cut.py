@@ -365,7 +365,7 @@ def test_run_release_private_dry_run_skips_api(
         "schema: agents-md/v1\n"
         f"project: {root.name}\n"
         "tracker_kind: jira\n"
-        "jira_project: consumer-a\n"
+        "jira_project: acme-corp\n"
         "---\n"
         "# body\n",
         encoding="utf-8",

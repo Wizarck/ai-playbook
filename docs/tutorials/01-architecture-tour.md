@@ -25,7 +25,7 @@ Take this tour cold. Do NOT read the rest of the docs first. The point is to fee
 
 ## 1. What ai-playbook is (≤1 min)
 
-`ai-playbook` is a normative repository: a small, opinionated set of universal rules, contracts, validators, and tutorials that every Wizarck project consumes as a git submodule. It is **LLM-agnostic** — Claude Code, Gemini CLI, Cursor, and Antigravity all read the same files — and it **dogfoods** itself: every script the playbook ships to consumers also runs against the playbook's own tree.
+`ai-playbook` is a normative repository: a small, opinionated set of universal rules, contracts, validators, and tutorials that every consumer project consumes as a git submodule. It is **LLM-agnostic** — Claude Code, Gemini CLI, Cursor, and Antigravity all read the same files — and it **dogfoods** itself: every script the playbook ships to consumers also runs against the playbook's own tree.
 
 It is not a framework. It is not a library you depend on at runtime. It is a contract: write your project so that `AGENTS.md` inherits from a pinned playbook tag, install the pre-commit hooks the playbook ships, and the four validators below stay green forever.
 
@@ -124,7 +124,7 @@ What just happened: the script loaded the YAML manifest, validated every entry a
 
 ## 6. Run the doc-language linter (≤2 min)
 
-Per decision D6, every doc body in `docs/` MUST be English. Spanish belongs in personal notes (`ELIGIA.md`) but never in normative docs that ship to consumers.
+Per decision D6, every doc body in `docs/` MUST be English. Spanish belongs in personal notes (`ACME.md`) but never in normative docs that ship to consumers.
 
 Run the linter:
 
@@ -218,10 +218,9 @@ Pick the next tutorial based on what you came here to do:
 | Get the 60-second elevator pitch and the dispatcher diagram | [02-start-here.md](02-start-here.md) — 1 min |
 | Onboard a real new consumer project end-to-end | [03-quickstart.md](03-quickstart.md) — 25–40 min |
 | Use the one-shot bootstrap script instead of doing it by hand | [04-bootstrap-new-project.md](04-bootstrap-new-project.md) — 10 min |
-| See what tends to break per-OS (Windows / macOS / Linux / WSL2) | [05-quickstart-lessons.md](05-quickstart-lessons.md) — 10 min |
-| Internalise the playbook over 4 weeks as a contributor | [06-curriculum.md](06-curriculum.md) — 4 weeks |
-| Understand the design decisions (why submodule, why LLM-agnostic) | [07-why-these-choices.md](07-why-these-choices.md) — 15 min |
-| Track the upstream forks Arturo maintains | [08-fork-inventory.md](08-fork-inventory.md) — 10 min |
+| Follow a self-paced reading order as a contributor | [05-learning-path.md](05-learning-path.md) |
+| Understand the design decisions (why submodule, why LLM-agnostic) | [06-why-these-choices.md](06-why-these-choices.md) — 15 min |
+| Track the upstream forks the project maintains | [07-fork-inventory.md](07-fork-inventory.md) — 10 min |
 
 If you want depth before doing more tutorials, read these concept docs in this order:
 

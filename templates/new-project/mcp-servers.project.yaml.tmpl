@@ -24,7 +24,7 @@ servers:
     id: hindsight
     description: Hindsight memory for the {{PROJECT_BANK}} bank — recall + retain via REST.
     transport: http
-    endpoint: https://consumer-d-hindsight.consumer-bfood.com  # override per-deployment
+    endpoint: https://acme-corp-hindsight.consumer-bfood.com  # override per-deployment
     env:
       required: [HINDSIGHT_URL, HINDSIGHT_BANK_ID, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET]
       optional: [HINDSIGHT_TIMEOUT_MS]

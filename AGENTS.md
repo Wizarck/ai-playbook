@@ -22,7 +22,7 @@ Any agent editing this repo MUST:
 
 ## 1 Project identity
 
-`ai-playbook` is the universal norms + tooling repo consumed via git submodule by every Wizarck project. LLM-agnostic. Dogfoods its own pre-commit and schema.
+`ai-playbook` is the universal norms + tooling repo consumed via git submodule by every consumer project. LLM-agnostic. Dogfoods its own pre-commit and schema.
 
 ## 2 Dispatcher index
 

@@ -23,7 +23,7 @@ Define the 3-level dispatcher inheritance model so any agent (Claude Code, Gemin
    - Verdict/severity contract, break-glass contract, canonical error format, agentic-failure taxonomy.
    - Scripts (`scripts/*.py`) invoked by consumer pre-commit hooks, CI, and session-start helpers.
 2. **Project — `<repo>/AGENTS.md`** at the root of every consumer repo. Inherits from the playbook via `inherits_from` frontmatter. Adds project identity, active work, hard rules, and the capability map. must not duplicate universal content; if a rule is universal, link to `.ai-playbook/specs/<spec>.md` instead of copying it.
-3. **Personal add-on (Arturo only) — `consumer-d/consumer-d.md`**. Loaded conditionally by `~/.claude/CLAUDE.md` when the cwd resolves (via `~/.ai-playbook/projects.yaml`) to an entry with `personal: true`. Contains infra paths, SOPS key locations, VPS endpoints, BRAIN pointer. Never shipped to team devs.
+3. **Personal add-on (maintainer only) — `consumer-d/consumer-d.md`**. Loaded conditionally by `~/.claude/CLAUDE.md` when the cwd resolves (via `~/.ai-playbook/projects.yaml`) to an entry with `personal: true`. Contains infra paths, SOPS key locations, VPS endpoints, BRAIN pointer. Never shipped to team devs.
 
 CLI-specific routers (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/00-dispatcher.mdc`) are thin 5–10 line pointers that tell the CLI to read `AGENTS.md`. They carry **no policy**; removing them would not change the resolved ruleset.
 
@@ -34,7 +34,7 @@ At session start, the CLI loads files in this order:
 1. **Built-in router** (e.g. `~/.claude/CLAUDE.md`) → 8 universal principles + registry-lookup instructions.
 2. **Project dispatcher** (`<repo>/AGENTS.md`) → inherits from pinned playbook tag.
 3. **Playbook specs** — the agent reads `.ai-playbook/specs/<name>.md` on demand based on the task (never eagerly).
-4. **Personal add-on** (Arturo's machine only) if the registry flags the project `personal: true`.
+4. **Personal add-on** (the maintainer's machine only) if the registry flags the project `personal: true`.
 
 No other files participate. Any rule not expressible in one of these three levels is out of scope.
 

@@ -15,7 +15,7 @@ last_validated: "2026-05-19"
 How user stories, features, bugs, and releases flow through **two** tracker surfaces:
 
 - **Jira** — enterprise / private work (Paperclip tenants, consumer-c Enterprise, any closed-source SaaS).
-- **GitHub Projects + Issues** — community / open-source work (consumer-c, awesome-paperclip, any public repo under `Wizarck`).
+- **GitHub Projects + Issues** — community / open-source work (consumer-c, awesome-paperclip, any public repo under the org).
 
 The split is intentional and mirrors the dual-repo strategy already documented in
 `consumer-c/AGENTS.md` §4 and ADR-010 (community AGPL-3.0 vs enterprise private). This spec
@@ -26,7 +26,7 @@ releases) so the two audiences stay on surfaces they expect.
 
 ## 1. Which surface for which repo
 
-Decision rule (apply to every repo under `Wizarck`):
+Decision rule (apply to every repo under the org):
 
 | Repo class | Examples | Planning surface | Release surface | Ticket prefix |
 |---|---|---|---|---|
@@ -37,7 +37,7 @@ Decision rule (apply to every repo under `Wizarck`):
 
 **Rule of thumb**: Jira is reserved for the *enterprise half* of a dual-repo (community public + enterprise private) so the two audiences live on the surface they expect. A private repo without a public counterpart has no audience split → GH is sufficient. Per-repo project boards (vs the org-level board) are used for private standalone repos so the work stays scoped to the repo's collaborators.
 
-Mixed-mode repos (Arturo runs some public + some private inside the same org) follow the
+Mixed-mode repos (the maintainer runs some public + some private inside the same org) follow the
 visibility of the repo where the work lands; never straddle. A feature that ships in
 `consumer-c` (public) AND `consumer-c Enterprise` (private) gets two tickets — one per surface —
 linked to each other by URL in the description.
