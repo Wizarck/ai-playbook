@@ -1,10 +1,20 @@
-# v0.9.0-roadmap.md
+---
+schema: concept/v1
+slug: v090-roadmap
+title: v0.9.0 Roadmap
+summary: |
+  v0.8.x shipped the release-management contract (§4.5 codifies that the
+  worker AI MUST consume the AI reviewer's comments before declaring Gate F
+  ready) but the §4.5 contract assumes CodeRabbit is available. In practice
+  CodeRabbit's free-tier rate-limit burns through during…
+last_validated: "2026-05-19"
+---
 
-> **Status**: planning. Approved at design review 2026-05-01 (Arturo + worker AI). Implementation pending.
+# v0.9.0 Roadmap
 
 ## Why this release
 
-v0.8.x shipped the release-management contract (§4.5 codifies that the worker AI MUST consume the AI reviewer's comments before declaring Gate F ready) **but** the §4.5 contract assumes CodeRabbit is **available**. In practice CodeRabbit's free-tier rate-limit burns through during multi-bump series and substantial slices, leaving the worker AI to apply Profile B (self-review) **manually** — fragile, easy to forget, no automation backstop.
+v0.8.x shipped the release-management contract (§4.5 codifies that the worker AI must consume the AI reviewer's comments before declaring Gate F ready) **but** the §4.5 contract assumes CodeRabbit is **available**. In practice CodeRabbit's free-tier rate-limit burns through during multi-bump series and substantial slices, leaving the worker AI to apply Profile B (self-review) **manually** — fragile, easy to forget, no automation backstop.
 
 v0.9.0 turns the manual fallback into an enforced 3-layer defense.
 
@@ -34,7 +44,7 @@ This makes **L2 a silent safety net**: invisible when L1 worked, present when L1
 | **L1 self-review runbook** | `docs/runbooks/coderabbit-fallback.md` | Structured guide for the worker AI: what to inspect by category (security, async / race, error handling, type safety, deps, edge cases, docs) + how to populate §4.5 in PR body | ~120 |
 | **L2 checklist script** | `scripts/post_self_review_checklist.py` | Reads `gh pr diff` + `gh pr view --json body`. Generates a diff-aware checklist (new public symbols, new async paths, new error paths, new deps, security-relevant changes). Posts via `gh pr comment` if §4.5 is not yet populated. Marks status check via `gh api` (Checks API) | ~150 |
 | **L2 workflow template** | `templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl` | Trigger: `pull_request: [opened, synchronize]`. Sleeps 5 min. Runs both detection + checklist scripts. Sets status check `ai-self-review-required` | ~60 |
-| **§4.5 spec update** | `docs/concepts/release-management.md` | Insert subsections §4.5.1 (worker-AI in-session check — MUST run after every PR push), §4.5.2 (CI safety net — auto-posts checklist if §4.5 unpopulated), §4.5.3 (PR-body §4.5 schema requirements that L2 regex-validates) | ~40 lines added |
+| **§4.5 spec update** | `docs/concepts/release-management.md` | Insert subsections §4.5.1 (worker-AI in-session check — must run after every PR push), §4.5.2 (CI safety net — auto-posts checklist if §4.5 unpopulated), §4.5.3 (PR-body §4.5 schema requirements that L2 regex-validates) | ~40 lines added |
 | **Release runbook update** | `docs/runbooks/release.md` Step 7 | Mention that the L2 workflow auto-posts the checklist on bump PRs too — and that the L1 in-session pattern applies to manual bump merges if CodeRabbit is rate-limited | ~10 lines added |
 
 #### Trade-offs honestly considered
@@ -72,14 +82,14 @@ This makes **L2 a silent safety net**: invisible when L1 worked, present when L1
 
 ## Tasks (implementation checklist)
 
-Grouped per [`templates/new-project/.claude/skills/openspec-apply-change`](../templates/new-project/.claude/skills/openspec-apply-change/) conventions for traceability.
+Grouped per `templates/new-project/.claude/skills/openspec-apply-change` conventions for traceability.
 
 ### A. L1 — AI in-session self-review
 
 - [ ] A.1 Implement `scripts/check_coderabbit_status.py` per the API in the components table. Pure stdlib + `gh` CLI. Returns JSON to stdout for easy worker-AI parsing.
 - [ ] A.2 Author `docs/runbooks/coderabbit-fallback.md` — the structured guide the worker AI follows when status is `rate-limited` / `silent`. Sections: detection, diff-classes-to-inspect (by category), how to fix critical findings, how to populate §4.5 PR body, examples (cite PR #41 of `consumer-e` as the manual reference run).
 - [ ] A.3 Add unit tests under `tests/` for `check_coderabbit_status.py`: mock `gh pr view --comments` output for each of the 4 status outcomes; assert correct JSON output.
-- [ ] A.4 Spec update `docs/concepts/release-management.md` §4.5: insert §4.5.1 codifying that worker AI MUST invoke the script after every `gh pr create` and follow the runbook if status is not `available`.
+- [ ] A.4 Spec update `docs/concepts/release-management.md` §4.5: insert §4.5.1 codifying that worker AI must invoke the script after every `gh pr create` and follow the runbook if status is not `available`.
 
 ### B. L2 — GH Action safety net
 
@@ -143,7 +153,7 @@ Closed by [`fix(release-management/v0.9.1)`](https://github.com/Wizarck/ai-playb
 
 **Surfaced**: consumer-e PR #57 (slice 3 archive — `chore(openspec): archive slice 3 persistence-tenant-enforcement`). The commit body INCLUDED the `openspec-archive: persistence-tenant-enforcement` marker on its own line. Local pre-commit (commit-msg stage) read the marker correctly via `$PRE_COMMIT_COMMIT_MSG_FILE` and allowed the commit. CI's `pre-commit run --from-ref ... --to-ref ...` then re-flagged `openspec/specs/persistence-layer/spec.md` as a "hand-edit" with: `❌ openspec/specs/*.md hand-edit detected and commit message unavailable at openspec/specs/persistence-layer/spec.md`. Required `--admin` merge to bypass.
 
-**Root cause**: [`scripts/block_manual_spec_edit.py::read_commit_message()`](../scripts/block_manual_spec_edit.py) only resolves the message via:
+**Root cause**: [`scripts/block_manual_spec_edit.py::read_commit_message()`](../../scripts/block_manual_spec_edit.py) only resolves the message via:
 1. `$PRE_COMMIT_COMMIT_MSG_FILE` (commit-msg stage; works locally)
 2. `<repo-root>/.git/COMMIT_EDITMSG` (fallback)
 
@@ -185,8 +195,8 @@ It does NOT iterate the commits in `$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF` (C
 ## References
 
 - [`docs/concepts/release-management.md`](release-management.md) §4.5 — the AI-reviewer feedback loop this release extends.
-- [`docs/runbooks/release.md`](../docs/runbooks/release.md) — release flow, this release follows the rc-first pattern (substantial release).
-- [`docs/concepts/v0.8.0-roadmap.md`](v0.8.0-roadmap.md) — prior roadmap, reference for format.
+- [`docs/runbooks/release.md`](../runbooks/release.md) — release flow, this release follows the rc-first pattern (substantial release).
+- [`docs/concepts/v0.8.0-roadmap.md`](v080-roadmap.md) — prior roadmap, reference for format.
 - `consumer-e` PR #41 — manual reference run of L1 (the worker AI did the self-review by hand on 2026-05-01 because CodeRabbit was rate-limited; v0.9.0 codifies what was done there).
 - `livekit` PR #36 — the manual `inherits_from:` bump that surfaced followup #1.
 - `ai-playbook` v0.9.0-rc1 → rc2 cycle — the supersede mishap that surfaced followup #2.

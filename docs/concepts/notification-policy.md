@@ -1,6 +1,16 @@
-# notification-policy.md
+---
+schema: concept/v1
+slug: notification-policy
+title: Notification Policy
+summary: |
+  Canonical policy for every user-visible notification a playbook-driven agent
+  or script emits. Levels are abstract; channels are pluggable. The contract
+  protects Arturo's (and future team devs') attention budget and keeps the
+  audit trail uniform across projects.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Notification Policy
 
 Canonical policy for every user-visible notification a playbook-driven agent or script emits. Levels are abstract; channels are pluggable. The contract protects Arturo's (and future team devs') attention budget and keeps the audit trail uniform across projects.
 
@@ -8,7 +18,7 @@ Canonical policy for every user-visible notification a playbook-driven agent or 
 
 ## 1. Levels
 
-Exactly four levels. Any notification emitted by a playbook-driven actor MUST declare one.
+Exactly four levels. Any notification emitted by a playbook-driven actor must declare one.
 
 | Level | Definition | Who sees it | Example trigger | Default channel |
 |---|---|---|---|---|
@@ -28,7 +38,7 @@ A notification's level is set at emit-time and **does not escalate automatically
 ## 2. Rules
 
 - **Rate limit.** No `info` or `warn` bursts greater than **5 per minute per actor**. The helper short-circuits excess and records the drop count as a single `info` summary event.
-- **Trace ID correlation.** Every `warn` and `error` notification MUST carry the emitting OTel `trace_id` so the recipient can jump directly to the trace. `info` SHOULD; `silent` always does.
+- **Trace ID correlation.** Every `warn` and `error` notification must carry the emitting OTel `trace_id` so the recipient can jump directly to the trace. `info` should; `silent` always does.
 - **Actor identity.** Every notification carries `ai_playbook.notification.actor` — the git `user.email` or the agent UUIDv7 that emitted it. Retro aggregates use this field; see §5.
 - **Structured payload first.** Notifications are emitted as JSON envelopes and rendered to human-readable text by the channel adapter, not formatted ad hoc in the emitting script. Shape:
   ```json
@@ -43,7 +53,7 @@ A notification's level is set at emit-time and **does not escalate automatically
   }
   ```
 - **English only.** Notifications are machine-parseable first; localization happens at the UI layer, not in the emitting payload.
-- **No secrets.** A notification payload MUST NOT include any value that `secrets_scan.py` would flag. Redaction happens in the helper before transport.
+- **No secrets.** A notification payload must not include any value that `secrets_scan.py` would flag. Redaction happens in the helper before transport.
 
 ---
 
@@ -65,13 +75,13 @@ Channels are an **abstract surface**. This spec defines the contract; concrete w
 
 ### 3.2 Contract for new channels
 
-A channel adapter lives under `scripts/notifications/<name>.py` and MUST:
+A channel adapter lives under `scripts/notifications/<name>.py` and must:
 
 1. Accept the JSON envelope above unmodified.
 2. Filter by level (configured per-channel in env vars, prefix `AIPLAYBOOK_NOTIFY_`).
 3. Apply channel-side rate limiting (on top of the emit helper's global cap).
-4. Fail open — a broken channel MUST NOT block the emit. Log the channel failure at `error` to JSONL so the retro catches it.
-5. Never hardcode webhooks, chat IDs, tokens in source. Read from env or SOPS-encrypted secrets (see [break-glass.md](break-glass.md) and the secrets strategy).
+4. Fail open — a broken channel must not block the emit. Log the channel failure at `error` to JSONL so the retro catches it.
+5. Never hardcode webhooks, chat IDs, tokens in source. Read from env or SOPS-encrypted secrets (see [break-glass.md](../rules/break-glass.rule.md) and the secrets strategy).
 
 Channel selection is configuration, never code: flip `AIPLAYBOOK_NOTIFY_TELEGRAM=on` to enable, off to disable. The default for a fresh consumer is `silent`/`info` to JSONL + OTel only. `warn`/`error` surfaces require explicit opt-in.
 
@@ -86,7 +96,7 @@ Canonical events and their required level. New events added via RFC.
 | `qa.verdict.approved` | `silent` | Trace only. A clean approval is not news. |
 | `qa.verdict.issues_found` | `info` | Dashboard surfaces per-iter count; retro reads from JSONL. |
 | `qa.verdict.clarification_needed` | `warn` | Blocks a track; needs human attention within 24h. |
-| `break-glass.applied` | `warn` | Per [break-glass.md](break-glass.md) §4; rate-limited globally at 5/min. |
+| `break-glass.applied` | `warn` | Per [break-glass.md](../rules/break-glass.rule.md) §4; rate-limited globally at 5/min. |
 | `secrets_scan.match` | `error` | Per [agentic-failures.md](agentic-failures.md) §2.11. `OVERRIDE: none`. |
 | `degradation.transition.DEGRADED_CAPACITY` | `silent` | Routine fallback; one-step. |
 | `degradation.transition.DEGRADED_QUALITY` | `warn` | User-visible per [degradation-modes.md](degradation-modes.md) §1. |
@@ -116,9 +126,9 @@ Retros are cross-referenced from [retrospective-cadence.md](retrospective-cadenc
 
 ## 6. Cross-references
 
-- [error-message-standard.md](error-message-standard.md) — notifications that carry an error payload use the WHY/WHERE/FIX/OVERRIDE shape inside `detail.error`.
-- [break-glass.md](break-glass.md) §4 — every `OVERRIDE APPLIED` on an `error`-shape gate emits `warn`-level `break-glass.applied`.
-- [verdict-contract.md](verdict-contract.md) — verdict events (`qa.verdict.*`) map to levels per §4 above.
+- [error-message-standard.md](../rules/error-message-standard.rule.md) — notifications that carry an error payload use the WHY/WHERE/FIX/OVERRIDE shape inside `detail.error`.
+- [break-glass.md](../rules/break-glass.rule.md) §4 — every `OVERRIDE APPLIED` on an `error`-shape gate emits `warn`-level `break-glass.applied`.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — verdict events (`qa.verdict.*`) map to levels per §4 above.
 - [degradation-modes.md](degradation-modes.md) — every degradation state transition maps to an event in §4.
 - [agentic-failures.md](agentic-failures.md) — detected failures notify per severity (S1→error, S2→warn).
 - [retrospective-cadence.md](retrospective-cadence.md) — where retro aggregates are produced.

@@ -1,16 +1,21 @@
-# release-management.md
+---
+schema: concept/v1
+slug: release-management
+title: Release Management
+summary: |
+  If this is your first time landing here, read
+  docs/concepts/development-flow.md FIRST. That doc is the LLM-agnostic
+  canonical entry point for "how do I make a change in any playbook-consuming
+  project?" — covering the 4-level hierarchy (Roadmap → OpenSpec change →
+  Branch →…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.3.0 (new in v0.9.3). Defines the universal contract for **how OpenSpec changes ship**: branch model, PR shape, CI gates, project board schema, dependency-driven merge order, the **visibility-driven enforcement profile** (public-OSS vs private-solo), and the **AI-reviewer feedback loop** (CodeRabbit / claude-code-action). Companion to [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) (the LLM-agnostic canonical entry point — read that first). Complements [issue-tracking.md](issue-tracking.md) (which automates ticket↔proposal sync) by codifying the source-control + review side that issue-tracking assumes but does not normatively specify.
->
-> **Changelog**:
-> - **v1.3.0** (2026-05-05): added §0 (entry-point pointer to [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md)) so readers landing here know this spec covers source-control / PR / CI specifically — the canonical end-to-end flow lives in development-flow.md.
-> - **v1.2.0** (2026-05-01): added §4.5 (AI-reviewer feedback loop) — worker AI MUST read + respond to AI-reviewer comments (CodeRabbit on Profile A, claude-code-action when Phase 3 lands) before requesting Gate F. Closes the gap surfaced when the v0.8.0 rollout itself admin-merged 5 PRs without checking CodeRabbit's feedback (rate limit was hit; no real comments missed, but the FLOW was the failure mode).
-> - **v1.1.0** (2026-05-01): added §5.5 (trace fields Branch + Base SHA), §5.6 (visibility-driven profile A/B), §4.4 (pre-commit diff mode in CI), §6.5 (pre-flight rebase before slice start), §3.4 (bump-bot supersede expectation). `bootstrap_gh_project.py` gains `--profile {auto,public,private}`.
-> - **v1.0.0** (2026-04-29): initial spec — branch model, PR shape, CI gates, project board schema, dependency-driven merge order, bootstrap automation.
+# Release Management
 
 ## 0. Where to start (entry-point pointer)
 
-**If this is your first time landing here, read [`docs/concepts/development-flow.md`](../docs/concepts/development-flow.md) FIRST.** That doc is the **LLM-agnostic canonical entry point** for "how do I make a change in any playbook-consuming project?" — covering the 4-level hierarchy (Roadmap → OpenSpec change → Branch → Commits → PR → Main → Tag → Consumers), the 3 axes of parallelism (Wave-N / Intra-slice / Worktrees), and the lifecycle from "I want to change something" to "consumers are on the new version".
+**If this is your first time landing here, read [`docs/concepts/development-flow.md`](development-flow.md) FIRST.** That doc is the **LLM-agnostic canonical entry point** for "how do I make a change in any playbook-consuming project?" — covering the 4-level hierarchy (Roadmap → OpenSpec change → Branch → Commits → PR → Main → Tag → Consumers), the 3 axes of parallelism (Wave-N / Intra-slice / Worktrees), and the lifecycle from "I want to change something" to "consumers are on the new version".
 
 This spec (`release-management.md`) covers **the source-control + review + CI surface** specifically:
 - §2 branch model (`<type>/<change-id>`)
@@ -19,7 +24,7 @@ This spec (`release-management.md`) covers **the source-control + review + CI su
 - §5 GH Project board schema + visibility-driven profile (§5.6)
 - §6 dependency-driven merge order (§6.4 Wave-N) + intra-slice parallelism (§6.6) + pre-flight rebase (§6.5)
 
-The skill `/dev-flow start | ship` (per [`skills/dev-flow/SKILL.md`](../skills/dev-flow/SKILL.md)) operationalises this entire spec as runnable commands. Use the skill if you want the playbook to drive the flow; read this spec if you need to understand or modify any specific gate or contract.
+The skill `/dev-flow start | ship` (per [`skills/dev-flow/SKILL.md`](../../skills/dev-flow/SKILL.md)) operationalises this entire spec as runnable commands. Use the skill if you want the playbook to drive the flow; read this spec if you need to understand or modify any specific gate or contract.
 
 ## 1. Why this spec
 
@@ -131,11 +136,11 @@ The "Acceptance criteria" section is the live progress tracker. The PR cannot mo
 
 ### 3.3 Linked tracker ticket
 
-Per [issue-tracking.md](issue-tracking.md) §2.2, the change's `proposal.md` carries `tracker_id: PROJ-N` (Jira) or `tracker_issue: N` (GH). The PR body MUST reference it via `Closes #N` (GH) or `PROJ-N:` prefix in the title (Jira). This drives automatic ticket transitions on merge.
+Per [issue-tracking.md](issue-tracking.md) §2.2, the change's `proposal.md` carries `tracker_id: PROJ-N` (Jira) or `tracker_issue: N` (GH). The PR body must reference it via `Closes #N` (GH) or `PROJ-N:` prefix in the title (Jira). This drives automatic ticket transitions on merge.
 
 ### 3.4 Bump-bot supersede expectation
 
-Auto-generated PRs (e.g. `chore/bump-playbook-v<tag>`, `chore/bump-skills-ai-playbook-v<tag>`, dependabot, renovate) MUST close any prior open PR on the same logical change-stream when a newer one opens. A "logical change-stream" is identified by the branch-name prefix:
+Auto-generated PRs (e.g. `chore/bump-playbook-v<tag>`, `chore/bump-skills-ai-playbook-v<tag>`, dependabot, renovate) must close any prior open PR on the same logical change-stream when a newer one opens. A "logical change-stream" is identified by the branch-name prefix:
 
 - `chore/bump-playbook-v*` — playbook submodule bumps
 - `chore/bump-skills-ai-playbook-v*` — skills-side playbook bumps
@@ -152,7 +157,7 @@ The `propagate-{playbook,skills}-bump.yml` templates in `templates/new-project/.
 
 ### 4.1 Mandatory CI for slice-branch PRs
 
-A consumer project's `.github/workflows/ci.yml` (or equivalent) MUST run, at minimum:
+A consumer project's `.github/workflows/ci.yml` (or equivalent) must run, at minimum:
 
 - Lint (language-appropriate: ruff, eslint, etc.).
 - Type check (mypy --strict, tsc --strict, etc.).
@@ -172,7 +177,7 @@ The PR's Project Status field stays `In Progress` until CI passes on the latest 
 
 ### 4.4 Pre-commit must run on the PR diff in CI, not `--all-files`
 
-Consumer projects' CI pre-commit step MUST invoke the hooks against the diff between the PR's base ref and HEAD, not against the entire repository. Concretely:
+Consumer projects' CI pre-commit step must invoke the hooks against the diff between the PR's base ref and HEAD, not against the entire repository. Concretely:
 
 ```yaml
 - name: Run pre-commit
@@ -237,12 +242,12 @@ clear the history.
 
 ### 4.5 AI-reviewer feedback loop (worker AI must read + respond before Gate F)
 
-When a Profile A repo opens a PR, an **AI reviewer** (CodeRabbit by default; claude-code-action when Phase 3 lands) leaves comments. These comments are not optional reading — the worker AI that opened the PR MUST integrate them into the loop:
+When a Profile A repo opens a PR, an **AI reviewer** (CodeRabbit by default; claude-code-action when Phase 3 lands) leaves comments. These comments are not optional reading — the worker AI that opened the PR must integrate them into the loop:
 
 1. **Wait for the AI-reviewer signal** — after pushing the final task commit on `slice/<change-id>`, poll for the reviewer's "review completed" status check (CodeRabbit posts it as `CodeRabbit / Review`; claude-code-action as `claude-review`). Allow up to 5 minutes per push (free tier rate limits the reviewer; high-frequency commits within a 5-minute window are batched into one review).
-2. **Read the comments** — `gh pr view <N> --comments` lists summary + inline comments. The worker AI MUST inspect the structured "Actionable comments" section (CodeRabbit) or the equivalent in claude-code-action.
+2. **Read the comments** — `gh pr view <N> --comments` lists summary + inline comments. The worker AI must inspect the structured "Actionable comments" section (CodeRabbit) or the equivalent in claude-code-action.
 3. **Triage each comment** — for every comment:
-   - **Address** — push a fix commit to the slice branch. The fix commit message MUST reference the comment ID or quote the relevant snippet so the audit trail is reconstructible.
+   - **Address** — push a fix commit to the slice branch. The fix commit message must reference the comment ID or quote the relevant snippet so the audit trail is reconstructible.
    - **Reject with reason** — reply `@coderabbitai resolve` (or equivalent) with a one-line rationale. Acceptable reasons: (a) the suggested change conflicts with a project hard rule (cite AGENTS.md §X); (b) the suggestion is out of slice scope (cite slice's `proposal.md` "Out of scope"); (c) the suggestion is a false positive on a workaround the slice deliberately ships (cite the corresponding gotcha entry).
    - **Defer to follow-up** — open a tracking item on the project board with a brief note + reply `@coderabbitai resolve — tracked as #N`.
 4. **Re-poll until clean** — push fixes triggers a new AI-reviewer pass (typically 30-90s). Repeat steps 2-3 until either:
@@ -262,11 +267,11 @@ The v0.8.0 release itself admin-merged 5 PRs without inspecting CodeRabbit's out
 
 #### Profile B (private repos without CodeRabbit)
 
-Until claude-code-action lands in Phase 3, Profile B repos have no AI reviewer. The contract degrades to: the worker AI MUST self-review the diff before requesting Gate F (run `gh pr diff <N>` and emit a structured self-review covering correctness, scope, security, idempotency). Self-review is logged in the PR description's "Self-review" subsection. Gate F humans can override but the audit trail must show it happened.
+Until claude-code-action lands in Phase 3, Profile B repos have no AI reviewer. The contract degrades to: the worker AI must self-review the diff before requesting Gate F (run `gh pr diff <N>` and emit a structured self-review covering correctness, scope, security, idempotency). Self-review is logged in the PR description's "Self-review" subsection. Gate F humans can override but the audit trail must show it happened.
 
 ### 4.5.1 L1 — Worker-AI in-session check (mandatory after every PR push)
 
-Introduced in v0.9.0. After **every** `gh pr create` or commit-push that updates a PR, the worker AI MUST invoke:
+Introduced in v0.9.0. After **every** `gh pr create` or commit-push that updates a PR, the worker AI must invoke:
 
 ```
 python -m scripts.check_coderabbit_status \
@@ -278,15 +283,15 @@ Behavior by exit code:
 | Exit code | Status | Worker AI action |
 |---|---|---|
 | `0` | `available` | Resume the §4.5 normal loop (read comments, address, re-poll). |
-| `1` | `rate-limited` or `silent` | **Apply Profile B fallback inline using [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md)**. Populate the PR-body §4.5 section per the schema in §4.5.3 below. Do NOT declare the PR ready for Gate F until §4.5 is populated. |
+| `1` | `rate-limited` or `silent` | **Apply Profile B fallback inline using [`docs/runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md)**. Populate the PR-body §4.5 section per the schema in §4.5.3 below. Do NOT declare the PR ready for Gate F until §4.5 is populated. |
 | `2` | setup error (gh unavailable, PR / repo not found) | Fix the setup error and retry. The PR is not ready for Gate F until L1 succeeds. |
 | `3` | unrecoverable (gh / network failure during polling) | Treat as `rate-limited` — apply Profile B fallback. Note the gh failure in the §4.5 audit trail. |
 
-The worker AI MUST NOT skip L1 because the diff is "obviously trivial". Bump PRs (submodule SHA + AGENTS.md version refresh) still get an L1 self-review — short, but present (see [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md) "bump PR" example).
+The worker AI must not skip L1 because the diff is "obviously trivial". Bump PRs (submodule SHA + AGENTS.md version refresh) still get an L1 self-review — short, but present (see [`docs/runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md) "bump PR" example).
 
 ### 4.5.2 L2 — CI safety net (auto-posts checklist when L1 didn't run)
 
-Introduced in v0.9.0. The workflow [`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`](../templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl) (propagated via `bootstrap_gh_project.py --profile auto`) fires on `pull_request: [opened, synchronize]`:
+Introduced in v0.9.0. The workflow `templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl` (propagated via `bootstrap_gh_project.py --profile auto`) fires on `pull_request: [opened, synchronize]`:
 
 1. Sleeps 5 minutes (CodeRabbit's typical response window).
 2. Runs `scripts/check_coderabbit_status.py --pr <N> --repo <R> --wait 0` (instant check; no further polling).
@@ -303,7 +308,7 @@ The status check `ai-self-review-required` is intentionally **not added to requi
 
 ### 4.5.3 PR-body §4.5 schema (regex-validated by L2)
 
-The "AI-reviewer signoff" subsection in the PR body MUST contain the following three markers (case-sensitive substring match) for L2 to consider it populated:
+The "AI-reviewer signoff" subsection in the PR body must contain the following three markers (case-sensitive substring match) for L2 to consider it populated:
 
 1. `Profile: A` or `Profile: B` (the AI-reviewer profile).
 2. `Reviewer:` followed by any non-empty content (CodeRabbit, claude-code-action, or "self-review" with a reason).
@@ -311,11 +316,11 @@ The "AI-reviewer signoff" subsection in the PR body MUST contain the following t
 
 If any marker is missing or stubbed (e.g. `Self-review findings: TODO`, or `<placeholder>` brackets), L2 considers §4.5 unpopulated and posts the checklist.
 
-The full canonical structure is documented in [`docs/runbooks/coderabbit-fallback.md`](../docs/runbooks/coderabbit-fallback.md) §4. Bump PRs (submodule SHA + AGENTS.md version) MAY use the shorter form documented in that runbook's examples — markers still required, but the findings list can be `none` with a one-sentence justification.
+The full canonical structure is documented in [`docs/runbooks/coderabbit-fallback.md`](../runbooks/coderabbit-fallback.md) §4. Bump PRs (submodule SHA + AGENTS.md version) may use the shorter form documented in that runbook's examples — markers still required, but the findings list can be `none` with a one-sentence justification.
 
-### 4.5.4 Auto-generated bump PRs MUST pre-populate §4.5 (chore-archive PRs included)
+### 4.5.4 Auto-generated bump PRs must pre-populate §4.5 (chore-archive PRs included)
 
-Introduced in v0.11.0. Every PR opened by an *automation* (not a worker AI session) — including `propagate_bump.py` (playbook submodule bumps), `propagate_skills_bump.py` (skills bumps), and the new `propagate-archive.yml` workflow (post-merge OpenSpec archive — see §6.7) — MUST emit a §4.5 "AI-reviewer signoff" section in the auto-generated PR body, pre-populated with the schema markers from §4.5.3, before the L2 fallback check fires.
+Introduced in v0.11.0. Every PR opened by an *automation* (not a worker AI session) — including `propagate_bump.py` (playbook submodule bumps), `propagate_skills_bump.py` (skills bumps), and the new `propagate-archive.yml` workflow (post-merge OpenSpec archive — see §6.7) — must emit a §4.5 "AI-reviewer signoff" section in the auto-generated PR body, pre-populated with the schema markers from §4.5.3, before the L2 fallback check fires.
 
 The minimum viable pre-population for a bump / chore-archive PR is:
 
@@ -335,11 +340,11 @@ Reference implementation: `scripts/propagate_bump.py` and `scripts/propagate_ski
 
 #### `bootstrap_gh_project.py` does NOT auto-merge
 
-The `apply_profile` helper (per §5.6) sets `allow_auto_merge=true` at the repo level, which exposes the per-PR "Enable auto-merge" button. The worker AI MUST NOT click it before §4.5 is satisfied. Auto-merge is a CONVENIENCE for clean PRs after Gate F approval, not a bypass for the feedback loop.
+The `apply_profile` helper (per §5.6) sets `allow_auto_merge=true` at the repo level, which exposes the per-PR "Enable auto-merge" button. The worker AI must not click it before §4.5 is satisfied. Auto-merge is a CONVENIENCE for clean PRs after Gate F approval, not a bypass for the feedback loop.
 
 ### 4.5.5 Worker-agent delegation: STOP-after-`gh pr create` directive
 
-Introduced in v0.13.4. When the main agent invokes `Agent(isolation="worktree", ...)` (or equivalent) to delegate whole-slice shipping — apply tasks → lint → push branch → open PR — the delegating prompt MUST embed this directive verbatim:
+Introduced in v0.13.4. When the main agent invokes `Agent(isolation="worktree", ...)` (or equivalent) to delegate whole-slice shipping — apply tasks → lint → push branch → open PR — the delegating prompt must embed this directive verbatim:
 
 > **STOP after `gh pr create` returns the PR URL.** Do NOT poll CI. Do NOT wait for checks. The parent agent monitors CI status via `gh pr checks <N>` and handles merge / fix-forward / abort decisions.
 
@@ -349,7 +354,7 @@ Failure mode this prevents: surfaced 2026-05-13/14 during the consumer-e dashboa
 
 ### 4.5.6 Worker-agent delegation: AI-reviewer signoff canonical block in prompt
 
-Introduced in v0.13.4. When the main agent delegates whole-slice shipping per §4.5.5, the delegating prompt MUST include the literal §4.5.3 canonical block in the worker-agent's "PR body template" section. The worker copy-pastes this block into the PR body and substitutes placeholders. The prompt MUST NOT use a free-form "write a self-review section" instruction.
+Introduced in v0.13.4. When the main agent delegates whole-slice shipping per §4.5.5, the delegating prompt must include the literal §4.5.3 canonical block in the worker-agent's "PR body template" section. The worker copy-pastes this block into the PR body and substitutes placeholders. The prompt must not use a free-form "write a self-review section" instruction.
 
 Minimum viable prompt-embedded template:
 
@@ -373,7 +378,7 @@ The contract is **strict** on Profile A repos. Profile B repos that opt out of t
 
 ### 5.1 Status field (mandatory, single-select)
 
-Every consumer project's GitHub Project (per [issue-tracking.md](issue-tracking.md) §1) MUST have a `Status` field with **exactly these five options** in this order:
+Every consumer project's GitHub Project (per [issue-tracking.md](issue-tracking.md) §1) must have a `Status` field with **exactly these five options** in this order:
 
 | Option | Meaning | Entered when |
 |---|---|---|
@@ -410,7 +415,7 @@ Project **visibility** is independent: a project can be private (default) or pub
 
 ### 5.5 Trace fields: `Branch` + `Base SHA` (mandatory, text)
 
-In addition to the canonical Status + recommended Risk/P&L fields, every consumer project's GitHub Project board MUST carry two text fields populated by the worker AI when a slice transitions `Todo → In Progress`:
+In addition to the canonical Status + recommended Risk/P&L fields, every consumer project's GitHub Project board must carry two text fields populated by the worker AI when a slice transitions `Todo → In Progress`:
 
 | Field | Value | Populated when |
 |---|---|---|
@@ -455,7 +460,7 @@ Applies when `gh repo view <repo> --json visibility` returns `"PUBLIC"`. The boo
 Applies when `gh repo view <repo> --json visibility` returns `"PRIVATE"` AND the user is on GH Free. No branch protection enforcement is possible at the API level — `gh api repos/.../branches/main/protection` returns 403. The bootstrap script applies what is available:
 
 - Repo settings: auto-merge enabled (vestigial — no required checks to satisfy, so functionally equivalent to a manual squash-merge), squash-only, `delete_branch_on_merge=true`.
-- CI workflows: same matrix as Profile A, but **advisory only** — a red CI doesn't block merge mechanically; the AI MUST refuse to merge a PR whose CI is red, by `AGENTS.md` §4 hard rule (project-level).
+- CI workflows: same matrix as Profile A, but **advisory only** — a red CI doesn't block merge mechanically; the AI must refuse to merge a PR whose CI is red, by `AGENTS.md` §4 hard rule (project-level).
 - Project board: same full schema (consistency across the consumer constellation).
 - CodeRabbit: skipped (paid for private repos in 2026). Two alternatives:
   1. Self-review — the AI reads the diff before requesting human Gate F.
@@ -514,9 +519,9 @@ This avoids the human-tracker-drift failure mode where Wave 2 slices stay `Block
 
 ### 6.4 Anti-collision contract (parallel waves)
 
-Wave N (N ≥ 1) slices that run in parallel MUST declare in `docs/openspec-slice.md` "Anti-collision contract" the **shared files** they touch (`Makefile`, `.pre-commit-config.yaml`, `pyproject.toml`, `apps/api/src/main.py`, etc.). The contract is enforced socially (reviewer rejects if violated) and structurally (each slice owns its own `Makefile.includes`, `apps/<bounded-context>/`, `migrations/000N_<slice>.py`, etc., declared in the slice's proposal).
+Wave N (N ≥ 1) slices that run in parallel must declare in `docs/openspec-slice.md` "Anti-collision contract" the **shared files** they touch (`Makefile`, `.pre-commit-config.yaml`, `pyproject.toml`, `apps/api/src/main.py`, etc.). The contract is enforced socially (reviewer rejects if violated) and structurally (each slice owns its own `Makefile.includes`, `apps/<bounded-context>/`, `migrations/000N_<slice>.py`, etc., declared in the slice's proposal).
 
-When a parallel-wave slice MUST touch a shared file, it coordinates via:
+When a parallel-wave slice must touch a shared file, it coordinates via:
 
 1. **Sequential serialization within the wave** — re-categorise the slice into a later wave that runs after the conflict-prone neighbour merges.
 2. **Ownership split** — the shared file is split into N per-slice fragments (e.g. `Makefile` becomes `Makefile` + `apps/api/Makefile.includes` + `apps/web/Makefile.includes` + ...), each slice owns its fragment.
@@ -552,7 +557,7 @@ and the slice's own `tasks.md`. The convention above prevents this.
 #### 6.4.2 Migration revision strings: verbose-form from scaffold
 
 Alembic / Sqlx / Prisma / Diesel migrations that ship monotonic revision IDs
-MUST use the **verbose form** `<NNNN>_<topic>` (matching the filename) from
+must use the **verbose form** `<NNNN>_<topic>` (matching the filename) from
 the moment the migration is scaffolded — not the bare numeric form.
 
 ❌ Forbidden form (latently broken):
@@ -590,7 +595,7 @@ tracked as a candidate inclusion in the playbook's CI templates for v0.10.1.
 
 ### 6.5 Pre-flight rebase before slice start
 
-Before the AI begins implementing a slice (i.e. before the first task commit on `slice/<change-id>`), it MUST:
+Before the AI begins implementing a slice (i.e. before the first task commit on `slice/<change-id>`), it must:
 
 1. `git fetch origin`
 2. `git rev-parse --short origin/main` → record as the slice's `Base SHA` on the project board (per §5.5).
@@ -614,11 +619,11 @@ python .ai-playbook/scripts/opsx_apply_companion.py \
 
 The companion verifies a clean working tree, fetches origin, captures the base SHA, rebases the slice branch (if currently on it), and sets the `Branch` + `Base SHA` text fields on the matching project item via GraphQL. Idempotent. Exits non-zero on rebase conflicts so the worker AI knows to pause and notify the human.
 
-The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `release-management.md` at session start; this section directs the AI to invoke the companion as Step 0 of `/opsx:apply` work. The AI MUST run the companion AND get exit-code 0 BEFORE making the first task commit.
+The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `release-management.md` at session start; this section directs the AI to invoke the companion as Step 0 of `/opsx:apply` work. The AI must run the companion AND get exit-code 0 BEFORE making the first task commit.
 
 ### 6.6 Intra-slice parallelism (multiple subagents inside one slice)
 
-> **Skill**: invoke `/openspec-apply-parallel <change-id>` to follow this contract step-by-step. The skill at [`skills/openspec-apply-parallel/SKILL.md`](../skills/openspec-apply-parallel/SKILL.md) packages the gating questions, ownership cross-check, spawn matrix, recombination flow, and anti-patterns from this section into a guided workflow. Falls back to `/opsx:apply` (sequential) when the gating questions don't pass.
+> **Skill**: invoke `/openspec-apply-parallel <change-id>` to follow this contract step-by-step. The skill at [`skills/openspec-apply-parallel/SKILL.md`](../../skills/openspec-apply-parallel/SKILL.md) packages the gating questions, ownership cross-check, spawn matrix, recombination flow, and anti-patterns from this section into a guided workflow. Falls back to `/opsx:apply` (sequential) when the gating questions don't pass.
 
 §6.4 codifies parallelism **across** slices (Wave-N concurrency). This subsection codifies the orthogonal axis: parallelism **inside** a single slice, when the slice's `tasks.md` has independent task groups (typically one per bounded context inside one OpenSpec change).
 
@@ -670,7 +675,7 @@ The contract: `AGENTS.md` §0 (bootstrap directive) tells the AI to read `releas
 
 Cross-validated by consumer-c Wave 1.7-1.9 (`m2-mcp-server` + `m2-recipes-core`): a parallel slice with a **canonical subagent prompt template** + **mandatory verification commands** produced **0 boundary violations** across 3 subagent slices and saved ~22 min wall-clock per slice. The discipline that earned that result is now normative.
 
-The main agent's spawn prompt to each subagent MUST contain these five sections, in order:
+The main agent's spawn prompt to each subagent must contain these five sections, in order:
 
 ```markdown
 # <Group ID> — <one-line scope>
@@ -711,11 +716,11 @@ agent's responsibility during recombination.
 
 The "Verification commands" section is the critical addition: subagents that **run their own lint + typecheck + targeted tests before reporting** catch boundary violations + integration failures locally, cutting the recombination conflict rate to near-zero. Without verification, the main agent only learns of failures during recombination, when the cost of fixing is highest.
 
-The "Report format" section's "Any deviations from scope" line is the **transparency clause**: subagents that drift outside their Owns paths MUST surface the deviation in the report, not hide it. Hidden deviations are a `goal_drift` per [agentic-failures.md](agentic-failures.md). Surfaced deviations are a slicing-too-coarse signal: the main agent records them in the slice's retro carry-forward and the next slicing iteration re-partitions.
+The "Report format" section's "Any deviations from scope" line is the **transparency clause**: subagents that drift outside their Owns paths must surface the deviation in the report, not hide it. Hidden deviations are a `goal_drift` per [agentic-failures.md](agentic-failures.md). Surfaced deviations are a slicing-too-coarse signal: the main agent records them in the slice's retro carry-forward and the next slicing iteration re-partitions.
 
 #### 6.6.2 Subagent template file
 
-The canonical template lives at [`templates/subagent-prompt.md.tmpl`](../templates/subagent-prompt.md.tmpl) and is materialised by `/openspec-apply-parallel` into the slice's working directory at spawn time. Consumer projects MAY extend the template with project-specific verification commands (e.g. `pnpm --filter <bc> typecheck` for monorepos) but MUST keep the five-section structure intact.
+The canonical template lives at `templates/subagent-prompt.md.tmpl` and is materialised by `/openspec-apply-parallel` into the slice's working directory at spawn time. Consumer projects may extend the template with project-specific verification commands (e.g. `pnpm --filter <bc> typecheck` for monorepos) but must keep the five-section structure intact.
 
 ---
 
@@ -730,9 +735,9 @@ The new template `templates/new-project/.github/workflows/propagate-archive.yml.
 1. Extracts the change-id from the head ref (`slice/<change-id>` → `<change-id>`).
 2. Runs `openspec archive --change <change-id>` (the move + retro stub) on a fresh clone of `main`.
 3. Pushes the archive commit to a new branch `chore/archive-<change-id>` and opens a PR that auto-merges.
-4. The PR body includes a §4.5 block per §4.5.4 (auto-generated chore PRs MUST pre-populate the marker).
+4. The PR body includes a §4.5 block per §4.5.4 (auto-generated chore PRs must pre-populate the marker).
 
-The workflow is **opt-in**: consumers add it to their `.github/workflows/` to enable. Profile A consumers SHOULD enable it; Profile B is operator-discretionary.
+The workflow is **opt-in**: consumers add it to their `.github/workflows/` to enable. Profile A consumers should enable it; Profile B is operator-discretionary.
 
 This contract was tracked as a v0.10.3 gap in the v0.10.x CHANGELOG; v0.11 ships it as a feature.
 
@@ -757,7 +762,7 @@ python .ai-playbook/scripts/bootstrap_gh_project.py \
 - `public` — apply Profile A regardless (use when about to flip visibility public; idempotent).
 - `private` — apply Profile B regardless.
 
-The script (per [`scripts/bootstrap_gh_project.py`](../scripts/bootstrap_gh_project.py)):
+The script (per [`scripts/bootstrap_gh_project.py`](../../scripts/bootstrap_gh_project.py)):
 
 - Looks up the project under the given owner. **Projects v2 always live at user/org scope, never at repo scope** — the repo's Projects tab is purely a link surface.
 - **Links the project to the repo** if `--repo <owner/name>` is passed (idempotent). Without this step, the project exists but does NOT appear in the repo's Projects tab; only the user/org Projects page lists it. Re-running on an already-linked repo is a no-op.
@@ -863,10 +868,10 @@ adoption status.
 - [runbook-bmad-openspec.md](runbook-bmad-openspec.md) §3 — OpenSpec lifecycle this spec governs the source-control side of.
 - [issue-tracking.md](issue-tracking.md) — ticket↔proposal automation (Jira / GH Issues); this spec extends to the source-control side.
 - [bmad-openspec-bridge.md](bmad-openspec-bridge.md) §3 — slicing artefact schema this spec depends on for dep-graph parsing.
-- [verdict-contract.md](verdict-contract.md) — `❓ CLARIFICATION NEEDED` triggers Status `Blocked`.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — `❓ CLARIFICATION NEEDED` triggers Status `Blocked`.
 - [agentic-failures.md](agentic-failures.md) — `goal_drift` if a worker creates a per-task branch.
-- [break-glass.md](break-glass.md) — Gate F can be overridden with `--force-with-reason` in genuine emergencies; CI green and dependency-merged are NEVER overridable (red CI = real signal; missing dep = wrong order).
-- [`templates/new-project/.coderabbit.yaml.tmpl`](../templates/new-project/.coderabbit.yaml.tmpl) — CodeRabbit config template applied in Profile A.
-- [`templates/new-project/.github/workflows/project-status.yml.tmpl`](../templates/new-project/.github/workflows/project-status.yml.tmpl) — auto-transition `Blocked → Todo` workflow (§6.3).
-- [`templates/new-project/.github/workflows/dep-check.yml.tmpl`](../templates/new-project/.github/workflows/dep-check.yml.tmpl) — optional hard dependency enforcement (§6.2).
-- [`.github/workflows/propagate-playbook-bump.yml`](../.github/workflows/propagate-playbook-bump.yml) — bump-bot with supersede logic (§3.4). Lives in the playbook repo itself (not a consumer template).
+- [break-glass.md](../rules/break-glass.rule.md) — Gate F can be overridden with `--force-with-reason` in genuine emergencies; CI green and dependency-merged are NEVER overridable (red CI = real signal; missing dep = wrong order).
+- `templates/new-project/.coderabbit.yaml.tmpl` — CodeRabbit config template applied in Profile A.
+- `templates/new-project/.github/workflows/project-status.yml.tmpl` — auto-transition `Blocked → Todo` workflow (§6.3).
+- `templates/new-project/.github/workflows/dep-check.yml.tmpl` — optional hard dependency enforcement (§6.2).
+- [`.github/workflows/propagate-playbook-bump.yml`](../../.github/workflows/propagate-playbook-bump.yml) — bump-bot with supersede logic (§3.4). Lives in the playbook repo itself (not a consumer template).

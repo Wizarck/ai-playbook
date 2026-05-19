@@ -1,9 +1,15 @@
-# skills-distribution.md
+---
+schema: concept/v1
+slug: skills-distribution
+title: Skills Distribution
+summary: |
+  This spec defines how skill content (SKILL.md files plus assets) reaches
+  consumer projects. v0.17.0 collapses the previous multi-source design into a
+  single-source model: the playbook submodule itself is the source of truth.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v2.0.0 — shipped in ai-playbook **v0.17.0** (slice
-> `single-source-skills-reset`).
-> **Supersedes**: v1.0.0 (multi-source RFC-0001 pattern; removed in v0.17.0).
-> **Pairs with**: [`skills-registry.md`](skills-registry.md) (discovery surface).
+# Skills Distribution
 
 This spec defines how skill **content** (SKILL.md files plus assets) reaches
 consumer projects. v0.17.0 collapses the previous multi-source design into a
@@ -22,7 +28,7 @@ reset plan (v0.15.0 -> v0.20.0):
 - **D2 — Scripts not mirrored.** Consumer hooks invoke the materialiser via the
   direct path `.ai-playbook/scripts/materialise_skills.py`. No script copies in
   the consumer's own `scripts/`.
-- **D17 — Skills perpendicular Rules.** Skills MAY depend on rules; rules MUST NOT
+- **D17 — Skills perpendicular Rules.** Skills may depend on rules; rules must not
   depend on skills. The materialiser sits squarely in the skills lane.
 
 Full rationale, alternatives considered, and historical context for the
@@ -57,7 +63,7 @@ on the consumer side the source resolves to:
 
 ### 2.1 Required SKILL.md sections (v0.7.0+)
 
-Unchanged from v1.0.0. Every `SKILL.md` MUST contain Purpose, Workflow,
+Unchanged from v1.0.0. Every `SKILL.md` must contain Purpose, Workflow,
 Anti-patterns, Verification, See also (in order). Pattern adopted from
 [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill).
 
@@ -102,7 +108,7 @@ v0.17.0 explicitly drops the multi-source registry that v1.0.0 maintained
 `ai-playbook/skills/`. Skills previously published from `consumer-d-skills/skills/`
 are absorbed upstream (or remain in `consumer-d-skills` as standalone artefacts
 without a consumer-side distribution channel — see the
-[v0.17.0 CHANGELOG entry](../CHANGELOG.md) for the migration audit).
+[v0.17.0 CHANGELOG entry](../../CHANGELOG.md) for the migration audit).
 
 ---
 
@@ -203,7 +209,7 @@ writes). Acceptable for post-checkout / post-merge git hook usage.
 | Filesystem write failure | 1 |
 
 CLI errors emit the canonical error shape from
-[`error-message-standard.md`](error-message-standard.md).
+[`error-message-standard.md`](../rules/error-message-standard.rule.md).
 
 ---
 
@@ -230,7 +236,7 @@ python "$REPO_ROOT/.ai-playbook/scripts/materialise_skills.py" --quiet || {
 ```
 
 The `|| exit 0` pattern matches `cleanup_zombies.py` (§6 exit-code policy in
-[`cleanup-zombies.md`](cleanup-zombies.md)): hooks NEVER block `git pull` /
+[`cleanup-zombies.md`](../rules/cleanup-zombies.rule.md)): hooks NEVER block `git pull` /
 `git checkout`. Failures surface via stderr only.
 
 ### 5.1 Gemini-specific start wrapper
@@ -312,16 +318,16 @@ This spec deliberately does **not** cover:
 - [`skills-registry.md`](skills-registry.md) — discovery surface (HTTP catalog;
   registry contract unchanged in v0.17.0, only the upstream source field
   semantics simplify).
-- [`../docs/runbooks/skills-version-bump.md`](../docs/runbooks/skills-version-bump.md) —
+- [`../docs/runbooks/skills-version-bump.md`](../runbooks/skills-version-bump.md) —
   maintainer procedure for cutting a new playbook tag (now incorporates skill
   changes by definition — tagging the playbook = tagging the skill set).
 - [`dispatcher-chain.md`](dispatcher-chain.md) — three-level dispatcher
   resolution; skills participate per D17.
-- [`cleanup-zombies.md`](cleanup-zombies.md) — consumer-side cleanup contract;
+- [`cleanup-zombies.md`](../rules/cleanup-zombies.rule.md) — consumer-side cleanup contract;
   v0.17.0 extends the manifest with 8 v2 entries covering the multi-source
   artefacts.
 - [`degradation-modes.md`](degradation-modes.md) — `DEGRADED_CONTEXT` enum
   used when materialisation fails partially.
-- [`error-message-standard.md`](error-message-standard.md) — canonical shape
+- [`error-message-standard.md`](../rules/error-message-standard.rule.md) — canonical shape
   of errors emitted by `materialise_skills.py`.
 - [`taxonomy.md`](taxonomy.md) — canonical definitions of "skill" and "consumer".

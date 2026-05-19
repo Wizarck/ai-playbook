@@ -1,6 +1,15 @@
-# dependency-injection-patterns.md
+---
+schema: concept/v1
+slug: dependency-injection-patterns
+title: Dependency Injection Patterns
+summary: |
+  DI is not a language-specific concept; the same hazards appear in NestJS,
+  FastAPI, Phoenix, Spring, etc. Two specific failures have shipped bugs in
+  production code paths across the projects:
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines two cross-language DI patterns surfaced as recurring failures across projects: (1) **provider deduplication** (NestJS `@Global()` doesn't prevent re-declaration in `TestingModule` overrides; Python equivalent: re-binding `Depends(...)` in test fixtures shadows the global), and (2) **seam-then-consume DI tokens** (slice A introduces a DI token + binding; slice B implements without editing slice A). Cross-validated by consumer-c m2-mcp-write-capabilities (`payload_before: null` bug), m2-cost-rollup-and-audit (`INVENTORY_COST_RESOLVER` token pattern), and consumer-d ADR-028 (singleton-per-action-class for `request_approval(mode=apply)`).
+# Dependency Injection Patterns
 
 ## 1. Why this spec
 
@@ -26,7 +35,7 @@ This spec codifies both patterns + their cross-language equivalents.
 
 ### 2.1 The rule (NestJS)
 
-> **A consumer module that needs a global provider MUST import the providing module, NOT re-declare the provider.**
+> **A consumer module that needs a global provider must import the providing module, NOT re-declare the provider.**
 
 ```ts
 // ❌ Forbidden: re-declares the provider locally; local instance wins;
@@ -266,7 +275,7 @@ def get_dispatcher(action_class: str) -> ApprovalDispatcher:
 
 The composition root wires the dictionary; consumers receive the right dispatcher per action class. Adding a new action class is a one-line dict entry, not a class-hierarchy change.
 
-This pattern combines [hitl-approval-pattern.md](hitl-approval-pattern.md) (the HITL contract) with §3 (token rebinding) — different action classes are different "slices" in a logical sense even when they all live in one bounded context.
+This pattern combines [hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md) (the HITL contract) with §3 (token rebinding) — different action classes are different "slices" in a logical sense even when they all live in one bounded context.
 
 ---
 
@@ -285,7 +294,7 @@ This pattern combines [hitl-approval-pattern.md](hitl-approval-pattern.md) (the 
 
 - [protocol-fake-deferred-install.md](protocol-fake-deferred-install.md) — sister pattern: Protocol = the *type* contract; DI token = the *binding* contract.
 - [event-and-data-patterns.md](event-and-data-patterns.md) §9 — async event ordering for services that emit events; DI seams often emit on bind/unbind.
-- [hitl-approval-pattern.md](hitl-approval-pattern.md) §3 — the approval channel Protocol is the canonical case of this spec applied to HITL gating.
+- [hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md) §3 — the approval channel Protocol is the canonical case of this spec applied to HITL gating.
 - [release-management.md](release-management.md) §6.6 — intra-slice subagent parallelism; DI seams that are clean across BCs let subagents work independently.
 
 ---

@@ -1,6 +1,16 @@
-# ux-track.md
+---
+schema: concept/v1
+slug: ux-track
+title: Ux Track
+summary: |
+  The canonical workflow (runbook-bmad-openspec.md) was silent on UX before
+  v0.5.0. PRDs declared capabilities; OpenSpec changes implemented them; mocks
+  and component decisions happened ad-hoc. v0.5.0 introduced the UX Track.
+  v2.0.0 of this spec lands the operational rules that…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v2.0.0. Substantially expanded from v1.0.0 based on consumer learnings (consumer-c M2). Codifies the three-step order (inspiration → palette → variants), self-documenting deliverables, palette decoupling as an intermediate visual step, bones+layer remix iteration, OKLCH-canonical colour rule, per-journey docs format, Storybook-style components catalogue with a stewardship clause, an anti-patterns checklist baked into the audit, and a WCAG-AA verification ritual. Removed the v1.0.0 license-attribution section as unnecessary scaffolding — the curated engines are now listed plainly with a one-line "check the licenses for your use case" reminder. Additive against v1.0.0; existing consumers may migrate at their own pace.
+# Ux Track
 
 ## 1 Purpose
 
@@ -78,7 +88,7 @@ After picking, Phase A (scrub) and Phase B (consolidation) run (§9) to produce 
 | `docs/ux/components.md` | project-level | Storybook-style catalogue of named components, written **after** the journey mocks (not before — see §12). |
 | `docs/ux/variants/_archive/` | project-level | Rejected variants and earlier-round artefacts retired here. Internal reference only. |
 
-Each per-journey doc MUST cross-reference the PRD journey + the FRs it satisfies. A journey doc with no FR back-references is `goal_drift` per [agentic-failures.md](agentic-failures.md).
+Each per-journey doc must cross-reference the PRD journey + the FRs it satisfies. A journey doc with no FR back-references is `goal_drift` per [agentic-failures.md](agentic-failures.md).
 
 ## 5 Variant generation: one agent per engine
 
@@ -304,7 +314,7 @@ components:
 
 For most token groups, references must point to a primitive value (e.g. `colors.accent`), not a group (`colors`). Within `components`, references to composite values (e.g. `{typography.body-md}`) are permitted.
 
-A reference that doesn't resolve to a defined token MUST trigger an error in any linter consuming the file (see §11.8 tooling).
+A reference that doesn't resolve to a defined token must trigger an error in any linter consuming the file (see §11.8 tooling).
 
 ### 11.4 Section order
 
@@ -351,7 +361,7 @@ This pattern aligns with Tailwind utility variants and CSS state pseudo-classes,
 
 ### 11.6 Consumer behavior for unknown content
 
-Any consumer (linter, codegen, downstream agent) reading a `DESIGN.md` MUST follow this behavior table:
+Any consumer (linter, codegen, downstream agent) reading a `DESIGN.md` must follow this behavior table:
 
 | Scenario | Behavior | Example |
 |:---|:---|:---|
@@ -385,9 +395,9 @@ colors:
 }
 ```
 
-**Source of truth**: the OKLCH value. Whenever OKLCH changes, regenerate hex via the conversion formula (OKLCH → OKLab → linear sRGB → sRGB → hex). The Python snippet in `scripts/oklch-to-hex.py` (or equivalent) automates this; YAML hex SHOULD be updated atomically with CSS OKLCH commits.
+**Source of truth**: the OKLCH value. Whenever OKLCH changes, regenerate hex via the conversion formula (OKLCH → OKLab → linear sRGB → sRGB → hex). The Python snippet in `scripts/oklch-to-hex.py` (or equivalent) automates this; YAML hex should be updated atomically with CSS OKLCH commits.
 
-**One-way only**: never round-trip hex → OKLCH to update the canonical. That path is lossy (hex is sRGB-clamped, OKLCH spans wider gamut). Tooling consumers MUST treat YAML hex as a snapshot, not a primary input.
+**One-way only**: never round-trip hex → OKLCH to update the canonical. That path is lossy (hex is sRGB-clamped, OKLCH spans wider gamut). Tooling consumers must treat YAML hex as a snapshot, not a primary input.
 
 **WCAG-AA contrast verification** (§15) uses OKLCH luminance arithmetic, not hex. The verification block in the audit head-comment cites OKLCH luminance values. Hex values inline serve only humans skimming and external tools.
 
@@ -543,12 +553,12 @@ The UX track has its own QA pattern, distinct from the OpenSpec worker→QA flow
    - Does the head-comment audit include the WCAG-AA verification block (§15)?
    - Does the audit cite DESIGN.md sections (and not external repo paths — §6.2)?
    - Does the colour block declare in OKLCH (§10)?
-3. **Verdict** uses the same literals as [verdict-contract.md](verdict-contract.md):
+3. **Verdict** uses the same literals as [verdict-contract.md](../rules/verdict-contract.rule.md):
    - `✅ APPROVED` — UX doc lands; ready for Gate B.
    - `⚠️ ISSUES FOUND (iter N)` — author revises.
    - `❓ CLARIFICATION NEEDED` — escalates to PM; UX track moves to `blocked-by-prd`.
 
-Max 2 rework cycles per journey doc; iter 3 escalates per [verdict-contract.md](verdict-contract.md) §3.
+Max 2 rework cycles per journey doc; iter 3 escalates per [verdict-contract.md](../rules/verdict-contract.rule.md) §3.
 
 ## 18 HITL gate impact
 
@@ -576,7 +586,7 @@ Consumers copy these on first use of the UX track. They are starting points, not
 
 - [runbook-bmad-openspec.md](runbook-bmad-openspec.md) — canonical workflow this spec extends
 - [skills-distribution.md](skills-distribution.md) + RFC-0001 — why we don't vendor third-party engines
-- [verdict-contract.md](verdict-contract.md) — verdict literals reused for UX QA
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — verdict literals reused for UX QA
 - [parallel-review.md](parallel-review.md) — QA discipline this spec mirrors
 - [agentic-failures.md](agentic-failures.md) — `goal_drift` if UX track produces journey docs without FR back-references
-- [contributing.md](../docs/concepts/contributing.md) §6 — backwards compatibility for consumers that deviate from §12's recommended DESIGN.md format
+- [contributing.md](contributing.md) §6 — backwards compatibility for consumers that deviate from §12's recommended DESIGN.md format

@@ -1,6 +1,16 @@
-# bmad-openspec-bridge.md
+---
+schema: concept/v1
+slug: bmad-openspec-bridge
+title: Bmad Openspec Bridge
+summary: |
+  The hybrid BMAD+OpenSpec workflow has a seam between phases: - Phase 2 ends
+  at Gate C — the human-led, agent-assisted slicing produces a list of change
+  IDs each with scope, dependencies, and FR coverage. - Phase 3 starts at
+  /opsx:propose <change-id> — which scaffolds the…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. New in ai-playbook v0.7.0. Defines the canonical handoff between Phase 2 (BMAD discovery + design) and Phase 3 (OpenSpec implementation) of [runbook-bmad-openspec.md](runbook-bmad-openspec.md). Resolves the v0.6.x drift where BMAD skills ended with "invoke `bmad-help`" and `openspec-propose` had no contract for reading the slicing output — leaving a manual gap that broke at scale (e.g. proposing 11 changes for consumer-c Module 2).
+# Bmad Openspec Bridge
 
 ## 1. Purpose
 
@@ -72,7 +82,7 @@ runbook: .ai-playbook/docs/concepts/runbook-bmad-openspec.md §2.4
 - **Components**: if UI, named components from `docs/ux/components.md`. Empty if backend.
 - **Depends on**: change IDs that must land before this one. `—` if independent.
 
-The scope notes (one paragraph per change) are what `openspec-propose` echoes into the scaffolded proposal as the initial framing. They MUST be copy-paste-quality prose (no `<TBD>` placeholders).
+The scope notes (one paragraph per change) are what `openspec-propose` echoes into the scaffolded proposal as the initial framing. They must be copy-paste-quality prose (no `<TBD>` placeholders).
 
 ### 3.3 Authoring
 
@@ -131,7 +141,7 @@ The batch run produces one summary at the end (which scaffolded, which skipped, 
 ## 6. Cross-references
 
 - [runbook-bmad-openspec.md](runbook-bmad-openspec.md) §2.4 (slicing) + §3.1 (per-change sequence)
-- [verdict-contract.md](verdict-contract.md) — Gate C approval verdict literal
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — Gate C approval verdict literal
 - [agentic-failures.md](agentic-failures.md) — `goal_drift` if Phase 3 starts without Gate C approval
 - [ux-track.md](ux-track.md) — components and journey cross-references the slicing carries
 

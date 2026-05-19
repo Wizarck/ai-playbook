@@ -1,6 +1,16 @@
-# fusion-integration-pattern.md
+---
+schema: concept/v1
+slug: fusion-integration-pattern
+title: Fusion Integration Pattern
+summary: |
+  You have a consumer project that meets these conditions: 1. The project has
+  its own openspec/schemas/<schema-name>/schema.yaml with a non-trivial
+  workflow (≥5 artefacts, role assignments per artefact, embedded discipline
+  rules). 2. The schema has been used for ≥5 changes…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. New in ai-playbook v0.13.3. Documents the pattern for integrating the playbook into a consumer project that **already has a mature OpenSpec custom workflow** (its own `openspec/schemas/<schema-name>/schema.yaml` with N artefacts, project-specific roles, project-specific Karpathy/discipline rules) without replacing it. The pattern preserves the consumer's accumulated workflow investment while importing the formal contracts the playbook ships.
+# Fusion Integration Pattern
 
 ## 1. When this pattern applies
 
@@ -137,14 +147,14 @@ Rules:
 - **Layers 1-3** keep the playbook's strict context isolation: each reads ONLY the artefacts named in its brief (typically diff + tests; specs for Acceptance Auditor). They do NOT read `design.md` rationale, the parent conversation, or other layers' output.
 - **Layer 4 (`<Project> Reviewer`)** has FULL context: reads everything (proposal, specs, design, tasks, diff, openspec/memory.md, Hindsight recall, change history). Executes the project's existing M holistic checks. This is where project-specific knowledge applies: known anti-patterns from memory.md, project-specific security boundaries, naming conventions, blueprint patterns, etc.
 - **No size opt-out**: the 4 layers run on EVERY change regardless of diff size. The holistic Layer 4 checks (memory patterns, security, project conventions) are cross-cutting — a 20-LOC diff can introduce a secret, violate a memory pattern, or break a convention as easily as a 500-LOC diff. The cost of 4 Sonnet subagents in parallel is less than the risk of skipping holistic checks on "small" changes.
-- **Parent triage** receives 4 envelopes per [verdict-contract.md](verdict-contract.md) §2 + [agent-contract.md](agent-contract.md) §3. Standard rules apply: S1+S2 block, S3+S4 batched, dedupe cross-layer, dismiss-with-rationale, any `❓` halts the track.
+- **Parent triage** receives 4 envelopes per [verdict-contract.md](../rules/verdict-contract.rule.md) §2 + [agent-contract.md](agent-contract.md) §3. Standard rules apply: S1+S2 block, S3+S4 batched, dedupe cross-layer, dismiss-with-rationale, any `❓` halts the track.
 - **Telemetry**: emit `ai_playbook.review.layers=4`, `ai_playbook.review.holistic_checks=<M>` on the parent span. Retro cadence (per `retrospective-cadence.md` when populated) can compare 4-layer vs 3-layer catch rates.
 
 The "quad_green" outcome (all 4 layers approve) replaces "triple_green" for fusion projects. Telemetry attribute: `ai_playbook.review.quad_green=true`.
 
 ### 5.1 Authoring the Layer 4 brief
 
-The project's existing `review` instruction (whatever rendered M holistic checks under the original single-Reviewer schema) becomes the brief for Layer 4 verbatim. The Layer 4 brief MUST:
+The project's existing `review` instruction (whatever rendered M holistic checks under the original single-Reviewer schema) becomes the brief for Layer 4 verbatim. The Layer 4 brief must:
 
 - Reference the project's `openspec/memory.md` and Hindsight recall via `.claude/injected-context.md`.
 - List the M holistic checks explicitly (1, 2, ..., M) with concrete pointers to project-specific patterns from memory.md.
@@ -326,11 +336,11 @@ See `c:\Projects\consumer-a\AGENTS.md` §7 for the full override block.
 ## 10. See also
 
 - [dispatcher-chain.md](dispatcher-chain.md) — 3-level inheritance; §7 overrides are documented here.
-- [verdict-contract.md](verdict-contract.md) — canonical verdict literals + S1-S4 mapping.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — canonical verdict literals + S1-S4 mapping.
 - [parallel-review.md](parallel-review.md) — 3-layer pattern that becomes the lower 3 layers of fusion review.
 - [memory-hierarchy.md](memory-hierarchy.md) — Hindsight bank semantics + decay policy.
 - [agentic-failures.md](agentic-failures.md) — failure-mode taxonomy referenced in fusion apply self-check.
-- [output-completeness.md](output-completeness.md) — banned skeleton patterns.
-- [verification-before-completion.md](verification-before-completion.md) — fresh tool output + broadest-scope rule.
+- [output-completeness.md](../rules/output-completeness.rule.md) — banned skeleton patterns.
+- [verification-before-completion.md](../rules/verification-before-completion.rule.md) — fresh tool output + broadest-scope rule.
 - [agent-contract.md](agent-contract.md) — scope.write_paths declaration.
 - [runbook-bmad-openspec.md](runbook-bmad-openspec.md) — the default workflow this pattern explicitly overrides.

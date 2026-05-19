@@ -1,6 +1,16 @@
-# degradation-modes.md
+---
+schema: concept/v1
+slug: degradation-modes
+title: Degradation Modes
+summary: |
+  Degradation is observed and announced, never guessed. Every playbook-driven
+  agent exposes a degradation state to the rest of the stack via OTel span
+  attributes, and the dashboard (T19) surfaces the current state. This spec
+  defines the state enum, the transitions, the…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Degradation Modes
 
 Degradation is **observed and announced, never guessed**. Every playbook-driven agent exposes a degradation state to the rest of the stack via OTel span attributes, and the dashboard (T19) surfaces the current state. This spec defines the state enum, the transitions, the circuit-breaker windows, and how degradation composes with the model-routing matrix.
 
@@ -14,7 +24,7 @@ Degradation is **observed and announced, never guessed**. Every playbook-driven 
 | `DEGRADED_CONTEXT` | Memory system (Hindsight MCP, or whatever the active memory plane is) is unreachable or heartbeat-dead. | Agent warns at session start: "Memory is unavailable — I will not recall prior sessions." Writes are queued locally and reconciled on recovery. This state is **orthogonal** to the model-capacity states: a session can be `DEGRADED_CONTEXT` + `HEALTHY` simultaneously. |
 | `OFFLINE` | No remote LLM provider reachable at all (every primary and every chained fallback has failed). | Agent refuses net-dependent tasks with a clear, actionable error (`error-message-standard.md`). Local-only tools (Ollama, shell, read-only file ops) remain available. Task classes whose chain does not terminate in a local model block entirely. |
 
-State enum is additive — new states may be added in future versions under `additionalProperties: true`. Consumers MUST tolerate an unknown state by treating it as `DEGRADED_CAPACITY` (conservative default) and emitting a warning.
+State enum is additive — new states may be added in future versions under `additionalProperties: true`. Consumers must tolerate an unknown state by treating it as `DEGRADED_CAPACITY` (conservative default) and emitting a warning.
 
 ## 2. Transition triggers and thresholds
 
@@ -95,6 +105,6 @@ Semantics:
 
 - [model-routing.md](model-routing.md) — the fallback chains this state machine composes with.
 - [notification-policy.md](notification-policy.md) — how `DEGRADED_QUALITY` notifications reach the user.
-- [break-glass.md](break-glass.md) — `--force-with-reason` contract referenced in §7.
-- [error-message-standard.md](error-message-standard.md) — the error shape returned when `OFFLINE` blocks a task.
+- [break-glass.md](../rules/break-glass.rule.md) — `--force-with-reason` contract referenced in §7.
+- [error-message-standard.md](../rules/error-message-standard.rule.md) — the error shape returned when `OFFLINE` blocks a task.
 - [retrospective-cadence.md](retrospective-cadence.md) — T14i surfaces overrides and prolonged degradation windows.

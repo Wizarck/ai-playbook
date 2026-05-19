@@ -1,6 +1,15 @@
-# zero-touch-automation.md
+---
+schema: concept/v1
+slug: zero-touch-automation
+title: Zero Touch Automation
+summary: |
+  This doc describes the zero-touch loop that takes OpenSpec changes and
+  semver tags from repo events to tracker tickets, releases, and notifications
+  — without human intervention in the happy path.
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Populated 2026-04-23. Realises the deferred automations of `docs/concepts/issue-tracking.md` §4.
+# Zero Touch Automation
 
 This doc describes the **zero-touch loop** that takes OpenSpec changes and semver tags from repo events to tracker tickets, releases, and notifications — without human intervention in the happy path.
 
@@ -105,7 +114,7 @@ Every `notify()` call also emits an OTel event via `scripts.tracing.trace_emit.a
 
 ## 4. Env var cheat sheet
 
-See [docs/concepts/env-vars.md](../docs/concepts/env-vars.md) for the full table. Minimum for full zero-touch:
+See [docs/concepts/env-vars.md](env-vars.md) for the full table. Minimum for full zero-touch:
 
 ```bash
 # SMTP (Gmail example; any provider works)

@@ -1,7 +1,16 @@
-# notification-queue.md
+---
+schema: concept/v1
+slug: notification-queue
+title: Notification Queue
+summary: |
+  Contract for the JSONL notification queue + email transport + durable
+  SQLite-backed retry queue used by every zero-touch playbook automation. This
+  spec realises the *shape* of a notification envelope and the *transports*
+  that ship it; notification-policy.md realises the
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0 (durable queue layer added 2026-05-05 by consumer-d
-> OpenSpec change `add-durable-notification-queue` — Phase 5 P5.3).
+# Notification Queue
 
 Contract for the JSONL notification queue + email transport + durable
 SQLite-backed retry queue used by every zero-touch playbook automation. This
@@ -63,7 +72,7 @@ Every line is a self-contained JSON object (no arrays). Keys:
 | `summary` | str | One-line human-readable. Fits in a dashboard card. |
 | `detail` | str | Optional multi-paragraph detail; can be empty. |
 | `attrs` | object | Structured payload (change_id, tracker_id, fixVersion…). |
-| `trace_id` | str \| null | OTel correlation id (MUST be present for `warn`/`error`). |
+| `trace_id` | str \| null | OTel correlation id (must be present for `warn`/`error`). |
 | `actor` | str | git `user.email` or agent UUIDv7 — identity field. |
 
 Example:
@@ -136,7 +145,7 @@ to a single record.
 
 ## 6. SMTP transport
 
-All SMTP env vars MUST be set to enable email; if any required var is missing,
+All SMTP env vars must be set to enable email; if any required var is missing,
 email is silently disabled and only JSONL is written.
 
 | Var | Default | Required |
@@ -156,7 +165,7 @@ Email format:
   pretty-JSON `Attrs`, and a footer explaining
   `AIPLAYBOOK_NOTIFICATIONS_EMAIL_MIN_SEVERITY=never` turns emails off.
 
-Failures in email transport MUST NOT raise to the caller — they're logged as
+Failures in email transport must not raise to the caller — they're logged as
 `ai_playbook.notify.failed=1` JSONL breadcrumbs and stderr warnings.
 
 ## 7. Dashboard consumer (`/api/notifications`)
@@ -300,7 +309,7 @@ Every queue state transition emits a `gen_ai.notification.<verb>` event to
 ### Restart survival
 
 Container/process restart (`docker compose restart consumer-d-aiops`,
-`systemctl restart`) MUST NOT lose pending rows. Validated by a unit test
+`systemctl restart`) must not lose pending rows. Validated by a unit test
 that reimports `notifications.queue` after enqueue and verifies the row is
 still readable from the SQLite file (host-writer pattern guarantees the file
 outlives the container).
@@ -319,9 +328,9 @@ outlives the container).
   policy.
 - [issue-tracking.md](issue-tracking.md) — defines `issue_sync.py` and
   `release_cut.py` events.
-- [break-glass.md](break-glass.md) — every `OVERRIDE APPLIED` on an `error` or
+- [break-glass.md](../rules/break-glass.rule.md) — every `OVERRIDE APPLIED` on an `error` or
   higher-severity gate emits `warn` / `break_glass.applied`.
-- [verdict-contract.md](verdict-contract.md) — QA verdict events consume the
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — QA verdict events consume the
   same transport surface.
 - [env-vars.md](env-vars.md) — canonical place for SMTP + notifications env
   vars; updated in lockstep with this spec.

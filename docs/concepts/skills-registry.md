@@ -1,16 +1,23 @@
-# skills-registry.md
+---
+schema: concept/v1
+slug: skills-registry
+title: Skills Registry
+summary: |
+  The skills registry is the authoritative discovery surface for project
+  skills. It answers "what skills exist in scope X, what version, where do
+  they live?" and returns metadata only — never SKILL.md content. Distribution
+  of skill content is a separate concern handled by git…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v2.0.0 (post-RFC-0001). Defines the **discovery contract**
-> between playbook consumers and the `consumer-d-skills` HTTP registry.
-> Distribution of skill content is a separate concern — see
-> [`skills-distribution.md`](skills-distribution.md).
+# Skills Registry
 
 The skills registry is the **authoritative discovery surface** for project
 skills. It answers "what skills exist in scope X, what version, where do they
 live?" and returns metadata only — never SKILL.md content. Distribution of
 skill content is a separate concern handled by git submodules per
 [`skills-distribution.md`](skills-distribution.md) and
-[RFC-0001](../rfcs/RFC-0001-skills-distribution.md).
+RFC-0001.
 
 The service lives at `consumer-d-skills.consumer-bfood.com` behind a Cloudflare
 Tunnel (local port 9002 in dev). This spec defines the HTTP contract, the
@@ -112,7 +119,7 @@ it remains optional for minimum-viable implementations.
 Scope resolution on the consumer side mirrors `dispatcher-chain.md`:
 
 1. If cwd is inside a `personal: true` project per
-   `~/.ai-playbook/projects.yaml`, the consumer MAY query `scope=personal`.
+   `~/.ai-playbook/projects.yaml`, the consumer may query `scope=personal`.
 2. Otherwise `scope=public` is the default; `scope=<slug>` is explicit opt-in
    (e.g. a bmad-code-review variant specific to `consumer-b`).
 3. The registry refuses `scope=personal` without a bearer token.
@@ -148,7 +155,7 @@ If the registry is unreachable (DNS, 5xx, timeout):
    `0` so the caller can proceed with **locally-defined skills only**.
 3. The consumer agent surfaces a `DEGRADED_CONTEXT`-shaped banner in its
    session-start context (parallel to how Hindsight outages surface).
-4. The agent MUST NOT fabricate skill names to fill the gap. If a task requires
+4. The agent must not fabricate skill names to fill the gap. If a task requires
    a skill that is not in `.claude/skills/` and the registry is down, the agent
    escalates with `❓ CLARIFICATION NEEDED`.
 
@@ -173,7 +180,7 @@ counts as part of `DEGRADED_CONTEXT` alongside Hindsight.
 
 ## 7. Client script
 
-[`scripts/skills_registry.py`](../scripts/skills_registry.py) is the playbook-side
+[`scripts/skills_registry.py`](../../scripts/skills_registry.py) is the playbook-side
 helper. CLI:
 
 ```

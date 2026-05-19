@@ -1,6 +1,16 @@
-# runbook-bmad-openspec.md
+---
+schema: concept/v1
+slug: runbook-bmad-openspec
+title: Runbook Bmad Openspec
+summary: |
+  The canonical flow for any consumer project that adopts the playbook: BMAD
+  for Discovery, OpenSpec for Implementation, worker→QA pairing per artefact,
+  max-2-rework, with human-in-the-loop (HITL) gates at each phase transition.
+  Project-specific deviations live in…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.1.0. Section 3.6 added in v0.8.0-rc1 — explicit branch + PR + merge contract pointing at [release-management.md](release-management.md).
+# Runbook Bmad Openspec
 
 The canonical flow for any consumer project that adopts the playbook: BMAD for Discovery, OpenSpec for Implementation, worker→QA pairing per artefact, max-2-rework, with human-in-the-loop (HITL) gates at each phase transition.
 
@@ -40,7 +50,7 @@ The **UX Track** runs in parallel with `bmad-create-architecture` between Gate A
 
 ### 2.2 HITL gates
 
-Human MUST approve before the next phase starts:
+Human must approve before the next phase starts:
 
 - **Gate A** — after PRD: "Is the problem correctly framed? Are the KPIs the right ones?" If no → rework PRD; do not start ADRs.
 - **Gate B** — after ADRs + data-model **and UX Track** (per §2.3): "Are these the right irreversible bets? Is the UX coherent across journeys?" Verify: (a) DESIGN.md tokens consistent with ADR data shapes, (b) every PRD journey has a mock or design-intent doc, (c) components catalogue matches journey usage, (d) no engine references leaked into canonical artefacts after Phase A scrub. If no → rework the failing track; do not start slicing.
@@ -62,7 +72,7 @@ After the user picks, **Phase A scrub** (archive rejected, strip engine referenc
 
 Colour discipline is **OKLCH-canonical** — every token declared in `oklch(L% C H)`, hex as derivation comment only. WCAG-AA verified on every text pair and recorded in the head-comment audit.
 
-See [ux-track.md](ux-track.md) for the full spec (artefacts, agent prompt template, component curation pattern, anti-patterns checklist, QA discipline). Copyable templates live in [`templates/ux/`](../templates/ux/).
+See [ux-track.md](ux-track.md) for the full spec (artefacts, agent prompt template, component curation pattern, anti-patterns checklist, QA discipline). Copyable templates live in `templates/ux/`.
 
 Headless / API-only consumers declare `no-ui-consumer` in a one-line `docs/ux/README.md` and Gate B passes on Architecture alone.
 
@@ -97,14 +107,14 @@ For modules with many changes, batch mode is supported: `/opsx:propose --batch` 
 2. `specs/*.md` (|| concurrent with `design.md`) — `## Scenario: WHEN/THEN` acceptance criteria. QA: Edge Case Hunter + Acceptance Auditor.
 3. `design.md` (|| concurrent with `specs/`) — architecture notes, alternatives considered, invariants. QA: Blind Hunter.
 4. `tasks.md` — TDD-ordered implementation steps. QA: Acceptance Auditor (does every AC map to a task?).
-5. `openspec apply` — implementation + tests. Workers emit `✅ APPROVED` only with verification output in the same message (per [verification-before-completion.md](verification-before-completion.md)). Deliverables comply with the no-skeleton rule (per [output-completeness.md](output-completeness.md)).
+5. `openspec apply` — implementation + tests. Workers emit `✅ APPROVED` only with verification output in the same message (per [verification-before-completion.md](../rules/verification-before-completion.rule.md)). Deliverables comply with the no-skeleton rule (per [output-completeness.md](../rules/output-completeness.rule.md)).
 6. `openspec archive` — promotes `specs/*.md` to `openspec/specs/` (hand-edits blocked by `scripts/block_manual_spec_edit.py`). Chain a retro write to `retros/<change-id>.md` automatically (Gate F deliverable).
 
-Commands in [capability map](../AGENTS.md) reference `/opsx:propose`, `/opsx:apply`, `/opsx:archive`, `/opsx:explore`.
+Commands in [capability map](../../AGENTS.md) reference `/opsx:propose`, `/opsx:apply`, `/opsx:archive`, `/opsx:explore`.
 
 ### 3.1.1 Apply phase orchestration: skill-only (v0.14.0+)
 
-The apply phase (step 5 in §3.1) MUST be initiated through the
+The apply phase (step 5 in §3.1) must be initiated through the
 `openspec-apply-change` skill (or an equivalent CLI invocation of the marker
 helper). Manual `Edit`/`Write`/`MultiEdit` on a slice's declared `write_paths`
 without first writing the apply-session marker is `goal_drift` per
@@ -121,7 +131,7 @@ Two enforcement vectors ship in ai-playbook v0.14.0:
   exists for the current Claude session. Break-glass via
   `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE=<≥10-char reason>` env (audited).
 
-Full contract: [apply-skill-enforcement.md](apply-skill-enforcement.md).
+Full contract: [apply-skill-enforcement.md](../rules/apply-skill-enforcement.rule.md).
 Adoption checklist (per consumer): §5 of that spec.
 
 Cross-references: §3.4 self-validation gates run AFTER the skill picks up the
@@ -192,7 +202,7 @@ The canonical layout for that case is **bare repo + per-branch worktrees** per [
 └── <change-id>/                 # one worktree per slice in flight
 ```
 
-Use [scripts/wt_add.py](../scripts/wt_add.py) for the daily flow:
+Use [scripts/wt_add.py](../../scripts/wt_add.py) for the daily flow:
 
 ```bash
 cd <project-root>/.bare
@@ -202,7 +212,7 @@ python /c/Projects/ai-playbook/scripts/wt_add.py <change-id>
 
 The worktree directory name **equals** the OpenSpec change-id (the same folder name under `openspec/changes/<id>/`); this satisfies traceability principle 7 from the global CLAUDE.md by making cwd self-documenting. `wt_add.py` enforces the match unless `--no-slice-check` is passed (analogous to `/opsx:propose --no-slice`).
 
-Greenfield consumer projects adopt this layout from day one via [docs/runbooks/git-worktree-bare-setup.md](../docs/runbooks/git-worktree-bare-setup.md) §1. Existing consumers on the legacy single-tree layout keep working — migration is opt-in per §3 of that runbook.
+Greenfield consumer projects adopt this layout from day one via [docs/runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) §1. Existing consumers on the legacy single-tree layout keep working — migration is opt-in per §3 of that runbook.
 
 ### 3.7.1 Design-mock HTML for dense designs (optional review aid)
 
@@ -250,7 +260,7 @@ Concrete shape:
 
 1. Run `/opsx:propose <change-id>` to scaffold the change folder + write
    `proposal.md` only.
-2. The proposal's "Out of scope" section MAY include a list of explicit
+2. The proposal's "Out of scope" section may include a list of explicit
    open questions that need Gate D signal:
    ```markdown
    ## Open questions (await Gate D)
@@ -298,7 +308,7 @@ proposing AI knows which slices to gate.
 
 ### 3.8 Intra-slice parallelism (orthogonal to wave-level)
 
-When a single slice covers multiple disjoint bounded contexts (e.g. M1 implementation slices that scaffold IAM + Ingredients + Suppliers + UoM in one OpenSpec change), the main agent MAY spawn subagents in parallel — one per bounded context — provided every group declares write-path ownership in `tasks.md` and shared files are reserved for serial recombination by the main agent. The full contract is in [release-management.md](release-management.md) §6.6.
+When a single slice covers multiple disjoint bounded contexts (e.g. M1 implementation slices that scaffold IAM + Ingredients + Suppliers + UoM in one OpenSpec change), the main agent may spawn subagents in parallel — one per bounded context — provided every group declares write-path ownership in `tasks.md` and shared files are reserved for serial recombination by the main agent. The full contract is in [release-management.md](release-management.md) §6.6.
 
 This is **orthogonal** to the wave-level parallelism of §6.4 (which is about multiple slices in flight at the same wave, each on its own branch + worktree). Intra-slice parallelism happens **inside** one slice's branch, with subagents using ephemeral side-branches that the main agent recombines via cherry-pick before the slice's first push.
 
@@ -331,7 +341,7 @@ This pattern, validated across consumer-c Wave 1.7-1.9 (PRs #87-#90, May
 - Keeps the retro within the slice's PR diff, so reviewers see the lesson
   capture before approving.
 
-The retro template (per [`templates/retros/post-archive.md.tmpl`](../templates/retros/post-archive.md.tmpl))
+The retro template (per `templates/retros/post-archive.md.tmpl`)
 has two placeholders that the archive step fills in mechanically:
 
 ```markdown
@@ -358,11 +368,11 @@ Humans may delegate D/E/F to a designated reviewer, but the gate must be **recor
 
 ## 6 Cross-references
 
-- [verdict-contract.md](verdict-contract.md) — ✅/⚠️/❓ literals and S1–S4 rubric.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — ✅/⚠️/❓ literals and S1–S4 rubric.
 - [parallel-review.md](parallel-review.md) — QA subagent discipline.
 - [agent-contract.md](agent-contract.md) — spawn envelope every worker/QA uses.
 - [agentic-failures.md](agentic-failures.md) — `goal_drift`, `over_confidence`, `premature_completion` all target the gates above.
-- [error-message-standard.md](error-message-standard.md) — how block-state errors are phrased.
-- [break-glass.md](break-glass.md) — overrides are permitted on some gates (A/B/C) with `--force-with-reason`; **D verdicts are never overridable**.
+- [error-message-standard.md](../rules/error-message-standard.rule.md) — how block-state errors are phrased.
+- [break-glass.md](../rules/break-glass.rule.md) — overrides are permitted on some gates (A/B/C) with `--force-with-reason`; **D verdicts are never overridable**.
 - [release-management.md](release-management.md) — branch model, PR shape, CI gates, project board schema, dependency-driven merge order.
 - [issue-tracking.md](issue-tracking.md) — ticket↔proposal automation per surface (Jira / GH).

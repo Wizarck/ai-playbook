@@ -1,10 +1,16 @@
-# upstream-sync.md
+---
+schema: concept/v1
+slug: upstream-sync
+title: Upstream Sync
+summary: |
+  Fork governance for upstream-tracked projects. Arturo runs forks of a
+  handful of fast-moving upstream repos (Hindsight, Hermes, Paperclip,
+  LightRAG, and others). Upstream commits land at hundreds-per-day rates in
+  some of them; a naive git pull upstream main silently clobbers…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.1.0 — additive: §9 "Containerised forks — base-image pin discipline" surfaces
-> a fork-overlay-Docker gotcha learned the hard way on 2026-05-13 in `Wizarck/hermes-agent` PR #6.
-> Original §9 "Cross-references" renumbered to §10.
->
-> v1.0.0 — initial fork governance contract.
+# Upstream Sync
 
 Fork governance for upstream-tracked projects. Arturo runs forks of a handful of fast-moving
 upstream repos (Hindsight, Hermes, Paperclip, LightRAG, and others). Upstream commits land at
@@ -45,7 +51,7 @@ Rules:
 
 ## 3. `PATCHES.md` contract
 
-Template: [`templates/PATCHES.md.tmpl`](../templates/PATCHES.md.tmpl). Every fork MUST have one
+Template: `templates/PATCHES.md.tmpl`. Every fork must have one
 at its root. Columns:
 
 | Column | Semantics |
@@ -65,11 +71,11 @@ deleted. See the template.
 ## 4. Refresh cadence
 
 - **Weekly**, automated via the `UpstreamRefresher` LangGraph workflow
-  ([consumer-d/langgraph-aiops/workflows/upstream_refresher.py](../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py)).
+  (consumer-d/langgraph-aiops/workflows/upstream_refresher.py).
 - **On-demand**, manual via `scripts/upstream_sync.py --refresh <fork>` — this only fetches and
   reports; it never merges.
 - The workflow's write actions are **all gated** by
-  [T18 HITL](../../consumer-d/langgraph-aiops/workflows/hitl.py). Every proposed auto-merge,
+  T18 HITL. Every proposed auto-merge,
   every PATCHES.md rewrite, every branch deletion requests human approval first.
 
 ## 5. Diff triage rubric
@@ -96,7 +102,7 @@ Tight reading:
 ## 6. Integration with T18 HITL
 
 Any action that would rewrite `main` or force-push any branch routes through
-[`hitl.request_approval`](../../consumer-d/langgraph-aiops/workflows/hitl.py) with:
+`hitl.request_approval` with:
 
 ```python
 request_approval(
@@ -119,7 +125,7 @@ Severity ladder:
   contain only `command_preview` strings; the human copy-pastes the merge command into their own
   shell after review.
 - **No auto-push.** The workflow never invokes `git push`. Force-pushes to shared branches
-  require explicit break-glass per [break-glass.md](break-glass.md).
+  require explicit break-glass per [break-glass.md](../rules/break-glass.rule.md).
 - **Upstream URL trust.** The fork registry records the upstream URL; a registry edit that
   changes `upstream:` is a supply-chain event and is surfaced as `warn` in the next refresh.
 
@@ -150,7 +156,7 @@ FROM <upstream-image>@sha256:<digest>
 COPY our/patched/source.py /opt/app/our/patched/source.py
 ```
 
-The pinned `<digest>` and the fork's source tree **MUST advance together** during every upstream
+The pinned `<digest>` and the fork's source tree **must advance together** during every upstream
 sync. Skipping the pin bump produces a container where new source files (with new imports) sit on
 top of an OLD base image (without those modules):
 
@@ -196,7 +202,7 @@ DIGEST=$(curl -s "https://hub.docker.com/v2/repositories/<owner>/<image>/tags/${
 
 The rule is conditional on the fork using the overlay pattern. Forks that build entirely from
 source (no pinned base image; the runtime image IS the fork tree compiled fresh) skip §9 entirely.
-The fork inventory in [`../docs/tutorials/07-fork-inventory.md`](../docs/tutorials/07-fork-inventory.md) SHOULD mark which
+The fork inventory in [`../docs/tutorials/07-fork-inventory.md`](../tutorials/07-fork-inventory.md) should mark which
 forks use the overlay pattern so this rule is auto-discoverable.
 
 ### Memory retention
@@ -208,14 +214,14 @@ workflow itself.
 
 ## 10. Cross-references
 
-- [break-glass.md](break-glass.md) — override contract for force-pushes.
+- [break-glass.md](../rules/break-glass.rule.md) — override contract for force-pushes.
 - [agentic-failures.md](agentic-failures.md) — `untracked_state_mutation` applies to orphan
   commits on `main`.
-- [verdict-contract.md](verdict-contract.md) — HITL uses verdicts.
+- [verdict-contract.md](../rules/verdict-contract.rule.md) — HITL uses verdicts.
 - [memory-hierarchy.md](memory-hierarchy.md) — retain on every merge / lost event.
-- [`../docs/tutorials/07-fork-inventory.md`](../docs/tutorials/07-fork-inventory.md) — the authoritative catalog of forks.
-- [`../templates/PATCHES.md.tmpl`](../templates/PATCHES.md.tmpl) — per-fork manifest template.
-- [`../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py`](../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py) —
+- [`../docs/tutorials/07-fork-inventory.md`](../tutorials/07-fork-inventory.md) — the authoritative catalog of forks.
+- `../templates/PATCHES.md.tmpl` — per-fork manifest template.
+- `../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py` —
   the workflow.
 
 ---

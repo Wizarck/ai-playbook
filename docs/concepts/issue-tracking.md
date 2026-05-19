@@ -1,6 +1,16 @@
-# issue-tracking.md
+---
+schema: concept/v1
+slug: issue-tracking
+title: Issue Tracking
+summary: |
+  How user stories, features, bugs, and releases flow through two tracker
+  surfaces: - Jira — enterprise / private work (Paperclip tenants, consumer-c
+  Enterprise, any closed-source SaaS). - GitHub Projects + Issues — community
+  / open-source work (consumer-c, awesome-paperclip,…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Issue Tracking
 
 How user stories, features, bugs, and releases flow through **two** tracker surfaces:
 
@@ -108,7 +118,7 @@ code is truly shared.
 ## 4. Automation (LIVE as of 2026-04-23)
 
 Zero-touch automation — no human intervention in the happy path. See
-[docs/concepts/zero-touch-automation.md](../docs/concepts/zero-touch-automation.md) for the end-to-end flow.
+[docs/concepts/zero-touch-automation.md](zero-touch-automation.md) for the end-to-end flow.
 
 - **`scripts/issue_sync.py`** — scans `openspec/changes/*/proposal.md`, creates Jira issues
   (private repos via Atlassian REST / `atlassian-consumer-a` tenant) OR GH Issues + optional GH
@@ -134,7 +144,7 @@ Consumer repos inherit the two workflows via `templates/new-project/.github/work
 copied by `scripts/bootstrap.py`.
 
 **Manual override** for any blocked gate: `--force-with-reason="<≥10 chars>"` per
-[break-glass.md](break-glass.md). Every override emits a `warn` notification and lands in
+[break-glass.md](../rules/break-glass.rule.md). Every override emits a `warn` notification and lands in
 `.ai-playbook/overrides.log`.
 
 ### Required env vars

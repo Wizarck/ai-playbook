@@ -1,6 +1,16 @@
-# auto-managed-sections.md
+---
+schema: concept/v1
+slug: auto-managed-sections
+title: Auto Managed Sections
+summary: |
+  Contract for the <!-- BEGIN auto-managed: <source_spec> --> / <!-- END
+  auto-managed --> markers used to keep consumer documents aligned with
+  canonical playbook specs without hand-copying. Enforced by
+  scripts/auto_managed.py (--check / --fix) and by scripts/drift_check.py…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Auto Managed Sections
 
 Contract for the `<!-- BEGIN auto-managed: <source_spec> -->` / `<!-- END auto-managed -->` markers used to keep consumer documents aligned with canonical playbook specs without hand-copying.
 
@@ -52,9 +62,9 @@ A **generic** fallback is also accepted for any `<spec-file>:<anchor>` shape: th
 
 ## 4 Merge strategy
 
-- Pre-commit runs `drift_check --check auto-managed` against staged files. A stale section blocks the commit with the canonical error shape from [error-message-standard.md](error-message-standard.md), pointing at `python -m scripts.auto_managed <file> --fix`.
+- Pre-commit runs `drift_check --check auto-managed` against staged files. A stale section blocks the commit with the canonical error shape from [error-message-standard.md](../rules/error-message-standard.rule.md), pointing at `python -m scripts.auto_managed <file> --fix`.
 - The weekly `drift-check` GitHub Action (`.github/workflows/drift-check.yml`) runs `--check all` and surfaces drift as a `::warning::` annotation, without auto-merging a fix.
-- `--force-with-reason="<text>"` is accepted on both scripts and logged to `.ai-playbook/overrides.log` per [break-glass.md](break-glass.md).
+- `--force-with-reason="<text>"` is accepted on both scripts and logged to `.ai-playbook/overrides.log` per [break-glass.md](../rules/break-glass.rule.md).
 
 ## 5 Rationale
 
@@ -72,7 +82,7 @@ Universal principles and taxonomy terms change once per release, but every consu
 
 - [dispatcher-chain.md](dispatcher-chain.md) — why consumers inherit rather than copy.
 - [migration-guide.md](migration-guide.md) — how to convert an existing copied block into an auto-managed section.
-- [error-message-standard.md](error-message-standard.md) — canonical error shape emitted on stale sections.
-- [break-glass.md](break-glass.md) — override semantics for both scripts.
+- [error-message-standard.md](../rules/error-message-standard.rule.md) — canonical error shape emitted on stale sections.
+- [break-glass.md](../rules/break-glass.rule.md) — override semantics for both scripts.
 - `scripts/auto_managed.py` — implementation (regenerator + CLI).
 - `scripts/drift_check.py` — weekly and pre-commit enforcement.

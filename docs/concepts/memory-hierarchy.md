@@ -1,6 +1,16 @@
-# memory-hierarchy.md
+---
+schema: concept/v1
+slug: memory-hierarchy
+title: Memory Hierarchy
+summary: |
+  Agents operate across four memory tiers with different read/write patterns,
+  retention windows, and failure modes. This spec defines the tiers, the
+  bank_id convention for durable memory, the read/write discipline, decay
+  policy, retrieval thresholds, and the handoff to the…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0.
+# Memory Hierarchy
 
 Agents operate across four memory tiers with different read/write patterns, retention windows,
 and failure modes. This spec defines the tiers, the `bank_id` convention for durable memory, the
@@ -57,7 +67,7 @@ its life.
 - **Bootstrap recall.** Every agent's bootstrap directive (see each consumer's `AGENTS.md` §0)
   includes step 2: `hindsight.recall(query="<project> <topic>")`. Default `top_k=5`.
 - **On-demand during task.** If the agent encounters an unfamiliar term, a past-decision
-  reference ("we already decided X"), or a gotcha-shaped hint, it MUST query Hindsight before
+  reference ("we already decided X"), or a gotcha-shaped hint, it must query Hindsight before
   proceeding — "read before decide".
 - **Retrieval thresholds.**
   - Bootstrap: `top_k=5`, similarity ≥0.7.
@@ -78,7 +88,7 @@ its life.
   - `tags` — at least `project`, `kind` (`lesson` | `gotcha` | `decision` | `failure`), and an
     optional `ttl_days` override.
 - **Never retain a secret.** The same pattern-match that gates commits
-  (`scripts/secrets_scan.py`) applies to the retain payload — the wrapper MUST sanitise before
+  (`scripts/secrets_scan.py`) applies to the retain payload — the wrapper must sanitise before
   the MCP call.
 - **Retain after significant events only.** Examples of qualifying events:
   - An ADR was chosen over a named alternative.
@@ -118,7 +128,7 @@ input envelope declares:
 - `recall_depth` is the `top_k` the child will use for its bootstrap recall.
 - `recall_depth=0` disables recall — use for adversarial reviewers (Blind Hunter) where the
   point is to reason without prior bias.
-- A child MAY extend its own recall mid-task, but its budget ceiling still applies.
+- A child may extend its own recall mid-task, but its budget ceiling still applies.
 
 ## 8. Interaction with `scripts/inject_context.py`
 
@@ -139,7 +149,7 @@ If Hindsight is unreachable, the session enters `DEGRADED_CONTEXT` per
 - Recall returns an empty result set; the agent proceeds without prior-decision context.
 - Retains are written to the local queue and flushed on reconnection — the agent must not drop
   them silently. The queue file is gitignored.
-- Any decision made in `DEGRADED_CONTEXT` MUST be tagged in its OTel span
+- Any decision made in `DEGRADED_CONTEXT` must be tagged in its OTel span
   (`ai_playbook.memory.degraded=true`) so retros can re-audit after reconnection.
 
 ## 10. Worked example

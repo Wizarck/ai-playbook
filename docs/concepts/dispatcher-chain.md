@@ -1,6 +1,16 @@
-# dispatcher-chain.md
+---
+schema: concept/v1
+slug: dispatcher-chain
+title: Dispatcher Chain
+summary: |
+  Define the 3-level dispatcher inheritance model so any agent (Claude Code,
+  Gemini CLI, Antigravity, Cursor) resolves the same rules regardless of which
+  CLI invoked it. The chain is LLM-agnostic — CLI-specific pointer files
+  (CLAUDE.md, GEMINI.md, .cursor/rules/*.mdc) are thin…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. Authored in T02h; populated to full contract in T22-followup.
+# Dispatcher Chain
 
 ## Purpose
 
@@ -12,7 +22,7 @@ Define the 3-level dispatcher inheritance model so any agent (Claude Code, Gemin
    - JSON Schema for `AGENTS.md` frontmatter (`specs/agents-md-v1.schema.json`).
    - Verdict/severity contract, break-glass contract, canonical error format, agentic-failure taxonomy.
    - Scripts (`scripts/*.py`) invoked by consumer pre-commit hooks, CI, and session-start helpers.
-2. **Project — `<repo>/AGENTS.md`** at the root of every consumer repo. Inherits from the playbook via `inherits_from` frontmatter. Adds project identity, active work, hard rules, and the capability map. MUST NOT duplicate universal content; if a rule is universal, link to `.ai-playbook/specs/<spec>.md` instead of copying it.
+2. **Project — `<repo>/AGENTS.md`** at the root of every consumer repo. Inherits from the playbook via `inherits_from` frontmatter. Adds project identity, active work, hard rules, and the capability map. must not duplicate universal content; if a rule is universal, link to `.ai-playbook/specs/<spec>.md` instead of copying it.
 3. **Personal add-on (Arturo only) — `consumer-d/consumer-d.md`**. Loaded conditionally by `~/.claude/CLAUDE.md` when the cwd resolves (via `~/.ai-playbook/projects.yaml`) to an entry with `personal: true`. Contains infra paths, SOPS key locations, VPS endpoints, BRAIN pointer. Never shipped to team devs.
 
 CLI-specific routers (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/00-dispatcher.mdc`) are thin 5–10 line pointers that tell the CLI to read `AGENTS.md`. They carry **no policy**; removing them would not change the resolved ruleset.
@@ -48,7 +58,7 @@ No other files participate. Any rule not expressible in one of these three level
 The following gates declare `OVERRIDE: none` in their canonical error and refuse `--force-with-reason`:
 
 - Committing plaintext secrets (`secrets_scan.py`).
-- Any gate listed in [break-glass.md](break-glass.md) §4 with `OVERRIDE: none`.
+- Any gate listed in [break-glass.md](../rules/break-glass.rule.md) §4 with `OVERRIDE: none`.
 
 Project dispatchers cannot weaken these by listing them in §7 — `drift_check.py` rejects overrides against `OVERRIDE: none` gates.
 
@@ -58,9 +68,9 @@ Path resolution for rule (3) above is per-machine, not checked into git. The reg
 
 ## See also
 
-- [agents-md-v1.schema.json](agents-md-v1.schema.json) — frontmatter contract for level 2.
-- [bootstrap-directive.md](bootstrap-directive.md) — canonical `AGENTS.md` §0 block enforcing read order.
+- [agents-md-v1.schema.json](../../schemas/schema-agents-md-v1.json) — frontmatter contract for level 2.
+- [bootstrap-directive.md](../rules/bootstrap-directive.rule.md) — canonical `AGENTS.md` §0 block enforcing read order.
 - [migration-guide.md](migration-guide.md) — v0 → v1 path for pre-frontmatter AGENTS.md files.
-- [break-glass.md](break-glass.md) — override mechanics + audit trail.
+- [break-glass.md](../rules/break-glass.rule.md) — override mechanics + audit trail.
 - [projects-registry.md](projects-registry.md) — per-machine YAML used for level-3 resolution.
 - [taxonomy.md](taxonomy.md) — formal definitions for _dispatcher_, _router_, _skill_, _subagent_.

@@ -1,13 +1,16 @@
-# cross-language-tooling.md
+---
+schema: concept/v1
+slug: cross-language-tooling
+title: Cross Language Tooling
+summary: |
+  Most ai-playbook consumer projects are single-language by primary intent
+  (TypeScript monorepo, Python monorepo, Go monorepo, …). Reality intrudes: -
+  consumer-e (Python primary) needs an OpenBB sidecar (Python ML service that
+  doesn't fit the FastAPI app's deps).
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0. New in ai-playbook v0.10.0. Codifies the convention
-> for shipping non-primary-language tools (typically Python services /
-> scripts) inside a Turborepo TS monorepo or a Python-primary monorepo,
-> without forcing the foreign language to pretend it's a workspace.
->
-> **Enforcement**: 📋 spec-only — see [enforcement-status.md](enforcement-status.md).
-> No automated linter detects departures; reviewer rejects on PR if a
-> proposal violates the convention without explicit ADR justification.
+# Cross Language Tooling
 
 ## 1. Why this spec
 

@@ -1,6 +1,16 @@
-# protocol-fake-deferred-install.md
+---
+schema: concept/v1
+slug: protocol-fake-deferred-install
+title: Protocol Fake Deferred Install
+summary: |
+  A repeated pattern across consumer-e, consumer-c, and consumer-d: a slice
+  needs to interact with an external SDK / service / vendor — anthropic,
+  ib_async, apscheduler, playwright, camoufox, NestJS service-locator, k8s
+  sidecar — but shipping the production dependency in the…
+last_validated: "2026-05-19"
+---
 
-> **Status**: v1.0.0 (new in v0.11.0). Defines the canonical pattern for **isolating heavy / security-sensitive / vendor-locked external SDKs from the slice that needs them**, by shipping the slice with a Protocol interface + an in-tree fake adapter, and deferring the production-SDK install + adapter to a later "deployment" slice. Closes the gap surfaced by **6+ consecutive consumer-e Wave 3 slices** (R5, T2, R3-tier-2/3/4, T2 fake-broker, O2 SchedulerProtocol) all using this pattern ad-hoc + cross-confirmed by consumer-c Wave 1.7 (recipes service IoC) + consumer-d ADR-018 / ADR-028 (HMAC-sidecar isolation).
+# Protocol Fake Deferred Install
 
 ## 1. Why this spec
 
@@ -101,7 +111,7 @@ Discipline:
 
 ### 4.3 The DeferredProductionInstall marker
 
-Every slice that introduces a Protocol + fake MUST add a marker entry to the project's `docs/openspec-slice.md` "Deferred installs" section (new in v0.11). Schema:
+Every slice that introduces a Protocol + fake must add a marker entry to the project's `docs/openspec-slice.md` "Deferred installs" section (new in v0.11). Schema:
 
 ```markdown
 ## Deferred installs
@@ -114,7 +124,7 @@ Every slice that introduces a Protocol + fake MUST add a marker entry to the pro
 | ... |
 ```
 
-The defining slice's `proposal.md` MUST cite the row in its "Out of scope" section ("Production wiring deferred to deployment-foundation per docs/openspec-slice.md Deferred installs row 1"). The deployment slice's `proposal.md` reads the table top-down and ships one adapter per row.
+The defining slice's `proposal.md` must cite the row in its "Out of scope" section ("Production wiring deferred to deployment-foundation per docs/openspec-slice.md Deferred installs row 1"). The deployment slice's `proposal.md` reads the table top-down and ships one adapter per row.
 
 This makes the deferred work **discoverable**: the deployment-slice author doesn't need to grep for `Protocol` declarations across the codebase.
 
@@ -205,7 +215,7 @@ The deployment slice is **necessarily late** in the wave order — after all Pro
 - **Production SDK referenced in any in-tree consumer test**: forbidden. Tests use the fake. If a test needs vendor-specific behaviour, that's an integration test in the deployment slice, not a unit test in the consumer slice.
 - **Fake with hidden I/O (writing to /tmp, hitting localhost, etc.)**: forbidden. The fake's purpose is determinism + parallelisability; I/O kills both.
 - **Multiple fakes per Protocol** (`FakeLLMClient` + `BrokenLLMClient` + `SlowLLMClient`): forbidden. One fake with explicit failure-injection knobs (`connect_failures`, `delay_ms`, etc.) covers all test scenarios.
-- **Deferred-installs table missing rows**: forbidden. Every Protocol introduced by a slice MUST appear in the table at the time the slice's `proposal.md` is approved. Forgetting a row means the deployment slice's author doesn't know about the Protocol.
+- **Deferred-installs table missing rows**: forbidden. Every Protocol introduced by a slice must appear in the table at the time the slice's `proposal.md` is approved. Forgetting a row means the deployment slice's author doesn't know about the Protocol.
 - **Deployment-slice adapter with business logic**: forbidden. If the production adapter feels like it's "doing more than mechanical translation", the consumer slice's Protocol is wrong — refactor the consumer to push the logic out of the Protocol.
 - **Secret-handling logic in the Protocol or the fake**: forbidden. Secrets enter at adapter-construction time; the Protocol describes the operation, the fake is deterministic.
 
@@ -213,9 +223,9 @@ The deployment slice is **necessarily late** in the wave order — after all Pro
 
 ## 8. Cross-references
 
-- [migration-slot-reservation.md](migration-slot-reservation.md) — the deployment slice often consolidates migration slots from N consumer slices; the slot reservations help track which are already in tree.
+- [migration-slot-reservation.md](../rules/migration-slot-reservation.rule.md) — the deployment slice often consolidates migration slots from N consumer slices; the slot reservations help track which are already in tree.
 - [dependency-injection-patterns.md](dependency-injection-patterns.md) — DI conventions for wiring Protocol → adapter (especially the @Global() dedup rule from consumer-c).
-- [hitl-approval-pattern.md](hitl-approval-pattern.md) — sister pattern: HITL gating for mutations is also Protocol-isolated (the approval channel is a Protocol; production wiring is per-channel).
+- [hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md) — sister pattern: HITL gating for mutations is also Protocol-isolated (the approval channel is a Protocol; production wiring is per-channel).
 - [release-management.md](release-management.md) §6.4 — anti-collision contract that the Deferred-installs table extends.
 - [bmad-openspec-bridge.md](bmad-openspec-bridge.md) §3 — slicing artefact schema, extended with "Deferred installs" section.
 
