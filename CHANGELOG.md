@@ -6,6 +6,76 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ### Known gaps still pending (target: v0.18.0+)
 
+## [0.17.1] — 2026-05-19 — root folder cleanup audit (additive PATCH)
+
+Slice 3.5 of the v0.20.0 architectural reset
+(`~/.claude/plans/vamos-a-identificar-los-elegant-marshmallow.md`). Critical-eye
+audit of every file at the playbook repo root before slice 4 (filesystem
+reorg, v0.18.0 BREAKING) begins. Additive only — no removals from the
+consumer-facing surface, just zombie-manifest entries so the 5 sister repos
+self-clean on the next bump.
+
+Per-file ledger committed at [docs/concepts/root-folder-audit.md](docs/concepts/root-folder-audit.md).
+Decision rationale per move at
+[openspec/changes/root-folder-audit/design.md](openspec/changes/root-folder-audit/design.md).
+
+### Deleted
+
+- `FEEDBACK.md` — append-only gripe channel; never triaged under sole-consumer
+  reality. Error messages in `scripts/mcp/render.py` + `scripts/mcp/validate.py`
+  that previously pointed here now direct stack traces to a GitHub issue.
+- `ai_playbook.egg-info/` — `pip install -e .` build artefact; `.gitignore`
+  already covers `*.egg-info/` so the directory was always untracked. Removing
+  on-disk; regenerates automatically on the next install.
+- `.github/workflows/issue-sync.yml` — multi-tenant Jira/GH-Issues sync
+  workflow; sole consumer does not use it. The underlying
+  `scripts/issue_sync.py` is **not** deleted; slice 6 (telemetry, v0.19.1) may
+  absorb it.
+
+### Moved (history preserved via `git mv`)
+
+- `mcp-servers-base.yaml` → `templates/rendered/mcp-servers-base.yaml.tmpl`.
+  Conceptually a template that consumers extend — belongs alongside the other
+  rendered templates. Internal references updated in `scripts/mcp/validate.py`
+  (`resolve_playbook_root` sentinel + `load_layers`), `scripts/mcp/render.py`
+  (error message), `scripts/init_org.py` (bootstrap walker), and the matching
+  test fixtures.
+- `pricing.yaml` → `configs/pricing.yaml`. Runtime configuration data driving
+  `scripts/cost_report.py`; same shape as
+  `configs/anthropic-retirement-list.yaml`. Slice 6 (telemetry, v0.19.1) will
+  continue to load from this location. `scripts/cost_report.py` default path
+  + error message updated.
+
+### Added
+
+- `docs/concepts/root-folder-audit.md` — full per-file ledger covering every
+  visible root entry + every `.github/workflows/*.yml`.
+- `openspec/changes/root-folder-audit/` — proposal, tasks, design.
+- `specs/zombies-manifest.yaml` — 5 new v3 entries:
+  `feedback-md-removed`, `mcp-servers-base-relocated`, `pricing-yaml-relocated`,
+  `ai-playbook-egg-info-orphan`, `issue-sync-workflow-removed`. Manifest
+  version bumped from `2026-05-19.2` → `2026-05-19.3`.
+
+### Unchanged at root (documented for the next audit baseline)
+
+`pyproject.toml`, `.pre-commit-config.yaml`, `.pre-commit-hooks.yaml`,
+`.gitignore`, `.gitattributes`, `AGENTS.md`, `README.md`, `VERSION`,
+`CHANGELOG.md`, `MAINTAINERS.md`, `mkdocs.yml`, `consumers.yaml`. Reasons
+documented in `docs/concepts/root-folder-audit.md`.
+
+### Deferred to slice 6 (telemetry, v0.19.1) per D15
+
+Standalone CLIs `scripts/cost_report.py`, `scripts/lifecycle_check.py`,
+`scripts/budget_disable_check.py`, `scripts/deprecation_watcher.py`,
+`scripts/simulate_model_migration.py` remain in place and continue to work
+in v0.17.1. Slice 6 absorbs them into `scripts/telemetry/report.py`.
+
+### Deferred to slice 5 (content rewrite, v0.19.0)
+
+Prose references to `FEEDBACK.md` inside `docs/`, `specs/`, and
+`runbooks/*.md` — slice 5 rewrites those documents end-to-end anyway. Slice
+3.5 stays surgical: physical file delete + script-error-message rewrite only.
+
 ## [0.17.0] — 2026-05-19 — single-source skills reset + Gemini parity (BREAKING)
 
 **BREAKING.** Slice 3 of the v0.20.0 architectural reset
