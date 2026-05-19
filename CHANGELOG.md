@@ -599,7 +599,7 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 - **`specs/release-management.md`** — added §9.5 "Project board sync contract" cross-referencing the new `project-board-sync.md` spec; updated §10 cross-references.
 - **`specs/runbook-bmad-openspec.md` §3** — added §3.7.1 "Design-mock HTML for dense designs" (optional review aid for slices spanning ≥3 bounded contexts; visual mock with arch-flow + schema cards + sample API + Gate D recap, using project's design-system palette per `ux-track.md`). Validated on consumer-c-legacy Wave 1.9 where the mock surfaced a column-name mismatch pre-implementation.
 - **`specs/runbook-bmad-openspec.md` §4** — added §4.1 "Forward-authored retros" (recommended pattern: author retro DURING slice's implementation, not after merge; squash SHA + merge date filled in post-merge during the archive step; reduces after-merge cognitive drop-off; validated across consumer-c-legacy Wave 1.7-1.9 + consumer-e Wave 2).
-- **`scripts/notify.py`** — warn/error path now prefers the consumer-side durable queue (Phase 5 Change B `add-durable-notification-queue`) when `consumer-d_NOTIFICATIONS_QUEUE_ENABLED=1` AND a `notifications.queue` package is importable; falls through to the legacy synchronous SMTP path otherwise. The two transports are mutually exclusive per emission. Other consumers (consumer-b, consumer-c-legacy, consumer-e, livekit) continue with SMTP unchanged.
+- **`scripts/notify.py`** — warn/error path now prefers the consumer-side durable queue (Phase 5 Change B `add-durable-notification-queue`) when `CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED=1` AND a `notifications.queue` package is importable; falls through to the legacy synchronous SMTP path otherwise. The two transports are mutually exclusive per emission. Other consumers (consumer-b, consumer-c-legacy, consumer-e, livekit) continue with SMTP unchanged.
 - **`scripts/prompt_injection_filter.py`** layer-2 migrated from direct `anthropic` SDK to `scripts._llm.call("safety_judge", consumer="INJECTION", ...)` per Change C P5.4 follow-up. The opt-in env var `ANTHROPIC_API_KEY_INJECTION` is preserved as a budget gate; actual provider key resolution now happens at the LiteLLM proxy via the `safety_judge` task class. Drift detector confirms 0 in-tree direct-SDK callers remain.
 - **`scripts/verify_llm_routing.py`** — added Windows-safe UTF-8 stdio reconfigure so the success sigil (`✓`) prints under cp1252.
 - **`specs/notification-queue.md`** — extended with §8 Durable queue layer (Phase 5 Change B): activation gate, SQLite schema, async worker model, backoff schedule, channel routing, MCP outbox tool, observability events, restart-survival contract. The legacy JSONL+SMTP layers (§3-§7) are unchanged.
@@ -725,7 +725,7 @@ The 3-layer architecture worked exactly as designed: L0 (CodeRabbit primary) han
 
 ### Changed (since v0.9.0-rc3)
 
-- **`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: add `token: ${{ secrets.consumer-d_GOD_MODE }}` to `actions/checkout@v4` step. Required when the consumer pins `.ai-playbook` (and optionally `.skills-sources/ai-playbook`) as submodules of the PRIVATE `Wizarck/ai-playbook` repo. The default `GITHUB_TOKEN` scope is consumer-repo only; cross-repo submodule clone needs `Contents:R` on the playbook + skills repos. Mirrors `ci.yml`. Caught during PR #52 dogfood; consumer-e's runtime workflow was patched in-PR. Per gotchas #7. Followup tracked from v0.9.0-rc1 closed.
+- **`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: add `token: ${{ secrets.CONSUMER_D_GOD_MODE }}` to `actions/checkout@v4` step. Required when the consumer pins `.ai-playbook` (and optionally `.skills-sources/ai-playbook`) as submodules of the PRIVATE `Wizarck/ai-playbook` repo. The default `GITHUB_TOKEN` scope is consumer-repo only; cross-repo submodule clone needs `Contents:R` on the playbook + skills repos. Mirrors `ci.yml`. Caught during PR #52 dogfood; consumer-e's runtime workflow was patched in-PR. Per gotchas #7. Followup tracked from v0.9.0-rc1 closed.
 
 ### Added (since v0.9.0-rc3)
 
@@ -952,7 +952,7 @@ companion, date refresh, auto-transition + dep-check scripts).
 - **`runbooks/onboard-new-project.md` v1.1.0**: adds Profile A/B
   decision matrix as a "decisión previa"; adds Step 7 "Bootstrap GH
   Project + Profile A/B enforcement"; adds Step 8 "Install CodeRabbit
-  GH App" (Profile A only); adds Step 9 "Configure consumer-d_GOD_MODE
+  GH App" (Profile A only); adds Step 9 "Configure CONSUMER_D_GOD_MODE
   secret" for private-submodule CI; adds Step 11 "Copy auto-transition
   + dep-check workflow templates"; refreshes cross-references with new
   scripts + templates.
@@ -1414,7 +1414,7 @@ Hardening pass on the consumers-routing layer that surfaced during the v0.6.0 PR
 ### Fixed
 
 - **`scripts/propagate_bump.py`** — was importing `emit` from `scripts/notify.py`, which exports `notify`. The mismatch logged `notify failed: cannot import name 'emit'` warnings during propagation but did not block PRs. Aligned the import + call site. Notifications now reach the JSONL queue + SMTP again.
-- **`scripts/issue_sync.py`** — replaced the implicit "private repo → Jira fallback" heuristic with a **declarative `tracker_kind` field** read from `consumers.yaml`. The previous flow had two latent failure modes: (a) any consumer name not in `consumer-b_PROJECTS` fell silently to `consumer-a`, regardless of whether a Jira project should exist for it; (b) `gh` CLI unavailability triggered the Jira branch even for GH-only consumers. Both are gone. `decide_surface` now raises `RuntimeError` for any active consumer without a valid `tracker_kind` instead of silently picking a default. The class of drift the v0.6.0 PR caught (tests asserted `consumer-b`, code returned `consumer-a`) cannot recur.
+- **`scripts/issue_sync.py`** — replaced the implicit "private repo → Jira fallback" heuristic with a **declarative `tracker_kind` field** read from `consumers.yaml`. The previous flow had two latent failure modes: (a) any consumer name not in `CONSUMER_B_PROJECTS` fell silently to `consumer-a`, regardless of whether a Jira project should exist for it; (b) `gh` CLI unavailability triggered the Jira branch even for GH-only consumers. Both are gone. `decide_surface` now raises `RuntimeError` for any active consumer without a valid `tracker_kind` instead of silently picking a default. The class of drift the v0.6.0 PR caught (tests asserted `consumer-b`, code returned `consumer-a`) cannot recur.
 - **`scripts/release_cut.py`** — the Jira-fixVersion path now reads the project key via the new `issue_sync.jira_project_for(consumer_root)` public helper (registry-driven). The private `_jira_project_for(name)` heuristic was removed.
 
 ### Added
@@ -1426,7 +1426,7 @@ Hardening pass on the consumers-routing layer that surfaced during the v0.6.0 PR
 
 ### Removed
 
-- `scripts/issue_sync.py` private constants `consumer-b_PROJECTS`, `consumer-a_PROJECTS`, and `_jira_project_for(consumer_name)` function — replaced by the registry lookup.
+- `scripts/issue_sync.py` private constants `CONSUMER_B_PROJECTS`, `CONSUMER_A_PROJECTS`, and `_jira_project_for(consumer_name)` function — replaced by the registry lookup.
 - `tests/test_issue_sync.py::test_jira_project_for_names` (function deleted).
 - `tests/test_issue_sync.py::test_decide_surface_private_falls_back_to_jira` (asserts behaviour that should not exist — there is no silent fallback to Jira).
 

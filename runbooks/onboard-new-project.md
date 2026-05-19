@@ -208,12 +208,12 @@ Cuando llegue el primer PR, CodeRabbit comenta automáticamente. **Importante**:
 
 Si el repo seguirá privado o no quieres CodeRabbit: skip este paso. El contrato §4.5 degrada a self-review (Profile B fallback).
 
-### 9. (NEW v0.8.x — Profile A only) Configura el secret `consumer-d_GOD_MODE`
+### 9. (NEW v0.8.x — Profile A only) Configura el secret `CONSUMER_D_GOD_MODE`
 
 Si el consumer tiene CI workflows que necesitan clonar `.ai-playbook/` (submodule privado de `Wizarck/ai-playbook`), añade el PAT:
 
 ```bash
-gh secret set consumer-d_GOD_MODE -R Wizarck/<project-name> --body "<your-pat>"
+gh secret set CONSUMER_D_GOD_MODE -R Wizarck/<project-name> --body "<your-pat>"
 ```
 
 El PAT necesita scope `Contents: read` sobre `Wizarck/ai-playbook` + `Wizarck/consumer-d-skills`. Sin esto, `actions/checkout@v4` con `submodules: true` falla con 404 "Repository not found".
