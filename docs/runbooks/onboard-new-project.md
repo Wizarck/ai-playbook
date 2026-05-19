@@ -21,10 +21,9 @@ The new repo has:
 - `.gitignore` extended with playbook entries.
 - Pre-commit hooks installed (schema, secrets, verdict, drift).
 - `~/.ai-playbook/projects.yaml` updated for local path resolution.
-- A row in `<playbook>/consumers.yaml` so propagation auto-bumps the submodule each release.
 - GitHub Project board with the canonical Status schema (and, for Profile A, branch protection + CodeRabbit + merge queue).
 
-A Claude Code session at the repo root then auto-recalls from Hindsight bank `<project>` at startup, recognises the universal specs via inheritance, and receives bump PRs automatically.
+A Claude Code session at the repo root then auto-recalls from Hindsight bank `<project>` at startup and recognises the universal specs via inheritance. Submodule bumps are pulled by the consumer at its own pace (Dependabot / Renovate / manual `git submodule update`) per the v0.19.0 pull-model contract.
 
 ## When to use this
 
@@ -80,7 +79,6 @@ cd /c/Projects/<project-name>
 python /c/Projects/ai-playbook/scripts/bootstrap.py <project-name> \
     --owner <your-email> \
     --path . \
-    --register-in /c/Projects/ai-playbook \
     --visibility private \
     --default-branch master
 ```
@@ -92,10 +90,9 @@ Flags:
 | `<project-name>` (positional) | Slug. `[a-zA-Z0-9][a-zA-Z0-9_-]*`. Bank is `<project-name>` lowercased. |
 | `--owner` | Email for AGENTS.md frontmatter. Defaults to `$GIT_AUTHOR_EMAIL` or `git config user.email`. |
 | `--path .` | Where to write. Defaults to `<cwd>/<project-name>`. Pass `.` when the repo already exists. |
-| `--register-in <playbook-path>` | Auto-appends the row to `consumers.yaml`. Omit to do it manually in step 5. |
-| `--visibility private\|public` | Sets the row in `consumers.yaml`. Public repos do not include the personal layer in `.mcp.json`. |
-| `--default-branch master\|main` | Affects `consumers.yaml` and the propagation Action. |
-| `--personal` | For Arturo's personal repos only. Marks `personal: true`; loads consumer-d.md as add-on. |
+| `--visibility private\|public` | Sets the visibility marker in AGENTS.md frontmatter. Public repos do not include the personal layer in `.mcp.json`. |
+| `--default-branch master\|main` | Stored in AGENTS.md frontmatter; informational only. |
+| `--personal` | For personal repos only. Marks `personal: true`; loads the personal add-on if configured. |
 | `--dry-run` | Simulate without writing. Recommended on first pass. |
 
 Expected output:
@@ -104,14 +101,13 @@ Expected output:
 → Bootstrapping project '<project-name>'
    target : /c/Projects/<project-name>
    owner  : <your-email>
-   pin    : v0.3.0
+   pin    : v0.19.0
    mode   : live
-✓ added .ai-playbook submodule pinned at v0.3.0
+✓ added .ai-playbook submodule pinned at v0.19.0
 ✓ copied 8 templates with placeholder substitution
 ✓ pre-commit installed
 ✓ doctor.py: ✅ healthy
 ✓ rendered .mcp.json + .gemini/settings.json for <project-name>
-✓ added <project-name> row to /c/Projects/ai-playbook/consumers.yaml
 ```
 
 ### 4. Fill the manual placeholders in AGENTS.md
@@ -137,39 +133,31 @@ python .ai-playbook/scripts/schema_validate.py AGENTS.md
 # Expected: ✅ AGENTS.md valid against schema agents-md/v1
 ```
 
-### 5. (Only if `--register-in` was omitted) Manually add to `consumers.yaml`
-
-```yaml
-consumers:
-  <project-name>:
-    repo: Wizarck/<project-name>
-    default_branch: master
-    visibility: private
-    status: active
-    notes: <one-line description>.
-```
-
-### 6. Commit + push the project
+### 5. Commit + push the project
 
 ```bash
 cd /c/Projects/<project-name>
 git add .
-git commit -m "chore: bootstrap <project-name> via ai-playbook v0.3.0"
+git commit -m "chore: bootstrap <project-name> via ai-playbook v0.19.0"
 git push
 ```
 
-### 7. Commit + push the playbook (`consumers.yaml` updated)
+### 6. (Optional) Configure submodule-bump automation
 
-```bash
-cd /c/Projects/ai-playbook
-git add consumers.yaml
-git commit -m "feat(consumers): onboard <project-name>"
-git push
+If you want automated bump PRs each time the playbook tags, add a Dependabot or Renovate config in the new repo. Example Dependabot:
+
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule: { interval: "weekly" }
 ```
 
-From here, every playbook release auto-opens a bump PR on `Wizarck/<project-name>` via `propagate-playbook-bump.yml`.
+Otherwise, bump manually with `cd .ai-playbook && git fetch && git checkout vX.Y.Z` whenever you decide to absorb a new release.
 
-### 8. Bootstrap the GitHub Project board + Profile A/B enforcement
+### 7. Bootstrap the GitHub Project board + Profile A/B enforcement
 
 Create the GH Project (if it does not exist):
 
@@ -297,15 +285,14 @@ cd /c/Projects/<project-name>
 git rm -rf --cached .ai-playbook
 rm -rf .ai-playbook AGENTS.md CLAUDE.md GEMINI.md .claude .cursor .mcp.json .gemini mcp-servers.project.yaml
 # Edit .gitignore by hand if it carries playbook entries you want to keep.
-cd /c/Projects/ai-playbook   # remove the row from consumers.yaml + commit
 ```
 
 ## Related
 
-- [Runbook: release](release.md) — when the playbook cuts a release, consumers receive auto bump PRs.
+- [Runbook: release](release.md) — when the playbook cuts a release, consumers pull at their own pace (v0.19.0+ pull model).
 - [Runbook: hindsight-retain](hindsight-retain.md) — how to write lessons to the project's bank.
 - [Runbook: coderabbit-fallback](coderabbit-fallback.md) — Profile B self-review when CodeRabbit is unavailable.
-- [Runbook: rotate-secrets](rotate-secrets.md) — `CONSUMER_D_GOD_MODE` and `PLAYBOOK_PROPAGATION_TOKEN` rotation.
+- [Runbook: rotate-secrets](rotate-secrets.md) — SMTP / Atlassian / dev `GITHUB_TOKEN` rotation.
 - [Runbook: git-worktree-bare-setup](git-worktree-bare-setup.md) — alternative layout for projects that want per-branch worktrees.
 - [Concept: memory-hierarchy](../concepts/memory-hierarchy.md) — bank naming convention.
 - [Concept: release-management](../concepts/release-management.md) — Profile A/B and AI-reviewer §4.5.

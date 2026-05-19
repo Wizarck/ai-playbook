@@ -5,23 +5,24 @@ Scans a consumer repo for ``openspec/changes/*/proposal.md`` files lacking a
 frontmatter, creates the ticket on the correct surface, and embeds the id back
 into the proposal.
 
-Surface choice (per ``docs/concepts/issue-tracking.md`` §1, v2.0.0+)
+Surface choice (per ``docs/concepts/issue-tracking.md`` §1, v0.19.0+)
 ------------------------------------------------------------
-The decision is **declarative** — driven by ``consumers.yaml``:
+The decision is **declarative** — driven by each consumer's own
+``AGENTS.md`` frontmatter:
 
 1. If the consumer's ``AGENTS.md`` carries ``personal: true``, we create a
    **GitHub Issue in the repo itself**, and add it to a per-repo Project
    board if ``$AIPLAYBOOK_GH_PROJECT_NUMBER`` is set. (This is independent
    of ``tracker_kind`` because personal repos never publish externally.)
-2. Otherwise we read the consumer's entry in ``consumers.yaml`` and use its
-   declared ``tracker_kind``:
+2. Otherwise we read ``tracker_kind`` from the same AGENTS.md frontmatter:
    - ``tracker_kind: github`` → GH Issue in the repo (+ optional org Project).
    - ``tracker_kind: jira`` → Jira issue in the explicit ``jira_project`` key.
 3. If ``tracker_kind`` is missing or invalid, automation **fails loudly**
-   (``RuntimeError``). There is no silent fallback. The schema validator at
-   ``tools/check_consumers_schema.py`` enforces the field at CI time.
+   (``RuntimeError``). There is no silent fallback.
 
-Override the registry path with ``$AIPLAYBOOK_CONSUMERS_YAML`` for tests.
+The playbook itself holds NO registry of consumers — each consumer owns its
+tracker configuration in its own AGENTS.md. This is the pull-model contract
+introduced in v0.19.0 (push pipeline removed).
 
 Notifications
 -------------
@@ -79,9 +80,6 @@ GATE_NAME = "issue-sync-preflight"
 DEFAULT_JIRA_ISSUE_TYPE = "Story"
 JIRA_LABELS = ["openspec", "ai-playbook-managed"]
 QUEUE_TTL_DAYS = 7
-
-# Cached parsed consumers.yaml. Reset between tests via ``_reset_registry_cache``.
-_REGISTRY_CACHE: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -263,81 +261,52 @@ def _is_personal(consumer_root: Path) -> bool:
     return False
 
 
-def _registry_path() -> Path:
-    """Locate the canonical ``consumers.yaml``.
+def _read_tracker_config(consumer_root: Path) -> dict[str, str]:
+    """Return ``{tracker_kind, jira_project}`` from consumer's AGENTS.md frontmatter.
 
-    Honours ``$AIPLAYBOOK_CONSUMERS_YAML`` for tests / vendored consumers, then
-    walks up from this file to find the playbook root. Raises if not found.
+    Returns the raw frontmatter dict (with empty defaults for the keys we
+    care about) so callers can validate. Missing AGENTS.md → empty dict.
     """
-    override = os.environ.get("AIPLAYBOOK_CONSUMERS_YAML", "").strip()
-    if override:
-        p = Path(override)
-        if p.is_file():
-            return p
-        raise RuntimeError(
-            f"AIPLAYBOOK_CONSUMERS_YAML={override!r} does not point at a file"
-        )
-    here = Path(__file__).resolve()
-    for parent in (here.parent, *here.parents):
-        candidate = parent / "consumers.yaml"
-        if candidate.is_file():
-            return candidate
-    raise RuntimeError("consumers.yaml not found above scripts/issue_sync.py")
-
-
-def _load_registry() -> dict:
-    """Parse + cache ``consumers.yaml``."""
-    global _REGISTRY_CACHE
-    if _REGISTRY_CACHE is None:
-        import yaml  # lazy — keep startup light when this module is imported for ad-hoc utilities
-        path = _registry_path()
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        if data.get("schema") != "ai-playbook/consumers/v1":
-            raise RuntimeError(
-                f"{path}: schema is not 'ai-playbook/consumers/v1'"
-            )
-        _REGISTRY_CACHE = data
-    return _REGISTRY_CACHE
-
-
-def _reset_registry_cache() -> None:
-    """Clear the parsed-registry cache. Used by tests that swap the YAML."""
-    global _REGISTRY_CACHE
-    _REGISTRY_CACHE = None
-
-
-def _registry_entry(consumer_name: str) -> dict | None:
-    """Return the consumer's registry entry, or ``None`` if not declared."""
-    consumers = (_load_registry().get("consumers") or {})
-    return consumers.get(consumer_name)
+    agents = consumer_root / "AGENTS.md"
+    if not agents.is_file():
+        return {}
+    try:
+        fm, _ = parse_frontmatter(agents.read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+    return fm
 
 
 def jira_project_for(consumer_root: Path) -> str | None:
     """Return the Jira project key declared for this consumer, or ``None``.
 
-    Public helper for callers (e.g. ``release_cut.py``) that need the Jira
-    project key. Returns ``None`` for ``tracker_kind: github`` consumers.
-    Raises if the consumer is missing from the registry or has an invalid
-    ``tracker_kind``.
+    Public helper for callers (e.g. ``release_cut.py``). Reads
+    ``tracker_kind`` + ``jira_project`` from the consumer's own AGENTS.md
+    frontmatter. Returns ``None`` for ``tracker_kind: github`` consumers.
+    Raises if ``tracker_kind`` is missing or invalid.
     """
     name = _consumer_name(consumer_root)
-    entry = _registry_entry(name)
-    if entry is None:
-        raise RuntimeError(
-            f"consumer {name!r} is not declared in consumers.yaml"
-        )
-    kind = entry.get("tracker_kind")
+    fm = _read_tracker_config(consumer_root)
+    kind = fm.get("tracker_kind", "").strip()
     if kind == "jira":
-        project = entry.get("jira_project")
+        project = fm.get("jira_project", "").strip()
         if not project:
             raise RuntimeError(
-                f"consumer {name!r} has tracker_kind=jira but no jira_project key"
+                f"consumer {name!r} has tracker_kind=jira but no jira_project "
+                f"in AGENTS.md frontmatter"
             )
         return project
     if kind == "github":
         return None
+    if not kind:
+        raise RuntimeError(
+            f"consumer {name!r} AGENTS.md frontmatter has no tracker_kind; "
+            f"add `tracker_kind: github` or `tracker_kind: jira` (+ jira_project) "
+            f"before running issue_sync"
+        )
     raise RuntimeError(
-        f"consumer {name!r} has invalid tracker_kind={kind!r} (expected 'github' or 'jira')"
+        f"consumer {name!r} has invalid tracker_kind={kind!r} in AGENTS.md "
+        f"(expected 'github' or 'jira')"
     )
 
 
@@ -356,18 +325,18 @@ class SurfaceDecision:
 
 
 def decide_surface(consumer_root: Path) -> SurfaceDecision:
-    """Pick the tracker surface declaratively from ``consumers.yaml``.
+    """Pick the tracker surface declaratively from the consumer's AGENTS.md frontmatter.
 
     Resolution order:
 
     1. ``personal: true`` in AGENTS.md → GH Issues in the consumer's own repo.
        Personal repos never publish externally, regardless of ``tracker_kind``.
-    2. Otherwise the consumer's ``tracker_kind`` from ``consumers.yaml`` decides:
+    2. Otherwise the consumer's ``tracker_kind`` from AGENTS.md decides:
        - ``github`` → GH Issues (+ optional org Project from
          ``$AIPLAYBOOK_GH_PROJECT_NUMBER``).
-       - ``jira`` → Jira issue in the explicit ``jira_project``.
-    3. If the consumer is missing from the registry or ``tracker_kind`` is
-       absent/invalid, raise ``RuntimeError``. There is no silent fallback.
+       - ``jira`` → Jira issue in the explicit ``jira_project`` key.
+    3. If ``tracker_kind`` is missing or invalid, raise ``RuntimeError``.
+       There is no silent fallback.
     """
     consumer_name = _consumer_name(consumer_root)
     personal = _is_personal(consumer_root)
@@ -384,35 +353,37 @@ def decide_surface(consumer_root: Path) -> SurfaceDecision:
             reason="personal flag in AGENTS.md",
         )
 
-    entry = _registry_entry(consumer_name)
-    if entry is None:
+    fm = _read_tracker_config(consumer_root)
+    tracker_kind = fm.get("tracker_kind", "").strip()
+    if not tracker_kind:
         raise RuntimeError(
-            f"consumer {consumer_name!r} is not declared in consumers.yaml; "
-            f"add it (with tracker_kind) before running issue_sync"
+            f"consumer {consumer_name!r} AGENTS.md frontmatter has no tracker_kind; "
+            f"add `tracker_kind: github` or `tracker_kind: jira` (+ jira_project) "
+            f"before running issue_sync"
         )
-    tracker_kind = entry.get("tracker_kind")
     if tracker_kind == "github":
         gh_project_num = os.environ.get("AIPLAYBOOK_GH_PROJECT_NUMBER", "").strip() or None
         return SurfaceDecision(
             kind="github",
             gh_repo=nwo,
             gh_project_number=gh_project_num,
-            reason="tracker_kind=github in consumers.yaml",
+            reason="tracker_kind=github in AGENTS.md",
         )
     if tracker_kind == "jira":
-        jira_project = entry.get("jira_project")
+        jira_project = fm.get("jira_project", "").strip()
         if not jira_project:
             raise RuntimeError(
-                f"consumer {consumer_name!r} has tracker_kind=jira but no jira_project key"
+                f"consumer {consumer_name!r} has tracker_kind=jira but no "
+                f"jira_project in AGENTS.md frontmatter"
             )
         return SurfaceDecision(
             kind="jira",
             jira_project=jira_project,
-            reason="tracker_kind=jira in consumers.yaml",
+            reason="tracker_kind=jira in AGENTS.md",
         )
     raise RuntimeError(
         f"consumer {consumer_name!r} has invalid tracker_kind={tracker_kind!r} "
-        f"in consumers.yaml (expected 'github' or 'jira')"
+        f"in AGENTS.md (expected 'github' or 'jira')"
     )
 
 

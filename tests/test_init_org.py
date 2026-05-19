@@ -14,8 +14,8 @@ def _make_fake_playbook(root: Path) -> None:
     (rendered / "mcp-servers-base.yaml.tmpl").write_text(
         "schema: mcp-servers/v1\n", encoding="utf-8",
     )
-    (root / "consumers.yaml").write_text(
-        "schema: ai-playbook/consumers/v1\nconsumers:\n  alpha:\n    repo: Wizarck/alpha\n",
+    (root / "AGENTS.md").write_text(
+        "---\nschema: agents-md/v1\nproject: ai-playbook\n---\n# body\n",
         encoding="utf-8",
     )
     (root / "README.md").write_text(
@@ -26,7 +26,6 @@ def _make_fake_playbook(root: Path) -> None:
     runbooks.mkdir(parents=True)
     (runbooks / "release.md").write_text("Push to Wizarck/consumer-c.\n", encoding="utf-8")
     (runbooks / "rotate-secrets.md").write_text("Wizarck/consumer-d secret rotation.\n", encoding="utf-8")
-    (runbooks / "propagate-bump-troubleshooting.md").write_text("Wizarck/* fork pattern.\n", encoding="utf-8")
     (runbooks / "hindsight-retain.md").write_text("https://consumer-d-hindsight.consumer-bfood.com\n", encoding="utf-8")
     concepts = root / "docs" / "concepts"
     concepts.mkdir(parents=True)
@@ -97,12 +96,7 @@ def test_apply_replaces_wizarck_with_acme(tmp_path: Path) -> None:
     )
     files, replacements = io.apply_edits(tmp_path, plan, dry_run=False)
 
-    assert files >= 4
-
-    # consumers.yaml replaced with stub for the new org.
-    consumers = (tmp_path / "consumers.yaml").read_text(encoding="utf-8")
-    assert "acme/" in consumers or "acme fork" in consumers
-    assert "Wizarck/" not in consumers
+    assert files >= 3
 
     # README.md uses the new org.
     readme = (tmp_path / "README.md").read_text(encoding="utf-8")

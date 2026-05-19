@@ -4,13 +4,94 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-### Known gaps still pending (post-Slice 7, post-review gate)
+### Known gaps still pending (post-v0.19.0, post-review gate)
 
-- **v0.19.x (post-review fix iterations)**: reserved for any user-review
-  feedback that lands after the v0.18.3 showcase pause; tagged on a
-  per-iteration basis.
+- **v0.19.x (subsequent post-review fix iterations)**: reserved for any
+  user-review feedback that lands after this v0.19.0 pull-model migration;
+  tagged on a per-iteration basis.
 - **v0.20.0 (final cut)**: visible milestone PR; tagged only on explicit
-  user approval after the v0.18.3 review pause closes.
+  user approval after the v0.19.x review iterations close.
+
+## [0.19.0] — 2026-05-19 — pull-model migration (BREAKING) — push pipeline retired
+
+First post-review fix iteration after the v0.18.x architectural reset.
+Eliminates the centralised push-bump pipeline and the org-wide `consumers.yaml`
+registry; each downstream consumer now manages its own bump cadence and
+tracker configuration in its own AGENTS.md frontmatter.
+
+### BREAKING
+
+- **`.github/workflows/propagate-playbook-bump.yml` deleted.** The playbook
+  no longer pushes bump PRs across consumers on tag release. Each consumer
+  must adopt a pull mechanism: Dependabot/Renovate submodule-update rule, a
+  scheduled GitHub Action, or manual `cd .ai-playbook && git fetch && git
+  checkout vX.Y.Z`. See README "Consumers: how to bump" + runbook `release.md`.
+- **`scripts/propagate_bump.py` deleted.** CI-side propagation script.
+- **`consumers.yaml.example` deleted.** No more central registry of consumers
+  in the playbook. Existing `consumers.yaml` files on dev machines become
+  orphan local-only data with no automation reading them.
+- **`docs/runbooks/propagate-bump-troubleshooting.md` deleted.** Diagnosed
+  failures of the retired workflow.
+- **`docs/runbooks/skills-version-bump.md` deleted.** Described the sibling
+  `propagate-skills-bump.yml` workflow that was already retired in v0.17.0.
+  The playbook tag itself now covers skill changes (skills are vendored at
+  `skills/` inside the playbook repo since v0.17.0).
+- **`scripts/issue_sync.py` reads `tracker_kind` from AGENTS.md frontmatter,
+  not from `consumers.yaml`.** Consumers who used `tracker_kind` /
+  `jira_project` in `consumers.yaml` must move those keys into their own
+  `AGENTS.md` frontmatter. `templates/new-project/AGENTS.md.tmpl` updated
+  to include the new fields with `tracker_kind: github` as a safe default.
+
+### Removed
+
+- `tests/test_propagate_bump.py`, `tests/test_consumers_yaml.py` (tests
+  covered the deleted scripts/files).
+- `TestPropagateCrossRef` (the `propagate_bump.ensure_dev_flow_cross_ref`
+  test suite inside `tests/test_dev_flow_industrialization.py`). The
+  cross-ref migration completed across every consumer before the push
+  pipeline retired; the schema validator (Opción 2) is the surviving
+  guarantee.
+- `_REGISTRY_CACHE`, `_registry_path`, `_load_registry`,
+  `_reset_registry_cache`, `_registry_entry` from `scripts/issue_sync.py`.
+
+### Changed
+
+- `scripts/init_org.py` no longer resets a `consumers.yaml` stub in forks.
+  Playbook-root detection switched from `templates/rendered/...tmpl +
+  consumers.yaml` to `templates/rendered/...tmpl + AGENTS.md`.
+- `docs/runbooks/release.md` rewritten for the pull contract: cut tag →
+  GitHub auto-creates release → consumers absorb at their own pace.
+- `docs/runbooks/onboard-new-project.md` drops the consumers.yaml
+  registration step; documents the optional Dependabot config for
+  automated bump PRs.
+- `docs/runbooks/rotate-secrets.md` removes section A (PAT rotation for
+  the retired `PLAYBOOK_PROPAGATION_TOKEN`) and renumbers the remaining
+  sections.
+- `docs/concepts/issue-tracking.md` §4 reflects the AGENTS.md-frontmatter
+  source for `tracker_kind` / `jira_project`.
+- `docs/concepts/release-management.md` §3.4 + §4.5.5 + §6.7 references
+  rewritten — supersede semantics still apply *within* each consumer's
+  own CI, but the playbook no longer ships the bot.
+- `docs/concepts/development-flow.md` ASCII diagrams in §1 + §3 updated
+  to the pull-model lifecycle.
+- `docs/concepts/enforcement-status.md`, `docs/concepts/skills-distribution.md`,
+  `docs/concepts/rule-use-cases-matrix.md`, `docs/concepts/root-folder-audit.md`,
+  `docs/rules/update-playbook.rule.md` — surface references corrected or
+  annotated `RETIRED v0.19.0`.
+
+### Migration notes for existing forks / consumers
+
+1. **Forks of the playbook**: delete any local `consumers.yaml` you maintain.
+   Remove the `PLAYBOOK_PROPAGATION_TOKEN` secret from your fork's repo
+   secrets (it has write access to consumer repos and is no longer used).
+   Revoke the underlying PAT on GitHub.
+2. **Consumer repos that used `consumers.yaml` for `tracker_kind`**: add
+   `tracker_kind: github` (or `tracker_kind: jira` + `jira_project: PROJ`)
+   to your own `AGENTS.md` frontmatter. `scripts/issue_sync.py` will now
+   read it from there.
+3. **Consumer repos that want automated bump PRs**: add a Dependabot or
+   Renovate config — see README "Consumers: how to bump" for the canonical
+   Dependabot snippet.
 
 ## [0.18.3] — 2026-05-19 — Slice 7 polish for showcase + 10 remaining hardrules
 

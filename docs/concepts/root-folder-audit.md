@@ -47,7 +47,7 @@ the next bump).
 | `CHANGELOG.md` | Release history | **KEEP** | Required. Slice 3.5 adds the `## [0.17.1]` entry. |
 | `MAINTAINERS.md` | Single maintainer + escalation contact | **KEEP** | 15 lines; legitimate root metadata; slice 5 refreshes the obsolete `rfcs/` and `docs/concepts/contributing.md` references in passing. |
 | `mkdocs.yml` | MkDocs static site generator config | **KEEP** | Drives `docs/` → GitHub Pages; slice 7 polishes theme/search/navigation. |
-| `consumers.yaml` | Org-level registry of downstream consumers | **KEEP** | Consumed by `.github/workflows/propagate-playbook-bump.yml`; load-bearing. Stale `skills_pins:` keys already flagged by zombie entry `skills-pins-consumers-yaml` (slice 3, v0.17.0). |
+| `consumers.yaml` | Org-level registry of downstream consumers | **KEEP (RETIRED v0.19.0)** | Was consumed by `.github/workflows/propagate-playbook-bump.yml`. The push pipeline was retired in v0.19.0 (pull-model contract) and `consumers.yaml.example` was deleted alongside it — playbook now holds no consumer registry. Original audit decision preserved here for the historical record. |
 | `FEEDBACK.md` | Append-only gripe log for multi-contributor triage | **DELETE** | Sole consumer reality (Arturo only); never triaged; dead infrastructure. Error messages in `scripts/mcp/render.py` + `scripts/mcp/validate.py` that point here are rewritten to "open a GitHub issue". |
 | `mcp-servers-base.yaml` | Base layer of the 3-layer MCP merge (base + project + personal) | **MOVE** → `templates/rendered/mcp-servers-base.yaml.tmpl` | It is conceptually a **template** that consumers extend; belongs with the other rendered templates. References in `scripts/mcp/validate.py`, `scripts/mcp/render.py`, `scripts/init_org.py`, `tests/test_init_org.py`, `tests/test_mcp_render.py`, `tests/test_mcp_validate.py` updated. |
 | `pricing.yaml` | Pricing catalog read by `scripts/cost_report.py` | **MOVE** → `configs/pricing.yaml` | Conceptually the same shape as `configs/anthropic-retirement-list.yaml` — runtime config data driving a standalone CLI. References in `scripts/cost_report.py` + `tests/test_cost_report.py` updated. Slice 6 (v0.19.1) will continue to load from this location. |
@@ -74,7 +74,7 @@ the next bump).
 | `drift-check.yml` | **KEEP** | Existing drift CI on specs vs code. |
 | `issue-sync.yml` | **DELETE** | Multi-tenant Jira/GH-Issues fanout per merged `openspec/changes/**/proposal.md`. Sole consumer does not use it. Underlying `scripts/issue_sync.py` not deleted (slice 6 may absorb). |
 | `pr-merge-style.yml` | **KEEP** | CodeRabbit fallback advisor. |
-| `propagate-playbook-bump.yml` | **KEEP** | Auto-opens "bump playbook pin" PRs across the 5 consumer repos when a new tag is cut. Critical for v0.20.0 propagation. |
+| `propagate-playbook-bump.yml` | **KEEP (RETIRED v0.19.0)** | Was auto-opening "bump playbook pin" PRs across the 5 consumer repos. Retired with the pull-model contract — consumers now manage bumps via Dependabot/Renovate/manual `git submodule update`. Original audit decision preserved for the historical record. |
 | `release.yml` | **KEEP** | Operational release stub. Slice 4 may rename for consistency. |
 | `test.yml` | **KEEP** | Required pytest gate (3.11 + 3.12). |
 

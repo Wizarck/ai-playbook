@@ -130,7 +130,6 @@ Skip when:
 
 ## Related
 
-- [Runbook: release](release.md) — release flow that triggers per-consumer bump PRs needing this fallback.
-- [Runbook: propagate-bump-troubleshooting](propagate-bump-troubleshooting.md) — when the propagate workflow fails.
+- [Runbook: release](release.md) — release flow consumers absorb at their own pace (pull model, v0.19.0+).
 - [Concept: release-management](../concepts/release-management.md) — §4.5 contract this runbook satisfies.
 - [Rule: verdict-contract](../rules/verdict-contract.rule.md) — Gate F verdict format expected after §4.5 is populated.
