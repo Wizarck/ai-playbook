@@ -23,11 +23,12 @@ Without an explicit escape hatch, authors either invent fragile hooks that get d
 
 ## What
 
-A rule may declare `paired_hardrule: null` in its frontmatter only when one of three conditions holds:
+A rule may declare `paired_hardrule: null` in its frontmatter only when one of four conditions holds:
 
 1. **No deterministic L1 check exists.** Example: "tone of voice in user-facing error messages" — needs human or LLM judgement.
 2. **The rule is purely informational.** Example: a doc listing approved technologies — no per-edit enforcement applicable.
-3. **The hook would produce a false-positive storm.** Example: a rule that fires on every line of code; an L3 PR-time check at the diff level is the correct cadence.
+3. **Consumer-side surface.** Example: a rule that names a directory (`scripts/notifications/`, `langgraph-aiops/`) that lives only in consumers, not in the playbook tree. A playbook-side hardrule would have nothing to validate locally; consumers may mirror the contract under their own `scripts/rules/`.
+4. **The hook would produce a false-positive storm.** Example: a rule that fires on every line of code; an L3 PR-time check at the diff level is the correct cadence.
 
 The validator (`scripts/validate_pairing.py --strict`) enforces three follow-on invariants:
 
@@ -74,8 +75,13 @@ Its body explains the rubric in prose, gives preferred / avoided examples, and i
 | `slice-preflight` | #2 (informational) | Records the preflight checklist any slice must satisfy before the first task commit. The individual checks are already L1-enforced by the underlying skills (apply-skill-enforcement, validate_pairing, openspec_validate); this rule's value is the assembled checklist, not a new enforcement layer. |
 | `parallel-review-verdict-dismissal` | #2 (informational) | Documents the verdict-contract branch for parallel-review aggregation. The verdict literals themselves are paired-hardrule-checked in `verdict-contract.rule.md`; this entry exists for discoverability when triaging a dismissed reviewer verdict. |
 | `data-handling` | #2 (informational) | PII-hashing contract for telemetry / hook persistence layers. The deterministic check ships inside `scripts/telemetry/anonymize.py` (Slice 6); the rule documents the contract that anonymizer enforces. Listed here because the rule itself carries `paired_hardrule: null` even though the hashing logic is testable downstream. |
+| `notification-channel-adapter` | #3 (consumer-side surface) | Channel adapters live under each consumer's own `scripts/notifications/` — Slack / PagerDuty / SMTP / etc. wiring is project-specific. A playbook-side hardrule would have nothing to validate locally. Consumers MAY mirror the contract under their own `scripts/rules/`. |
+| `notification-level-declared` | #3 (consumer-side surface) | `notify.send()` and the channel adapters live consumer-side; the playbook does not ship a runtime notify package. The contract is enforced at the consumer's emit-time. |
+| `notification-no-secrets` | #3 (consumer-side surface) | Same as the adapter rule — the scan chokepoint runs inside the consumer's `notify.send()`. The playbook's `scripts/secrets_scan.py` remains the canonical scanner, but the integration point is downstream. |
+| `apply-fix-contract` | #3 (consumer-side surface) | The `langgraph-aiops/` workflow surface and the `hitl.request_approval` runtime live in consumer projects (e.g. eligia-core, palafito). A playbook-side hardrule would only see references that do not resolve in this tree. |
+| `hitl-approval-pattern` | #3 (consumer-side surface) | The mutation-class DTOs, channel adapters, and `approval_decisions` schema live in single-operator AI systems consuming the playbook (broker / prod-deploy / secret-rotation surfaces are project-specific). |
 
-Slice 5.A added the first four entries (one for the existing `conflict-resolution-policy` and three for new advisory rules picked up from `flagged-for-rule-migration.md`). Slice 5.F added `data-handling` after strict-mode validation surfaced the missing register row.
+Slice 5.A added the first four entries (one for the existing `conflict-resolution-policy` and three for new advisory rules picked up from `flagged-for-rule-migration.md`). Slice 5.F added `data-handling` after strict-mode validation surfaced the missing register row. Slice 7 added condition #3 (consumer-side surface) and five entries (notification trio, apply-fix-contract, hitl-approval-pattern) after the showcase pass surfaced that those rules document contracts whose runtime lives entirely downstream of the playbook.
 
 ## Further reading
 

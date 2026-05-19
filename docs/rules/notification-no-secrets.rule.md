@@ -2,9 +2,9 @@
 schema: rule/v1
 slug: notification-no-secrets
 description: A notification payload MUST NOT include any value that `scripts/secrets_scan.py` would flag (API keys, tokens, credentials, cookies, PII); the L1 hook runs secrets_scan on the rendered payload before the channel adapter sends.
-paired_hardrule: scripts/rules/notification-no-secrets.rule.py
+paired_hardrule: null
 activation: auto
-status: enforced
+status: advisory
 applies_to: all
 globs: ["scripts/notifications/*.py", "scripts/notify.py"]
 last_validated: "2026-05-19"
@@ -31,7 +31,7 @@ Channel adapters receive payloads from many callers; the central scan inside `no
 
 ## Process supervision
 
-`notify.send()` invokes `python .ai-playbook/scripts/rules/notification-no-secrets.rule.py validate --payload <json>` (or imports the validation function directly). The hardrule wraps `secrets_scan.py` with the notification-payload context. Exit 0 → forward to adapter; exit 1 → refuse + emit error notification through fallback channel.
+The rule is **advisory** in the playbook tree because `notify.send()` and the channel adapters live consumer-side (the playbook does not ship a runtime notify package). The contract is enforced by `scripts/secrets_scan.py` at the consumer's emit-time and by the consumer's own hardrule mirror if any. See [../concepts/enforcement-pairing-exceptions.md](../concepts/enforcement-pairing-exceptions.md) for the deferral rationale.
 
 ## Examples
 

@@ -2,9 +2,9 @@
 schema: rule/v1
 slug: hitl-approval-pattern
 description: State-mutating actions in single-operator AI systems MUST be gated on an asynchronous human approval delivered via a chat channel (Telegram/WhatsApp/Slack/Hermes) with HMAC-validated reply correlation, a persisted `approval_decisions` row, and a TTL + escalation ladder.
-paired_hardrule: scripts/rules/hitl-approval-pattern.rule.py
+paired_hardrule: null
 activation: agent
-status: enforced
+status: advisory
 applies_to: all
 last_validated: "2026-05-19"
 ---
@@ -30,7 +30,7 @@ Approvals arrive via untrusted transports (chat clients, webhooks); HMAC validat
 
 ## Process supervision
 
-After authoring or modifying a mutation class, run `python .ai-playbook/scripts/rules/hitl-approval-pattern.rule.py validate <mutation-class>` and confirm exit code 0. The hardrule checks the DTO shape, the channel Protocol presence, the HMAC validation site, the `approval_decisions` FK, the TTL + escalation declarations, and the telemetry event emission sites.
+The rule is **advisory** in the playbook tree because the mutation-class surfaces (broker order submission, prod deploy, secret rotation, etc.) are consumer-side — each consumer ships its own service code, DTOs, channel adapters, and `approval_decisions` schema. Consumer projects MAY add a paired hardrule under their own `scripts/rules/` namespace that AST/SQL-validates the five-artefact contract; the playbook tracks the deferral in [../concepts/enforcement-pairing-exceptions.md](../concepts/enforcement-pairing-exceptions.md).
 
 ## Five-artefact contract
 
