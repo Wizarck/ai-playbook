@@ -44,11 +44,26 @@ AC 1..7 covered, evidence cited inline.
 
 **Avoided** — paraphrased verdict ("Approved!" / "All good ✅"), missing emoji, missing `iter N`, two verdicts on the same artefact, or a `✅ APPROVED` that was reached only via `--force-with-reason` without the mandated `## Override notice` section.
 
-**Severity tokens** — when emitting `⚠️ ISSUES FOUND (iter N)`, every finding carries exactly one of `S1` (correctness / safety — blocks unconditionally), `S2` (scope / architecture — blocks unconditionally), `S3` (style / readability — batched), `S4` (nit — batched or ignored). `S0` is retro-only.
+## Severity levels
 
-**Max 2 rework cycles** — iter 1 is the first review, iter 2 the second. On iter 3 the worker escalates with `❓ CLARIFICATION NEEDED` (ambiguous spec) or `⛔ ARCHITECTURE QUESTIONED` (design wrong, spec clear). Attempting iter 3 fixes is `goal_drift`.
+Findings inside a `⚠️ ISSUES FOUND` artefact carry exactly one severity token. The four-level table below is the canonical source consumed by consumer auto-managed blocks (`<!-- BEGIN auto-managed: specs/verdict-contract:levels -->`); do not paraphrase.
 
-**Parallel-review branch** — when verdicts are aggregated from parallel reviewers per `../concepts/parallel-review.md`, the parent agent MUST emit a dismissal rationale before downgrading any reviewer's verdict; downgrades without rationale escalate per §3.
+| Level | Name | Rationale | Blocks progression? |
+|---|---|---|---|
+| **S1** | Correctness / safety | The change is wrong, unsafe, breaks an invariant, leaks a secret, or corrupts data. | Yes — unconditionally. |
+| **S2** | Scope / architecture | In-scope but crosses a boundary defined in `AGENTS.md` hard rules, an ADR, or the OpenSpec proposal. | Yes — unconditionally. |
+| **S3** | Style / readability | Works and is in-scope, but a reader downstream will pay a tax (naming, missing docstring). | No — batched. |
+| **S4** | Nit | Subjective polish, speculative refactor, minor typo. | No — batched or ignored. |
+
+`S0` is retro-only and rejected by `verdict_lint.py` outside `--audit` mode (a runtime agent emitting `S0` is `goal_drift`).
+
+## Max 2 rework cycles
+
+Iter 1 is the first review, iter 2 the second. On iter 3 the worker escalates with `❓ CLARIFICATION NEEDED` (ambiguous spec) or `⛔ ARCHITECTURE QUESTIONED` (design wrong, spec clear). Attempting iter 3 fixes is `goal_drift`.
+
+## Parallel-review branch
+
+When verdicts are aggregated from parallel reviewers per `../concepts/parallel-review.md`, the parent agent MUST emit a dismissal rationale before downgrading any reviewer's verdict; downgrades without rationale escalate per the verdict-contract escalation ladder.
 
 ## See also
 

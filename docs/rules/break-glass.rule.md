@@ -1,7 +1,8 @@
 ---
 schema: rule/v1
 slug: break-glass
-description: Every blocking playbook script MUST support `--force-with-reason="<text>"` with a ≥10-char reason, an OTel span, an append to overrides.log, and the original error printed unchanged before exit 0 — except when the script declares `OVERRIDE: none`.
+description: |
+  Every blocking playbook script MUST support `--force-with-reason="<text>"` with a ≥10-char reason, an OTel span, an append to overrides.log, and the original error printed unchanged before exit 0 — except when the script declares OVERRIDE none.
 paired_hardrule: scripts/rules/break-glass.rule.py
 activation: agent
 status: enforced
