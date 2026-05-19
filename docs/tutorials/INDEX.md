@@ -4,11 +4,11 @@
 
 | File | Status | Summary |
 | --- | --- | --- |
-| [01-architecture-tour.md](01-architecture-tour.md) | — | For now, see: |
-| [01-start-here.md](01-start-here.md) | v1.0.0. A 60-second orientation so a new dev (or future Arturo on a fresh PC) knows the next move without having to read the full spec tree. | `ai-playbook` is the universal norms + tooling repo consumed as a git submodule by every Wizarck pr… |
-| [02-quickstart.md](02-quickstart.md) | v1.0.0. Honest 25–40 min walkthrough for a new dev bootstrapping a fresh consumer project called `acme-shop`. Per-OS friction and timing deltas land in [quickstart-lessons.md](quickstart-lessons.md) after T15 dry-runs. | --- |
-| [03-bootstrap-new-project.md](03-bootstrap-new-project.md) | v1.0.0. Authored in T14a; full implementation landed in T22e. | Take a fresh repo from zero to "Claude Code / Gemini CLI / Cursor / Antigravity can all honour the… |
-| [04-quickstart-lessons.md](04-quickstart-lessons.md) | v1.0.0. macOS / Linux / WSL2 sections carry **predicted** friction derived from static analysis; real dry-runs on those platforms will refine them. | This file records what actually went wrong when running the [quickstart](quickstart.md) on real har… |
-| [05-curriculum.md](05-curriculum.md) | v1.0.0. | A 4-week structured learning path for a new dev onboarding to `ai-playbook` (or for future Arturo r… |
-| [06-why-these-choices.md](06-why-these-choices.md) | — | More decisions land in T22 (governance) and are also captured in `rfcs/` for any breaking change. |
-| [07-fork-inventory.md](07-fork-inventory.md) | v1.0.0. Companion to [`../docs/concepts/upstream-sync.md`](../docs/concepts/upstream-sync.md). | The authoritative list of upstream-tracked forks Arturo maintains. Each entry links to its local |
+| [01-architecture-tour.md](01-architecture-tour.md) | — | Take this tour cold. Do NOT read the rest of the docs first. The point is to feel the shape of the… |
+| [02-start-here.md](02-start-here.md) | — | --- |
+| [03-quickstart.md](03-quickstart.md) | — | Per-OS friction and timing deltas land in [05-quickstart-lessons.md](05-quickstart-lessons.md). |
+| [04-bootstrap-new-project.md](04-bootstrap-new-project.md) | — | The entry point is `scripts/bootstrap.py`. It is idempotent: running it twice on the same repo is a… |
+| [05-quickstart-lessons.md](05-quickstart-lessons.md) | — | This file is the field guide. The quickstart tells you what to do; this file tells you what to expe… |
+| [06-curriculum.md](06-curriculum.md) | — | This is not a replacement for any existing doc. Every week points at docs and specs that already ex… |
+| [07-why-these-choices.md](07-why-these-choices.md) | — | Use this tutorial when you find yourself thinking "why is the playbook shaped this way?" Each secti… |
+| [08-fork-inventory.md](08-fork-inventory.md) | — | This tutorial is intentionally short. Treat it as a guided read of the fork catalog plus a thought… |
