@@ -53,7 +53,7 @@ The papers and specs below are grouped by the role they play in the playbook's d
 
 12. **OpenTelemetry GenAI Semantic Conventions** — OpenTelemetry community, 2024–present. <https://opentelemetry.io/docs/specs/semconv/gen-ai/>. The playbook's `rule-event/v1` schema (`schemas/schema-rule-event-v1.json`) carries fields that align with `gen_ai.*` semconv where applicable (`tokens_in`, `tokens_out`, model identifier). Slice 6's telemetry pipeline does not yet emit OTel spans, but the field shape keeps a future migration painless.
 
-13. **Evaluating LLM Rule Compliance Under Prompt Injection** — research line cited in the Slice-6 telemetry proposal. <https://arxiv.org/abs/2310.13361>. Establishes that compliance varies under adversarial pressure. The playbook's per-rule × per-LLM obey-rate measurement (Slice 6 telemetry) is the production-grade analogue: the published obey-rate over real consumer traffic is the public evidence the "world reference" claim needs.
+13. **Evaluating LLM Rule Compliance Under Prompt Injection** — <https://arxiv.org/abs/2310.13361>. Establishes that compliance varies under adversarial pressure. The playbook's per-rule × per-LLM obey-rate measurement is the production-grade analogue: the published obey-rate over real consumer traffic is the public evidence the "world reference" claim needs.
 
 ## How it relates to other concepts
 

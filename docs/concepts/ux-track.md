@@ -589,4 +589,4 @@ Consumers copy these on first use of the UX track. They are starting points, not
 - [verdict-contract.md](../rules/verdict-contract.rule.md) — verdict literals reused for UX QA
 - [parallel-review.md](parallel-review.md) — QA discipline this spec mirrors
 - [agentic-failures.md](agentic-failures.md) — `goal_drift` if UX track produces journey docs without FR back-references
-- [contributing.md](contributing.md) §6 — backwards compatibility for consumers that deviate from §12's recommended DESIGN.md format
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) §6 — backwards compatibility for consumers that deviate from §12's recommended DESIGN.md format

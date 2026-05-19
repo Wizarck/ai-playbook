@@ -38,7 +38,7 @@ A post-mortem is NOT required for:
 
 ## 2. Owner
 
-- **Incident responder** writes the post-mortem. At v0.1.0, that is Arturo for every incident.
+- **Incident responder** writes the post-mortem. At v0.1.0, that is the maintainer for every incident.
 - When [incident-response.md](incident-response.md) activates, the post-mortem owner is the primary responder named in that event's on-call record.
 
 ---

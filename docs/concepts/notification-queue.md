@@ -275,7 +275,7 @@ Per `notification-policy.md` §3.1 + Change B proposal:
 - `silent` → JSONL only. Not enqueued.
 - `info` → JSONL only (D2.5 — queue cost > delivery value at this severity).
   Not enqueued.
-- `warn` → JSONL + queue → channel adapter (Telegram for Arturo at v1).
+- `warn` → JSONL + queue → channel adapter (Telegram for the maintainer at v1).
 - `error` → JSONL + queue → channel adapter (Telegram + future PagerDuty).
 
 `notify.py` selects the channel via `_QUEUE_CHANNEL_BY_SEVERITY` (default

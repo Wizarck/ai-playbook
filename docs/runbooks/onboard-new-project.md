@@ -192,7 +192,7 @@ CodeRabbit is free unlimited on OSS repos. It reviews every PR using the path-in
 
 1. Visit <https://github.com/marketplace/coderabbitai>.
 2. "Set up plan" → "CodeRabbit Free for Open Source".
-3. Account: **Wizarck** · Repository access: **"Only select repositories"** → mark the new repo.
+3. Account: **`<your-org>`** · Repository access: **"Only select repositories"** → mark the new repo.
 4. "Install & Authorize".
 
 On the first PR, CodeRabbit comments automatically. The worker AI must read and respond to its comments before requesting Gate F (per [Concept: release-management](../concepts/release-management.md)).
@@ -236,7 +236,7 @@ cp .ai-playbook/templates/new-project/.github/workflows/coderabbit-fallback.yml.
 Configure:
 
 - Secret `PROJECT_AUTOMATION_TOKEN`: PAT with Project read+write.
-- Variable `PROJECT_OWNER`: `Wizarck`.
+- Variable `PROJECT_OWNER`: `<your-org>` (your GitHub user or org login).
 - Variable `PROJECT_NUMBER`: `<N>` from step 8.
 
 `project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty — only uses `secrets.GITHUB_TOKEN`.

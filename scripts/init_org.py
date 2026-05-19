@@ -2,7 +2,7 @@
 
 When you fork ai-playbook to create your own playbook for a different org,
 you'd normally have to find-and-replace `Wizarck/<repo>` references,
-`https://project-d-hindsight.example.com` placeholders, and tenant-named
+`https://acme-corp-hindsight.example.com` placeholders, and tenant-named
 entries in 6+ files. This script walks the worktree, applies a single set
 of substitutions, and reports what changed.
 
@@ -126,13 +126,13 @@ def build_edit_plan(
         ]
         for f in url_targets:
             plan.append(FileEdit(f, [
-                ("https://project-d-hindsight.example.com", hindsight_url),
+                ("https://acme-corp-hindsight.example.com", hindsight_url),
             ]))
 
-    # SOPS path in template settings.json (default points at sibling project-d).
+    # SOPS path in template settings.json (default points at sibling acme-corp).
     if secrets_env_path:
         plan.append(FileEdit("templates/new-project/AGENTS.md.tmpl", [
-            ("../project-d/secrets/secrets.env", secrets_env_path),
+            ("../acme-corp/secrets/secrets.env", secrets_env_path),
         ]))
 
     # Owner email tag in templates.
@@ -184,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="Override the Hindsight base URL across docs (optional).")
     p.add_argument("--secrets-env-path",
                    help="Override the SOPS secrets path in SessionStart hook templates "
-                        "(default: ../project-d/secrets/secrets.env stays).")
+                        "(default: ../acme-corp/secrets/secrets.env stays).")
     p.add_argument("--upstream-org", default="Wizarck",
                    help="Source org to replace (default: Wizarck).")
     p.add_argument("--root", type=Path, default=Path.cwd(),

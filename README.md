@@ -146,8 +146,8 @@ Prior milestones:
 
 ## License
 
-Internal to the Wizarck organisation. Content may be relicensed (MIT or compatible) once a public release is cut.
+[MIT](LICENSE) © 2026 Arturo Ramírez.
 
-## Maintainer
+## Contributing
 
-See [`MAINTAINERS.md`](MAINTAINERS.md).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for contributing guidelines and maintainer contact info.

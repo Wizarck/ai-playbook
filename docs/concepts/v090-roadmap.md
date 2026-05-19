@@ -22,7 +22,7 @@ v0.9.0 turns the manual fallback into an enforced 3-layer defense.
 
 ### 1. CodeRabbit fallback — 3-layer defense in depth
 
-**Motivation** (Arturo, 2026-05-01): *"podemos hacer nosotros el review en vez coderabbit como fallback?"* — followed by *"si lo estoy push desde aqui lo suyo seria que el fallback se ejecute por aqui, puede ser mediante IA sin problema"* — followed by *"pero entiendo que no son excluyentes no? pudieran ser complementarias"*.
+**Motivation** (the maintainer, 2026-05-01): *"podemos hacer nosotros el review en vez coderabbit como fallback?"* — followed by *"si lo estoy push desde aqui lo suyo seria que el fallback se ejecute por aqui, puede ser mediante IA sin problema"* — followed by *"pero entiendo que no son excluyentes no? pudieran ser complementarias"*.
 
 The 3-layer model:
 
@@ -57,7 +57,7 @@ This makes **L2 a silent safety net**: invisible when L1 worked, present when L1
 
 #### Alternatives considered
 
-1. **Local LLM (Ollama)** as the reviewer when CodeRabbit fails. Rejected: adds infra (Ollama install + model), unreliable quality, and Arturo explicitly excluded "API token" reviewers — preferring zero infra.
+1. **Local LLM (Ollama)** as the reviewer when CodeRabbit fails. Rejected: adds infra (Ollama install + model), unreliable quality, and the maintainer explicitly excluded "API token" reviewers — preferring zero infra.
 2. **Only L1 (no L2)**. Rejected at the user's prompt: doesn't cover human pushes without an active AI session, or AI sessions that ended mid-flow.
 3. **Only L2 (no L1)**. Rejected: generates a checklist instead of a real review; loses the AI's full-context narrative analysis. L1 produces strictly better output when applicable.
 4. **GitHub Merge Queue with required AI-review check**. Rejected for v0.9.0: requires GitHub Pro for some features and adds another layer of branch-protection complexity. Worth revisiting in v1.0.

@@ -17,10 +17,9 @@ Coverage:
     - validate_one strict path: missing link → exit 1 + canonical error
     - validate_one happy path: link present → exit 0 silent
 
-NOTE (v0.19.0): Opción 1 (``propagate_bump.ensure_dev_flow_cross_ref``) was
-retired when the push pipeline was removed — the cross-ref row had long
-since landed in every consumer's AGENTS.md, so the migration is complete.
-The validator (Opción 2) is the surviving guarantee.
+NOTE (v0.19.0): Opción 1 was retired when the push pipeline was removed — the
+cross-ref row had long since landed in every consumer's AGENTS.md, so the
+migration is complete. The validator (Opción 2) is the surviving guarantee.
 """
 from __future__ import annotations
 
@@ -353,8 +352,7 @@ class TestSchemaCrossRef:
         assert rc == 0
 
 
-# NOTE: TestPropagateCrossRef (Opción 1 — propagate_bump.ensure_dev_flow_cross_ref)
-# was removed in v0.19.0 along with scripts/propagate_bump.py. The dev-flow
+# NOTE: Opción 1 was removed in v0.19.0. The dev-flow
 # cross-ref row migration completed in every consumer's AGENTS.md before the
 # push pipeline retired; the validator (Opción 2, TestSchemaValidateCrossRef)
 # remains as the surviving guarantee.

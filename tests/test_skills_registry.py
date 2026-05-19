@@ -1,6 +1,6 @@
 """Tests for scripts/skills_registry.py (T20).
 
-Mocks urllib at the module level; no real HTTP to project-d-skills.example.com.
+Mocks urllib at the module level; no real HTTP to acme-corp-skills.example.com.
 Covers env-var resolution, list/show happy paths, malformed response, timeout,
 HTTP 5xx, unreachable, --force-with-reason degradation, --scope propagation,
 --json output, and importable helpers.

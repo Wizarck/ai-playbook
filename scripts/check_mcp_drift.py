@@ -1,7 +1,7 @@
 """Detect drift between a consumer's legacy mcp-servers.yaml SSOT and the
 playbook v1 layer file (mcp-servers.project.yaml).
 
-Some consumers (project-d today) ship a legacy v2-metadata `mcp-servers.yaml`
+Some consumers (acme-corp today) ship a legacy v2-metadata `mcp-servers.yaml`
 that drives helm + desktop-stack + sync scripts, plus a separate
 `mcp-servers.project.yaml` (schema mcp-servers/v1) for the playbook render
 pipeline. Both files declare the same servers (today: at least `hindsight`).
@@ -19,7 +19,7 @@ This script:
 
 Usage:
 
-    python -m scripts.check_mcp_drift --consumer-root /c/Projects/project-d
+    python -m scripts.check_mcp_drift --consumer-root /c/Projects/acme-corp
     python -m scripts.check_mcp_drift --consumer-root . --json    # CI-friendly
     python -m scripts.check_mcp_drift --consumer-root .           # exits non-zero on drift
 

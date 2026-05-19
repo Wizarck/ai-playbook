@@ -31,7 +31,7 @@ envelope in [agent-contract.md](agent-contract.md).
 ## 2. `bank_id` conventions
 
 One primary `bank_id` per project. Personal add-ons get a suffix when the content is
-Arturo-private (per [dispatcher-chain.md](dispatcher-chain.md) level 3).
+maintainer-private (per [dispatcher-chain.md](dispatcher-chain.md) level 3).
 
 | Project | Primary bank | Personal add-on bank |
 |---|---|---|

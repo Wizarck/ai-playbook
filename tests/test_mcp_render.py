@@ -114,11 +114,11 @@ def test_render_includes_personal_when_personal_file_present(tmp_path: Path) -> 
     personal = {
         "schema": "mcp-servers/v1", "layer": "personal",
         "servers": {
-            "google-workspace-arturo": {
-                "id": "google-workspace-arturo",
+            "google-workspace-acme": {
+                "id": "google-workspace-acme",
                 "description": "Personal GWS.",
                 "transport": "http",
-                "endpoint": "https://gws-arturo.example/",
+                "endpoint": "https://gws-acme.example/",
                 "env": {"required": [], "optional": []},
                 "auth": "oauth",
                 "scope": "personal",
@@ -130,9 +130,9 @@ def test_render_includes_personal_when_personal_file_present(tmp_path: Path) -> 
     rc = _run(playbook, consumer, personal_path)
     assert rc == 0
     claude_doc = json.loads((consumer / ".mcp.json").read_text(encoding="utf-8"))
-    assert "google-workspace-arturo" in claude_doc["mcpServers"]
-    assert (claude_doc["mcpServers"]["google-workspace-arturo"]["url"]
-            == "https://gws-arturo.example/")
+    assert "google-workspace-acme" in claude_doc["mcpServers"]
+    assert (claude_doc["mcpServers"]["google-workspace-acme"]["url"]
+            == "https://gws-acme.example/")
 
 
 def test_render_excludes_personal_when_personal_file_absent(tmp_path: Path) -> None:
@@ -142,7 +142,7 @@ def test_render_excludes_personal_when_personal_file_absent(tmp_path: Path) -> N
     rc = _run(playbook, consumer, ghost)
     assert rc == 0
     claude_doc = json.loads((consumer / ".mcp.json").read_text(encoding="utf-8"))
-    assert "google-workspace-arturo" not in claude_doc["mcpServers"]
+    assert "google-workspace-acme" not in claude_doc["mcpServers"]
 
 
 def test_render_refuses_personal_scope_without_personal_layer(

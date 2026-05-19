@@ -302,7 +302,7 @@ def _send_email(
 # Durable queue transport (Phase 5 Change B — `add-durable-notification-queue`)
 # ---------------------------------------------------------------------------
 #
-# The durable queue lives in the consumer (project-d) under
+# The durable queue lives in the consumer (acme-corp) under
 # `langgraph-aiops/notifications/`. When it's importable AND
 # `PROJECT_D_NOTIFICATIONS_QUEUE_ENABLED=1`, warn/error notifications are
 # enqueued to a SQLite-backed retry layer instead of fired through SMTP
