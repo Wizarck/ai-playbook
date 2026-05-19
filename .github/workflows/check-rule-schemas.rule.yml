@@ -1,0 +1,100 @@
+name: check-rule-schemas.rule
+on:
+  pull_request:
+    paths:
+      - "docs/rules/**/*.rule.md"
+      - "docs/concepts/**/*.md"
+      - "schemas/schema-rule-v1.json"
+      - "schemas/schema-concept-v1.json"
+      - ".github/workflows/check-rule-schemas.rule.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check-rule-schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e . jsonschema pyyaml
+      - name: Validate docs/rules/*.rule.md against schema-rule-v1.json
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          import yaml
+          import jsonschema
+
+          schema = json.loads(Path("schemas/schema-rule-v1.json").read_text(encoding="utf-8"))
+          errors = []
+          for md in Path("docs/rules").glob("*.rule.md"):
+              text = md.read_text(encoding="utf-8")
+              if not text.startswith("---"):
+                  errors.append(f"{md}: missing frontmatter")
+                  continue
+              end = text.find("\n---", 4)
+              if end == -1:
+                  errors.append(f"{md}: unterminated frontmatter")
+                  continue
+              try:
+                  fm = yaml.safe_load(text[3:end])
+              except yaml.YAMLError as exc:
+                  errors.append(f"{md}: {exc}")
+                  continue
+              try:
+                  jsonschema.validate(fm or {}, schema)
+              except jsonschema.ValidationError as exc:
+                  errors.append(f"{md}: {exc.message}")
+          if errors:
+              for e in errors:
+                  print(e, file=sys.stderr)
+              sys.exit(2)
+          print("rule-schema: OK")
+          PY
+      - name: Validate docs/concepts/*.md against schema-concept-v1.json
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          import yaml
+          import jsonschema
+
+          schema = json.loads(Path("schemas/schema-concept-v1.json").read_text(encoding="utf-8"))
+          errors = []
+          for md in Path("docs/concepts").glob("*.md"):
+              # INDEX.md is auto-generated and may have a different shape.
+              if md.name == "INDEX.md":
+                  continue
+              text = md.read_text(encoding="utf-8")
+              if not text.startswith("---"):
+                  # Slice 4 placeholder docs have frontmatter; legacy moved
+                  # concept docs may not yet — they get frontmatter in Slice 5.
+                  continue
+              end = text.find("\n---", 4)
+              if end == -1:
+                  continue
+              try:
+                  fm = yaml.safe_load(text[3:end])
+              except yaml.YAMLError as exc:
+                  errors.append(f"{md}: {exc}")
+                  continue
+              if not isinstance(fm, dict):
+                  continue
+              if "schema" not in fm or fm.get("schema") != "concept/v1":
+                  # Slice 4: legacy concept docs lack schema field — skip
+                  # until Slice 5 backfills.
+                  continue
+              try:
+                  jsonschema.validate(fm, schema)
+              except jsonschema.ValidationError as exc:
+                  errors.append(f"{md}: {exc.message}")
+          if errors:
+              for e in errors:
+                  print(e, file=sys.stderr)
+              sys.exit(2)
+          print("concept-schema: OK")
+          PY

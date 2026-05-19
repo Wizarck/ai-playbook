@@ -1,0 +1,23 @@
+name: check-doc-language.rule
+on:
+  pull_request:
+    paths:
+      - "docs/**/*.md"
+      - "scripts/check_doc_language.py"
+      - ".github/workflows/check-doc-language.rule.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check-doc-language:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e . langdetect
+      - name: Run ENGLISH-only docs lint
+        run: python -m scripts.check_doc_language docs/

@@ -1,0 +1,23 @@
+name: check-agents-md-size.rule
+on:
+  pull_request:
+    paths:
+      - "AGENTS.md"
+      - "scripts/check_agents_md_size.py"
+      - ".github/workflows/check-agents-md-size.rule.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check-agents-md-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Verify AGENTS.md ≤500 lines (D14)
+        run: python -m scripts.check_agents_md_size
