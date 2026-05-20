@@ -74,7 +74,7 @@ Repos that explicitly do not use Claude Code (no `.claude/` directory) MAY omit 
 ## See also
 
 - [openspec-apply-enforcement](openspec-apply-enforcement.rule.md) — the rule that REQUIRES this hook to be wired up.
-- [apply-skill-enforcement](../../specs/apply-skill-enforcement.md) §2 — the underlying hook contract.
+- [apply-skill-enforcement](apply-skill-enforcement.rule.md) — the underlying hook contract.
 - [pre-commit-hooks](pre-commit-hooks.rule.md) — sibling rule covering `.pre-commit-config.yaml` (different surface: git hooks vs Claude hooks).
 - [enforcement-layers](../concepts/enforcement-layers.md) §"Rule .rule.py contract" — the `validate` + `apply` contract.
 
