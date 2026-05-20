@@ -88,7 +88,7 @@ If you see `ModuleNotFoundError` in any later step, this is the line that failed
 
 ## 4. Run the test suite (≤2 min)
 
-The playbook ships ~1200 tests as of v0.19.4. They run in under a minute on a modern laptop:
+The playbook ships ~1200 tests. They run in under a minute on a modern laptop:
 
 ```bash
 python -m pytest tests/ -q
@@ -195,9 +195,9 @@ Expected output (counts move as the rule set grows):
 ═════════════════════════════════════════════════════════════════
   ai-playbook-check
   target:   C:/Projects/ai-playbook
-  playbook: C:/Projects/ai-playbook  •  pinned: v0.19.4
+  playbook: C:/Projects/ai-playbook  •  pinned: <tag from VERSION>
 ═════════════════════════════════════════════════════════════════
-  49 rules: ok=30 drift=6 manual-only=10 n/a=3 error=0
+  N rules: ok=… drift=… manual-only=… n/a=… error=…
 ```
 
 When run against the playbook itself, the `drift` count is non-zero by design:
@@ -206,12 +206,13 @@ expect artifacts that exist in consumer repos, not in the source playbook.
 Run the same command from inside a consumer repo and you should see `drift=0`
 on a healthy install. `--check` is report-only. Without it the orchestrator
 offers opt-in remediation for rules whose `.rule.py` implements `apply` —
-**13 of the 39 paired rules** at v0.19.4 auto-remediate; the remaining 26
-paired rules are validate-only, and a further 10 rules are advisory (no
-paired hook, manual fix only). In a consumer repo you typically use the
-wrapper skill `/ai-playbook-check` from Claude Code instead of the raw
-script — it prompts via `AskUserQuestion` instead of stdin and handles the
-multi-select UI for you.
+roughly a third of the paired rules auto-remediate; the rest are validate-only,
+and another batch are advisory (no paired hook, manual fix only). For
+exact current counts run the command; for the live taxonomy see
+[../concepts/rule-use-cases-matrix.md](../concepts/rule-use-cases-matrix.md).
+In a consumer repo you typically use the wrapper skill `/ai-playbook-check`
+from Claude Code instead of the raw script — it prompts via
+`AskUserQuestion` instead of stdin and handles the multi-select UI for you.
 
 See [skills/ai-playbook-check/SKILL.md](../../skills/ai-playbook-check/SKILL.md) for the skill contract and [docs/concepts/enforcement-layers.md](../concepts/enforcement-layers.md) §"Rule .rule.py contract" for what each rule's `validate` / `apply` must implement.
 
