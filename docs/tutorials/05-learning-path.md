@@ -6,7 +6,7 @@ description: A self-paced reading order for getting from "I ran the quickstart" 
 estimated_time: ""
 prerequisite_concepts: []
 audience: developer
-order: 6
+order: 5
 ---
 
 # Learning path

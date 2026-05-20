@@ -43,12 +43,12 @@ From inside the new project repo (created, `git init` done, first commit made):
 ```bash
 # In C:/Projects/acme-shop (or wherever)
 git submodule add git@github.com:Wizarck/ai-playbook.git .ai-playbook
-cd .ai-playbook && git checkout v0.1.0 && cd ..
+cd .ai-playbook && git checkout v0.19.4 && cd ..
 git add .gitmodules .ai-playbook
-git commit -m "feat: add ai-playbook submodule pinned at v0.1.0"
+git commit -m "feat: add ai-playbook submodule pinned at v0.19.4"
 ```
 
-The submodule MUST be pinned to a semver tag, never a branch. This is the inheritance anchor for `AGENTS.md` frontmatter.
+Replace `v0.19.4` with whatever the latest released tag is when you read this — `git -C .ai-playbook tag --list 'v*' --sort=-v:refname | head -1` returns it. The submodule MUST be pinned to a semver tag, never a branch. This is the inheritance anchor for `AGENTS.md` frontmatter.
 
 ### What can go wrong
 
@@ -61,7 +61,8 @@ The submodule MUST be pinned to a semver tag, never a branch. This is the inheri
 ## Step 2 — Bootstrap (≈2 min)
 
 ```bash
-python -m scripts.bootstrap --project-name acme-shop --owner you@example.com
+# project_name is positional. --owner defaults to git config user.email.
+python -m scripts.bootstrap acme-shop --owner you@example.com
 ```
 
 Full flag list and contract live in [04-bootstrap-new-project.md](04-bootstrap-new-project.md). Summary of what runs:
@@ -105,7 +106,7 @@ Expected: `✅ AGENTS.md valid against schema agents-md/v1`.
 ### What can go wrong
 
 - **`❌ AGENTS.md missing required field inherits_from`** → the template already has it; you deleted it. Put it back.
-- **`❌ inherits_from pin is not a semver tag`** → use `v0.1.0`, not `main` or `HEAD`.
+- **`❌ inherits_from pin is not a semver tag`** → use `v0.19.4` (or whichever tag you pinned in step 1), not `main` or `HEAD`.
 - **Forgot to fill a `{{PLACEHOLDER}}`** — `schema_validate.py` doesn't catch Mustache leftovers (it validates structure, not content). Grep the file: `grep -n '{{' AGENTS.md` should return nothing.
 
 ---
@@ -182,7 +183,38 @@ First `--all-files` pass will be slow (hooks compile). Subsequent commits hit on
 
 ---
 
-## Step 7 — Your first OpenSpec change (≈8 min)
+## Step 7 — Audit initial-config drift (≈2 min)
+
+Bootstrap may pin the playbook at a tag that pre-dates some of the rules
+your installed version ships. The L4 advisory orchestrator `ai-playbook-check`
+runs every rule's `validate` against your fresh project and reports which
+ones are out of compliance:
+
+```bash
+python .ai-playbook/scripts/ai_playbook_check.py --check
+```
+
+Expected on a freshly-bootstrapped project: most rules `ok`, a handful
+`manual_fix_only` or `not_applicable`. If anything is in `drift` and shows
+`[auto-apply available]`, drop the `--check` flag to be prompted for opt-in
+remediation. From inside Claude Code, the wrapper skill `/ai-playbook-check`
+drives the same orchestrator through `AskUserQuestion`:
+
+```
+/ai-playbook-check
+```
+
+Contract for the wrapper skill: [../../skills/ai-playbook-check/SKILL.md](../../skills/ai-playbook-check/SKILL.md). Layer model: [../concepts/enforcement-layers.md](../concepts/enforcement-layers.md).
+
+### What can go wrong
+
+- **`error: no consumer root with .ai-playbook submodule found`** → run from inside the consumer repo, not the playbook clone.
+- **A rule shows `drift` with no `apply` available** → consult the runbook the orchestrator points at; remediate manually, then re-run.
+- **Encoding errors on Windows (`UnicodeEncodeError`)** → already fixed in v0.19.4 ([PR #84](https://github.com/Wizarck/ai-playbook/pull/84)); upgrade your pin.
+
+---
+
+## Step 8 — Your first OpenSpec change (≈8 min)
 
 Pick a tiny feature to bootstrap the rhythm. Create the change folder:
 
@@ -196,13 +228,19 @@ Write `openspec/changes/acme-shop-bootstrap/proposal.md` — one paragraph on pr
 python .ai-playbook/scripts/openspec_validate.py acme-shop-bootstrap
 ```
 
-If you're using Claude Code, the slash command flow is:
+If you're using Claude Code, the canonical end-to-end skill flow is:
 
 ```
-/opsx:propose  → creates proposal + specs + design + tasks
-/opsx:apply    → implements tasks with worker→QA pairing
-/opsx:archive  → promotes specs to openspec/specs/ and runs post-archive retro
+/dev-flow start "<one-line description>"  → scaffolds change + branch + (opt) worktree
+/openspec-propose                          → generates proposal + design + specs + tasks
+/openspec-apply-change                     → implements tasks with worker→QA pairing
+/openspec-archive-change                   → promotes specs to openspec/specs/ + retro
+/dev-flow ship                             → push + open PR + monitor CI
 ```
+
+The inner `/openspec-*` skills are also reachable via the legacy `/opsx:` aliases
+the skill texts use; the canonical kebab-case names above are what the harness
+registers. See [../../skills/dev-flow/SKILL.md](../../skills/dev-flow/SKILL.md) for the outer orchestrator.
 
 Verdict contract for each artefact: [../rules/verdict-contract.rule.md](../rules/verdict-contract.rule.md). After archive, drop a retro per [../../templates/retro/post-archive.md.tmpl](../../templates/retro/post-archive.md.tmpl).
 
@@ -214,7 +252,7 @@ Verdict contract for each artefact: [../rules/verdict-contract.rule.md](../rules
 
 ---
 
-## Step 8 — Wire the SessionStart hook (≈3 min)
+## Step 9 — Wire the SessionStart hook (≈3 min)
 
 If you use Claude Code, add the Hindsight context-injection hook so prior-session memory lands in every new session. Follow [session-start-hook.md](../concepts/session-start-hook.md) end-to-end — it ships a ready-to-paste `~/.claude/settings.json` snippet.
 
@@ -238,8 +276,9 @@ If you use Gemini CLI / Cursor / Antigravity, the same `scripts/inject_context.p
 | 4. Register | 1 min | 14 |
 | 5. MCP | 4 min | 18 |
 | 6. Hooks | 2 min | 20 |
-| 7. First OpenSpec change | 8 min | 28 |
-| 8. SessionStart hook | 3 min | 31 |
+| 7. Audit drift | 2 min | 22 |
+| 8. First OpenSpec change | 8 min | 30 |
+| 9. SessionStart hook | 3 min | 33 |
 
 **Realistic total: 25–40 min** depending on OS, existing toolchain, and network.
 
