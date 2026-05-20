@@ -64,7 +64,11 @@ from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa
 
 SCRIPT_BASENAME = "schema_validate.py"
 GATE_NAME = "agents-md-schema"
-DEFAULT_PINNED_VERSION = "v0.1.0"
+# Sentinel "unknown" tag for the autofix path when no VERSION file can be
+# read (neither the consumer's `.ai-playbook/VERSION` nor the playbook's own
+# `VERSION` next to this script). v0.0.0 is intentionally not a real release —
+# anyone running the autofix on a tree this broken will spot it immediately.
+UNKNOWN_PIN_SENTINEL = "v0.0.0"
 SCHEMA_RELPATH = Path("schemas") / "schema-agents-md-v1.json"
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -210,16 +214,40 @@ def emit_error(
 # ---------------------------------------------------------------------------
 
 
+def _format_tag(raw: str) -> str:
+    raw = raw.strip()
+    if not raw:
+        return UNKNOWN_PIN_SENTINEL
+    return raw if raw.startswith("v") else f"v{raw}"
+
+
 def read_pinned_version(cwd: Path) -> str:
-    """Read pinned playbook version from <cwd>/.ai-playbook/VERSION, fallback v0.1.0."""
-    version_file = cwd / ".ai-playbook" / "VERSION"
-    if version_file.is_file():
-        text = version_file.read_text(encoding="utf-8").strip()
-        if text:
-            if not text.startswith("v"):
-                text = f"v{text}"
-            return text
-    return DEFAULT_PINNED_VERSION
+    """Read the playbook pin tag for autofix injection.
+
+    Resolution order:
+
+    1. `<cwd>/.ai-playbook/VERSION` — the consumer's submodule pin (the
+       intended path; this is what `git submodule update` keeps fresh).
+    2. The VERSION file next to this script — the playbook the autofix
+       code lives in. Useful when called against a tree that doesn't yet
+       have the submodule wired (e.g. mid-bootstrap).
+    3. `UNKNOWN_PIN_SENTINEL` — `v0.0.0`, an intentionally non-existent
+       tag so anyone reading the injected frontmatter sees the autofix
+       could not determine a real pin.
+    """
+    submodule_version = cwd / ".ai-playbook" / "VERSION"
+    if submodule_version.is_file():
+        try:
+            return _format_tag(submodule_version.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+    own_version = Path(__file__).resolve().parent.parent / "VERSION"
+    if own_version.is_file():
+        try:
+            return _format_tag(own_version.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+    return UNKNOWN_PIN_SENTINEL
 
 
 def slugify(value: str) -> str:

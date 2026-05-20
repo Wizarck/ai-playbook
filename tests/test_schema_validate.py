@@ -89,16 +89,35 @@ def test_normalise_date_variants() -> None:
     assert sv.normalise_date("not-a-date") is None
 
 
-def test_read_pinned_version_fallback(tmp_path: Path) -> None:
-    # No .ai-playbook/VERSION file -> fallback v0.1.0
-    assert sv.read_pinned_version(tmp_path) == sv.DEFAULT_PINNED_VERSION
+def test_read_pinned_version_falls_back_to_playbook_own_version(tmp_path: Path) -> None:
+    # No `.ai-playbook/VERSION` under tmp_path → the resolver falls back to
+    # the playbook's own VERSION file (where schema_validate.py lives), which
+    # is the current release. Must equal `v` + that file's content.
+    playbook_root = Path(sv.__file__).resolve().parent.parent
+    expected = "v" + (playbook_root / "VERSION").read_text(encoding="utf-8").strip()
+    assert sv.read_pinned_version(tmp_path) == expected
 
 
-def test_read_pinned_version_from_file(tmp_path: Path) -> None:
+def test_read_pinned_version_prefers_consumer_submodule(tmp_path: Path) -> None:
     version_dir = tmp_path / ".ai-playbook"
     version_dir.mkdir()
     (version_dir / "VERSION").write_text("0.2.1\n", encoding="utf-8")
+    # Submodule pin wins over the playbook's own VERSION.
     assert sv.read_pinned_version(tmp_path) == "v0.2.1"
+
+
+def test_read_pinned_version_unknown_sentinel_when_both_missing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # Simulate the pathological case: neither the consumer nor the playbook
+    # has a VERSION file. Use monkeypatch to redirect __file__ resolution.
+    import scripts.schema_validate as sv_mod
+    fake_playbook = tmp_path / "fake-playbook" / "scripts"
+    fake_playbook.mkdir(parents=True)
+    fake_module_file = fake_playbook / "schema_validate.py"
+    fake_module_file.write_text("# fake", encoding="utf-8")
+    monkeypatch.setattr(sv_mod, "__file__", str(fake_module_file))
+    assert sv.read_pinned_version(tmp_path) == sv.UNKNOWN_PIN_SENTINEL
 
 
 # ---------------------------------------------------------------------------
@@ -186,8 +205,10 @@ owner: o@example.com
     fm = sv.parse_frontmatter(p.read_text(encoding="utf-8"))
     new_fm, fixes = sv.apply_autofix(fm, file_path=p)
     assert new_fm.data["capabilities_map"] is False
+    # autofix injects whatever `read_pinned_version` resolved for the cwd
+    # (consumer submodule → fallback to playbook's own VERSION → sentinel).
     assert new_fm.data["inherits_from"] == [
-        f"github.com/Wizarck/ai-playbook@{sv.DEFAULT_PINNED_VERSION}"
+        f"github.com/Wizarck/ai-playbook@{sv.read_pinned_version(p.parent)}"
     ]
     assert any("capabilities_map" in f for f in fixes)
     assert any("inherits_from" in f for f in fixes)
