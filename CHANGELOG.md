@@ -4,13 +4,87 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-> **Convention** — additive internal helpers (new private/internal functions
-> that do not change any existing public CLI flag, env var, or event-schema
-> field) ride the next v0.19.x patch without their own version bump. The
-> `try_opportunistic_drain` helper below is an example: new module-level
-> symbol, but no breaking change, no new CLI surface, no schema change.
+> Reserved for the next iteration of post-review fixes. v0.20.0 is the
+> visible milestone PR; tag only on explicit user approval.
+
+## [0.19.3] — 2026-05-20 — ai-playbook-check L4 advisor + 10 new rules + `.rule.py apply` contract
+
+Adds the missing cross-cutting **L4 advisor** layer on top of the existing
+L1/L2/L3 enforcement model. Backwards-compatible: the new `.rule.py apply`
+subcommand is purely additive; `validate` stays the baseline contract and
+no existing CLI flag, env var, or event-schema field changes. Consumers
+that don't invoke the orchestrator see no behavioural difference.
 
 ### Added
+
+- **`scripts/ai_playbook_check.py`** — single orchestrator that loads every
+  `docs/rules/<slug>.rule.md` via `hook_dispatcher.load_rules()`, runs each
+  paired `validate` against the consumer cwd, and reports a unified drift
+  table (text or `--json`). Detects `apply` support via subprocess
+  introspection. Offers opt-in remediation through `AskUserQuestion`-style
+  interactive multi-select. Never blocks — exit 0 by default; opt-in
+  `--exit-on-drift` flag for consumer CI gates. Other flags: `--check`,
+  `--yes`, `--select`, `--skip`, `--upgrade-only`. Cross-platform (Windows
+  cp1252 ↔ UTF-8 reconfiguration handled in `main()` + every subprocess call).
+- **`.rule.py apply` contract** — documented end-to-end in
+  `docs/concepts/enforcement-layers.md` §"Rule .rule.py contract".
+  Additive: rules MAY implement `apply` + `apply --dry-run` for opt-in
+  remediation. Required invariants: idempotency, reversibility,
+  refuse-overwrite-custom, dry-run parity, no partial mutations on failure.
+  Disambiguated from `apply-fix-contract` (HITL workflow mutations) in
+  the doc's "See also".
+- **10 new rules** (each L1 + L2 + tests paired):
+  - `bare-layout` — detects bare-repo + per-branch-worktree vs legacy
+    single-tree clone. `apply` is **plan-only** — prints the migration
+    procedure from runbook §3 but never executes (high blast radius).
+    `status: warn` (informational).
+  - `mcp-render` — mtime-based detection of `.mcp.json` /
+    `.gemini/settings.json` staleness vs `mcp-servers.yaml` SSOT.
+    `apply` delegates to existing `scripts/mcp/render.py`.
+  - `registry-entry` — consumer presence in
+    `~/.ai-playbook/projects.yaml`. `apply` invokes `discover_projects.py`.
+  - `dispatcher-gemini` — `GEMINI.md` pointer to AGENTS.md exists,
+    ≤30 content lines. `apply` writes canonical pointer when missing;
+    refuse-overwrite-custom.
+  - `dispatcher-cursor` — `.cursor/rules/00-AGENTS.mdc` pointer to
+    AGENTS.md (Cursor `alwaysApply: true` frontmatter). Same
+    refuse-overwrite-custom semantics as dispatcher-gemini.
+  - `claude-settings` — `.claude/settings.json` declares the required
+    PreToolUse `openspec-apply-enforce.py` hook. `apply` deep-merges the
+    canonical hook block preserving existing user customisations.
+  - `pre-commit-hooks` — `.pre-commit-config.yaml` references the
+    playbook hooks bundle. `apply` appends a canonical block (idempotent
+    by substring check; preserves comments + formatting via line-append
+    rather than YAML rewrite).
+  - `skills-sync` — `.claude/skills/` reflects playbook skill registry.
+    `apply` invokes `materialise_skills.py` when available.
+  - `gitignore-entries` — required ai-playbook-managed entries present
+    in `.gitignore`. `apply` appends missing entries under a marker
+    comment header.
+  - `openspec-scaffold` — `openspec/changes/` + `openspec/specs/`
+    directories exist when openspec is in use. `apply` mkdirs missing
+    subdirs (idempotent).
+- **3 existing rules extended with `apply`**:
+  - `install-playbook.apply` — plan-only (prints the `git submodule add`
+    + checkout + commit sequence; operator runs it manually).
+  - `bootstrap-directive.apply` — real mutator. Inserts the canonical
+    §0 block into an AGENTS.md that's missing it (preserves YAML
+    frontmatter + H1). Refuses to overwrite a §0 that exists but is
+    non-canonical.
+  - `update-playbook.apply` — plan-only (prints the submodule bump
+    sequence with current pin → latest tag).
+- **`/ai-playbook-check` skill** at `skills/ai-playbook-check/SKILL.md`.
+  Wraps the orchestrator with interactive `AskUserQuestion` multi-select
+  for drift remediation. Syncs to consumer `.claude/skills/` via the
+  existing materialise mechanism.
+- **`docs/concepts/enforcement-layers.md`** — new section "Rule
+  `.rule.py` contract" documenting the additive `apply` semantics
+  (invariants, what apply MUST satisfy, what it MUST NOT do, invocation
+  contexts, relationship to `apply-fix-contract`).
+- **`AGENTS.md` §9 Rule Map** — 10 new slugs added under "Enforced"
+  group. The rule corpus grows from 39 to 49 rules.
+
+### Carried forward from `[Unreleased]` (pre-v0.19.2 staging)
 
 - **Opportunistic queue drain** — `scripts/retain_memory.py` and
   `scripts/inject_context.py` now drain `<consumer>/.ai-playbook/hindsight-queue.jsonl`
@@ -54,12 +128,15 @@ All notable changes to `ai-playbook` are documented here. Semver.
   local copies. Test contract updated (3 status-related tests removed; 4
   frontmatter-related tests added).
 
-### Known gaps still pending (post-v0.19.2, post-review gate)
+### Migration
 
-- **v0.19.x (subsequent post-review fix iterations)**: reserved for any
-  further user-review feedback after v0.19.2.
-- **v0.20.0 (final cut)**: visible milestone PR; tagged only on explicit
-  user approval.
+Consumers absorbing v0.19.3 see zero behavioural change to existing flows.
+The new orchestrator is opt-in — invoke `python .ai-playbook/scripts/ai_playbook_check.py --check`
+to surface drift, or use the new `/ai-playbook-check` skill in a Claude Code
+session. The orchestrator is also useful for first-run audits when bumping
+to v0.19.3: it reports any pre-existing drift that the previously-invisible
+rules now surface (dispatcher routers missing, `.gitignore` entries
+incomplete, etc.).
 
 ## [0.19.2] — 2026-05-19 — MCP tenant-specific decoupling (post-flip cleanup)
 
