@@ -11,7 +11,7 @@ order: 1
 
 # Architecture tour — your first 15 minutes
 
-> **What you'll learn**: What ai-playbook is, how its four doc types (rules, concepts, runbooks, tutorials) fit together, and how to run the validators that keep the repo honest. By the end you will have cloned the repo, installed it locally, and watched four real validators report green on your machine.
+> **What you'll learn**: What ai-playbook is, how its four doc types (rules, concepts, runbooks, tutorials) fit together, and how to run the validators that keep the repo honest. By the end you will have cloned the repo, installed it locally, and watched five real validators (including the cross-cutting drift orchestrator) report green on your machine.
 > **Estimated time**: 15 min
 > **Prerequisites**:
 > - Python 3.11+ on your `PATH` (`python --version` should print 3.11 or newer)
@@ -62,9 +62,13 @@ cd ai-playbook
 Expected output: a fresh clone, ~7000+ files, no errors. Confirm with `ls`:
 
 ```
-AGENTS.md  CHANGELOG.md  README.md  VERSION  configs/  docs/  openspec/
+AGENTS.md  CHANGELOG.md  README.md  VERSION  configs/  docs/
 pyproject.toml  schemas/  scripts/  skills/  specs/  templates/  tests/
 ```
+
+Note: `openspec/` is gitignored at the playbook root (per PR #79) and only
+appears if you scaffold an in-flight change locally. Consumer projects
+keep their own `openspec/` tree — that is unchanged.
 
 Install the playbook as an editable Python package so the validators are importable:
 
@@ -84,7 +88,7 @@ If you see `ModuleNotFoundError` in any later step, this is the line that failed
 
 ## 4. Run the test suite (≤2 min)
 
-The playbook ships ~1000 tests as of v0.18.3. They run in under a minute on a modern laptop:
+The playbook ships ~1200 tests as of v0.19.4. They run in under a minute on a modern laptop:
 
 ```bash
 python -m pytest tests/ -q
@@ -93,7 +97,7 @@ python -m pytest tests/ -q
 Expected tail of output (numbers move slice over slice):
 
 ```
-~1080 passed, 2 skipped in 25.00s
+~1200 passed, 2 skipped in 25.00s
 ```
 
 The 2 skipped tests are end-to-end integration tests that require remote services (`AIPLAYBOOK_E2E=1`, Hindsight URL, Cloudflare Access tokens). They are designed to skip in local environments; that is correct.
@@ -135,10 +139,10 @@ python scripts/check_doc_language.py docs/
 Expected output:
 
 ```
-check_doc_language: OK (98 files; 1 non-English / 1.0%; threshold 5%)
+check_doc_language: OK (134 files; 0 non-English / 0.0%; threshold 5%)
 ```
 
-What just happened: the script walked `docs/`, sampled prose blocks, and classified each as English or not. It reports as long as the non-English share stays under 5% (lenient floor during reorg slices; will tighten later). The single non-English flag is a known false positive (a quoted Spanish phrase inside an English doc) — it does not fail.
+What just happened: the script walked `docs/`, sampled prose blocks, and classified each as English or not. It reports as long as the non-English share stays under 5% (lenient floor during reorg slices; will tighten later). After the v0.19 docs rewrite the corpus is currently 0% non-English; the threshold remains 5% so new docs that quote a foreign phrase don't fail CI.
 
 Try it on a single file:
 
@@ -172,7 +176,48 @@ If any rule's pair is missing, you would see a line like `FAIL: docs/rules/foo.r
 
 ---
 
-## 8. (Optional) Run the AGENTS.md size guard (≤1 min)
+## 8. Run the cross-cutting drift orchestrator (≤2 min)
+
+So far you've run validators one at a time. The L4 advisor `ai-playbook-check`
+loads every `docs/rules/<slug>.rule.md`, runs each paired `<slug>.rule.py validate`
+against the cwd, and reports a unified drift summary across all rules. It also
+checks whether the consumer's submodule pin is behind the latest released tag.
+
+The playbook dogfoods this orchestrator against itself:
+
+```bash
+python scripts/ai_playbook_check.py --check
+```
+
+Expected output (counts move as the rule set grows):
+
+```
+═════════════════════════════════════════════════════════════════
+  ai-playbook-check
+  target:   C:/Projects/ai-playbook
+  playbook: C:/Projects/ai-playbook  •  pinned: v0.19.4
+═════════════════════════════════════════════════════════════════
+  49 rules: ok=30 drift=6 manual-only=10 n/a=3 error=0
+```
+
+When run against the playbook itself, the `drift` count is non-zero by design:
+several consumer-facing rules (e.g. `gitignore-entries`, `claude-settings`)
+expect artifacts that exist in consumer repos, not in the source playbook.
+Run the same command from inside a consumer repo and you should see `drift=0`
+on a healthy install. `--check` is report-only. Without it the orchestrator
+offers opt-in remediation for rules whose `.rule.py` implements `apply` —
+**13 of the 39 paired rules** at v0.19.4 auto-remediate; the remaining 26
+paired rules are validate-only, and a further 10 rules are advisory (no
+paired hook, manual fix only). In a consumer repo you typically use the
+wrapper skill `/ai-playbook-check` from Claude Code instead of the raw
+script — it prompts via `AskUserQuestion` instead of stdin and handles the
+multi-select UI for you.
+
+See [skills/ai-playbook-check/SKILL.md](../../skills/ai-playbook-check/SKILL.md) for the skill contract and [docs/concepts/enforcement-layers.md](../concepts/enforcement-layers.md) §"Rule .rule.py contract" for what each rule's `validate` / `apply` must implement.
+
+---
+
+## 9. (Optional) Run the AGENTS.md size guard (≤1 min)
 
 The dispatcher file at the repo root (`AGENTS.md`) has a 500-line cap per decision D14. The cap exists because every LLM session reloads it, and long dispatchers degrade rule-following per IFEval (arXiv 2311.07911).
 
@@ -190,7 +235,7 @@ If you ever see a cap violation, the fix is to extract long sections to `docs/co
 
 ---
 
-## 9. What you can build next
+## 10. What you can build next
 
 You have run four validators against the playbook itself. The same APIs power consumer tooling. Five small projects you can take from here to internalise the L1 / L2 / L3 model:
 
@@ -202,13 +247,13 @@ You have run four validators against the playbook itself. The same APIs power co
 
 The full breakdown of every rule's L1 / L2 / L3 surface lives in [rule-use-cases-matrix.md](../concepts/rule-use-cases-matrix.md). The academic grounding for the layered model lives in [academic-foundations.md](../concepts/academic-foundations.md).
 
-## 10. What's next
+## 11. What's next
 
 You now have:
 
 - A working local clone with the playbook installed (`pip install -e .`).
 - A green test suite.
-- A green pass through three of the playbook's own validators.
+- A green pass through four of the playbook's own validators plus the cross-cutting `ai-playbook-check` orchestrator.
 - A mental model of the four doc types and how they pair.
 
 Pick the next tutorial based on what you came here to do:
