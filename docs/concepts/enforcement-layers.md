@@ -96,6 +96,51 @@ flowchart LR
 
 When L1 and L2 disagree, L1 is authoritative. The `.rule.md` doc documents the hook; the hook owns the truth. The validator enforces byte-identical CLI invocation between the doc's `## Process supervision` block and the actual hook entrypoint — drift is treated as a doc bug, not a hook bug.
 
+### Rule `.rule.py` contract
+
+Every `scripts/rules/<slug>.rule.py` exposes a CLI with at least the `validate` subcommand. Some rules also expose `apply`, the optional remediation surface introduced in v0.20.0 (PR-B, ai-playbook-check orchestrator).
+
+```bash
+# Always present
+python scripts/rules/<slug>.rule.py validate [<paths-or-args>]
+# Exit codes: 0 ok, 1 violation, 2 schema break / fatal
+
+# Optional (per-rule, additive — additive contract, never required)
+python scripts/rules/<slug>.rule.py apply --dry-run
+# Prints what `apply` would do; mutates nothing. Exit 0.
+
+python scripts/rules/<slug>.rule.py apply
+# Idempotent remediation. Exit 0 on success, 2 on schema break / fatal.
+```
+
+The two-mode design is aligned with Terraform (`plan` / `apply`), Ansible (`--check` / apply), kubectl (`diff` / `apply`), and ruff/eslint (`--check` / `--fix`). Rules that document a remediation in their L2 body but do NOT implement `apply` are **manual-fix only** — the orchestrator (`scripts/ai-playbook-check.py`) lists them with a pointer to the relevant runbook instead of offering auto-apply.
+
+#### What `apply` MUST satisfy
+
+1. **Idempotency** — running `apply` twice in a row on a converged state produces zero diff and exits 0. The implementation re-checks the invariant before mutating.
+2. **Reversibility** — every state change is either trivially reversible (file edit, idempotent `git config`) or leaves a backup in-place (`<path>.pre-migration/` for filesystem reshapes). No silent destructive operations.
+3. **Confirmation surface per rule** — high-blast-radius remediations implement their own confirmation prompt (e.g. typing the literal path before a folder rename). There is NO `risk_level:` / `destructive:` taxonomy in frontmatter — the rule decides what fence it raises internally. The orchestrator's global "apply this plan?" approval is not a substitute for rule-local fences.
+4. **No partial mutations on failure** — if `apply` fails mid-way, the rule MUST either (a) complete the rollback before returning a non-zero exit code, or (b) leave a marker file that a subsequent `apply` detects and resumes from. Half-applied state is the worst outcome.
+5. **Dry-run parity** — `apply --dry-run` MUST print the exact same set of mutations `apply` would perform. Drift between dry-run output and real apply is a rule-implementation bug.
+
+#### What `apply` MUST NOT do
+
+- Mutate state outside the rule's documented scope (e.g. `bare-layout.rule.py apply` MUST NOT touch unrelated `.gitignore` entries).
+- Honour environment overrides that bypass the rule's own confirmation surface, unless explicitly documented (`--force-cwd-lock` for `bare-layout` is documented; an undocumented `--yes` flag that bypasses path-typing IS NOT acceptable).
+- Call out to other rules' `apply` implementations. Chained remediation is the orchestrator's job, not a rule's.
+
+#### Relationship to `apply-fix-contract`
+
+The `apply-fix-contract` rule ([docs/rules/apply-fix-contract.rule.md](../rules/apply-fix-contract.rule.md)) covers a DIFFERENT surface: HITL-gated production mutations in `langgraph-aiops/` workflows. That rule mandates `hitl.request_approval` + `verify_apply_safety` + `record_apply_outcome` for runtime workflow mutations. This `.rule.py apply` contract covers local repo-state remediation invoked by a developer or the `ai-playbook-check` orchestrator — no HITL, no production blast radius, idempotent local file edits only. Same word ("apply"), different scopes.
+
+#### Where `apply` is invoked from
+
+- **Direct CLI** — a developer or a CI step runs `python scripts/rules/<slug>.rule.py apply` directly.
+- **Orchestrator** — `scripts/ai-playbook-check.py` loads every rule via `hook_dispatcher.load_rules()`, runs `validate`, presents drift, and on user opt-in runs `apply` for the selected rules.
+- **Skill** — `.claude/skills/ai-playbook-check/SKILL.md` wraps the orchestrator behind `AskUserQuestion` multi-select.
+
+Rules without an `apply` implementation are NOT a contract violation — `validate`-only rules are the historical baseline. `apply` is purely additive.
+
 ### Diagram 3 — cross-LLM degradation
 
 Different LLM hosts expose different enforcement surfaces. The playbook compensates by stacking L2 + L3 wherever L1 is unavailable.
