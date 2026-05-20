@@ -42,3 +42,4 @@
 | [update-playbook.rule.md](update-playbook.rule.md) | Bump the .ai-playbook submodule pin in a consumer repository to a newer semver tag. |
 | [verdict-contract.rule.md](verdict-contract.rule.md) | Every QA-style artefact MUST end with exactly one canonical verdict line from a fixed four-literal set; the verdict is the machine-readable interface between worker and reviewer. |
 | [verification-before-completion.rule.md](verification-before-completion.rule.md) | No claim of completion without fresh verification output in the same message — `✅ APPROVED` MUST be preceded by the verbatim output of the verification command (exit code cited, broadest CI scope) ex… |
+| [verify-existing-patterns.rule.md](verify-existing-patterns.rule.md) | Before proposing a new concept, rule, script, or infrastructure pattern in any playbook-consuming project, the agent MUST first inspect the existing surface (`docs/concepts/INDEX.md`, `docs/rules/`,… |
