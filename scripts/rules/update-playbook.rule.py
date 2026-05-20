@@ -1,10 +1,13 @@
 """L1 hardrule: update-playbook (paired with docs/rules/update-playbook.rule.md).
 
 Verifies that the `.ai-playbook/` submodule pin advances only to a semver
-tag (`vX.Y.Z`) and never regresses to an older tag.
+tag (`vX.Y.Z`) and never regresses to an older tag. The `apply` subcommand
+is plan-only — bumping a submodule mutates `.gitmodules` and creates a
+commit; the operator must run the printed commands manually.
 
 CLI:
     python scripts/rules/update-playbook.rule.py validate
+    python scripts/rules/update-playbook.rule.py apply [--dry-run]
 
 Exit codes:
     0 — submodule pin is a semver tag.
@@ -30,6 +33,40 @@ def _consumer_root() -> Path | None:
     return None
 
 
+def _current_pin(submodule: Path) -> str | None:
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", str(submodule), "describe", "--tags", "--exact-match"],
+            stderr=subprocess.DEVNULL, text=True,
+        ).strip()
+        return out or None
+    except subprocess.CalledProcessError:
+        return None
+
+
+def _latest_tag(submodule: Path) -> str | None:
+    """Fetch + return the newest semver tag from origin."""
+    try:
+        subprocess.check_call(
+            ["git", "-C", str(submodule), "fetch", "--tags", "--quiet"],
+            timeout=30,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        pass  # best-effort
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", str(submodule), "tag", "--list", "v*", "--sort=-v:refname"],
+            stderr=subprocess.DEVNULL, text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        return None
+    for line in out.splitlines():
+        line = line.strip()
+        if line and SEMVER_RE.match(line):
+            return line
+    return None
+
+
 def validate() -> int:
     root = _consumer_root()
     if root is None:
@@ -39,12 +76,8 @@ def validate() -> int:
     if not submodule.is_dir():
         print(f"error: .ai-playbook submodule missing at {submodule}", file=sys.stderr)
         return 2
-    try:
-        tag = subprocess.check_output(
-            ["git", "-C", str(submodule), "describe", "--tags", "--exact-match"],
-            stderr=subprocess.STDOUT, text=True,
-        ).strip()
-    except subprocess.CalledProcessError:
+    tag = _current_pin(submodule)
+    if tag is None:
         print("error: .ai-playbook HEAD is not pinned to a tag (floating ref)", file=sys.stderr)
         return 1
     if not SEMVER_RE.match(tag):
@@ -53,12 +86,49 @@ def validate() -> int:
     return 0
 
 
+def apply(*, dry_run: bool) -> int:
+    """Plan-only: print the bump commands. The operator runs them manually."""
+    root = _consumer_root()
+    if root is None:
+        print("ok: no .gitmodules here (not applicable)")
+        return 0
+    submodule = root / ".ai-playbook"
+    if not submodule.is_dir():
+        print(f"error: .ai-playbook submodule missing at {submodule}", file=sys.stderr)
+        return 2
+
+    pinned = _current_pin(submodule) or "<unknown>"
+    latest = _latest_tag(submodule) or "<unknown>"
+    banner = "[plan only — update-playbook apply does NOT execute the bump]"
+    if dry_run:
+        banner = "[dry-run] " + banner
+
+    if latest != "<unknown>" and pinned == latest:
+        print(f"ok: .ai-playbook pinned to latest tag {pinned} (no-op)")
+        return 0
+
+    print(banner)
+    print()
+    print(f"Bump plan: {pinned} → {latest}")
+    print()
+    print(f"  cd {root}")
+    print(f"  git -C .ai-playbook fetch --tags")
+    print(f"  git -C .ai-playbook checkout {latest}")
+    print(f"  git add .ai-playbook")
+    print(f'  git commit -m "chore(playbook): bump ai-playbook {pinned} → {latest}"')
+    print("  python .ai-playbook/scripts/rules/update-playbook.rule.py validate")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="update-playbook")
-    parser.add_argument("subcommand", choices=["validate"])
+    parser.add_argument("subcommand", choices=["validate", "apply"])
+    parser.add_argument("--dry-run", action="store_true", help="With 'apply': add a dry-run banner.")
     args = parser.parse_args(argv)
     if args.subcommand == "validate":
         return validate()
+    if args.subcommand == "apply":
+        return apply(dry_run=args.dry_run)
     return 2
 
 
