@@ -6,7 +6,7 @@ description: A guided tour through the five design decisions that shape ai-playb
 estimated_time: "15 min"
 prerequisite_concepts: [dispatcher-chain]
 audience: developer
-order: 7
+order: 6
 ---
 
 # Why these choices — the rationale tour

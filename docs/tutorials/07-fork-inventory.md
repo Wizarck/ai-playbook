@@ -6,7 +6,7 @@ description: A guided walk through the upstream-tracked forks the playbook touch
 estimated_time: "10 min"
 prerequisite_concepts: [upstream-sync]
 audience: developer
-order: 8
+order: 7
 ---
 
 # Fork inventory — walk the upstream-tracked forks the project maintains
@@ -17,7 +17,12 @@ order: 8
 > - [01-architecture-tour.md](01-architecture-tour.md) — feel the repo shape
 > - [Concept: upstream-sync](../concepts/upstream-sync.md) — the governance contract this catalog implements
 
-This tutorial is intentionally short. Treat it as a guided read of the fork catalog plus a thought experiment: at the end you mentally onboard a sixth fork using the checklist.
+This tutorial is intentionally short. Treat it as a guided read of the fork catalog plus a thought experiment: at the end you mentally onboard one more fork using the checklist.
+
+> **Note on examples**: the table in §2 uses generic example rows after the
+> v0.19 privacy-flip scrub (commit `e6f640c`). Your own catalog lives in
+> the consumer repo's `forks.md` (or equivalent); the rows here exist only
+> to show shape, not to enumerate real upstream forks.
 
 ---
 
@@ -31,18 +36,24 @@ This tutorial is intentionally short. Treat it as a guided read of the fork cata
 The per-dev YAML registry at `~/.ai-playbook/forks.yaml` is the machine-readable source of
 truth; this Markdown file is the human-readable catalog.
 
-## 2. Inventory
+## 2. Inventory (example shape)
+
+The rows below show the **shape** of a fork catalog — what each column means
+and how to fill them. Your real catalog lives in a consumer repo, not in
+this template.
 
 | Fork | Upstream | Our repo | Branch | Owner | Purpose |
 |---|---|---|---|---|---|
-| hindsight | — (consumed as upstream image `ghcr.io/vectorize-io/hindsight`; not forked) | — | — | — | Not a fork. Upstream container image consumed directly by k3s Deployment. If divergence needed later, fork `vectorize-io/hindsight` and update this row. |
-| hermes | `NousResearch/hermes-agent` | [`Wizarck/hermes-agent`](https://github.com/Wizarck/hermes-agent) | `consumer-d/main` | the maintainer | Personal assistant agent deployed 24/7 on VPS per `consumer-d.md` (`/opt/hermes/`, Telegram gateway, API `:8642`). Upstream moves fast; weekly `upstream_refresher` targets this fork. **This is THE Hermes** — the maintainer's single personal-assistant runtime. |
-| paperclip-mcp | — (own repo; Paperclip itself lives elsewhere) | [`Wizarck/paperclip-mcp`](https://github.com/Wizarck/paperclip-mcp) | `main` | the maintainer | MCP server wrapping the Paperclip orchestration platform. NOT a fork — original work. Tracked here because Paperclip upstream changes may require MCP interface updates. |
-| awesome-paperclip | `gsxdsm/awesome-paperclip` | [`Wizarck/awesome-paperclip`](https://github.com/Wizarck/awesome-paperclip) | `main` | the maintainer | Curated plugin list; low-churn fork. |
-| lightrag | — (not yet forked in the org) | — | — | — | Not found in the GitHub org at inventory time. If / when a fork is needed, create `Wizarck/lightrag` and update this row. |
+| `example-agent` | `upstream-org/example-agent` | `your-org/example-agent` | `main` | `you@example.com` | A fork tracking an active upstream; weekly `upstream_refresher` runs against it. Use this row as a template for fast-moving forks where you carry patches. |
+| `example-mcp-wrapper` | — (own repo; not a fork) | `your-org/example-mcp-wrapper` | `main` | `you@example.com` | Original work tracked here because an upstream system it wraps may force interface changes. Use this row for "not a fork but watch this" entries. |
+| `example-curated-list` | `community/awesome-thing` | `your-org/awesome-thing` | `main` | `you@example.com` | Low-churn fork of a curated list. Use this row for forks that need refresh ≤ monthly. |
+| `example-upstream-image` | — (consumed as container image, not forked) | — | — | — | Upstream consumed as an artifact. Tracked so that if divergence becomes necessary, the row is already there waiting to be filled. |
+| `example-deferred-fork` | — (not yet forked) | — | — | — | Placeholder for a fork you intend to create later. Helpful so the inventory documents intent, not just current state. |
 
-Each row's `Our repo` links to a local clone whose `PATCHES.md` is the authoritative patch list
-for that fork. When adding a new fork, populate this table AND append to
+Each row's `Our repo` should link to a local clone whose `PATCHES.md` is the
+authoritative patch list for that fork (template at
+[`../../templates/PATCHES.md.tmpl`](../../templates/PATCHES.md.tmpl)). When
+adding a new fork, populate the catalog AND append to
 `~/.ai-playbook/forks.yaml` (see §3 step 5).
 
 ## 3. Onboarding a new fork
@@ -59,8 +70,10 @@ Follow in order. Do not skip.
 3. **Add `PATCHES.md` at the fork root.** Copy from
    [`../../templates/PATCHES.md.tmpl`](../../templates/PATCHES.md.tmpl); fill `{{FORK_NAME}}`,
    `{{UPSTREAM_URL}}`, `{{LAST_REFRESH_ISO}}`, and `{{TODAY}}`. Commit.
-4. **Add an entry to this inventory.** Append a new row to §2 with the correct prefix
-   (`consumer-d/...` or `consumer-b/...`) and a one-line Purpose.
+4. **Add an entry to your inventory.** In your consumer-side fork catalog
+   (whatever file plays the role of §2 for your project) append a new row
+   with a one-line Purpose. Keep the columns in the same order as the
+   example table above.
 5. **Register in `~/.ai-playbook/forks.yaml`.** Append an entry:
    ```yaml
    forks:
@@ -73,13 +86,15 @@ Follow in order. Do not skip.
 
 ## 4. Removing a fork
 
-If we stop tracking a fork (upstream dead, we no longer use it, we vendored permanently):
+If you stop tracking a fork (upstream dead, you no longer use it, you vendored permanently):
 
 1. Mark every active patch in `PATCHES.md` as `lost` or `merged` with a final decision note.
-2. Move the row in §2 to a struck-through archive block at the end of this file (retain for
-   history; don't delete).
+2. Move the row in your inventory to a struck-through archive block at the
+   end of the file (retain for history; don't delete).
 3. Remove the entry from `~/.ai-playbook/forks.yaml`.
-4. `hindsight.retain` a decision entry in the `ops-forks` bank explaining the retirement.
+4. Record a decision entry (in Hindsight, ADR, or your team's equivalent
+   memory store) explaining the retirement so future onboarding doesn't
+   re-add the fork by accident.
 
 ## 5. What's next
 
@@ -90,6 +105,6 @@ If we stop tracking a fork (upstream dead, we no longer use it, we vendored perm
 
 ---
 
-**Inventory research 2026-04-23** — all URLs verified via `gh repo list Wizarck --limit 40`. Remaining clarifications
-above; the placeholders are best-effort and need the maintainer's verification before the workflow's
-first run.
+The example rows are illustrative — they do NOT enumerate any real upstream
+forks the playbook maintains. Treat them as a shape guide; your consumer
+repo's fork catalog is authoritative for that project.

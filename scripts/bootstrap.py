@@ -57,7 +57,7 @@ from scripts.materialise_skills import materialise_skills  # noqa: E402
 SCRIPT_BASENAME = "bootstrap.py"
 GATE_NAME = "submodule-unreachable"
 DEFAULT_PLAYBOOK_URL = "https://github.com/Wizarck/ai-playbook.git"
-DEFAULT_PIN = "v0.3.0"
+DEFAULT_PIN = "v0.19.4"
 SUBMODULE_PATH = ".ai-playbook"
 TEMPLATE_SUBDIR = Path("templates") / "new-project"
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
