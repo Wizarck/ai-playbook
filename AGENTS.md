@@ -138,6 +138,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [notification-no-secrets](docs/rules/notification-no-secrets.rule.md) — consumer-side surface (Slice 7).
 - [parallel-wave-anti-collision](docs/rules/parallel-wave-anti-collision.rule.md)
 - [slice-preflight](docs/rules/slice-preflight.rule.md)
+- [verify-existing-patterns](docs/rules/verify-existing-patterns.rule.md)
 
 ### Hardrule deferred (paired_hardrule named, .py ships in a later slice)
 

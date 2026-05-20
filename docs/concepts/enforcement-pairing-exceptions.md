@@ -6,7 +6,7 @@ summary: |
   Most ai-playbook rules carry a paired L1 hardrule. A handful do not —
   they declare paired_hardrule null and rely on L2 + L3 only. This doc
   defines when that exception is legitimate and how the audit trail works.
-last_validated: "2026-05-19"
+last_validated: "2026-05-20"
 ---
 
 # Enforcement pairing exceptions
@@ -71,6 +71,7 @@ Its body explains the rubric in prose, gives preferred / avoided examples, and i
 | Rule slug | Condition | Rationale |
 |---|---|---|
 | `conflict-resolution-policy` | #1 (non-deterministic) | Conflict-tier classification (T1 / T2 / T3 / T4) requires judgment of intent; no Python check distinguishes "overlapping lines with disjoint intent" from "overlapping lines with combinable intent". Reviewer-driven; persistent ad-hoc resolutions surface in the monthly retro. |
+| `verify-existing-patterns` | #1 (non-deterministic) | "Did the agent substantively read `docs/concepts/INDEX.md` and `docs/rules/` before proposing new infra?" requires prose inference of semantic overlap between the proposal and existing artefacts; no Python check distinguishes a substantive read from a token-counting glance, and a hook firing on every "let's add" phrase would produce a false-positive storm. Reviewer-enforced via `❓ CLARIFICATION NEEDED` on proposals lacking an in-message verification footprint. |
 | `parallel-wave-anti-collision` | #1 (non-deterministic) | Wave-N anti-collision contract is enforced socially via the `docs/openspec-slice.md` "Anti-collision contract" section plus reviewer discipline. A grep-style L1 could surface drift but cannot judge whether two slices' touch-lists are genuinely disjoint or only superficially so. |
 | `slice-preflight` | #2 (informational) | Records the preflight checklist any slice must satisfy before the first task commit. The individual checks are already L1-enforced by the underlying skills (apply-skill-enforcement, validate_pairing, openspec_validate); this rule's value is the assembled checklist, not a new enforcement layer. |
 | `parallel-review-verdict-dismissal` | #2 (informational) | Documents the verdict-contract branch for parallel-review aggregation. The verdict literals themselves are paired-hardrule-checked in `verdict-contract.rule.md`; this entry exists for discoverability when triaging a dismissed reviewer verdict. |
