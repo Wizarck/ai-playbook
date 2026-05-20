@@ -43,12 +43,17 @@ From inside the new project repo (created, `git init` done, first commit made):
 ```bash
 # In C:/Projects/acme-shop (or wherever)
 git submodule add git@github.com:Wizarck/ai-playbook.git .ai-playbook
-cd .ai-playbook && git checkout v0.19.4 && cd ..
+
+# Resolve the latest released tag from the playbook itself (single source of
+# truth: the VERSION file at its repo root). Pin the submodule to that tag.
+TAG="v$(cat .ai-playbook/VERSION)"
+cd .ai-playbook && git checkout "$TAG" && cd ..
+
 git add .gitmodules .ai-playbook
-git commit -m "feat: add ai-playbook submodule pinned at v0.19.4"
+git commit -m "feat: add ai-playbook submodule pinned at $TAG"
 ```
 
-Replace `v0.19.4` with whatever the latest released tag is when you read this — `git -C .ai-playbook tag --list 'v*' --sort=-v:refname | head -1` returns it. The submodule MUST be pinned to a semver tag, never a branch. This is the inheritance anchor for `AGENTS.md` frontmatter.
+The submodule MUST be pinned to a semver tag, never a branch. This is the inheritance anchor for `AGENTS.md` frontmatter. If your shell can't expand `$(cat .ai-playbook/VERSION)` (e.g. cmd.exe), run `type .ai-playbook\VERSION` to read it and pass the tag manually.
 
 ### What can go wrong
 
@@ -106,7 +111,7 @@ Expected: `✅ AGENTS.md valid against schema agents-md/v1`.
 ### What can go wrong
 
 - **`❌ AGENTS.md missing required field inherits_from`** → the template already has it; you deleted it. Put it back.
-- **`❌ inherits_from pin is not a semver tag`** → use `v0.19.4` (or whichever tag you pinned in step 1), not `main` or `HEAD`.
+- **`❌ inherits_from pin is not a semver tag`** → use the `vX.Y.Z` tag you pinned in step 1 (read it back with `cat .ai-playbook/VERSION`), not `main` or `HEAD`.
 - **Forgot to fill a `{{PLACEHOLDER}}`** — `schema_validate.py` doesn't catch Mustache leftovers (it validates structure, not content). Grep the file: `grep -n '{{' AGENTS.md` should return nothing.
 
 ---
@@ -210,7 +215,7 @@ Contract for the wrapper skill: [../../skills/ai-playbook-check/SKILL.md](../../
 
 - **`error: no consumer root with .ai-playbook submodule found`** → run from inside the consumer repo, not the playbook clone.
 - **A rule shows `drift` with no `apply` available** → consult the runbook the orchestrator points at; remediate manually, then re-run.
-- **Encoding errors on Windows (`UnicodeEncodeError`)** → already fixed in v0.19.4 ([PR #84](https://github.com/Wizarck/ai-playbook/pull/84)); upgrade your pin.
+- **Encoding errors on Windows (`UnicodeEncodeError`)** → fixed by the UTF-8 stdout patch ([PR #84](https://github.com/Wizarck/ai-playbook/pull/84)); upgrade to the playbook tag that ships it or later.
 
 ---
 

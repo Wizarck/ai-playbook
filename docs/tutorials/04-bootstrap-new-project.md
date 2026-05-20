@@ -23,10 +23,11 @@ The entry point is `scripts/bootstrap.py`. It is idempotent: running it twice on
 
 ```bash
 # From inside a freshly-cloned consumer repo (not inside ai-playbook itself).
-# project_name is a POSITIONAL argument, not a --flag:
+# project_name is a POSITIONAL argument, not a --flag. The --playbook-pin
+# default is read from the playbook's own VERSION file, so the simplest
+# invocation is:
 python <path-to-ai-playbook>/scripts/bootstrap.py acme-shop \
-    --owner you@example.com \
-    --playbook-pin v0.19.4
+    --owner you@example.com
 ```
 
 Common flags (`bootstrap.py --help` is the source of truth):
@@ -36,7 +37,7 @@ Common flags (`bootstrap.py --help` is the source of truth):
 | `project_name` (positional) | Required. Kebab-case slug, matches the repo dir name. Pattern `[a-zA-Z0-9][a-zA-Z0-9_-]*`. |
 | `--owner <email>` | Owner email stamped into `AGENTS.md` frontmatter. Default: `$GIT_AUTHOR_EMAIL` then `git config user.email`. |
 | `--path <dir>` | Target directory. Default: `<cwd>/<project_name>`. |
-| `--playbook-pin <tag>` | Semver tag to pin the submodule to. Default: `DEFAULT_PIN` in `bootstrap.py` (currently `v0.19.4` — kept in sync with each playbook release). |
+| `--playbook-pin <tag>` | Semver tag to pin the submodule to. Default: `v$(cat VERSION)` read from the playbook checkout the script lives in (single source of truth). Override only to pin to a non-current tag. |
 | `--playbook-path <path>` | Offline fallback — copy from a local playbook checkout instead of cloning. Requires `--force-with-reason` (breaks the "always pin to released tag" invariant). |
 | `--personal` | Marks the generated `AGENTS.md` with `personal: true`. Only for the maintainer's personal repos. |
 | `--dry-run` | Report planned actions without side effects. |
@@ -88,7 +89,7 @@ Every template file uses Mustache-style `{{TOKEN}}` placeholders. `bootstrap.py`
 ## Templates
 
 See [`templates/new-project/`](../../templates/new-project/) — the source-of-truth
-list lives there. As of v0.19.4 it includes:
+list lives there. As of writing it includes:
 
 - `AGENTS.md.tmpl`
 - `CLAUDE.md.tmpl`, `GEMINI.md.tmpl`
