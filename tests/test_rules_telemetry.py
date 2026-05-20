@@ -107,3 +107,61 @@ def test_cli_emit_calls_main_with_no_args_when_argv_none(
     rc = _telemetry.cli_emit("update-playbook", fake_main)
     assert rc == 0
     assert called == ["yes"]
+
+
+def test_ensure_utf8_streams_calls_reconfigure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`_ensure_utf8_streams` calls reconfigure(encoding='utf-8', errors='replace')
+    on every stream that exposes the method."""
+    calls: list[tuple[str, dict]] = []
+
+    class _FakeStream:
+        def __init__(self, name: str) -> None:
+            self._name = name
+
+        def reconfigure(self, **kwargs):  # noqa: ANN003
+            calls.append((self._name, kwargs))
+
+    fake_out = _FakeStream("stdout")
+    fake_err = _FakeStream("stderr")
+    monkeypatch.setattr(_telemetry.sys, "stdout", fake_out)
+    monkeypatch.setattr(_telemetry.sys, "stderr", fake_err)
+    _telemetry._ensure_utf8_streams()
+    assert ("stdout", {"encoding": "utf-8", "errors": "replace"}) in calls
+    assert ("stderr", {"encoding": "utf-8", "errors": "replace"}) in calls
+
+
+def test_ensure_utf8_streams_skips_stream_without_reconfigure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Streams without a `reconfigure` attribute (e.g. pytest capsys's stream)
+    must be tolerated silently."""
+
+    class _NoReconfigure:
+        pass
+
+    monkeypatch.setattr(_telemetry.sys, "stdout", _NoReconfigure())
+    monkeypatch.setattr(_telemetry.sys, "stderr", _NoReconfigure())
+    # Must not raise.
+    _telemetry._ensure_utf8_streams()
+
+
+def test_ensure_utf8_streams_swallows_reconfigure_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Boom:
+        def reconfigure(self, **kwargs):  # noqa: ANN003
+            raise RuntimeError("simulated reconfigure failure")
+
+    monkeypatch.setattr(_telemetry.sys, "stdout", _Boom())
+    monkeypatch.setattr(_telemetry.sys, "stderr", _Boom())
+    _telemetry._ensure_utf8_streams()  # must not raise
+
+
+def test_cli_emit_invokes_ensure_utf8_streams(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+    called = []
+    monkeypatch.setattr(_telemetry, "_ensure_utf8_streams", lambda: called.append(True))
+    _telemetry.cli_emit("update-playbook", lambda: 0)
+    assert called == [True]

@@ -119,12 +119,57 @@ def validate(cwd: Path | None = None) -> int:
     return 0
 
 
+def _sibling_agents_pointers(root: Path) -> list[Path]:
+    """Return other `.cursor/rules/*.mdc` files that reference AGENTS.md.
+
+    These are likely pre-existing custom routers that became redundant once
+    the canonical ``00-AGENTS.mdc`` is in place. Surfaced as a warning (not
+    an error) so the operator can decide whether to delete them.
+    """
+    rules_dir = root / ".cursor" / "rules"
+    if not rules_dir.is_dir():
+        return []
+    canonical = rules_dir / "00-AGENTS.mdc"
+    siblings: list[Path] = []
+    for path in sorted(rules_dir.glob("*.mdc")):
+        if path == canonical:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "AGENTS.md" in text:
+            siblings.append(path)
+    return siblings
+
+
+def _warn_sibling_routers(siblings: list[Path]) -> None:
+    if not siblings:
+        return
+    print(
+        f"warn: {len(siblings)} other .cursor/rules/*.mdc file(s) also reference "
+        "AGENTS.md and may now be redundant routers:",
+        file=sys.stderr,
+    )
+    for path in siblings:
+        print(f"  - {path}", file=sys.stderr)
+    print(
+        "  Review by hand; delete duplicates so Cursor loads only the canonical "
+        "00-AGENTS.mdc.",
+        file=sys.stderr,
+    )
+
+
 def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
     """Write a canonical `.cursor/rules/00-AGENTS.mdc` when missing. Idempotent.
 
     If the pointer already exists but is malformed, the rule refuses to
     overwrite — the operator must reconcile by hand. This prevents `apply`
     from clobbering hand-edited customisations.
+
+    On any non-error outcome (canonical-already / dry-run / fresh-write), also
+    warn (rc=0) when other `.cursor/rules/*.mdc` files reference AGENTS.md —
+    those are likely redundant routers from before this rule existed.
     """
     root = _consumer_root(cwd)
     if root is None:
@@ -141,6 +186,7 @@ def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
             return 2
         if current.strip() == CANONICAL_CURSOR_MDC.strip():
             print(f"ok: {pointer} already canonical (no-op)")
+            _warn_sibling_routers(_sibling_agents_pointers(root))
             return 0
         print(
             f"refuse: {pointer} exists with non-canonical content; "
@@ -151,6 +197,7 @@ def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
 
     if dry_run:
         print(f"[dry-run] would write {pointer} ({_content_line_count(CANONICAL_CURSOR_MDC)} content lines)")
+        _warn_sibling_routers(_sibling_agents_pointers(root))
         return 0
 
     try:
@@ -160,6 +207,7 @@ def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
         print(f"error: cannot write {pointer}: {exc}", file=sys.stderr)
         return 2
     print(f"wrote {pointer}")
+    _warn_sibling_routers(_sibling_agents_pointers(root))
     return 0
 
 
