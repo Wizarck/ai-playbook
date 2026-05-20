@@ -136,9 +136,18 @@ def test_resolve_target_path_file_collision(tmp_path: Path) -> None:
 
 
 def test_substitute_replaces_all_placeholders() -> None:
-    text = "project={{PROJECT_NAME}} owner={{OWNER_EMAIL}} today={{TODAY}}"
-    out = bs._substitute(text, project_name="alpha", owner="a@b.c", today_iso="2026-04-23")
-    assert out == "project=alpha owner=a@b.c today=2026-04-23"
+    text = (
+        "project={{PROJECT_NAME}} owner={{OWNER_EMAIL}} today={{TODAY}} "
+        "pin={{PLAYBOOK_PIN}}"
+    )
+    out = bs._substitute(
+        text,
+        project_name="alpha",
+        owner="a@b.c",
+        today_iso="2026-04-23",
+        playbook_pin="v1.2.3",
+    )
+    assert out == "project=alpha owner=a@b.c today=2026-04-23 pin=v1.2.3"
 
 
 def test_copy_templates_writes_expected_files(tmp_path: Path) -> None:
@@ -150,6 +159,7 @@ def test_copy_templates_writes_expected_files(tmp_path: Path) -> None:
         target_dir=target,
         project_name="alpha",
         owner="a@b.c",
+        playbook_pin="v1.2.3",
         dry_run=False,
     )
     agents = target / "AGENTS.md"
@@ -157,6 +167,9 @@ def test_copy_templates_writes_expected_files(tmp_path: Path) -> None:
     content = agents.read_text(encoding="utf-8")
     assert "project: alpha" in content
     assert "owner: a@b.c" in content
+    # inherits_from pin uses the substituted PLAYBOOK_PIN, not a hardcoded tag.
+    assert "ai-playbook@v1.2.3" in content
+    assert "{{PLAYBOOK_PIN}}" not in content
     # Unsubstituted placeholders remain for manual fill.
     assert "{{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}" in content
 
@@ -170,6 +183,7 @@ def test_copy_templates_missing_dir_exits(tmp_path: Path, monkeypatch: pytest.Mo
             target_dir=tmp_path,
             project_name="alpha",
             owner="a@b.c",
+            playbook_pin="v1.2.3",
             dry_run=False,
         )
     assert exc.value.code == 1
@@ -184,6 +198,7 @@ def test_copy_templates_strips_tmpl_suffix(tmp_path: Path) -> None:
         target_dir=target,
         project_name="proj",
         owner="a@b.c",
+        playbook_pin="v1.2.3",
         dry_run=False,
     )
     # .tmpl files should land without the suffix.
@@ -200,6 +215,7 @@ def test_copy_templates_dry_run_no_files(tmp_path: Path) -> None:
         target_dir=target,
         project_name="alpha",
         owner="a@b.c",
+        playbook_pin="v1.2.3",
         dry_run=True,
     )
     assert written  # names listed

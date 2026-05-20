@@ -15,6 +15,8 @@ Responsibilities (per docs/concepts/migration-guide.md + templates/new-project/)
       {{TODAY}} → today ISO date
       {{PROJECT_NAME}} → slug
       {{OWNER_EMAIL}} → resolved owner
+      {{PLAYBOOK_PIN}} → the tag from --playbook-pin (DEFAULT_PIN, read
+                        lazily from the playbook's VERSION file)
    Other placeholders ({{ACTIVE_OPENSPEC_CHANGE_OR_NONE}}, …) are left verbatim
    so the dev fills them.
 5. Best-effort `pre-commit install`; warn if pre-commit is absent.
@@ -269,6 +271,7 @@ def _substitute(
     project_name: str,
     owner: str,
     today_iso: str,
+    playbook_pin: str,
 ) -> str:
     # Bank id is the lowercased project slug per docs/concepts/memory-hierarchy.md §2.
     bank_id = project_name.lower()
@@ -277,6 +280,7 @@ def _substitute(
         .replace("{{PROJECT_NAME}}", project_name)
         .replace("{{OWNER_EMAIL}}", owner)
         .replace("{{PROJECT_BANK}}", bank_id)
+        .replace("{{PLAYBOOK_PIN}}", playbook_pin)
     )
 
 
@@ -286,6 +290,7 @@ def copy_templates(
     target_dir: Path,
     project_name: str,
     owner: str,
+    playbook_pin: str,
     dry_run: bool,
 ) -> list[Path]:
     """Copy templates/new-project/ into target_dir with {{PLACEHOLDER}} substitution.
@@ -324,7 +329,13 @@ def copy_templates(
 
         dst.parent.mkdir(parents=True, exist_ok=True)
         raw = src.read_text(encoding="utf-8")
-        new = _substitute(raw, project_name=project_name, owner=owner, today_iso=today_iso)
+        new = _substitute(
+            raw,
+            project_name=project_name,
+            owner=owner,
+            today_iso=today_iso,
+            playbook_pin=playbook_pin,
+        )
         dst.write_text(new, encoding="utf-8", newline="\n")
         written.append(dst)
 
@@ -580,6 +591,7 @@ def main(argv: list[str] | None = None) -> int:
         target_dir=target_dir,
         project_name=args.project_name,
         owner=owner,
+        playbook_pin=args.playbook_pin,
         dry_run=args.dry_run,
     )
 

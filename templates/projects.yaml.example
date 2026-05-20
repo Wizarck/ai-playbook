@@ -10,13 +10,13 @@ projects:
     owner: 23051550+Wizarck@users.noreply.github.com
     version: 1.0.0
     inherits_from:
-      - github.com/Wizarck/ai-playbook@v0.1.0
+      - github.com/Wizarck/ai-playbook@vX.Y.Z  # whatever the consumer pinned
 
   acme-corp:
     path: C:/Projects/acme-corp
     owner: 23051550+Wizarck@users.noreply.github.com
     version: 1.0.0
     inherits_from:
-      - github.com/Wizarck/ai-playbook@v0.1.0
+      - github.com/Wizarck/ai-playbook@vX.Y.Z  # whatever the consumer pinned
     personal: true
     personal_addon: C:/Projects/acme-corp/acme-corp.md
