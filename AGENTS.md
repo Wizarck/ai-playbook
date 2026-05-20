@@ -53,7 +53,7 @@ Any agent editing this repo MUST:
 
 ## 3 Active work
 
-Tracked in the project plan outside this repo. Current tag: `v0.2.0`. Core specs and scripts are v1.0.0; the handful deferred-by-design (e.g. `incident-response.md`, `model-migration.md`) declare their activation trigger in the header.
+Tracked in the project plan outside this repo. Current tag: see [`VERSION`](VERSION). Core specs and scripts are v1.0.0; the handful deferred-by-design (e.g. `incident-response.md`, `model-migration.md`) declare their activation trigger in the header.
 
 ## 4 Hard rules (this repo only)
 

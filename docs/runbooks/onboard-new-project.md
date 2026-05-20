@@ -95,15 +95,16 @@ Flags:
 | `--personal` | For personal repos only. Marks `personal: true`; loads the personal add-on if configured. |
 | `--dry-run` | Simulate without writing. Recommended on first pass. |
 
-Expected output:
+Expected output (the actual `vX.Y.Z` shown reflects the playbook's current
+`VERSION` file at the time you run bootstrap — bootstrap reads it dynamically):
 
 ```
 → Bootstrapping project '<project-name>'
    target : /c/Projects/<project-name>
    owner  : <your-email>
-   pin    : v0.19.0
+   pin    : vX.Y.Z
    mode   : live
-✓ added .ai-playbook submodule pinned at v0.19.0
+✓ added .ai-playbook submodule pinned at vX.Y.Z
 ✓ copied 8 templates with placeholder substitution
 ✓ pre-commit installed
 ✓ doctor.py: ✅ healthy
@@ -138,7 +139,8 @@ python .ai-playbook/scripts/schema_validate.py AGENTS.md
 ```bash
 cd /c/Projects/<project-name>
 git add .
-git commit -m "chore: bootstrap <project-name> via ai-playbook v0.19.0"
+TAG="v$(cat .ai-playbook/VERSION)"
+git commit -m "chore: bootstrap <project-name> via ai-playbook $TAG"
 git push
 ```
 

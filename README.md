@@ -55,8 +55,9 @@ To consume the playbook as a submodule from your own project:
 # inside your project root
 git submodule add https://github.com/Wizarck/ai-playbook.git .ai-playbook
 git submodule update --init --recursive
-# pin to a release tag (semver — never track main)
-cd .ai-playbook && git checkout v0.19.0 && cd ..
+# pin to the current release tag (semver — never track main).
+# The single source of truth is the playbook's VERSION file:
+cd .ai-playbook && git checkout "v$(cat VERSION)" && cd ..
 ```
 
 For the full guided 15-minute walkthrough, see [docs/tutorials/01-architecture-tour.md](docs/tutorials/01-architecture-tour.md).
@@ -129,20 +130,11 @@ The published site lives at <https://wizarck.github.io/ai-playbook/>.
 
 ## Versioning
 
-Semver on the `main` branch. Consumers pin to a released tag, never `main`. Breaking changes require an RFC and a major bump. Current version: see [`VERSION`](VERSION) (`v0.19.0`). The v0.20.0 milestone is reserved for the final public reference cut on explicit maintainer approval; intermediate versions (v0.19.x) absorb post-review fix iterations.
+Semver on the `main` branch. Consumers pin to a released tag, never `main`. Breaking changes require an RFC and a major bump. **Current version is in [`VERSION`](VERSION)** — every other file in this repo reads it lazily, so a release only ever needs to touch `VERSION` + `CHANGELOG.md` + the git tag. The v0.20.0 milestone is reserved for the final public reference cut on explicit maintainer approval; intermediate versions (v0.19.x) absorb post-review fix iterations.
 
 ## Status
 
-**v0.19.0 — pull-model migration (BREAKING).** Retires the centralised `propagate-playbook-bump.yml` push pipeline, deletes the `consumers.yaml` registry, refactors `issue_sync.py` to read `tracker_kind` from each consumer's own AGENTS.md frontmatter. Each consumer now owns its tracker config + bump cadence; the playbook holds no consumer registry.
-
-Prior milestones:
-
-- v0.18.3 — polish for showcase + 10 deferred hardrules (Slice 7).
-- v0.18.2 — telemetry pipeline + 5-CLI absorption + 14 deferred hardrules (Slice 6).
-- v0.18.1 — Slice 5 doc content rewrite complete; strict-by-default validators.
-- v0.18.0 — filesystem reorg + paired-enforcement tooling (BREAKING).
-- v0.16.0 — doc-drift CI gate + test isolation fixes.
-- v0.15.0 — `cleanup-zombies` hook.
+For the per-release narrative (what shipped in each tag, deprecations, breaking changes), see [`CHANGELOG.md`](CHANGELOG.md). The pull-model contract introduced in v0.19.0 means each consumer absorbs new tags at its own pace; the playbook holds no consumer registry.
 
 ## License
 
