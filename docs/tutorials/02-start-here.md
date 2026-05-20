@@ -11,7 +11,7 @@ order: 2
 
 # Start here — 60-second orientation
 
-> **What you'll learn**: What the playbook is in one paragraph, how its three-level dispatcher chain composes universal norms with per-project specifics, and the five commands you will type most often. If you have 15 minutes instead of 1, go straight to [01-architecture-tour.md](01-architecture-tour.md) — it covers the same ground with hands-on commands.
+> **What you'll learn**: What the playbook is in one paragraph, how its three-level dispatcher chain composes universal norms with per-project specifics, and the six commands you will type most often. If you have 15 minutes instead of 1, go straight to [01-architecture-tour.md](01-architecture-tour.md) — it covers the same ground with hands-on commands.
 > **Estimated time**: 1 min
 > **Prerequisites**: none — this is the shortest doc in the repo
 
@@ -53,7 +53,7 @@ Full contract: [dispatcher-chain.md](../concepts/dispatcher-chain.md). Registry 
 
 ---
 
-## 3. The five commands you will type most often (≤20 s)
+## 3. The six commands you will type most often (≤25 s)
 
 Assume you are inside a consumer repo that already has the playbook installed as a submodule. If you are not, go to [03-quickstart.md](03-quickstart.md).
 
@@ -72,9 +72,12 @@ python .ai-playbook/scripts/validate_pairing.py
 
 # 5. Confirm docs/ is English-clean
 python .ai-playbook/scripts/check_doc_language.py docs/
+
+# 6. Audit drift across every playbook rule (L4 advisor)
+python .ai-playbook/scripts/ai_playbook_check.py --check
 ```
 
-Each of these prints either `OK` / `✅` or an error line with a `FIX:` suggestion per [error-message-standard.rule.md](../rules/error-message-standard.rule.md). If something blocks you and you genuinely need to proceed, the escape hatch is [break-glass.rule.md](../rules/break-glass.rule.md) — never `git commit --no-verify`.
+Each of these prints either `OK` / `✅` or an error line with a `FIX:` suggestion per [error-message-standard.rule.md](../rules/error-message-standard.rule.md). Command 6 produces a per-rule status table; drop `--check` to be offered opt-in remediation for the rules whose `.rule.py` implements `apply`. From inside Claude Code, the wrapper skill `/ai-playbook-check` drives the same orchestrator through `AskUserQuestion`. If something blocks you and you genuinely need to proceed, the escape hatch is [break-glass.rule.md](../rules/break-glass.rule.md) — never `git commit --no-verify`.
 
 ---
 

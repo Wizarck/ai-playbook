@@ -76,14 +76,19 @@ explicitly authorises it.
    - Mention `manual_fix_only` entries as a separate non-actionable list
      with a pointer to each `runbook` path.
 
-5. **Apply selected remediations**. For each user-selected slug:
+5. **Apply selected remediations**. For each user-selected slug, invoke the
+   orchestrator with `--select <slug> --yes`. The `--select` flag scopes
+   validation + apply to that slug; `--yes` skips the orchestrator's own
+   stdin prompt (the skill is the gatekeeper for opt-in via `AskUserQuestion`).
+   Each rule's own `apply` confirmation surfaces (typed-path prompts, etc.)
+   still fire — `--yes` does NOT bypass those.
 
    ```bash
-   python .ai-playbook/scripts/ai_playbook_check.py --select <slug>
+   python .ai-playbook/scripts/ai_playbook_check.py --select <slug> --yes
    ```
 
-   The orchestrator's interactive prompt is bypassed for the `--select`
-   path (the skill is the gatekeeper). Surface each rule's stdout/stderr
+   To remediate multiple slugs in one shot, pass them comma-separated:
+   `--select slug-a,slug-b --yes`. Surface each rule's stdout/stderr
    compactly — exit code = result.
 
 6. **Re-run check after apply** to confirm the drift is resolved. If any
@@ -112,8 +117,9 @@ orchestrator. Recognised flags:
 ## Guardrails
 
 - DO NOT pass `--yes` to the orchestrator without explicit user opt-in
-  (the orchestrator's auto-apply bypasses interactive multi-select; the
-  skill is interactive by design).
+  via `AskUserQuestion`. Once the user opts in to a slug, the safe pattern
+  is `--select <slug> --yes` (scoped + non-interactive at the orchestrator
+  level; per-rule confirmation surfaces still fire).
 - DO NOT invoke a rule's `apply` outside the orchestrator (each rule's
   `apply` may rely on the orchestrator's framing — typed-path prompts,
   cwd-lock checks, etc.).
