@@ -37,12 +37,32 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import time
 from collections.abc import Callable
 
 __all__ = ["cli_emit", "verdict_from_rc"]
 
 _logger = logging.getLogger(__name__)
+
+
+def _ensure_utf8_streams() -> None:
+    """Reconfigure stdout/stderr to UTF-8 so rule scripts can emit unicode on Windows.
+
+    Windows defaults to cp1252 for console streams; any rule that prints `→`,
+    `❌`, `ℹ`, etc. crashes with ``UnicodeEncodeError``. Swallowed silently
+    because under pytest capsys (and similar capture layers) the replacement
+    stream does not expose ``reconfigure``; that stream is already capable of
+    holding arbitrary unicode without our help.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — never break the rule on stream tweak
+            pass
 
 
 def verdict_from_rc(rc: int) -> str:
@@ -64,6 +84,7 @@ def cli_emit(
     Fail-safe: any telemetry-side exception is silently swallowed so the
     rule's own exit code reaches the caller unchanged.
     """
+    _ensure_utf8_streams()
     start = time.monotonic()
     rc = main_fn(argv) if argv is not None else main_fn()
     latency_ms = (time.monotonic() - start) * 1000.0

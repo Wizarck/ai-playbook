@@ -7,6 +7,32 @@ All notable changes to `ai-playbook` are documented here. Semver.
 > Reserved for the next iteration of post-review fixes. v0.20.0 is the
 > visible milestone PR; tag only on explicit user approval.
 
+## [0.19.4] — 2026-05-20 — Windows UTF-8 stdout + dispatcher-cursor sibling warning
+
+Two follow-ups surfaced while dogfooding v0.19.3's orchestrator against a
+Windows consumer (geeplo). Both backwards-compatible; no consumer action
+required beyond the submodule bump.
+
+### Fixed
+
+- **`scripts/rules/_telemetry.py`** — every `.rule.py` entry point now
+  reconfigures `sys.stdout` and `sys.stderr` to UTF-8 (`errors="replace"`)
+  before the rule's `main()` runs. Before: any rule emitting `→`, `❌`,
+  `ℹ`, etc. crashed with `UnicodeEncodeError` on Windows (cp1252 default).
+  Hit on `bare-layout.rule.py apply --dry-run`. The reconfigure is wrapped
+  in `try/except` so streams that don't expose `.reconfigure` (pytest
+  capsys, in-memory captures) are tolerated silently. Fixes the gap not
+  covered by v0.19.3's subprocess-layer fix in `ai_playbook_check.py`.
+
+### Added
+
+- **`scripts/rules/dispatcher-cursor.rule.py`** — `apply` now warns (rc=0,
+  stderr) when other `.cursor/rules/*.mdc` files reference `AGENTS.md`.
+  Those are likely redundant routers from before this rule existed; the
+  operator should review and delete duplicates so Cursor loads only the
+  canonical `00-AGENTS.mdc`. Warning is emitted on every non-error outcome
+  (canonical-already / dry-run / fresh-write).
+
 ## [0.19.3] — 2026-05-20 — ai-playbook-check L4 advisor + 10 new rules + `.rule.py apply` contract
 
 Adds the missing cross-cutting **L4 advisor** layer on top of the existing
