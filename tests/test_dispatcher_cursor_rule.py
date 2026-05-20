@@ -154,3 +154,75 @@ def test_apply_fatal_when_no_consumer_root(tmp_path: Path, capsys) -> None:
     rc = _dc.apply(dry_run=False, cwd=nested)
     assert rc == 2
     assert "no consumer root" in capsys.readouterr().err
+
+
+# --- sibling-router warning ---------------------------------------------------
+
+def _write_sibling(root: Path, name: str, *, references_agents: bool) -> Path:
+    sibling = root / ".cursor" / "rules" / name
+    sibling.parent.mkdir(parents=True, exist_ok=True)
+    body = (
+        "---\ndescription: legacy\nalwaysApply: true\n---\n\n"
+        + ("Pointer to AGENTS.md.\n" if references_agents else "Some unrelated rule.\n")
+    )
+    sibling.write_text(body, encoding="utf-8")
+    return sibling
+
+
+def test_sibling_pointers_finds_agents_referencing_files(tmp_path: Path) -> None:
+    root = _make_consumer(tmp_path)
+    legacy = _write_sibling(root, "00-dispatcher.mdc", references_agents=True)
+    unrelated = _write_sibling(root, "99-other.mdc", references_agents=False)
+    siblings = _dc._sibling_agents_pointers(root)
+    assert legacy in siblings
+    assert unrelated not in siblings
+
+
+def test_sibling_pointers_excludes_canonical(tmp_path: Path) -> None:
+    root = _make_consumer(tmp_path)
+    _write_pointer(root, CANONICAL)
+    assert _dc._sibling_agents_pointers(root) == []
+
+
+def test_apply_warns_about_sibling_routers_after_fresh_write(
+    tmp_path: Path, capsys,
+) -> None:
+    root = _make_consumer(tmp_path)
+    legacy = _write_sibling(root, "00-dispatcher.mdc", references_agents=True)
+    rc = _dc.apply(dry_run=False, cwd=root)
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "redundant routers" in err
+    assert str(legacy) in err
+
+
+def test_apply_warns_about_sibling_routers_on_dry_run(
+    tmp_path: Path, capsys,
+) -> None:
+    root = _make_consumer(tmp_path)
+    _write_sibling(root, "00-dispatcher.mdc", references_agents=True)
+    rc = _dc.apply(dry_run=True, cwd=root)
+    assert rc == 0
+    assert "redundant routers" in capsys.readouterr().err
+
+
+def test_apply_warns_about_sibling_routers_on_idempotent_noop(
+    tmp_path: Path, capsys,
+) -> None:
+    root = _make_consumer(tmp_path)
+    _dc.apply(dry_run=False, cwd=root)  # creates canonical
+    _write_sibling(root, "00-dispatcher.mdc", references_agents=True)
+    capsys.readouterr()  # drain
+    rc = _dc.apply(dry_run=False, cwd=root)  # second call → idempotent
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "already canonical" in captured.out
+    assert "redundant routers" in captured.err
+
+
+def test_apply_silent_when_no_sibling_routers(tmp_path: Path, capsys) -> None:
+    root = _make_consumer(tmp_path)
+    rc = _dc.apply(dry_run=False, cwd=root)
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "redundant" not in err
