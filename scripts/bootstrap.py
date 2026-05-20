@@ -57,10 +57,30 @@ from scripts.materialise_skills import materialise_skills  # noqa: E402
 SCRIPT_BASENAME = "bootstrap.py"
 GATE_NAME = "submodule-unreachable"
 DEFAULT_PLAYBOOK_URL = "https://github.com/Wizarck/ai-playbook.git"
-DEFAULT_PIN = "v0.19.4"
 SUBMODULE_PATH = ".ai-playbook"
 TEMPLATE_SUBDIR = Path("templates") / "new-project"
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
+
+# Single source of truth for the playbook's current version is the VERSION
+# file at the repo root. Read lazily so bumps don't require touching code.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _default_pin() -> str:
+    """Return the current playbook tag (``v{VERSION}``) read from VERSION.
+
+    Falls back to ``v0.0.0`` if the file is missing or unreadable — this only
+    matters for the ``--help`` text; runtime callers can override with
+    ``--playbook-pin``.
+    """
+    try:
+        raw = (_REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return "v0.0.0"
+    return f"v{raw}" if raw and not raw.startswith("v") else (raw or "v0.0.0")
+
+
+DEFAULT_PIN = _default_pin()
 
 
 # ---------------------------------------------------------------------------
