@@ -22,6 +22,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 for _stream in (sys.stdout, sys.stderr):
     try:
@@ -31,6 +32,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 from scripts.caveman import compress as compress_mod
 from scripts.caveman import materialise as materialise_mod
+from scripts.caveman import mcp_shrink as mcp_shrink_mod
 from scripts.caveman import toggle
 
 
@@ -43,7 +45,7 @@ VALID_COMPONENTS = (
     "review_caveman",
     "mcp_shrink",
 )
-PHASE_B_NOT_IMPLEMENTED = ("stats", "mcp-shrink", "mcp-restore", "rollback")
+PHASE_B_NOT_IMPLEMENTED = ("stats", "rollback")
 
 
 def _emit_error(*, why: str, where: str, fix: str) -> None:
@@ -150,9 +152,9 @@ def cmd_on(args: argparse.Namespace) -> int:
         return 1
 
     # Side effects FIRST so that on failure we never end up with state-says-ON
-    # but file-wasn't-materialised drift. Materialise also handles its own
+    # but file-wasn't-materialised drift. Each side effect handles its own
     # backup before mutation.
-    side_effects: dict[str, str] = {}
+    side_effects: dict[str, Any] = {}
     if "response_style" in requested:
         try:
             backup = materialise_mod.materialise(root, mode)
@@ -162,6 +164,18 @@ def cmd_on(args: argparse.Namespace) -> int:
                 why=f"materialise failed: {e}",
                 where="caveman:on:materialise",
                 fix="ensure AGENTS.md exists at the project root and SKILL.md has the required H2 sections.",
+            )
+            return 1
+
+    if "mcp_shrink" in requested:
+        try:
+            shrink_result = mcp_shrink_mod.shrink_project(root)
+            side_effects["mcp_shrink"] = shrink_result
+        except Exception as e:  # noqa: BLE001
+            _emit_error(
+                why=f"mcp shrink failed: {e}",
+                where="caveman:on:mcp_shrink",
+                fix="re-run scripts/mcp/render.py to regenerate clean .mcp.json then retry.",
             )
             return 1
 
@@ -200,6 +214,11 @@ def cmd_on(args: argparse.Namespace) -> int:
         print(f"   components: {', '.join(requested)}")
         if "agents_md_backup" in side_effects:
             print(f"   materialised in AGENTS.md (backup: {side_effects['agents_md_backup']})")
+        if "mcp_shrink" in side_effects:
+            sr = side_effects["mcp_shrink"]
+            cw = sr["claude"]["wrapped"]
+            gw = sr["gemini"]["wrapped"]
+            print(f"   mcp shrink wrapped {cw} (.mcp.json) + {gw} (.gemini/settings.json) entries")
     return 0
 
 
@@ -213,7 +232,7 @@ def cmd_off(args: argparse.Namespace) -> int:
         )
         return 2
 
-    side_effects: dict[str, str] = {}
+    side_effects: dict[str, Any] = {}
     try:
         backup = materialise_mod.strip(root)
         if backup is not None:
@@ -223,6 +242,19 @@ def cmd_off(args: argparse.Namespace) -> int:
             why=f"strip failed: {e}",
             where="caveman:off:strip",
             fix="resolve AGENTS.md manually (multiple caveman blocks, bad markers, etc.) then re-run.",
+        )
+        return 1
+
+    try:
+        restore_result = mcp_shrink_mod.restore_project(root)
+        # Only surface when something was actually unwrapped.
+        if restore_result["claude"]["unwrapped"] or restore_result["gemini"]["unwrapped"]:
+            side_effects["mcp_restore"] = restore_result
+    except Exception as e:  # noqa: BLE001
+        _emit_error(
+            why=f"mcp restore failed: {e}",
+            where="caveman:off:mcp_restore",
+            fix="run `python -m scripts.caveman mcp-restore` to retry, or manually unwrap the .mcp.json entries.",
         )
         return 1
 
@@ -256,6 +288,51 @@ def cmd_off(args: argparse.Namespace) -> int:
         print(f"✅ caveman OFF at {root}")
         if "agents_md_backup" in side_effects:
             print(f"   AGENTS.md block stripped (backup: {side_effects['agents_md_backup']})")
+        if "mcp_restore" in side_effects:
+            rr = side_effects["mcp_restore"]
+            cu = rr["claude"]["unwrapped"]
+            gu = rr["gemini"]["unwrapped"]
+            print(f"   mcp restored {cu} (.mcp.json) + {gu} (.gemini/settings.json) entries")
+    return 0
+
+
+def cmd_mcp_shrink(args: argparse.Namespace) -> int:
+    root = _resolve_project_root(args.project)
+    if root is None:
+        _emit_error(why="cannot resolve project root", where="caveman:mcp-shrink", fix="pass --project <PATH>.")
+        return 2
+    try:
+        result = mcp_shrink_mod.shrink_project(root)
+    except Exception as e:  # noqa: BLE001
+        _emit_error(why=f"mcp shrink failed: {e}", where=f"caveman:mcp-shrink:{root}", fix="check .mcp.json validity.")
+        return 1
+    if args.json:
+        print(json.dumps({"ok": True, "result": result}, indent=2, ensure_ascii=False))
+    else:
+        cw = result["claude"]["wrapped"]
+        gw = result["gemini"]["wrapped"]
+        print(f"✅ wrapped {cw} (.mcp.json) + {gw} (.gemini/settings.json) stdio entries at {root}")
+        if not mcp_shrink_mod.is_shrink_available():
+            print("   ⚠️  caveman-shrink npm package not detected — wrapped commands will fail at runtime until `npx caveman-shrink` resolves.")
+    return 0
+
+
+def cmd_mcp_restore(args: argparse.Namespace) -> int:
+    root = _resolve_project_root(args.project)
+    if root is None:
+        _emit_error(why="cannot resolve project root", where="caveman:mcp-restore", fix="pass --project <PATH>.")
+        return 2
+    try:
+        result = mcp_shrink_mod.restore_project(root)
+    except Exception as e:  # noqa: BLE001
+        _emit_error(why=f"mcp restore failed: {e}", where=f"caveman:mcp-restore:{root}", fix="check backup directory at .ai-playbook/backups/mcp/.")
+        return 1
+    if args.json:
+        print(json.dumps({"ok": True, "result": result}, indent=2, ensure_ascii=False))
+    else:
+        cu = result["claude"]["unwrapped"]
+        gu = result["gemini"]["unwrapped"]
+        print(f"✅ unwrapped {cu} (.mcp.json) + {gu} (.gemini/settings.json) entries at {root}")
     return 0
 
 
@@ -369,6 +446,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     s_off.add_argument("--json", action="store_true")
     s_off.set_defaults(func=cmd_off)
+
+    s_shrink = sub.add_parser("mcp-shrink", help="Wrap MCP server commands with caveman-shrink.")
+    s_shrink.add_argument("--json", action="store_true")
+    s_shrink.set_defaults(func=cmd_mcp_shrink)
+
+    s_restore = sub.add_parser("mcp-restore", help="Unwrap MCP server commands (restore from markers or backup).")
+    s_restore.add_argument("--json", action="store_true")
+    s_restore.set_defaults(func=cmd_mcp_restore)
 
     s_compress = sub.add_parser("compress", help="Compress a markdown file in caveman style with byte-preservation validation.")
     s_compress.add_argument("file", type=str, help="Markdown file to compress.")

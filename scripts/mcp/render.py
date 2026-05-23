@@ -183,6 +183,21 @@ def run(args: argparse.Namespace) -> int:
         if args.only != "claude":
             _write_json(gemini_path, gemini_doc)
 
+        # Post-render caveman shrink hook (Phase F of the caveman feature).
+        # When the consumer has caveman enabled with mcp_shrink: true, the
+        # freshly-rendered configs get wrapped with `npx caveman-shrink --`
+        # to compress tool descriptions on the wire. Silent on any error so
+        # render never breaks because of caveman.
+        try:
+            from scripts.caveman import mcp_shrink as _caveman_mcp_shrink
+            from scripts.caveman import toggle as _caveman_toggle
+
+            _state = _caveman_toggle.read_state(consumer_root)
+            if _state.get("enabled") and (_state.get("components") or {}).get("mcp_shrink"):
+                _caveman_mcp_shrink.shrink_project(consumer_root)
+        except Exception:  # noqa: BLE001 — render must not fail on caveman issues
+            pass
+
     print(_summary(
         merged=merged, provenance=provenance,
         consumer_root=consumer_root, project=args.project,
