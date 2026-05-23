@@ -168,3 +168,84 @@ def test_post_failure_malformed_json(monkeypatch: pytest.MonkeyPatch) -> None:
     r = hs.post_recall(creds, "acme-corp", "q")
     assert not r.ok
     assert r.reason == "error:malformed-json"
+
+
+# ---------------------------------------------------------------------------
+# OTel span emission — recall/retain open hindsight.* spans with bank+status
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSpan:
+    def __init__(self) -> None:
+        self.attrs: dict[str, object] = {}
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.attrs[key] = value
+
+
+def _install_recording_span(monkeypatch: pytest.MonkeyPatch) -> list:
+    from contextlib import contextmanager
+
+    import scripts.tracing.trace_emit as te
+    captured: list = []
+
+    @contextmanager
+    def fake_span(name, attrs=None):
+        rec = _RecordingSpan()
+        captured.append((name, dict(attrs or {}), rec))
+        yield rec
+
+    monkeypatch.setattr(te, "span", fake_span)
+    return captured
+
+
+def test_post_recall_emits_span_with_entries_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch(monkeypatch, lambda req, timeout: _resp(b'{"results":[{"text":"a"},{"text":"b"}]}'))
+    captured = _install_recording_span(monkeypatch)
+
+    creds = hs.HindsightCreds(url="https://h.example", api_key="k")
+    r = hs.post_recall(creds, "acme-corp", "q", max_tokens=2048)
+    assert r.ok
+
+    assert len(captured) == 1
+    name, opening_attrs, rec = captured[0]
+    assert name == "hindsight.recall"
+    assert opening_attrs["ai_playbook.hindsight.bank_id"] == "acme-corp"
+    assert opening_attrs["ai_playbook.hindsight.max_tokens"] == 2048
+    assert opening_attrs["ai_playbook.hindsight.auth_method"] == "bearer"
+    assert rec.attrs["ai_playbook.hindsight.ok"] is True
+    assert rec.attrs["ai_playbook.hindsight.entries_count"] == 2
+    assert rec.attrs["http.response.status_code"] == 200
+
+
+def test_post_retain_emits_span_with_items_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch(monkeypatch, lambda req, timeout: _resp(b'{"ok":true}'))
+    captured = _install_recording_span(monkeypatch)
+
+    creds = hs.HindsightCreds(url="https://h.example", api_key="k")
+    r = hs.post_retain(creds, "acme-corp", [{"content": "a"}, {"content": "b"}, {"content": "c"}])
+    assert r.ok
+
+    assert len(captured) == 1
+    name, opening_attrs, rec = captured[0]
+    assert name == "hindsight.retain"
+    assert opening_attrs["ai_playbook.hindsight.items_count"] == 3
+    assert opening_attrs["ai_playbook.hindsight.async"] is False
+    assert rec.attrs["ai_playbook.hindsight.ok"] is True
+
+
+def test_recall_span_records_failure_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom(req, timeout):  # noqa: ANN001
+        raise urlerror.HTTPError("https://h.example", 503, "down", {}, io.BytesIO(b""))
+
+    _patch(monkeypatch, _boom)
+    captured = _install_recording_span(monkeypatch)
+
+    creds = hs.HindsightCreds(url="https://h.example", api_key="k")
+    r = hs.post_recall(creds, "acme-corp", "q")
+    assert not r.ok
+
+    _, _, rec = captured[0]
+    assert rec.attrs["ai_playbook.hindsight.ok"] is False
+    assert rec.attrs["ai_playbook.hindsight.reason"] == "error:http-503"
+    assert rec.attrs["http.response.status_code"] == 503

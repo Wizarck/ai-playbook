@@ -289,58 +289,118 @@ def call(
         "gen_ai.request.model": task_class,  # resolved by proxy
     })
 
+    # OTel span — wraps the HTTP call so its duration is the span duration and
+    # post-hoc set the canonical gen_ai.* attrs once we know the resolved model
+    # + token usage. `trace_emit.span` yields a no-op span when OTel is not
+    # installed/initialised; failures here never alter the LLM call's outcome.
+    span_cm: Any
     try:
-        with httpx.Client(timeout=timeout_seconds) as client:
-            r = client.post(url, json=payload, headers=headers)
-            r.raise_for_status()
-            body = r.json()
-    except httpx.HTTPError as e:
-        _emit_event("gen_ai.request.failed", {
+        from scripts.tracing import trace_emit
+        span_cm = trace_emit.span(
+            "llm.call",
+            {
+                "ai_playbook.task_class": task_class,
+                "ai_playbook.consumer": consumer_resolved or "",
+                "ai_playbook.application": application_resolved or "",
+                "gen_ai.request.model": task_class,
+            },
+        )
+    except Exception:  # noqa: BLE001
+        from contextlib import nullcontext
+        span_cm = nullcontext(None)
+
+    with span_cm as otel_span:
+        try:
+            with httpx.Client(timeout=timeout_seconds) as client:
+                r = client.post(url, json=payload, headers=headers)
+                r.raise_for_status()
+                body = r.json()
+        except httpx.HTTPError as e:
+            _emit_event("gen_ai.request.failed", {
+                "ai_playbook.task_class": task_class,
+                "ai_playbook.consumer": consumer_resolved,
+                "ai_playbook.application": application_resolved,
+                "error": f"{type(e).__name__}: {e}",
+                "elapsed_seconds": round(time.time() - started, 3),
+                "severity": "error",
+            })
+            if otel_span is not None:
+                try:
+                    otel_span.set_attribute("error.type", type(e).__name__)
+                    otel_span.record_exception(e)
+                except Exception:  # noqa: BLE001
+                    pass
+            raise LLMRoutingError(
+                f"LiteLLM proxy unreachable at {url}: {type(e).__name__}: {e}. "
+                "Verify the proxy is running (/start) and LITELLM_BASE_URL is correct."
+            ) from e
+
+        # Parse the response. LiteLLM follows the OpenAI shape; the actual provider
+        # model lands in `body["model"]` (not necessarily what we asked for — could
+        # be a fallback hop).
+        try:
+            text = body["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            _emit_event("gen_ai.request.malformed", {
+                "ai_playbook.task_class": task_class,
+                "ai_playbook.consumer": consumer_resolved,
+                "ai_playbook.application": application_resolved,
+                "error": f"{type(e).__name__}: {e}",
+                "raw_keys": list(body.keys()) if isinstance(body, dict) else "non-dict",
+                "severity": "error",
+            })
+            if otel_span is not None:
+                try:
+                    otel_span.set_attribute("error.type", type(e).__name__)
+                    otel_span.record_exception(e)
+                except Exception:  # noqa: BLE001
+                    pass
+            raise LLMRoutingError(
+                "LiteLLM returned a malformed response: missing choices[0].message.content"
+            ) from e
+
+        model_actual = body.get("model", "unknown")
+        meta = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        fallback_depth = meta.get("fallback_depth", 0) if meta else 0
+        usage = body.get("usage", {}) or {}
+
+        _emit_event("gen_ai.usage", {
             "ai_playbook.task_class": task_class,
             "ai_playbook.consumer": consumer_resolved,
             "ai_playbook.application": application_resolved,
-            "error": f"{type(e).__name__}: {e}",
+            "gen_ai.request.model": task_class,
+            "gen_ai.response.model": model_actual,
+            "ai_playbook.routing.fallback_depth": fallback_depth,
+            "gen_ai.usage.prompt_tokens": usage.get("prompt_tokens", 0),
+            "gen_ai.usage.completion_tokens": usage.get("completion_tokens", 0),
             "elapsed_seconds": round(time.time() - started, 3),
-            "severity": "error",
         })
-        raise LLMRoutingError(
-            f"LiteLLM proxy unreachable at {url}: {type(e).__name__}: {e}. "
-            "Verify the proxy is running (/start) and LITELLM_BASE_URL is correct."
-        ) from e
 
-    # Parse the response. LiteLLM follows the OpenAI shape; the actual provider
-    # model lands in `body["model"]` (not necessarily what we asked for — could
-    # be a fallback hop).
-    try:
-        text = body["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as e:
-        _emit_event("gen_ai.request.malformed", {
-            "ai_playbook.task_class": task_class,
-            "ai_playbook.consumer": consumer_resolved,
-            "ai_playbook.application": application_resolved,
-            "error": f"{type(e).__name__}: {e}",
-            "raw_keys": list(body.keys()) if isinstance(body, dict) else "non-dict",
-            "severity": "error",
-        })
-        raise LLMRoutingError(
-            "LiteLLM returned a malformed response: missing choices[0].message.content"
-        ) from e
-
-    model_actual = body.get("model", "unknown")
-    fallback_depth = body.get("metadata", {}).get("fallback_depth", 0) if isinstance(body.get("metadata"), dict) else 0
-    usage = body.get("usage", {}) or {}
-
-    _emit_event("gen_ai.usage", {
-        "ai_playbook.task_class": task_class,
-        "ai_playbook.consumer": consumer_resolved,
-        "ai_playbook.application": application_resolved,
-        "gen_ai.request.model": task_class,
-        "gen_ai.response.model": model_actual,
-        "ai_playbook.routing.fallback_depth": fallback_depth,
-        "gen_ai.usage.prompt_tokens": usage.get("prompt_tokens", 0),
-        "gen_ai.usage.completion_tokens": usage.get("completion_tokens", 0),
-        "elapsed_seconds": round(time.time() - started, 3),
-    })
+        # Post-annotate the span with the resolved model, fallback hops, and
+        # token usage so downstream Langfuse/Tempo dashboards see the same shape
+        # the JSONL events carry. Provider is best-effort — LiteLLM doesn't
+        # always echo it back in the response body.
+        if otel_span is not None:
+            try:
+                provider_guess = body.get("provider")
+                if not provider_guess and "/" in str(model_actual):
+                    provider_guess = str(model_actual).split("/", 1)[0]
+                otel_span.set_attribute("gen_ai.system", str(provider_guess or "unknown"))
+                otel_span.set_attribute("gen_ai.response.model", str(model_actual))
+                otel_span.set_attribute("ai_playbook.routing.fallback_depth", int(fallback_depth))
+                otel_span.set_attribute("gen_ai.usage.input_tokens", int(usage.get("prompt_tokens", 0) or 0))
+                otel_span.set_attribute("gen_ai.usage.output_tokens", int(usage.get("completion_tokens", 0) or 0))
+                # Cache hits land either directly under `cache_read_input_tokens`
+                # or nested under OpenAI-style `prompt_tokens_details.cached_tokens`.
+                cache_read = usage.get("cache_read_input_tokens")
+                if cache_read is None:
+                    details = usage.get("prompt_tokens_details")
+                    if isinstance(details, dict):
+                        cache_read = details.get("cached_tokens")
+                if cache_read is not None:
+                    otel_span.set_attribute("gen_ai.usage.cache_read_input_tokens", int(cache_read))
+            except Exception:  # noqa: BLE001 — span annotation must never break the call
+                pass
 
     return LLMResponse(
         text=text,
