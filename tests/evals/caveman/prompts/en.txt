@@ -1,0 +1,15 @@
+# Caveman eval prompts. One prompt per line. Lines starting with '#' or
+# blank lines are ignored. Designed to cover the same task families the
+# upstream JuliusBrussee/caveman benchmark used, plus a few playbook-
+# relevant ones.
+
+Explain why a React component re-renders when an inline object is passed as a prop, and how to fix it.
+A user reports that authentication tokens expire one second early. The middleware uses `<` instead of `<=`. Write the fix and explain why.
+Walk me through setting up a PostgreSQL connection pool for a Node.js app handling ~1000 requests/second.
+Compare git rebase vs git merge — when do you reach for each one?
+Refactor a callback-based function `getUserData(id, cb)` into async/await. Keep the public signature stable.
+Should this project go microservices or stay monolith if we have 4 engineers and 80k MAU? Cover the main trade-offs.
+Review this hypothetical PR diff for security issues: adds a `/admin/run-sql` endpoint that takes a SQL string and returns the result.
+Write a Dockerfile for a Python web service using multi-stage build: builder stage for deps, slim runtime stage. Production-grade.
+A PostgreSQL race condition: two requests both check "if not exists then insert", both pass the check, both insert. How do you fix it?
+Implement a React error boundary component that logs errors to Sentry and shows a fallback UI.
