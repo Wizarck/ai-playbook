@@ -150,8 +150,8 @@ def test_off_when_no_prior_state(project: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("sub", ["compress", "stats", "mcp-shrink", "mcp-restore", "rollback"])
-def test_phase_b_stubs_exit_2(project: Path, sub: str, capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize("sub", ["stats", "mcp-shrink", "mcp-restore", "rollback"])
+def test_phase_stubs_exit_2(project: Path, sub: str, capsys: pytest.CaptureFixture[str]) -> None:
     rc = cli.main(["--project", str(project), sub])
     assert rc == 2
     err = capsys.readouterr().err
