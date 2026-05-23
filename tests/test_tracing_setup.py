@@ -213,3 +213,60 @@ def test_real_sdk_smoke_if_available() -> None:
     tracer = otel_setup.init_tracing("ai-playbook-test-smoke")
     with tracer.start_as_current_span("probe") as s:
         s.set_attribute("gen_ai.system", "probe")
+
+
+# ---------------------------------------------------------------------------
+# _setup_langfuse_once — explicit tracer_provider wiring
+# ---------------------------------------------------------------------------
+
+
+def test_setup_langfuse_passes_tracer_provider_when_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When `init_tracing` builds a TracerProvider it threads it through to
+    `Langfuse(tracer_provider=...)`. This guards against a regression back to
+    the old global-only wiring (which silently breaks if another import
+    swaps the process-global TracerProvider afterward)."""
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
+
+    captured: dict[str, object] = {}
+
+    class _FakeLangfuse:
+        def __init__(self, **kw: object) -> None:
+            captured.update(kw)
+
+    fake_module = type(
+        "_FakeLangfuseModule", (), {"Langfuse": _FakeLangfuse}
+    )()
+    monkeypatch.setitem(__import__("sys").modules, "langfuse", fake_module)
+
+    sentinel_provider = object()
+    ok = otel_setup._setup_langfuse_once(provider=sentinel_provider)
+    assert ok is True
+    assert captured.get("tracer_provider") is sentinel_provider
+
+
+def test_setup_langfuse_falls_back_when_no_provider_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Calling `_setup_langfuse_once()` with no provider keeps backwards
+    compatibility: Langfuse() is constructed without kwargs and the SDK
+    falls back to its global-TracerProvider behaviour."""
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
+
+    captured: dict[str, object] = {}
+
+    class _FakeLangfuse:
+        def __init__(self, **kw: object) -> None:
+            captured.update(kw)
+
+    fake_module = type(
+        "_FakeLangfuseModule", (), {"Langfuse": _FakeLangfuse}
+    )()
+    monkeypatch.setitem(__import__("sys").modules, "langfuse", fake_module)
+
+    ok = otel_setup._setup_langfuse_once()
+    assert ok is True
+    assert "tracer_provider" not in captured
