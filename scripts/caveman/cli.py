@@ -29,6 +29,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+from scripts.caveman import compress as compress_mod
 from scripts.caveman import materialise as materialise_mod
 from scripts.caveman import toggle
 
@@ -42,7 +43,7 @@ VALID_COMPONENTS = (
     "review_caveman",
     "mcp_shrink",
 )
-PHASE_B_NOT_IMPLEMENTED = ("compress", "stats", "mcp-shrink", "mcp-restore", "rollback")
+PHASE_B_NOT_IMPLEMENTED = ("stats", "mcp-shrink", "mcp-restore", "rollback")
 
 
 def _emit_error(*, why: str, where: str, fix: str) -> None:
@@ -258,6 +259,66 @@ def cmd_off(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compress(args: argparse.Namespace) -> int:
+    source = Path(args.file).expanduser().resolve()
+    mode = args.mode
+    if mode not in compress_mod.VALID_MODES:
+        _emit_error(
+            why=f"invalid mode '{mode}'",
+            where="caveman:compress:mode",
+            fix=f"pass --mode one of: {', '.join(compress_mod.VALID_MODES)}.",
+        )
+        return 1
+    try:
+        result = compress_mod.compress(
+            source,
+            mode=mode,
+            force_large=args.force_large,
+        )
+    except FileNotFoundError as e:
+        _emit_error(why=str(e), where=f"caveman:compress:{source.as_posix()}", fix="pass an existing markdown file.")
+        return 1
+    except ValueError as e:
+        _emit_error(why=str(e), where=f"caveman:compress:{source.as_posix()}", fix="check file type, size, and --mode.")
+        return 1
+    except FileExistsError as e:
+        _emit_error(why=str(e), where=f"caveman:compress:{source.as_posix()}", fix="delete the stale .original.md backup if you want to recompress.")
+        return 1
+    except compress_mod.CompressionFailedError as e:
+        _emit_error(why=str(e), where=f"caveman:compress:{source.as_posix()}", fix="source was restored from backup. Try a different --mode or split the file.")
+        return 1
+    except Exception as e:  # noqa: BLE001 — surface LLM routing failures cleanly
+        _emit_error(why=f"compression failed: {e}", where=f"caveman:compress:{source.as_posix()}", fix="check LITELLM_BASE_URL and the proxy health, then retry.")
+        return 2
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "source": result.source.as_posix(),
+                    "backup": result.backup.as_posix(),
+                    "original_bytes": result.original_bytes,
+                    "compressed_bytes": result.compressed_bytes,
+                    "percent_saved": round(result.percent_saved, 2),
+                    "retries_used": result.retries_used,
+                    "model_actual": result.model_actual,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    else:
+        print(
+            f"✅ {result.source.name}: {result.original_bytes} → {result.compressed_bytes} bytes "
+            f"({result.percent_saved:.1f}% saved, {result.retries_used} retr{'y' if result.retries_used == 1 else 'ies'})"
+        )
+        print(f"   backup: {result.backup}")
+        if result.model_actual:
+            print(f"   model:  {result.model_actual}")
+    return 0
+
+
 def cmd_not_implemented(args: argparse.Namespace) -> int:
     name = args.subcommand_name
     _emit_error(
@@ -309,8 +370,15 @@ def _build_parser() -> argparse.ArgumentParser:
     s_off.add_argument("--json", action="store_true")
     s_off.set_defaults(func=cmd_off)
 
+    s_compress = sub.add_parser("compress", help="Compress a markdown file in caveman style with byte-preservation validation.")
+    s_compress.add_argument("file", type=str, help="Markdown file to compress.")
+    s_compress.add_argument("--mode", default="full", help=f"Intensity: {', '.join(compress_mod.VALID_MODES)}.")
+    s_compress.add_argument("--force-large", action="store_true", help="Allow files >100 KB.")
+    s_compress.add_argument("--json", action="store_true")
+    s_compress.set_defaults(func=cmd_compress)
+
     for name in PHASE_B_NOT_IMPLEMENTED:
-        s = sub.add_parser(name, help=f"{name} — not implemented in Phase B.")
+        s = sub.add_parser(name, help=f"{name} — not implemented yet.")
         s.set_defaults(func=cmd_not_implemented, subcommand_name=name)
 
     return p
