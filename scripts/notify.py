@@ -484,11 +484,16 @@ def notify(
                         file=sys.stderr,
                     )
 
-        # Best-effort OTel event.
+        # Best-effort OTel: emit BOTH a standalone span (so the notification is
+        # visible in Langfuse/Tempo even when no parent trace exists) AND an
+        # event on the current span (so it groups with the triggering
+        # operation when one is open). add_event is a no-op when no span is
+        # active, so the dual emission is safe.
         try:
             from scripts.tracing import trace_emit  # type: ignore
 
             otel_attrs = {
+                "ai_playbook.notification.event": event,
                 "ai_playbook.notification.severity": sev,
                 "ai_playbook.notification.actor": actor_resolved,
                 "ai_playbook.notification.summary": summary[:200],
@@ -498,6 +503,8 @@ def notify(
                 for k, v in attrs_final.items()
                 if isinstance(v, (str, int, float, bool))
             })
+            with trace_emit.span(f"notification.{event}", otel_attrs):
+                pass
             trace_emit.add_event(name=event, attrs=otel_attrs)
         except Exception:  # noqa: BLE001 — OTel is best-effort.
             pass
