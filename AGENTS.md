@@ -50,6 +50,9 @@ Any agent editing this repo MUST:
 | Notification policy | [docs/concepts/notification-policy.md](docs/concepts/notification-policy.md) |
 | Migration guide (v0→v1) | [docs/concepts/migration-guide.md](docs/concepts/migration-guide.md) |
 | Retrospective cadence | [docs/concepts/retrospective-cadence.md](docs/concepts/retrospective-cadence.md) |
+| Caveman feature (concept) | [docs/concepts/caveman-mode.md](docs/concepts/caveman-mode.md) |
+| Caveman toggle (runbook) | [docs/runbooks/caveman-toggle.md](docs/runbooks/caveman-toggle.md) |
+| Caveman architecture + UI contract | [docs/operations/caveman-architecture.md](docs/operations/caveman-architecture.md) |
 
 ## 3 Active work
 
