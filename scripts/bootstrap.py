@@ -785,4 +785,5 @@ def render_mcp_configs(target_dir: Path, project_name: str, dry_run: bool) -> No
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from scripts.rules._telemetry import script_emit
+    raise SystemExit(script_emit("bootstrap", main))

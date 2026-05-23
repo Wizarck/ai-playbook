@@ -60,6 +60,7 @@ The canonical schema lives at `schemas/schema-rule-event-v2.json` (v0.20.0+; v1 
 | `marker_present` | boolean | True when a `start` record was found for the matched change. |
 | `override_reason` | string | Provided via `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` (≥10 chars). |
 | `feature_flag` | object | Snapshot of feature-flag env vars (e.g. `{bash_inspection: "0"}`). |
+| `kind` | enum | Invocation class. `rule` (default — the 41 `*.rule.py` callers wrapped via `cli_emit`) or `script` (the 13 direct-CLI helpers — `doctor`, `bootstrap`, `secrets-scan`, `verify-llm-routing`, `openspec-validate`, `gen-indexes`, `validate-pairing`, `verdict-lint`, `schema-validate`, `inject-context`, `upstream-sync`, `simulate-incident-response`, `discover-projects` — wrapped via `script_emit`). Lets `report.py` split obey-rate metrics (rule fires) from raw invocation counts (script runs) without losing the unified JSONL surface. Legacy rows without this field default to `rule` in aggregation. |
 
 Forward-compatibility: schema v2 retains `additionalProperties: false`. Future additions land as `rule-event/v3`. Consumers running strict validators against the JSONL log are expected to upgrade to the v2 schema when bumping the playbook submodule past v0.20.0.
 

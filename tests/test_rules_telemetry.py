@@ -258,3 +258,74 @@ def test_cli_emit_runs_normally_when_no_toggle_file(
     assert invocations == [True]
     events = json.loads((state_dir / "rule-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
     assert events["verdict"] == "block"
+
+
+# ---------------------------------------------------------------------------
+# kind="rule"|"script" propagation — both write to the same JSONL surface
+# ---------------------------------------------------------------------------
+
+
+def test_cli_emit_default_kind_is_rule(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """Existing 41 *.rule.py callers pass no kind kwarg → row carries kind='rule'."""
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    _telemetry.cli_emit("update-playbook", lambda: 0)
+    row = json.loads((state_dir / "rule-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert row["kind"] == "rule"
+
+
+def test_cli_emit_explicit_kind_script(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    _telemetry.cli_emit("doctor", lambda: 0, kind="script")
+    row = json.loads((state_dir / "rule-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert row["kind"] == "script"
+    assert row["slug"] == "doctor"
+
+
+def test_script_emit_is_alias_for_kind_script(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """script_emit writes kind='script' rows; rc propagation matches cli_emit."""
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    rc = _telemetry.script_emit("secrets-scan", lambda: 3)
+    assert rc == 3  # rc passes through unchanged
+    row = json.loads((state_dir / "rule-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert row["kind"] == "script"
+    assert row["slug"] == "secrets-scan"
+    assert row["verdict"] == "warn"  # rc>=2 → warn
+
+
+def test_script_emit_threads_argv_through(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+    captured: list[list[str] | None] = []
+
+    def fake_main(argv=None):
+        captured.append(argv)
+        return 0
+
+    _telemetry.script_emit("verify-llm-routing", fake_main, argv=["--strict"])
+    assert captured == [["--strict"]]
+
+
+def test_script_emit_fails_safe_on_logger_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """Logger blowup must not alter the script's exit code (same guarantee as cli_emit)."""
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+
+    import scripts.telemetry.rule_event_logger as logger_mod
+
+    def _boom(**kwargs):  # noqa: ANN003
+        raise RuntimeError("simulated logger failure")
+
+    monkeypatch.setattr(logger_mod, "log_event", _boom)
+    rc = _telemetry.script_emit("doctor", lambda: 7)
+    assert rc == 7

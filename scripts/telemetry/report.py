@@ -188,13 +188,23 @@ def filter_by_window(
 
 
 def compute_obey_rate(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Per (slug, llm): allow / block / warn counts and obey_rate."""
+    """Per (slug, llm): allow / block / warn counts and obey_rate.
+
+    Each row carries `kind` ("rule" | "script") so direct-CLI invocations
+    (wrapped via `script_emit`) are visually distinguishable from L1 rule
+    fires. Aggregation key is (slug, llm) since a given slug always has a
+    single kind in practice — kind is informational.
+    """
     buckets: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    kinds: dict[tuple[str, str], str] = {}
     for ev in events:
         slug = str(ev.get("slug") or "unknown")
         llm = str(ev.get("llm") or ev.get("model") or "unknown")
         verdict = str(ev.get("verdict") or "allow")
         buckets[(slug, llm)][verdict] += 1
+        # First-seen kind for this slug wins; "rule" by default for pre-kind
+        # rows so legacy logs without the field still aggregate sanely.
+        kinds.setdefault((slug, llm), str(ev.get("kind") or "rule"))
     rows: list[dict[str, Any]] = []
     for (slug, llm), counts in sorted(buckets.items()):
         total = sum(counts.values())
@@ -205,6 +215,7 @@ def compute_obey_rate(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "slug": slug,
+                "kind": kinds[(slug, llm)],
                 "llm": llm,
                 "total": total,
                 "allow": allow,
@@ -214,6 +225,14 @@ def compute_obey_rate(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def compute_invocations_by_kind(events: list[dict[str, Any]]) -> dict[str, int]:
+    """Top-level count of fires split by kind. Missing kind → 'rule' (legacy)."""
+    counts: Counter[str] = Counter()
+    for ev in events:
+        counts[str(ev.get("kind") or "rule")] += 1
+    return dict(counts)
 
 
 def compute_cost_per_rule(
@@ -688,12 +707,13 @@ def render_markdown(report: Report) -> str:
     if not report.obey_rate:
         lines.append("_No rule-event data in window._")
     else:
-        lines.append("| slug | llm | total | allow | block | warn | obey_rate |")
-        lines.append("|---|---|---|---|---|---|---|")
+        lines.append("| slug | kind | llm | total | allow | block | warn | obey_rate |")
+        lines.append("|---|---|---|---|---|---|---|---|")
         for r in report.obey_rate:
             lines.append(
-                f"| `{r['slug']}` | `{r['llm']}` | {r['total']} | {r['allow']} | "
-                f"{r['block']} | {r['warn']} | {r['obey_rate']:.2%} |"
+                f"| `{r['slug']}` | {r.get('kind', 'rule')} | `{r['llm']}` | "
+                f"{r['total']} | {r['allow']} | {r['block']} | {r['warn']} | "
+                f"{r['obey_rate']:.2%} |"
             )
     lines.append("")
 
