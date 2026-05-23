@@ -29,6 +29,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+from scripts.caveman import materialise as materialise_mod
 from scripts.caveman import toggle
 
 
@@ -147,6 +148,22 @@ def cmd_on(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # Side effects FIRST so that on failure we never end up with state-says-ON
+    # but file-wasn't-materialised drift. Materialise also handles its own
+    # backup before mutation.
+    side_effects: dict[str, str] = {}
+    if "response_style" in requested:
+        try:
+            backup = materialise_mod.materialise(root, mode)
+            side_effects["agents_md_backup"] = backup.as_posix()
+        except (FileNotFoundError, ValueError, LookupError) as e:
+            _emit_error(
+                why=f"materialise failed: {e}",
+                where="caveman:on:materialise",
+                fix="ensure AGENTS.md exists at the project root and SKILL.md has the required H2 sections.",
+            )
+            return 1
+
     state = toggle.read_state(root)
     state["enabled"] = True
     state["mode"] = mode
@@ -170,11 +187,18 @@ def cmd_on(args: argparse.Namespace) -> int:
         return 2
 
     if args.json:
-        print(json.dumps({"ok": True, "state": state}, indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"ok": True, "state": state, "side_effects": side_effects},
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
     else:
         print(f"✅ caveman ON (mode={mode}) at {root}")
         print(f"   components: {', '.join(requested)}")
-        print("   ⚠️  Phase B: state-only — side effects (materialise, MCP wrap) land in Phase C+.")
+        if "agents_md_backup" in side_effects:
+            print(f"   materialised in AGENTS.md (backup: {side_effects['agents_md_backup']})")
     return 0
 
 
@@ -187,6 +211,19 @@ def cmd_off(args: argparse.Namespace) -> int:
             fix="pass --project <PATH>.",
         )
         return 2
+
+    side_effects: dict[str, str] = {}
+    try:
+        backup = materialise_mod.strip(root)
+        if backup is not None:
+            side_effects["agents_md_backup"] = backup.as_posix()
+    except (FileNotFoundError, ValueError) as e:
+        _emit_error(
+            why=f"strip failed: {e}",
+            where="caveman:off:strip",
+            fix="resolve AGENTS.md manually (multiple caveman blocks, bad markers, etc.) then re-run.",
+        )
+        return 1
 
     state = toggle.read_state(root)
     state["enabled"] = False
@@ -207,9 +244,17 @@ def cmd_off(args: argparse.Namespace) -> int:
         return 2
 
     if args.json:
-        print(json.dumps({"ok": True, "state": state}, indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"ok": True, "state": state, "side_effects": side_effects},
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
     else:
         print(f"✅ caveman OFF at {root}")
+        if "agents_md_backup" in side_effects:
+            print(f"   AGENTS.md block stripped (backup: {side_effects['agents_md_backup']})")
     return 0
 
 
