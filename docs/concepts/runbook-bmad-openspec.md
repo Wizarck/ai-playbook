@@ -48,6 +48,12 @@ The **UX Track** runs in parallel with `bmad-create-architecture` between Gate A
 | `docs/personas-jtbd.md` | `bmad-agent-pm` / `bmad-cis-design-thinking` | Roles + JTBD + RBAC matrix. |
 | `docs/project-structure.md` | `bmad-document-project` | Directory map. |
 
+**PRD lifecycle helpers** — invoked between gates when the PRD needs iteration: `bmad-edit-prd` (re-open the PRD for changes), `bmad-validate-prd` (run standards check), `bmad-check-implementation-readiness` (pre-Gate B check that PRD + UX + Architecture + Epics are coherent).
+
+**Pre-PRD research (optional)** — `bmad-agent-analyst` is the persona hub that routes to `bmad-domain-research`, `bmad-market-research`, `bmad-technical-research`, and `bmad-brainstorming` when the problem space needs scoping before a PRD is drafted.
+
+For the full catalogue of Discovery-phase skills (including CIS coaches, facilitation skills like `bmad-prfaq` / `bmad-product-brief` / `bmad-party-mode` / `bmad-checkpoint-preview`, and the dormant BMAD bucle skills that the hybrid flow replaces), see [skills-inventory.md](skills-inventory.md).
+
 ### 2.2 HITL gates
 
 Human must approve before the next phase starts:
