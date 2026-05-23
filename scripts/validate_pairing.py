@@ -277,4 +277,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from scripts.rules._telemetry import script_emit
+    sys.exit(script_emit("validate-pairing", main))
