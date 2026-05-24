@@ -50,6 +50,9 @@ Any agent editing this repo MUST:
 | Notification policy | [docs/concepts/notification-policy.md](docs/concepts/notification-policy.md) |
 | Migration guide (v0→v1) | [docs/concepts/migration-guide.md](docs/concepts/migration-guide.md) |
 | Retrospective cadence | [docs/concepts/retrospective-cadence.md](docs/concepts/retrospective-cadence.md) |
+| Caveman feature (concept) | [docs/concepts/caveman-mode.md](docs/concepts/caveman-mode.md) |
+| Caveman toggle (runbook) | [docs/runbooks/caveman-toggle.md](docs/runbooks/caveman-toggle.md) |
+| Caveman architecture + UI contract | [docs/operations/caveman-architecture.md](docs/operations/caveman-architecture.md) |
 
 ## 3 Active work
 
@@ -140,6 +143,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 ### Advisory (paired_hardrule: null per `docs/concepts/enforcement-pairing-exceptions.md`)
 
 - [apply-fix-contract](docs/rules/apply-fix-contract.rule.md) — consumer-side surface (Slice 7).
+- [caveman-reinforce](docs/rules/caveman-reinforce.rule.md) — per-turn UserPromptSubmit nudge when caveman is ON; silent-fail; never blocks.
 - [conflict-resolution-policy](docs/rules/conflict-resolution-policy.rule.md)
 - [data-handling](docs/rules/data-handling.rule.md)
 - [hitl-approval-pattern](docs/rules/hitl-approval-pattern.rule.md) — consumer-side surface (Slice 7).
