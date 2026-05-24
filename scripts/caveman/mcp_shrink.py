@@ -35,8 +35,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts.caveman.backup import latest_backup, make_backup
-
+from scripts.caveman.backup import latest_backup, make_backup  # noqa: E402
 
 SHRINK_BIN = "caveman-shrink"
 WRAPPED_MARKER = "_caveman_wrapped"
@@ -79,9 +78,7 @@ def _is_stdio_entry(entry: dict[str, Any]) -> bool:
         return False
     # Reject entries that ALSO carry a URL — those are weird mixed entries we
     # should not touch.
-    if "url" in entry or "httpUrl" in entry:
-        return False
-    return True
+    return not ("url" in entry or "httpUrl" in entry)
 
 
 def wrap_entry(entry: dict[str, Any]) -> dict[str, Any]:

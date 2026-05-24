@@ -46,13 +46,12 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts.auto_managed import (
+from scripts.auto_managed import (  # noqa: E402
     _extract_heading_section,  # private helper; reuse keeps SKILL.md the SSOT
     find_sections,
 )
-from scripts.caveman.backup import make_backup
-from scripts.caveman.toggle import find_playbook_root
-
+from scripts.caveman.backup import make_backup  # noqa: E402
+from scripts.caveman.toggle import find_playbook_root  # noqa: E402
 
 CAVEMAN_BLOCK_PREFIX = "caveman/ruleset:"
 VALID_MODES = ("lite", "full", "ultra")

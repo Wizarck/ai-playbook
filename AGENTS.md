@@ -143,6 +143,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 ### Advisory (paired_hardrule: null per `docs/concepts/enforcement-pairing-exceptions.md`)
 
 - [apply-fix-contract](docs/rules/apply-fix-contract.rule.md) — consumer-side surface (Slice 7).
+- [caveman-reinforce](docs/rules/caveman-reinforce.rule.md) — per-turn UserPromptSubmit nudge when caveman is ON; silent-fail; never blocks.
 - [conflict-resolution-policy](docs/rules/conflict-resolution-policy.rule.md)
 - [data-handling](docs/rules/data-handling.rule.md)
 - [hitl-approval-pattern](docs/rules/hitl-approval-pattern.rule.md) — consumer-side surface (Slice 7).

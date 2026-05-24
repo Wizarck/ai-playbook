@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 # The script has hyphens in its filename, so import via importlib.
 HOOK_PATH = (
     Path(__file__).resolve().parents[1]

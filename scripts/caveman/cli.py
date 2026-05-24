@@ -20,7 +20,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,13 +30,12 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts.caveman import backup as backup_mod
-from scripts.caveman import compress as compress_mod
-from scripts.caveman import materialise as materialise_mod
-from scripts.caveman import mcp_shrink as mcp_shrink_mod
-from scripts.caveman import stats as stats_mod
-from scripts.caveman import toggle
-
+from scripts.caveman import backup as backup_mod  # noqa: E402
+from scripts.caveman import compress as compress_mod  # noqa: E402
+from scripts.caveman import materialise as materialise_mod  # noqa: E402
+from scripts.caveman import mcp_shrink as mcp_shrink_mod  # noqa: E402
+from scripts.caveman import stats as stats_mod  # noqa: E402
+from scripts.caveman import toggle  # noqa: E402
 
 VALID_MODES = ("lite", "full", "ultra")
 VALID_COMPONENTS = (
@@ -188,7 +187,7 @@ def cmd_on(args: argparse.Namespace) -> int:
     for c in requested:
         new_components[c] = True
     state["components"] = new_components
-    state["applied_at"] = datetime.now(timezone.utc).isoformat()
+    state["applied_at"] = datetime.now(UTC).isoformat()
     ab = _applied_by_default()
     if ab:
         state["applied_by"] = ab
@@ -263,7 +262,7 @@ def cmd_off(args: argparse.Namespace) -> int:
     state = toggle.read_state(root)
     state["enabled"] = False
     state["components"] = {c: False for c in VALID_COMPONENTS}
-    state["applied_at"] = datetime.now(timezone.utc).isoformat()
+    state["applied_at"] = datetime.now(UTC).isoformat()
     ab = _applied_by_default()
     if ab:
         state["applied_by"] = ab
@@ -315,7 +314,10 @@ def cmd_mcp_shrink(args: argparse.Namespace) -> int:
         gw = result["gemini"]["wrapped"]
         print(f"✅ wrapped {cw} (.mcp.json) + {gw} (.gemini/settings.json) stdio entries at {root}")
         if not mcp_shrink_mod.is_shrink_available():
-            print("   ⚠️  caveman-shrink npm package not detected — wrapped commands will fail at runtime until `npx caveman-shrink` resolves.")
+            print(
+                "   ⚠️  caveman-shrink npm package not detected — "
+                "wrapped commands will fail at runtime until `npx caveman-shrink` resolves."
+            )
     return 0
 
 
@@ -327,7 +329,11 @@ def cmd_mcp_restore(args: argparse.Namespace) -> int:
     try:
         result = mcp_shrink_mod.restore_project(root)
     except Exception as e:  # noqa: BLE001
-        _emit_error(why=f"mcp restore failed: {e}", where=f"caveman:mcp-restore:{root}", fix="check backup directory at .ai-playbook/backups/mcp/.")
+        _emit_error(
+            why=f"mcp restore failed: {e}",
+            where=f"caveman:mcp-restore:{root}",
+            fix="check backup directory at .ai-playbook/backups/mcp/.",
+        )
         return 1
     if args.json:
         print(json.dumps({"ok": True, "result": result}, indent=2, ensure_ascii=False))
@@ -349,7 +355,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         state = toggle.read_state(root)
         since = state.get("applied_at") if state.get("enabled") else None
         if since is None:
-            print(f"⚠️  caveman is OFF; --since-caveman-on has no effect. Showing all sessions.", file=sys.stderr)
+            print("⚠️  caveman is OFF; --since-caveman-on has no effect. Showing all sessions.", file=sys.stderr)
     elif args.since:
         since = args.since
 
@@ -426,7 +432,11 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         _emit_error(
             why="no backups found to restore",
             where=f"caveman:rollback:{root.as_posix()}",
-            fix="nothing to roll back — backups live at .ai-playbook/backups/{agents,mcp}/. Run `caveman on` then `off` to create some, or use the per-file .original.md backup for compressed docs.",
+            fix=(
+                "nothing to roll back — backups live at .ai-playbook/backups/{agents,mcp}/. "
+                "Run `caveman on` then `off` to create some, or use the per-file .original.md "
+                "backup for compressed docs."
+            ),
         )
         return 1
 
@@ -434,12 +444,15 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         _emit_error(
             why="rollback requires explicit confirmation",
             where="caveman:rollback",
-            fix=f"re-run with --yes. This will overwrite: {', '.join(str(s.relative_to(root)) for _, s, _ in candidates)}.",
+            fix=(
+                f"re-run with --yes. This will overwrite: "
+                f"{', '.join(str(s.relative_to(root)) for _, s, _ in candidates)}."
+            ),
         )
         return 1
 
     restored = []
-    for area, source, backup in candidates:
+    for area, source, _backup in candidates:
         try:
             used = backup_mod.restore_backup(root, area, source)
             restored.append({"area": area, "source": source.as_posix(), "backup": used.as_posix()})
@@ -483,13 +496,25 @@ def cmd_compress(args: argparse.Namespace) -> int:
         _emit_error(why=str(e), where=f"caveman:compress:{source.as_posix()}", fix="check file type, size, and --mode.")
         return 1
     except FileExistsError as e:
-        _emit_error(why=str(e), where=f"caveman:compress:{source.as_posix()}", fix="delete the stale .original.md backup if you want to recompress.")
+        _emit_error(
+            why=str(e),
+            where=f"caveman:compress:{source.as_posix()}",
+            fix="delete the stale .original.md backup if you want to recompress.",
+        )
         return 1
     except compress_mod.CompressionFailedError as e:
-        _emit_error(why=str(e), where=f"caveman:compress:{source.as_posix()}", fix="source was restored from backup. Try a different --mode or split the file.")
+        _emit_error(
+            why=str(e),
+            where=f"caveman:compress:{source.as_posix()}",
+            fix="source was restored from backup. Try a different --mode or split the file.",
+        )
         return 1
     except Exception as e:  # noqa: BLE001 — surface LLM routing failures cleanly
-        _emit_error(why=f"compression failed: {e}", where=f"caveman:compress:{source.as_posix()}", fix="check LITELLM_BASE_URL and the proxy health, then retry.")
+        _emit_error(
+            why=f"compression failed: {e}",
+            where=f"caveman:compress:{source.as_posix()}",
+            fix="check LITELLM_BASE_URL and the proxy health, then retry.",
+        )
         return 2
 
     if args.json:
@@ -510,9 +535,10 @@ def cmd_compress(args: argparse.Namespace) -> int:
             )
         )
     else:
+        retry_word = "y" if result.retries_used == 1 else "ies"
         print(
             f"✅ {result.source.name}: {result.original_bytes} → {result.compressed_bytes} bytes "
-            f"({result.percent_saved:.1f}% saved, {result.retries_used} retr{'y' if result.retries_used == 1 else 'ies'})"
+            f"({result.percent_saved:.1f}% saved, {result.retries_used} retr{retry_word})"
         )
         print(f"   backup: {result.backup}")
         if result.model_actual:
@@ -525,7 +551,10 @@ def cmd_not_implemented(args: argparse.Namespace) -> int:
     _emit_error(
         why=f"subcommand '{name}' is not implemented yet",
         where=f"caveman:{name}",
-        fix="lands in a later phase per ~/.claude/plans/snappy-orbiting-peach.md. Use `caveman status` / `on` / `off` for Phase B.",
+        fix=(
+            "lands in a later phase per ~/.claude/plans/snappy-orbiting-peach.md. "
+            "Use `caveman status` / `on` / `off` for Phase B."
+        ),
     )
     return 2
 
@@ -584,12 +613,24 @@ def _build_parser() -> argparse.ArgumentParser:
 
     s_stats = sub.add_parser("stats", help="Session-token stats from Claude Code transcripts.", parents=[shared])
     s_stats.add_argument("--since", default=None, help="ISO 8601 timestamp — only count events at-or-after.")
-    s_stats.add_argument("--since-caveman-on", action="store_true", help="Scope to events since caveman was last toggled on.")
-    s_stats.add_argument("--update-statusline", action="store_true", help="Write .ai-playbook/.caveman-statusline-suffix.")
+    s_stats.add_argument(
+        "--since-caveman-on",
+        action="store_true",
+        help="Scope to events since caveman was last toggled on.",
+    )
+    s_stats.add_argument(
+        "--update-statusline",
+        action="store_true",
+        help="Write .ai-playbook/.caveman-statusline-suffix.",
+    )
     s_stats.add_argument("--json", action="store_true")
     s_stats.set_defaults(func=cmd_stats)
 
-    s_rollback = sub.add_parser("rollback", help="Restore the latest backups for AGENTS.md and .mcp.json/.gemini.", parents=[shared])
+    s_rollback = sub.add_parser(
+        "rollback",
+        help="Restore the latest backups for AGENTS.md and .mcp.json/.gemini.",
+        parents=[shared],
+    )
     s_rollback.add_argument("--list", action="store_true", help="List candidate backups; do NOT restore.")
     s_rollback.add_argument("--yes", action="store_true", help="Confirm the overwrite. Required for actual restore.")
     s_rollback.add_argument("--json", action="store_true")
@@ -599,11 +640,19 @@ def _build_parser() -> argparse.ArgumentParser:
     s_shrink.add_argument("--json", action="store_true")
     s_shrink.set_defaults(func=cmd_mcp_shrink)
 
-    s_restore = sub.add_parser("mcp-restore", help="Unwrap MCP server commands (restore from markers or backup).", parents=[shared])
+    s_restore = sub.add_parser(
+        "mcp-restore",
+        help="Unwrap MCP server commands (restore from markers or backup).",
+        parents=[shared],
+    )
     s_restore.add_argument("--json", action="store_true")
     s_restore.set_defaults(func=cmd_mcp_restore)
 
-    s_compress = sub.add_parser("compress", help="Compress a markdown file in caveman style with byte-preservation validation.", parents=[shared])
+    s_compress = sub.add_parser(
+        "compress",
+        help="Compress a markdown file in caveman style with byte-preservation validation.",
+        parents=[shared],
+    )
     s_compress.add_argument("file", type=str, help="Markdown file to compress.")
     s_compress.add_argument("--mode", default="full", help=f"Intensity: {', '.join(compress_mod.VALID_MODES)}.")
     s_compress.add_argument("--force-large", action="store_true", help="Allow files >100 KB.")

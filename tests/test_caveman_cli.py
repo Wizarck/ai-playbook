@@ -237,7 +237,12 @@ def test_project_arg_after_subcommand_with_other_flag(project: Path, capsys: pyt
     assert payload["project_root"].replace("\\", "/").endswith(project.name)
 
 
-def test_stats_runs_clean_when_no_logs(project: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_stats_runs_clean_when_no_logs(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "ccdir"))
     rc = cli.main(["--project", str(project), "stats"])
     assert rc == 0
@@ -245,7 +250,12 @@ def test_stats_runs_clean_when_no_logs(project: Path, monkeypatch: pytest.Monkey
     assert "sessions:        0" in out
 
 
-def test_stats_json(project: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_stats_json(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "ccdir"))
     rc = cli.main(["--project", str(project), "stats", "--json"])
     assert rc == 0

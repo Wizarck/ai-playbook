@@ -7,7 +7,6 @@ import pytest
 
 from scripts.caveman import materialise
 
-
 # ---------------------------------------------------------------------------
 # render_block_content — content derivation from SKILL.md
 # ---------------------------------------------------------------------------
