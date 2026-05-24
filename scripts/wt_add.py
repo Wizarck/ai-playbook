@@ -336,6 +336,10 @@ def main() -> int:
         print("[dry-run] no changes made.")
     else:
         print(f"\nNext: cd {ctx.worktree_dir.relative_to(ctx.repo_root)} && start work on {ctx.change_id}")
+        print(
+            f"When the PR is merged/closed, retire the worktree + branch with:\n"
+            f"    python scripts/wt_remove.py {ctx.change_id}"
+        )
     return 0
 
 

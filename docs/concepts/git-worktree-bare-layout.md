@@ -88,6 +88,14 @@ Existing consumer projects on layout B (single working tree at `<repo>/`) keep w
 - Takes a `<change-id>` argument; creates `<change-id>/` worktree at branch `slice/<change-id>` (configurable prefix).
 - Defaults the base branch to the project default (auto-detected via `origin/HEAD`).
 - Refuses to create a worktree whose name does not match an existing `openspec/changes/<id>/` folder unless `--no-slice-check` is passed (analogous to `/opsx:propose --no-slice` per [bmad-openspec-bridge.md](bmad-openspec-bridge.md)).
+- On success, prints a follow-up hint pointing at `wt_remove.py` so the user discovers the retirement step without reading docs.
+
+`scripts/wt_remove.py` closes the worktree lifecycle. After a `slice/<change-id>` PR is merged or closed:
+- Verifies the PR state via `gh pr list --head slice/<change-id>` and refuses to proceed if it is still `OPEN` (override with `--force`).
+- Runs `git worktree remove --force <change-id>` (the `--force` covers submodule directories git's bookkeeping does not track) and wipes any residue that survives.
+- Deletes the local branch (`git branch -D slice/<change-id>`) unless `--keep-branch` is passed.
+
+`scripts/wt_sweep.py` is the bulk counterpart for projects that have accumulated drift (many merged/closed PRs whose local `slice/*` branches were never retired). It scans every `slice/*` branch, queries GitHub for each PR's state, and prints a deletion plan; `--apply` executes it; `--remote` additionally `git push --delete origin <branch>`; `--include-worktrees` retires dangling worktrees as well. Use periodically (or once, retroactively) to keep `git branch --list 'slice/*'` honest. Pair with enabling **"Automatically delete head branches"** at the GitHub repo level so new PRs auto-clean their remote head and the sweeper only needs to handle local + historical drift.
 
 `git worktree repair` (built-in) restores absolute paths in worktree metadata after the parent directory is renamed — the runbook calls this out as the recovery step for the Windows rename-while-cwd-locked case.
 
@@ -95,6 +103,8 @@ Existing consumer projects on layout B (single working tree at `<repo>/`) keep w
 
 - [docs/runbooks/git-worktree-bare-setup.md](../runbooks/git-worktree-bare-setup.md) — operational runbook (greenfield + migrate + daily flow).
 - [scripts/wt_add.py](../../scripts/wt_add.py) — helper for daily worktree creation.
+- [scripts/wt_remove.py](../../scripts/wt_remove.py) — helper for retiring a single worktree + branch after PR merge/close.
+- [scripts/wt_sweep.py](../../scripts/wt_sweep.py) — bulk-clean zombie `slice/*` branches whose PR is resolved.
 - [release-management.md](release-management.md) §3.1 — `slice/<change-id>` branch naming this layout depends on.
 - [bmad-openspec-bridge.md](bmad-openspec-bridge.md) — the slicing artefact whose change-ids become worktree directory names.
 - [runbook-bmad-openspec.md](runbook-bmad-openspec.md) §3.6 — "1 branch = 1 OpenSpec change = 1 PR" contract this layout operationalises.
