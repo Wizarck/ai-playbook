@@ -186,7 +186,22 @@ git worktree add <change-id> -b slice/<change-id> origin/$(git -C .bare symbolic
 
 #### 4.2 Remove a finished worktree
 
-After the slice's PR is squash-merged:
+After the slice's PR is merged or closed:
+
+```bash
+cd /c/Projects/<repo>
+python /c/Projects/ai-playbook/scripts/wt_remove.py <change-id>
+```
+
+The helper checks via `gh pr list --head slice/<change-id>` that the PR is `MERGED` or `CLOSED` before doing anything (pass `--force` to bypass — e.g. for ad-hoc branches that were never PR'd). It then runs `git worktree remove --force <change-id>` (the `--force` is needed because the worktree contains submodule directories git's bookkeeping does not track), wipes any submodule residue that survives, and finally runs `git branch -D slice/<change-id>` to retire the local branch.
+
+Flags:
+
+- `--force` — skip the PR-state gate (useful when no PR exists or when `gh` is unavailable).
+- `--keep-branch` — remove only the worktree; preserve the local branch.
+- `--dry-run` — print the exact commands the helper would run without executing them.
+
+Manual equivalent (matches the helper's behavior):
 
 ```bash
 cd /c/Projects/<repo>
@@ -195,7 +210,23 @@ rm -rf <change-id>                              # if force-remove leaves submodu
 git branch -D slice/<change-id>                 # cleanup local branch
 ```
 
-`--force` is needed because the worktree contains submodule directories git's bookkeeping does not track. The `rm -rf` is safe — the worktree's contents were either committed (already in `.bare/`) or untracked.
+#### 4.3 Bulk-clean zombie slice/* branches
+
+When many PRs have been merged without their worktree+branch being retired (a common drift on long-lived projects), use the sweep helper to retire them in one pass:
+
+```bash
+cd /c/Projects/<repo>
+python /c/Projects/ai-playbook/scripts/wt_sweep.py             # dry-run plan
+python /c/Projects/ai-playbook/scripts/wt_sweep.py --apply     # execute
+python /c/Projects/ai-playbook/scripts/wt_sweep.py --apply --remote
+                                                               # also delete origin/*
+```
+
+The sweeper enumerates every local branch matching `slice/*`, queries GitHub via `gh pr list --head <branch>` for each, and prints a table with the action it would take (`DELETE` for MERGED/CLOSED, `skip` for OPEN or no-PR). The default is a dry-run; `--apply` executes the plan; `--remote` additionally deletes the matching remote branch (useful when the GitHub repo doesn't have "Automatically delete head branches" enabled).
+
+Pair with `--include-worktrees` if some merged branches still have their worktree directories around — the sweeper will retire those too.
+
+**Tip — prefer auto-delete at the source**: enabling **Settings → General → Pull Requests → "Automatically delete head branches"** in the GitHub repo eliminates the source of zombie remote branches at merge time, so `wt_sweep.py --remote` becomes unnecessary in steady state. The sweep helper remains useful for clearing accumulated drift in projects that adopt the policy retroactively.
 
 ## Verification
 
