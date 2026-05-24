@@ -4,8 +4,76 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
-> Reserved for the next iteration of post-review fixes. v0.20.0 is the
+> Reserved for the next iteration of post-review fixes. v0.20.0 remains the
 > visible milestone PR; tag only on explicit user approval.
+
+## [0.19.5] — 2026-05-25 — Worktree retirement helpers (`wt_remove` + `wt_sweep`)
+
+Closes the missing half of the worktree lifecycle introduced in earlier
+versions: `scripts/wt_add.py` created `slice/<change-id>` branches but had
+no companion helper to retire them after the PR was merged or closed.
+Consumer projects accumulated "zombie" local branches because:
+
+1. `git worktree remove` does NOT delete the underlying branch.
+2. Squash-merge creates a new commit on main; the original slice tip is not
+   reachable from main, so `git branch --merged` cannot detect it.
+
+Discovered while cleaning up after a geeplo hotfix (`GPLO-1027`) — the
+project had accumulated 33 zombie local `slice/*` branches, only 1 of which
+corresponded to an open PR. This release codifies the cleanup logic.
+
+Backwards-compatible. `wt_add.py` keeps the same interface (only an
+informational hint added to successful output). Consumers see no breakage;
+the new helpers are purely additive.
+
+### Added
+
+- **`scripts/wt_remove.py`** — single-target retirement of a worktree + its
+  `slice/<change-id>` branch. Verifies the PR state via
+  `gh pr list --head slice/<change-id>` before doing anything and refuses
+  to proceed if the PR is still OPEN (override with `--force`). Then runs
+  `git worktree remove --force` (the `--force` covers submodule directories
+  git's bookkeeping does not track), wipes residue that survives, and
+  finally `git branch -D slice/<change-id>` (unless `--keep-branch` is
+  passed). Other flags: `--dry-run`, `--repo-root`, `--branch-prefix`.
+
+- **`scripts/wt_sweep.py`** — bulk maintenance for projects that have
+  accumulated drift (many merged/closed PRs whose `slice/*` branches were
+  never retired). Enumerates every local branch matching `--branch-prefix`
+  (default `slice/`), queries `gh pr list --head <branch>` for each,
+  classifies as `MERGED` / `CLOSED` / `OPEN` / no PR found, and prints a
+  deletion plan. Default is dry-run; `--apply` executes; `--remote`
+  additionally `git push --delete origin <branch>` (useful when the repo
+  lacks `delete_branch_on_merge=true`); `--include-worktrees` retires
+  dangling worktrees too.
+
+- **27 tests** (`tests/test_wt_remove.py` + `tests/test_wt_sweep.py`).
+  Subprocess + filesystem are stubbed; covers PR-state gating, `--force`,
+  `--keep-branch`, `--dry-run`, `--include-worktrees`, `--remote`, and the
+  `BranchEntry` classification logic.
+
+### Changed
+
+- **`scripts/wt_add.py`** — on successful worktree creation, prints a
+  follow-up hint pointing at `wt_remove.py` so the user discovers the
+  retirement step without having to read docs.
+
+- **`docs/concepts/git-worktree-bare-layout.md`** — Tooling section now
+  documents `wt_remove.py` and `wt_sweep.py` alongside `wt_add.py`, and
+  recommends enabling GitHub's "Automatically delete head branches" at the
+  repo level to eliminate remote zombies at source.
+
+- **`docs/runbooks/git-worktree-bare-setup.md`** §4.2 rewritten around the
+  `wt_remove.py` invocation; new §4.3 added covering `wt_sweep.py` for bulk
+  cleanup. Manual `git worktree remove + git branch -D` remains documented
+  as the equivalent for users who prefer not to use the helper.
+
+### Consumer action
+
+Optional but recommended: bump the `inherits_from` pin in your
+project-level `AGENTS.md` to `@v0.19.5` and refresh the `.ai-playbook`
+submodule to consume the new scripts. There is no breaking change — the
+old helpers continue to work as before.
 
 ## [0.19.4] — 2026-05-20 — Windows UTF-8 stdout + dispatcher-cursor sibling warning
 
