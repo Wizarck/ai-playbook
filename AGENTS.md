@@ -10,32 +10,32 @@ capabilities_map: true
 
 # ai-playbook — self-hosted dispatcher
 
-This file is read by agents working **ON** this repo (not consumers). Consumers read their own project's `AGENTS.md`, which inherits from this playbook via `.ai-playbook/specs/*`.
+Read by agents working **ON** this repo (not consumers). Consumers read own project's `AGENTS.md`, inheriting from playbook via `.ai-playbook/specs/*`.
 
 ## 0 Bootstrap directive
 
-Any agent editing this repo MUST:
-1. Read `docs/concepts/dispatcher-chain.md` — inheritance model and override semantics.
-2. Read `specs/agents-md-v1.schema.json` — frontmatter contract before editing any `AGENTS.md`.
+Agents editing this repo MUST:
+1. Read `docs/concepts/dispatcher-chain.md` — inheritance + override semantics.
+2. Read `specs/agents-md-v1.schema.json` — frontmatter contract before editing `AGENTS.md`.
 3. Read `docs/rules/verdict-contract.rule.md` — verdict + severity rubric before QA.
-4. Only then act.
+4. Then act.
 
 ## 1 Project identity
 
-`ai-playbook` is the universal norms + tooling repo consumed via git submodule by every consumer project. LLM-agnostic. Dogfoods its own pre-commit and schema.
+`ai-playbook` = universal norms + tooling repo. Submoduled by every consumer project. LLM-agnostic. Dogfoods own pre-commit + schema.
 
 ## 2 Dispatcher index
 
 | Topic | Pointer |
 |---|---|
-| **How to make any change (canonical entry point)** | [docs/concepts/development-flow.md](docs/concepts/development-flow.md) |
+| **Canonical entry point — how to make any change** | [docs/concepts/development-flow.md](docs/concepts/development-flow.md) |
 | Inheritance model | [docs/concepts/dispatcher-chain.md](docs/concepts/dispatcher-chain.md) |
 | Projects registry (path resolution) | [docs/concepts/projects-registry.md](docs/concepts/projects-registry.md) |
 | AGENTS.md schema | [specs/agents-md-v1.schema.json](specs/agents-md-v1.schema.json) |
 | Taxonomy (agent/tool/skill/hook/…) | [docs/concepts/taxonomy.md](docs/concepts/taxonomy.md) |
 | Verdict + severity contract | [docs/rules/verdict-contract.rule.md](docs/rules/verdict-contract.rule.md) |
-| Merge style decision rules | [docs/concepts/merge-policy.md](docs/concepts/merge-policy.md) |
-| Conflict resolution between parallel PRs | [docs/rules/conflict-resolution-policy.rule.md](docs/rules/conflict-resolution-policy.rule.md) |
+| Merge style rules | [docs/concepts/merge-policy.md](docs/concepts/merge-policy.md) |
+| Conflict resolution across parallel PRs | [docs/rules/conflict-resolution-policy.rule.md](docs/rules/conflict-resolution-policy.rule.md) |
 | Degradation modes | [docs/concepts/degradation-modes.md](docs/concepts/degradation-modes.md) |
 | Agentic failure catalog | [docs/concepts/agentic-failures.md](docs/concepts/agentic-failures.md) |
 | Model routing matrix | [docs/concepts/model-routing.md](docs/concepts/model-routing.md) |
@@ -56,14 +56,14 @@ Any agent editing this repo MUST:
 
 ## 3 Active work
 
-Tracked in the project plan outside this repo. Current tag: see [`VERSION`](VERSION). Core specs and scripts are v1.0.0; the handful deferred-by-design (e.g. `incident-response.md`, `model-migration.md`) declare their activation trigger in the header.
+Tracked in project plan outside repo. Current tag: see [`VERSION`](VERSION). Core specs + scripts v1.0.0. Deferred-by-design entries (e.g. `incident-response.md`, `model-migration.md`) declare activation trigger in header.
 
 ## 4 Hard rules (this repo only)
 
-- **Never edit `specs/*.md` without first verifying `agents-md-v1.schema.json` doesn't enforce structure** — breaking schema = breaking every consumer.
-- **Scripts are cross-platform Python 3.11+.** No bash-isms. Use `pathlib`, not `os.path.join` with hardcoded separators.
-- **Every script has a matching `tests/test_*.py`.** PR merges block if coverage drops.
-- **Conventional commits** on this repo (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
+- **Never edit `specs/*.md` without first verifying `agents-md-v1.schema.json` does not enforce structure** — broken schema = broken consumers.
+- **Scripts cross-platform Python 3.11+.** No bash-isms. Use `pathlib`, never `os.path.join` with hardcoded separators.
+- **Every script has matching `tests/test_*.py`.** PR merges block on coverage drop.
+- **Conventional commits** here (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
 - **Semver.** Breaking changes (schema bump, dispatcher semantics) = major. RFC under `rfcs/` first.
 
 ## 5 Capability map
@@ -78,13 +78,13 @@ Tracked in the project plan outside this repo. Current tag: see [`VERSION`](VERS
 | Rollback to pre-refactor state | `git checkout baseline` |
 | Discover local projects / populate registry | `python -m scripts.discover_projects` |
 | List current registry | `python -m scripts.discover_projects --list` |
-| Cut a new playbook release | [docs/runbooks/release.md](docs/runbooks/release.md) |
-| Rotate a secret (PAT / SMTP / ATLASSIAN) | [docs/runbooks/rotate-secrets.md](docs/runbooks/rotate-secrets.md) |
-| Debug a failed propagation Action | [docs/runbooks/propagate-bump-troubleshooting.md](docs/runbooks/propagate-bump-troubleshooting.md) |
+| Cut new playbook release | [docs/runbooks/release.md](docs/runbooks/release.md) |
+| Rotate secret (PAT / SMTP / ATLASSIAN) | [docs/runbooks/rotate-secrets.md](docs/runbooks/rotate-secrets.md) |
+| Debug failed propagation Action | [docs/runbooks/propagate-bump-troubleshooting.md](docs/runbooks/propagate-bump-troubleshooting.md) |
 
 ## 6 MCP sources
 
-No MCP servers are specific to this repo (it's a spec/tooling repo, not a runtime). Consumers declare MCP servers in their own `mcp-servers.yaml`, validated against `docs/concepts/mcp-servers-schema.md`.
+No MCP servers specific to this repo (spec/tooling repo, not runtime). Consumers declare MCP servers in own `mcp-servers.yaml`, validated against `docs/concepts/mcp-servers-schema.md`.
 
 ## 7 Overrides inherited from playbook
 
@@ -96,7 +96,7 @@ Empty at v0.1.0. Populated as operational knowledge accrues.
 
 ## 9 Rule Map (D3 signal #4)
 
-Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Slice 5.F; refreshed in Slice 6 (14 new hardrules) + Slice 7 (5 new hardrules + 5 advisory downgrades); the deferred-hardrules allowlist is empty at v0.18.3.
+Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Slice 5.F; refreshed Slice 6 (14 new hardrules) + Slice 7 (5 new + 5 advisory downgrades). Deferred-hardrules allowlist empty at v0.18.3.
 
 ### Enforced (paired hardrule on disk)
 
@@ -156,4 +156,4 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 
 ### Hardrule deferred (paired_hardrule named, .py ships in a later slice)
 
-Empty at v0.18.3. The deferred-hardrules allowlist file was removed in Slice 7; the strict-mode validator now exits 0 with no allowlist.
+Empty at v0.18.3. Deferred-hardrules allowlist file removed in Slice 7; strict-mode validator now exits 0 with no allowlist.
