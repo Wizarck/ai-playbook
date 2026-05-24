@@ -185,3 +185,81 @@ def test_apply_bootstraps_claude_dir_if_missing(tmp_path: Path) -> None:
     rc = _cs.apply(dry_run=False, cwd=tmp_path)
     assert rc == 0
     assert (tmp_path / ".claude" / "settings.json").is_file()
+
+
+# --- caveman UserPromptSubmit interop (Phase D follow-up) -----------------------
+#
+# The caveman feature adds a UserPromptSubmit hook to the consumer's
+# settings.json (templates/new-project/.claude/settings.json.tmpl). The
+# claude-settings rule MUST NOT reject that addition (validate stays
+# permissive about unrelated hook entries) and MUST NOT clobber it
+# (apply only adds the PreToolUse openspec entry, never removes others).
+# These tests pin that contract.
+
+
+def _caveman_userpromptsubmit_entry() -> dict:
+    return {
+        "hooks": [
+            {
+                "type": "command",
+                "command": "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py",
+                "timeout": 5,
+            }
+        ]
+    }
+
+
+def _canonical_settings_with_caveman() -> dict:
+    s = _canonical_settings()
+    s["hooks"]["UserPromptSubmit"] = [_caveman_userpromptsubmit_entry()]
+    return s
+
+
+def test_validate_ignores_unrelated_userpromptsubmit_entry(tmp_path: Path) -> None:
+    root = _make_consumer(tmp_path)
+    (root / ".claude" / "settings.json").write_text(
+        json.dumps(_canonical_settings_with_caveman()),
+        encoding="utf-8",
+    )
+    rc = _cs.validate(cwd=root)
+    assert rc == 0  # caveman entry alongside openspec MUST validate clean
+
+
+def test_apply_preserves_caveman_userpromptsubmit_entry(tmp_path: Path) -> None:
+    root = _make_consumer(tmp_path)
+    (root / ".claude" / "settings.json").write_text(
+        json.dumps(_canonical_settings_with_caveman()),
+        encoding="utf-8",
+    )
+    rc = _cs.apply(dry_run=False, cwd=root)
+    assert rc == 0
+
+    new = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "UserPromptSubmit" in new["hooks"]
+    cmd = new["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+    assert "caveman-reinforce.rule.py" in cmd
+
+
+def test_apply_adds_openspec_without_touching_caveman_userpromptsubmit(tmp_path: Path) -> None:
+    # Starting point: only the caveman UserPromptSubmit entry, no openspec PreToolUse.
+    root = _make_consumer(tmp_path)
+    (root / ".claude" / "settings.json").write_text(
+        json.dumps({"hooks": {"UserPromptSubmit": [_caveman_userpromptsubmit_entry()]}}),
+        encoding="utf-8",
+    )
+
+    rc = _cs.apply(dry_run=False, cwd=root)
+    assert rc == 0
+
+    new = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    # openspec PreToolUse added
+    assert "PreToolUse" in new["hooks"]
+    assert any(
+        "openspec-apply-enforce.py" in (h.get("command") or "")
+        for entry in new["hooks"]["PreToolUse"]
+        for h in (entry.get("hooks") or [])
+    )
+    # caveman UserPromptSubmit preserved byte-for-byte
+    assert new["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"] == (
+        "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py"
+    )
