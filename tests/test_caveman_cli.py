@@ -150,9 +150,107 @@ def test_off_when_no_prior_state(project: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("sub", ["stats", "rollback"])
-def test_phase_stubs_exit_2(project: Path, sub: str, capsys: pytest.CaptureFixture[str]) -> None:
-    rc = cli.main(["--project", str(project), sub])
-    assert rc == 2
+# ---------------------------------------------------------------------------
+# rollback
+# ---------------------------------------------------------------------------
+
+
+def test_rollback_requires_yes_when_backups_exist(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Create a backup so rollback has something to consider
+    from scripts.caveman import backup as backup_mod
+
+    (project / "AGENTS.md").write_text("# v1\n", encoding="utf-8")
+    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    (project / "AGENTS.md").write_text("# v2 mutated\n", encoding="utf-8")
+
+    rc = cli.main(["--project", str(project), "rollback"])
+    assert rc == 1
     err = capsys.readouterr().err
-    assert "not implemented yet" in err
+    assert "--yes" in err
+    # File NOT restored without --yes
+    assert "# v2 mutated" in (project / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_rollback_with_yes_restores(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from scripts.caveman import backup as backup_mod
+
+    (project / "AGENTS.md").write_text("# original\n", encoding="utf-8")
+    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    (project / "AGENTS.md").write_text("# mutated\n", encoding="utf-8")
+
+    rc = cli.main(["--project", str(project), "rollback", "--yes"])
+    assert rc == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == "# original\n"
+
+
+def test_rollback_list_shows_candidates_without_restoring(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from scripts.caveman import backup as backup_mod
+
+    (project / "AGENTS.md").write_text("# v1\n", encoding="utf-8")
+    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    (project / "AGENTS.md").write_text("# v2\n", encoding="utf-8")
+
+    rc = cli.main(["--project", str(project), "rollback", "--list"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "AGENTS.md" in out
+    assert "would restore" in out
+    # File NOT restored
+    assert "# v2" in (project / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_rollback_when_no_backups(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = cli.main(["--project", str(project), "rollback", "--yes"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "no backups found" in err
+
+
+# ---------------------------------------------------------------------------
+# stats
+# ---------------------------------------------------------------------------
+
+
+def test_project_arg_accepted_before_subcommand(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # --project BEFORE the subcommand (UI canonical form).
+    rc = cli.main(["--project", str(project), "status"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert str(project) in out
+
+
+def test_project_arg_accepted_after_subcommand(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # --project AFTER the subcommand (what an unsuspecting subprocess call
+    # might emit). Both must work — pinned because previously argparse
+    # silently overrode the parent's value with the subparser's None default.
+    rc = cli.main(["status", "--project", str(project)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert str(project) in out
+
+
+def test_project_arg_after_subcommand_with_other_flag(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # status --json --project ... — the exact shape the UI docs show.
+    rc = cli.main(["status", "--json", "--project", str(project)])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["project_root"].replace("\\", "/").endswith(project.name)
+
+
+def test_stats_runs_clean_when_no_logs(project: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "ccdir"))
+    rc = cli.main(["--project", str(project), "stats"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "sessions:        0" in out
+
+
+def test_stats_json(project: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "ccdir"))
+    rc = cli.main(["--project", str(project), "stats", "--json"])
+    assert rc == 0
+    import json as _json
+    payload = _json.loads(capsys.readouterr().out)
+    assert payload["sessions"] == 0
+    assert payload["extrapolated_saved"] == 0
+    assert "savings_rate_assumption" in payload

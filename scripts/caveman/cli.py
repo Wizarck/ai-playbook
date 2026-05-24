@@ -30,9 +30,11 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+from scripts.caveman import backup as backup_mod
 from scripts.caveman import compress as compress_mod
 from scripts.caveman import materialise as materialise_mod
 from scripts.caveman import mcp_shrink as mcp_shrink_mod
+from scripts.caveman import stats as stats_mod
 from scripts.caveman import toggle
 
 
@@ -45,7 +47,7 @@ VALID_COMPONENTS = (
     "review_caveman",
     "mcp_shrink",
 )
-PHASE_B_NOT_IMPLEMENTED = ("stats", "rollback")
+PHASE_B_NOT_IMPLEMENTED: tuple[str, ...] = ()
 
 
 def _emit_error(*, why: str, where: str, fix: str) -> None:
@@ -122,7 +124,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_on(args: argparse.Namespace) -> int:
-    root = _resolve_project_root(args.project)
+    root = _resolve_project_root(getattr(args, "project", None))
     if root is None:
         _emit_error(
             why="cannot resolve project root",
@@ -223,7 +225,7 @@ def cmd_on(args: argparse.Namespace) -> int:
 
 
 def cmd_off(args: argparse.Namespace) -> int:
-    root = _resolve_project_root(args.project)
+    root = _resolve_project_root(getattr(args, "project", None))
     if root is None:
         _emit_error(
             why="cannot resolve project root",
@@ -297,7 +299,7 @@ def cmd_off(args: argparse.Namespace) -> int:
 
 
 def cmd_mcp_shrink(args: argparse.Namespace) -> int:
-    root = _resolve_project_root(args.project)
+    root = _resolve_project_root(getattr(args, "project", None))
     if root is None:
         _emit_error(why="cannot resolve project root", where="caveman:mcp-shrink", fix="pass --project <PATH>.")
         return 2
@@ -318,7 +320,7 @@ def cmd_mcp_shrink(args: argparse.Namespace) -> int:
 
 
 def cmd_mcp_restore(args: argparse.Namespace) -> int:
-    root = _resolve_project_root(args.project)
+    root = _resolve_project_root(getattr(args, "project", None))
     if root is None:
         _emit_error(why="cannot resolve project root", where="caveman:mcp-restore", fix="pass --project <PATH>.")
         return 2
@@ -333,6 +335,128 @@ def cmd_mcp_restore(args: argparse.Namespace) -> int:
         cu = result["claude"]["unwrapped"]
         gu = result["gemini"]["unwrapped"]
         print(f"✅ unwrapped {cu} (.mcp.json) + {gu} (.gemini/settings.json) entries at {root}")
+    return 0
+
+
+def cmd_stats(args: argparse.Namespace) -> int:
+    root = _resolve_project_root(getattr(args, "project", None))
+    if root is None:
+        _emit_error(why="cannot resolve project root", where="caveman:stats", fix="pass --project <PATH>.")
+        return 2
+
+    since = None
+    if args.since_caveman_on:
+        state = toggle.read_state(root)
+        since = state.get("applied_at") if state.get("enabled") else None
+        if since is None:
+            print(f"⚠️  caveman is OFF; --since-caveman-on has no effect. Showing all sessions.", file=sys.stderr)
+    elif args.since:
+        since = args.since
+
+    stats = stats_mod.collect_stats(root, since=since)
+    saved = stats_mod.extrapolated_savings(stats.output_tokens)
+
+    if args.update_statusline:
+        target = stats_mod.write_statusline_suffix(root, saved)
+        suffix_note = f" (statusline suffix written to {target})"
+    else:
+        suffix_note = ""
+
+    if args.json:
+        print(json.dumps({
+            "project_root": root.as_posix(),
+            "scope": since or "all",
+            "sessions": stats.sessions,
+            "events": stats.events,
+            "input_tokens": stats.input_tokens,
+            "output_tokens": stats.output_tokens,
+            "cache_creation_tokens": stats.cache_creation_tokens,
+            "cache_read_tokens": stats.cache_read_tokens,
+            "extrapolated_saved": saved,
+            "savings_rate_assumption": stats_mod.SAVINGS_RATE,
+            "estimated_cost_usd": round(stats_mod.estimated_cost_usd(stats.input_tokens, stats.output_tokens), 4),
+            "statusline_suffix": stats_mod.statusline_suffix(saved),
+            "models": stats.models,
+            "first_event_at": stats.first_event_at,
+            "last_event_at": stats.last_event_at,
+        }, indent=2, ensure_ascii=False))
+    else:
+        print(stats_mod.render_report(stats, project_root=root, since=since), end="")
+        if suffix_note:
+            print(suffix_note)
+    return 0
+
+
+def cmd_rollback(args: argparse.Namespace) -> int:
+    root = _resolve_project_root(getattr(args, "project", None))
+    if root is None:
+        _emit_error(why="cannot resolve project root", where="caveman:rollback", fix="pass --project <PATH>.")
+        return 2
+
+    # Discover what backups exist.
+    agents_md = root / "AGENTS.md"
+    mcp_json = root / ".mcp.json"
+    gemini_json = root / ".gemini" / "settings.json"
+
+    candidates = []
+    for area, source in (("agents", agents_md), ("mcp", mcp_json), ("mcp", gemini_json)):
+        latest = backup_mod.latest_backup(root, area, source.name)
+        if latest is not None:
+            candidates.append((area, source, latest))
+
+    if args.list:
+        if args.json:
+            print(json.dumps({
+                "project_root": root.as_posix(),
+                "candidates": [
+                    {"area": a, "target": str(s), "backup": str(b)}
+                    for a, s, b in candidates
+                ],
+            }, indent=2, ensure_ascii=False))
+        else:
+            if not candidates:
+                print(f"No backups found under {root}/.ai-playbook/backups/")
+                return 0
+            print(f"Latest backups under {root}:")
+            for a, s, b in candidates:
+                print(f"  [{a}] {s.name}: would restore from {b.name}")
+        return 0
+
+    if not candidates:
+        _emit_error(
+            why="no backups found to restore",
+            where=f"caveman:rollback:{root.as_posix()}",
+            fix="nothing to roll back — backups live at .ai-playbook/backups/{agents,mcp}/. Run `caveman on` then `off` to create some, or use the per-file .original.md backup for compressed docs.",
+        )
+        return 1
+
+    if not args.yes:
+        _emit_error(
+            why="rollback requires explicit confirmation",
+            where="caveman:rollback",
+            fix=f"re-run with --yes. This will overwrite: {', '.join(str(s.relative_to(root)) for _, s, _ in candidates)}.",
+        )
+        return 1
+
+    restored = []
+    for area, source, backup in candidates:
+        try:
+            used = backup_mod.restore_backup(root, area, source)
+            restored.append({"area": area, "source": source.as_posix(), "backup": used.as_posix()})
+        except (FileNotFoundError, OSError) as e:
+            _emit_error(
+                why=f"restore failed for {source}: {e}",
+                where=f"caveman:rollback:{area}",
+                fix="check file permissions and disk state; other restores in this pass may have succeeded.",
+            )
+            return 1
+
+    if args.json:
+        print(json.dumps({"ok": True, "restored": restored}, indent=2, ensure_ascii=False))
+    else:
+        print(f"✅ rolled back {len(restored)} file(s) at {root}")
+        for r in restored:
+            print(f"   {r['area']:7s} {r['source']}  ⟵  {r['backup']}")
     return 0
 
 
@@ -412,23 +536,34 @@ def cmd_not_implemented(args: argparse.Namespace) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="caveman",
-        description="Caveman feature toggle CLI (Phase B: state-only).",
-    )
-    p.add_argument(
+    # Shared parent parser so --project can appear before OR after the
+    # subcommand. Without it, argparse only honours --project before the
+    # subcommand, which makes UI subprocess invocations brittle. Each
+    # subparser includes `parents=[shared]` so the flag is recognised
+    # at either position.
+    shared = argparse.ArgumentParser(add_help=False)
+    # SUPPRESS as default so that if --project is given to the parent and
+    # omitted from the subparser, the subparser's parse does NOT overwrite
+    # the parent's value with None. Callers read via getattr(args, "project", None).
+    shared.add_argument(
         "--project",
         type=Path,
-        default=None,
-        help="Project root (default: auto-detect from cwd by walking up to AGENTS.md or .ai-playbook/).",
+        default=argparse.SUPPRESS,
+        help="Project root (default: auto-detect from cwd by walking up to AGENTS.md).",
+    )
+
+    p = argparse.ArgumentParser(
+        prog="caveman",
+        description="Caveman feature toggle CLI.",
+        parents=[shared],
     )
     sub = p.add_subparsers(dest="cmd")
 
-    s_status = sub.add_parser("status", help="Show current toggle state.")
+    s_status = sub.add_parser("status", help="Show current toggle state.", parents=[shared])
     s_status.add_argument("--json", action="store_true", help="JSON output for UI consumers.")
     s_status.set_defaults(func=cmd_status)
 
-    s_on = sub.add_parser("on", help="Enable caveman for this project.")
+    s_on = sub.add_parser("on", help="Enable caveman for this project.", parents=[shared])
     s_on.add_argument("--mode", default="full", help=f"Intensity: {', '.join(VALID_MODES)}. Default: full.")
     s_on.add_argument(
         "--components",
@@ -438,7 +573,7 @@ def _build_parser() -> argparse.ArgumentParser:
     s_on.add_argument("--json", action="store_true")
     s_on.set_defaults(func=cmd_on)
 
-    s_off = sub.add_parser("off", help="Disable caveman for this project.")
+    s_off = sub.add_parser("off", help="Disable caveman for this project.", parents=[shared])
     s_off.add_argument(
         "--keep-backups",
         action="store_true",
@@ -447,15 +582,28 @@ def _build_parser() -> argparse.ArgumentParser:
     s_off.add_argument("--json", action="store_true")
     s_off.set_defaults(func=cmd_off)
 
-    s_shrink = sub.add_parser("mcp-shrink", help="Wrap MCP server commands with caveman-shrink.")
+    s_stats = sub.add_parser("stats", help="Session-token stats from Claude Code transcripts.", parents=[shared])
+    s_stats.add_argument("--since", default=None, help="ISO 8601 timestamp — only count events at-or-after.")
+    s_stats.add_argument("--since-caveman-on", action="store_true", help="Scope to events since caveman was last toggled on.")
+    s_stats.add_argument("--update-statusline", action="store_true", help="Write .ai-playbook/.caveman-statusline-suffix.")
+    s_stats.add_argument("--json", action="store_true")
+    s_stats.set_defaults(func=cmd_stats)
+
+    s_rollback = sub.add_parser("rollback", help="Restore the latest backups for AGENTS.md and .mcp.json/.gemini.", parents=[shared])
+    s_rollback.add_argument("--list", action="store_true", help="List candidate backups; do NOT restore.")
+    s_rollback.add_argument("--yes", action="store_true", help="Confirm the overwrite. Required for actual restore.")
+    s_rollback.add_argument("--json", action="store_true")
+    s_rollback.set_defaults(func=cmd_rollback)
+
+    s_shrink = sub.add_parser("mcp-shrink", help="Wrap MCP server commands with caveman-shrink.", parents=[shared])
     s_shrink.add_argument("--json", action="store_true")
     s_shrink.set_defaults(func=cmd_mcp_shrink)
 
-    s_restore = sub.add_parser("mcp-restore", help="Unwrap MCP server commands (restore from markers or backup).")
+    s_restore = sub.add_parser("mcp-restore", help="Unwrap MCP server commands (restore from markers or backup).", parents=[shared])
     s_restore.add_argument("--json", action="store_true")
     s_restore.set_defaults(func=cmd_mcp_restore)
 
-    s_compress = sub.add_parser("compress", help="Compress a markdown file in caveman style with byte-preservation validation.")
+    s_compress = sub.add_parser("compress", help="Compress a markdown file in caveman style with byte-preservation validation.", parents=[shared])
     s_compress.add_argument("file", type=str, help="Markdown file to compress.")
     s_compress.add_argument("--mode", default="full", help=f"Intensity: {', '.join(compress_mod.VALID_MODES)}.")
     s_compress.add_argument("--force-large", action="store_true", help="Allow files >100 KB.")
@@ -474,7 +622,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if getattr(args, "func", None) is None:
         # No subcommand → default to status
-        return cmd_status(argparse.Namespace(project=args.project, json=False))
+        return cmd_status(argparse.Namespace(project=getattr(args, "project", None), json=False))
     return args.func(args)
 
 
