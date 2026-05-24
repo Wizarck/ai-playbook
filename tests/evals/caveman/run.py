@@ -47,7 +47,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 for _stream in (sys.stdout, sys.stderr):
@@ -127,7 +127,7 @@ def run_suite(
     arm_filter: str | None = None,
 ) -> dict:
     out: dict = {
-        "ran_at": datetime.now(timezone.utc).isoformat(),
+        "ran_at": datetime.now(UTC).isoformat(),
         "model_actual": None,
         "prompts": [],
     }
@@ -183,7 +183,11 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = run_suite(arms, prompts, arm_filter=args.arm)
     except Exception as e:  # noqa: BLE001
         print(f"❌ eval run failed: {e}", file=sys.stderr)
-        print(f"   FIX: ensure LiteLLM proxy is up at $LITELLM_BASE_URL and the doc_writing_edit task_class is configured.", file=sys.stderr)
+        print(
+            "   FIX: ensure LiteLLM proxy is up at $LITELLM_BASE_URL "
+            "and the doc_writing_edit task_class is configured.",
+            file=sys.stderr,
+        )
         return 2
 
     if args.emit_snapshot:

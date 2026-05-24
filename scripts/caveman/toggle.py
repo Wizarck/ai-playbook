@@ -26,7 +26,7 @@ import json
 import os
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -120,7 +120,7 @@ def default_state() -> dict[str, Any]:
             "review_caveman": False,
             "mcp_shrink": False,
         },
-        "applied_at": datetime.now(timezone.utc).isoformat(),
+        "applied_at": datetime.now(UTC).isoformat(),
     }
 
 

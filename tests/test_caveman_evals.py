@@ -1,21 +1,18 @@
 """Tests for the caveman 3-arm eval harness (no API calls)."""
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
 import pytest
-
 
 # The harness lives under tests/evals/caveman/. Add it to sys.path so we
 # can import its modules directly without a package shim.
 HARNESS_DIR = Path(__file__).resolve().parents[1] / "tests" / "evals" / "caveman"
 sys.path.insert(0, str(HARNESS_DIR))
 
-import run as eval_run  # noqa: E402
 import report as eval_report  # noqa: E402
-
+import run as eval_run  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Discovery + arm construction

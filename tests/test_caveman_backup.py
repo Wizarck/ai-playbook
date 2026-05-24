@@ -79,7 +79,7 @@ def test_list_backups_scoped_to_area(tmp_path: Path) -> None:
 def test_latest_backup_returns_newest(tmp_path: Path) -> None:
     src = tmp_path / "AGENTS.md"
     _write(src, "v1")
-    b1 = backup.make_backup(tmp_path, "agents", src)
+    backup.make_backup(tmp_path, "agents", src)
     time.sleep(1.1)
     src.write_text("v2", encoding="utf-8")
     b2 = backup.make_backup(tmp_path, "agents", src)

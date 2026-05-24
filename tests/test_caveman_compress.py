@@ -1,13 +1,12 @@
 """Tests for scripts.caveman.compress — byte-preservation contract + retry logic."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pytest
 
 from scripts.caveman import compress
-
 
 # ---------------------------------------------------------------------------
 # extract_contract

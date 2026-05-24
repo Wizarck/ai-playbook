@@ -34,10 +34,10 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
 for _stream in (sys.stdout, sys.stderr):
     try:

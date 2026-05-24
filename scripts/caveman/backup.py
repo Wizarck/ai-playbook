@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 for _stream in (sys.stdout, sys.stderr):
@@ -33,7 +33,7 @@ BACKUP_DIR_NAME = "backups"
 
 
 def _ts() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
 def backup_dir(project_root: Path, area: str) -> Path:
