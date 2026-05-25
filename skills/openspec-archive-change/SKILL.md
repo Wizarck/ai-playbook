@@ -85,7 +85,7 @@ Archive a completed change in the experimental workflow.
    - Determine what changes would be applied (adds, modifications, removals, renames)
    - Show a combined summary so the user knows what an eventual sync would do.
 
-   Future enhancement: a dedicated spec-sync skill is planned for v0.8.0 (per `docs/concepts/v0.8.0-roadmap.md` item 10). For now, archive only does the move + retro — no automated sync is performed.
+   Archive only does the move + retro — no automated sync is performed.
 
 5. **Perform the archive**
 
