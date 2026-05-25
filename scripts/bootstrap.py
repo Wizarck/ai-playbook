@@ -102,6 +102,8 @@ class BootstrapArgs:
     dry_run: bool
     refresh_skills: bool = False      # If True, only run skills materialisation
                                       # against the resolved target dir + exit.
+    no_caveman: bool = False          # If True, skip the default-on caveman
+                                      # activation step (see enable_caveman_default).
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +408,65 @@ def run_doctor(target_dir: Path, dry_run: bool) -> None:
     )
 
 
+# Components that bootstrap turns on by default. The playbook ships caveman
+# default-on: response_style materialises the AGENTS.md ruleset block, mcp_shrink
+# wraps the just-rendered .mcp.json + .gemini/settings.json via the post-render
+# hook in scripts/mcp/render.py, and the remaining flags advertise the related
+# skills. Consumers can opt-out with `--no-caveman` at bootstrap time or run
+# `python -m scripts.caveman off` later.
+DEFAULT_CAVEMAN_COMPONENTS = (
+    "response_style",
+    "compress_docs",
+    "subagents_cavecrew",
+    "commit_caveman",
+    "review_caveman",
+    "mcp_shrink",
+)
+
+
+def enable_caveman_default(target_dir: Path, dry_run: bool) -> None:
+    """Activate caveman by default for the freshly-bootstrapped consumer.
+
+    Best-effort: any failure prints a warning but does NOT abort bootstrap —
+    same discipline as the skills-materialise step. The consumer can always
+    re-run `python -m scripts.caveman on` against their project root.
+    """
+    components_csv = ",".join(DEFAULT_CAVEMAN_COMPONENTS)
+    if dry_run:
+        print(
+            f"(dry-run) Would activate caveman default-on for {target_dir} "
+            f"(--mode full --components {components_csv})."
+        )
+        return
+    playbook_root = find_playbook_root()
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
+    cmd = [
+        sys.executable, "-m", "scripts.caveman", "on",
+        "--mode", "full",
+        "--components", components_csv,
+        "--project", str(target_dir),
+    ]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", env=env,
+        )
+    except FileNotFoundError:
+        print(
+            f"⚠️ python not found on PATH; skipping caveman default-on for {target_dir}. "
+            "Run `python -m scripts.caveman on` manually once the env is ready."
+        )
+        return
+    if result.returncode != 0:
+        first_err = (result.stderr or "").splitlines()[0] if result.stderr else "<empty>"
+        print(
+            f"⚠️ caveman default-on failed for {target_dir} (exit {result.returncode}); "
+            f"bootstrap continues. First stderr line: {first_err}"
+        )
+        return
+    print(f"→ caveman: default-on (mode=full, components={components_csv}).")
+
+
 def run_discover(target_dir: Path, dry_run: bool) -> None:
     if dry_run:
         print(f"(dry-run) Would run `python -m scripts.discover_projects --add {target_dir}`.")
@@ -427,8 +488,10 @@ def print_next_steps(target_dir: Path, project_name: str) -> None:
     print("   2. Fill placeholders in AGENTS.md (§1 identity, §3 active work, §4 rules).")
     print("   3. Review the rendered .mcp.json + .gemini/settings.json; tweak "
           "mcp-servers.project.yaml if you need to override base/personal layers.")
-    print("   4. Write your first OpenSpec change: `/opsx:propose <topic>`.")
-    print(f"   5. Commit + push the consumer: "
+    print("   4. Check caveman status: `python -m scripts.caveman status` "
+          "(default-on unless --no-caveman was passed; see docs/runbooks/caveman-toggle.md).")
+    print("   5. Write your first OpenSpec change: `/opsx:propose <topic>`.")
+    print(f"   6. Commit + push the consumer: "
           f"`git add . && git commit -m 'chore: bootstrap {project_name} via ai-playbook' && git push`.")
 
 # ---------------------------------------------------------------------------
@@ -460,6 +523,12 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                              "skills materialisation against --path (or cwd). "
                              "Reads `skills_sources` from the consumer's "
                              "AGENTS.md frontmatter; see RFC-0001 §2.")
+    parser.add_argument("--no-caveman", action="store_true",
+                        help="Skip the default-on caveman activation step "
+                             "(see scripts/caveman/). Without this flag, "
+                             "bootstrap runs `caveman on --mode full --components <all>` "
+                             "against the new project. Opt-out only; the "
+                             "consumer can still flip it on later.")
     add_break_glass_flag(parser)
     ns = parser.parse_args(argv)
     project_name = ns.project_name
@@ -478,6 +547,7 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         force_reason=ns.force_reason,
         dry_run=ns.dry_run,
         refresh_skills=ns.refresh_skills,
+        no_caveman=ns.no_caveman,
     )
 
 
@@ -622,6 +692,16 @@ def main(argv: list[str] | None = None) -> int:
             "bootstrap continues.",
             file=sys.stderr,
         )
+
+    # Step 4.6: caveman default-on. MUST run before step 5 so that
+    # render_mcp_configs picks up the just-written caveman.json state and
+    # auto-wraps the freshly-rendered .mcp.json + .gemini/settings.json with
+    # `caveman-shrink` (post-render hook in scripts/mcp/render.py). Skipped
+    # entirely when --no-caveman is passed.
+    if args.no_caveman:
+        print("→ caveman: skipped (--no-caveman). Run `python -m scripts.caveman on` to activate later.")
+    else:
+        enable_caveman_default(target_dir, dry_run=args.dry_run)
 
     # Step 5: render .mcp.json + .gemini/settings.json from the merged layers.
     render_mcp_configs(target_dir, args.project_name, args.dry_run)
