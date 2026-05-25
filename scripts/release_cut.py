@@ -408,6 +408,48 @@ def build_context(
 def run_release(
     *, repo_root: Path, tag_override: str | None = None, dry_run: bool = False,
 ) -> tuple[int, ReleaseOutcome]:
+    # Parent OTel span wraps the whole release pipeline so the per-step
+    # notification spans (release_cut.changes_collected, github_released,
+    # jira_fixversion_created, complete/failed) group under one parent in
+    # Langfuse/Tempo. No-op safe when OTel is unavailable.
+    try:
+        from scripts.tracing import trace_emit
+        release_span_cm = trace_emit.span(
+            "release.cut",
+            {
+                "ai_playbook.release.repo_root": str(repo_root),
+                "ai_playbook.release.tag_override": str(tag_override or ""),
+                "ai_playbook.release.dry_run": bool(dry_run),
+            },
+        )
+    except Exception:  # noqa: BLE001
+        from contextlib import nullcontext
+        release_span_cm = nullcontext(None)
+
+    with release_span_cm as release_span:
+        rc, outcome = _run_release_inner(
+            repo_root=repo_root, tag_override=tag_override, dry_run=dry_run,
+        )
+        if release_span is not None:
+            try:
+                release_span.set_attribute("ai_playbook.release.ok", bool(outcome.ok))
+                release_span.set_attribute("ai_playbook.release.exit_code", int(rc))
+                if outcome.steps:
+                    release_span.set_attribute(
+                        "ai_playbook.release.steps", ",".join(outcome.steps)
+                    )
+                if outcome.errors:
+                    release_span.set_attribute(
+                        "ai_playbook.release.errors", ";".join(outcome.errors)[:500]
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+        return rc, outcome
+
+
+def _run_release_inner(
+    *, repo_root: Path, tag_override: str | None = None, dry_run: bool = False,
+) -> tuple[int, ReleaseOutcome]:
     outcome = ReleaseOutcome(ok=False)
 
     notify_mod.notify(

@@ -457,3 +457,113 @@ def test_scan_handles_chained_attribute_call(tmp_path: Path) -> None:
     findings = verify_llm_routing.scan(tmp_path)
     assert len(findings) == 1
     assert findings[0].rule == "missing-application-kwarg"
+
+
+# ---------------------------------------------------------------------------
+# OTel span emission — `_llm.call` opens `llm.call` span with gen_ai.* attrs
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSpan:
+    """Test stand-in capturing attrs/events/exceptions for assertions."""
+
+    def __init__(self) -> None:
+        self.attrs: dict[str, Any] = {}
+        self.events: list[tuple[str, dict[str, Any]]] = []
+        self.exceptions: list[BaseException] = []
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        self.attrs[key] = value
+
+    def set_attributes(self, attrs: dict[str, Any]) -> None:
+        self.attrs.update(attrs)
+
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+        self.events.append((name, dict(attributes or {})))
+
+    def record_exception(self, exc: BaseException) -> None:
+        self.exceptions.append(exc)
+
+
+def _install_recording_span(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict[str, Any], _RecordingSpan]]:
+    """Patch `scripts.tracing.trace_emit.span` to capture (name, attrs, span).
+
+    Returns a list mutated as `_llm.call` opens spans; tests assert against it.
+    """
+    from contextlib import contextmanager
+
+    import scripts.tracing.trace_emit as te
+    captured: list[tuple[str, dict[str, Any], _RecordingSpan]] = []
+
+    @contextmanager
+    def fake_span(name: str, attrs: dict[str, Any] | None = None):
+        rec = _RecordingSpan()
+        captured.append((name, dict(attrs or {}), rec))
+        yield rec
+
+    monkeypatch.setattr(te, "span", fake_span)
+    return captured
+
+
+def test_call_opens_llm_call_span_with_gen_ai_attrs(
+    isolated_events, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured = _install_recording_span(monkeypatch)
+    httpx_captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(httpx, "Client", lambda **kw: _MockHttpxClient(httpx_captured))
+
+    call("triage", "ping", consumer="JUDGE", application="dashboard-backend")
+
+    # Exactly one llm.call span emitted.
+    assert len(captured) == 1
+    name, opening_attrs, rec = captured[0]
+    assert name == "llm.call"
+    # Opening attrs: task_class, consumer, application, request.model.
+    assert opening_attrs["ai_playbook.task_class"] == "triage"
+    assert opening_attrs["ai_playbook.consumer"] == "JUDGE"
+    assert opening_attrs["ai_playbook.application"] == "dashboard-backend"
+    assert opening_attrs["gen_ai.request.model"] == "triage"
+    # Post-annotations from response body.
+    assert rec.attrs["gen_ai.response.model"] == "anthropic/claude-haiku-4-5"
+    assert rec.attrs["gen_ai.system"] == "anthropic"  # extracted from "anthropic/..." prefix
+    assert rec.attrs["gen_ai.usage.input_tokens"] == 4
+    assert rec.attrs["gen_ai.usage.output_tokens"] == 1
+    assert rec.attrs["ai_playbook.routing.fallback_depth"] == 0
+
+
+def test_call_span_records_exception_on_proxy_down(
+    isolated_events, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured = _install_recording_span(monkeypatch)
+    monkeypatch.setattr(
+        httpx, "Client",
+        lambda **kw: _MockHttpxClient([], raise_on_post=httpx.ConnectError("boom")),
+    )
+
+    with pytest.raises(LLMRoutingError):
+        call("triage", "ping", application="dashboard-backend")
+
+    assert len(captured) == 1
+    _, _, rec = captured[0]
+    assert rec.attrs.get("error.type") == "ConnectError"
+    assert len(rec.exceptions) == 1
+    assert isinstance(rec.exceptions[0], httpx.ConnectError)
+
+
+def test_call_works_when_trace_emit_import_fails(
+    isolated_events, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If scripts.tracing.trace_emit can't be imported, _llm.call must still succeed."""
+    import builtins
+    real_import = builtins.__import__
+
+    def fake_import(name: str, *args, **kwargs):
+        if name == "scripts.tracing" or name.startswith("scripts.tracing"):
+            raise ImportError(f"simulated: {name}")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(httpx, "Client", lambda **kw: _MockHttpxClient([]))
+
+    resp = call("triage", "ping", application="dashboard-backend")
+    assert resp.text == "pong"

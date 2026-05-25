@@ -520,3 +520,64 @@ def test_cli_rejects_invalid_severity(jsonl_path: Path) -> None:
         notify_mod.main([
             "--event", "x", "--severity", "urgent", "--summary", "s",
         ])
+
+
+# ---------------------------------------------------------------------------
+# OTel span emission — notify() opens a standalone notification.<event> span
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSpan:
+    def __init__(self) -> None:
+        self.attrs: dict[str, object] = {}
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.attrs[key] = value
+
+
+def _install_recording_span(monkeypatch: pytest.MonkeyPatch) -> list:
+    from contextlib import contextmanager
+
+    import scripts.tracing.trace_emit as te
+    captured: list = []
+
+    @contextmanager
+    def fake_span(name, attrs=None):
+        rec = _RecordingSpan()
+        captured.append((name, dict(attrs or {}), rec))
+        yield rec
+
+    monkeypatch.setattr(te, "span", fake_span)
+    return captured
+
+
+def test_notify_opens_standalone_span(jsonl_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = _install_recording_span(monkeypatch)
+
+    notify_mod.notify(
+        event="release.shipped",
+        severity="info",
+        summary="v1.2.3 cut",
+        attrs={"tag": "v1.2.3", "n_tickets": 4},
+    )
+
+    # Exactly one standalone span — the notification.<event> one.
+    assert len(captured) == 1
+    name, opening_attrs, _ = captured[0]
+    assert name == "notification.release.shipped"
+    assert opening_attrs["ai_playbook.notification.event"] == "release.shipped"
+    assert opening_attrs["ai_playbook.notification.severity"] == "info"
+    assert opening_attrs["ai_playbook.notification.summary"] == "v1.2.3 cut"
+    # Custom attrs flatten under ai_playbook.notification.attrs.*
+    assert opening_attrs["ai_playbook.notification.attrs.tag"] == "v1.2.3"
+    assert opening_attrs["ai_playbook.notification.attrs.n_tickets"] == 4
+
+
+def test_notify_span_truncates_long_summary(jsonl_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = _install_recording_span(monkeypatch)
+    long_summary = "x" * 500
+
+    notify_mod.notify(event="big.summary", severity="info", summary=long_summary)
+
+    _, opening_attrs, _ = captured[0]
+    assert len(opening_attrs["ai_playbook.notification.summary"]) == 200

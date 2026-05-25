@@ -196,6 +196,34 @@ def retain_url(creds: HindsightCreds, bank_id: str) -> str:
     return f"{creds.url}/v1/default/banks/{bank_id}/memories"
 
 
+def _hindsight_span(name: str, attrs: dict[str, Any]) -> Any:
+    """Return an OTel span context-manager for a Hindsight call, or a no-op.
+
+    Centralised so both `post_recall` and `post_retain` (and anything else that
+    calls Hindsight) get identical span shapes without duplicating the import-
+    fallback boilerplate.
+    """
+    try:
+        from scripts.tracing import trace_emit
+        return trace_emit.span(name, attrs)
+    except Exception:  # noqa: BLE001
+        from contextlib import nullcontext
+        return nullcontext(None)
+
+
+def _annotate_hindsight_span(span: Any, result: HttpResult) -> None:
+    """Attach status/reason attributes to a Hindsight span. No-op safe."""
+    if span is None:
+        return
+    try:
+        span.set_attribute("ai_playbook.hindsight.ok", bool(result.ok))
+        span.set_attribute("ai_playbook.hindsight.reason", str(result.reason))
+        if result.status is not None:
+            span.set_attribute("http.response.status_code", int(result.status))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def post_recall(
     creds: HindsightCreds,
     bank_id: str,
@@ -209,7 +237,28 @@ def post_recall(
     body: dict[str, Any] = {"query": query, "max_tokens": int(max_tokens)}
     if types:
         body["types"] = list(types)
-    return _post_json(recall_url(creds, bank_id), body, creds.headers(), timeout=timeout)
+    with _hindsight_span(
+        "hindsight.recall",
+        {
+            "ai_playbook.hindsight.bank_id": bank_id,
+            "ai_playbook.hindsight.max_tokens": int(max_tokens),
+            "ai_playbook.hindsight.auth_method": creds.auth_method,
+        },
+    ) as s:
+        result = _post_json(recall_url(creds, bank_id), body, creds.headers(), timeout=timeout)
+        # Best-effort entries count — recall responses use {"results"|"entries": [...]}.
+        if s is not None and result.ok and isinstance(result.body, (dict, list)):
+            try:
+                items = (
+                    result.body.get("results") or result.body.get("entries") or []
+                    if isinstance(result.body, dict)
+                    else result.body
+                )
+                s.set_attribute("ai_playbook.hindsight.entries_count", len(items))
+            except Exception:  # noqa: BLE001
+                pass
+        _annotate_hindsight_span(s, result)
+        return result
 
 
 def post_retain(
@@ -227,7 +276,18 @@ def post_retain(
     ``document_id``, ``tags`` (list[str]).
     """
     body: dict[str, Any] = {"items": items, "async": bool(async_mode)}
-    return _post_json(retain_url(creds, bank_id), body, creds.headers(), timeout=timeout)
+    with _hindsight_span(
+        "hindsight.retain",
+        {
+            "ai_playbook.hindsight.bank_id": bank_id,
+            "ai_playbook.hindsight.items_count": len(items),
+            "ai_playbook.hindsight.async": bool(async_mode),
+            "ai_playbook.hindsight.auth_method": creds.auth_method,
+        },
+    ) as s:
+        result = _post_json(retain_url(creds, bank_id), body, creds.headers(), timeout=timeout)
+        _annotate_hindsight_span(s, result)
+        return result
 
 
 __all__ = [
