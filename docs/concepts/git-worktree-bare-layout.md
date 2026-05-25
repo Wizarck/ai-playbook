@@ -7,7 +7,7 @@ summary: |
   workflow regularly produces multiple concurrent feature branches (the
   BMAD+OpenSpec hybrid produces one branch per OpenSpec change; modules of 10+
   changes are normal). The single-working-tree default of git…
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Git Worktree Bare Layout
@@ -40,6 +40,37 @@ The bare-repo + per-branch-worktree layout from senior-developer practice (Cuger
 ```
 
 The parent directory is purely organisational — it contains no working files of the project itself, only `.bare/`, the `.git` pointer, and per-branch worktree subdirectories.
+
+### Diagram 3C — bare-repo + per-worktree relationships
+
+```mermaid
+flowchart TB
+    Root["&lt;project-root&gt;/<br/>parent directory<br/>(no project source)"]
+    Bare[".bare/<br/>bare git database<br/>objects, refs, worktrees metadata"]
+    Pointer[".git<br/>pointer file"]
+    Master["master/<br/>worktree on master<br/>own node_modules / submodules / build cache"]
+    WT1["&lt;change-id-1&gt;/<br/>worktree on slice/&lt;change-id-1&gt;<br/>own node_modules / submodules / build cache"]
+    WT2["&lt;change-id-2&gt;/<br/>worktree on slice/&lt;change-id-2&gt;<br/>own node_modules / submodules / build cache"]
+
+    Root --> Bare
+    Root --> Pointer
+    Root --> Master
+    Root --> WT1
+    Root --> WT2
+    Pointer -- "gitdir: ./.bare" --> Bare
+    Master -- "shares objects DB" --> Bare
+    WT1 -- "shares objects DB" --> Bare
+    WT2 -- "shares objects DB" --> Bare
+
+    classDef parent fill:#eceff1,stroke:#546e7a,color:#263238
+    classDef shared fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef isolated fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    class Root parent
+    class Bare,Pointer shared
+    class Master,WT1,WT2 isolated
+```
+
+Every worktree shares the single object database in `.bare/` (deduplicated history, deduplicated objects) but keeps its own filesystem copy of working-tree state: `node_modules/`, initialised submodules, build artefacts, editor caches. Isolation lets two slices run their own `pnpm install` / build / test loops in parallel without contaminating each other; the shared DB keeps disk overhead bounded to working-tree state rather than full repo history per branch.
 
 ## Naming rules
 
