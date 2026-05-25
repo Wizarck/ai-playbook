@@ -308,6 +308,17 @@ def compute_expected(source_spec: str, playbook_root: Path) -> str:
             )
         return extracted
 
+    # Caveman ruleset: the block body is composed from MULTIPLE sections of
+    # skills/caveman/SKILL.md (core + mode + clarity + boundaries), so the
+    # generic single-anchor fallback below cannot reproduce it. Delegate to
+    # scripts.caveman.materialise.render_block_content — the same function
+    # `caveman on` uses to write the block — so drift_check and materialise
+    # share one byte-identical implementation.
+    if spec.startswith("caveman/ruleset:"):
+        mode = spec.split(":", 1)[1]
+        from scripts.caveman.materialise import render_block_content  # noqa: PLC0415 — lazy import dodges cycle
+        return render_block_content(mode, playbook_root=playbook_root)
+
     # Generic fallback: ``<spec-file>:<anchor>`` with the spec-file relative to
     # the playbook root and ending in ``.md``. This keeps the extractor
     # extensible without requiring a registry edit for trivial additions.

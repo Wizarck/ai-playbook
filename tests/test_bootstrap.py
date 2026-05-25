@@ -409,3 +409,117 @@ def test_main_owner_resolution_via_env(
     assert rc == 0
     text = ((tmp_path / "alpha") / "AGENTS.md").read_text(encoding="utf-8")
     assert "owner: env@example.com" in text
+
+
+# ---------------------------------------------------------------------------
+# Caveman default-on (step 4.6)
+# ---------------------------------------------------------------------------
+
+
+def _neuter_subprocess_with_classifier(
+    monkeypatch: pytest.MonkeyPatch, calls: list[list[str]]
+) -> None:
+    """Like _neuter_subprocess but classifies caveman invocations separately."""
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(list(cmd))
+        return _FakeProc(returncode=0)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+
+
+def _caveman_calls(calls: list[list[str]]) -> list[list[str]]:
+    """Return the subset of recorded subprocess calls that target scripts.caveman."""
+    out: list[list[str]] = []
+    for c in calls:
+        if any("scripts.caveman" in part for part in c):
+            out.append(c)
+    return out
+
+
+def test_main_default_on_invokes_caveman(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bootstrap without --no-caveman MUST shell out to `python -m scripts.caveman on`."""
+    _stub_prereqs(monkeypatch)
+    calls: list[list[str]] = []
+    _neuter_subprocess_with_classifier(monkeypatch, calls)
+    monkeypatch.chdir(tmp_path)
+
+    rc = bs.main(["alpha", "--owner", "a@b.c"])
+    assert rc == 0
+
+    cav_calls = _caveman_calls(calls)
+    assert len(cav_calls) >= 1, f"expected a caveman invocation, got: {calls}"
+    invoked = cav_calls[0]
+    # Command shape: python -m scripts.caveman on --mode full --components <csv> --project <path>
+    assert "on" in invoked
+    assert "--mode" in invoked
+    assert "full" in invoked
+    assert "--components" in invoked
+    csv = invoked[invoked.index("--components") + 1]
+    for comp in bs.DEFAULT_CAVEMAN_COMPONENTS:
+        assert comp in csv, f"component {comp!r} missing from --components {csv!r}"
+    assert "--project" in invoked
+    target = invoked[invoked.index("--project") + 1]
+    assert Path(target).name == "alpha"
+
+
+def test_main_no_caveman_skips_activation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--no-caveman MUST suppress the caveman activation subprocess call."""
+    _stub_prereqs(monkeypatch)
+    calls: list[list[str]] = []
+    _neuter_subprocess_with_classifier(monkeypatch, calls)
+    monkeypatch.chdir(tmp_path)
+
+    rc = bs.main(["alpha", "--owner", "a@b.c", "--no-caveman"])
+    assert rc == 0
+
+    assert _caveman_calls(calls) == [], (
+        f"--no-caveman must skip the caveman subprocess, but it was invoked: {calls}"
+    )
+
+
+def test_main_default_on_dry_run_is_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """--dry-run must NOT spawn the caveman subprocess; it only prints the intent."""
+    _stub_prereqs(monkeypatch)
+    calls: list[list[str]] = []
+    _neuter_subprocess_with_classifier(monkeypatch, calls)
+    monkeypatch.chdir(tmp_path)
+
+    rc = bs.main(["alpha", "--owner", "a@b.c", "--dry-run"])
+    assert rc == 0
+
+    assert _caveman_calls(calls) == [], "dry-run must not invoke caveman"
+    out = capsys.readouterr().out
+    assert "Would activate caveman default-on" in out
+
+
+def test_enable_caveman_default_warns_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A non-zero caveman exit MUST warn but not raise — bootstrap is best-effort here."""
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return _FakeProc(returncode=1, stderr="❌ something went wrong\n")
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+
+    target = tmp_path / "alpha"
+    target.mkdir()
+    bs.enable_caveman_default(target, dry_run=False)  # must not raise
+    out = capsys.readouterr().out
+    assert "caveman default-on failed" in out
+    assert "something went wrong" in out
+
+
+def test_enable_caveman_default_dry_run_message(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    target = tmp_path / "alpha"
+    target.mkdir()
+    bs.enable_caveman_default(target, dry_run=True)
+    out = capsys.readouterr().out
+    assert "Would activate caveman default-on" in out
+    for comp in bs.DEFAULT_CAVEMAN_COMPONENTS:
+        assert comp in out
