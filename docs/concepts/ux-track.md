@@ -7,7 +7,7 @@ summary: |
   v0.5.0. PRDs declared capabilities; OpenSpec changes implemented them; mocks
   and component decisions happened ad-hoc. v0.5.0 introduced the UX Track.
   v2.0.0 of this spec lands the operational rules that…
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Ux Track
@@ -546,19 +546,53 @@ Hand-coded mocks (HTML / CSS produced without invoking a creative engine) are **
 The UX track has its own QA pattern, distinct from the OpenSpec worker→QA flow:
 
 1. **Author** (UX role; can be `bmad-agent-ux-designer` or a human) drafts the per-journey doc + the mock.
-2. **Reviewer** (PM role + ≥1 design-aware peer) walks the journey from the PRD against the mock, asking:
+2. **Author self-renders and self-audits before requesting human review** (mandatory pre-step — see §17.1). Hand-written markup is not "done" until the author has looked at it rendered.
+3. **Reviewer** (PM role + ≥1 design-aware peer) walks the journey from the PRD against the mock, asking:
    - Does every named capability in the PRD's Journey Requirements Summary appear in the mock?
    - Are tone/voice/motion choices consistent with `DESIGN.md` §1 Principles?
    - Are non-trivial components flagged for §13 review?
    - Does the head-comment audit include the WCAG-AA verification block (§15)?
    - Does the audit cite DESIGN.md sections (and not external repo paths — §6.2)?
    - Does the colour block declare in OKLCH (§10)?
-3. **Verdict** uses the same literals as [verdict-contract.md](../rules/verdict-contract.rule.md):
+4. **Verdict** uses the same literals as [verdict-contract.md](../rules/verdict-contract.rule.md):
    - `✅ APPROVED` — UX doc lands; ready for Gate B.
-   - `⚠️ ISSUES FOUND (iter N)` — author revises.
+   - `⚠️ ISSUES FOUND (iter N)` — author revises (back to step 1; another self-render+audit before re-requesting review).
    - `❓ CLARIFICATION NEEDED` — escalates to PM; UX track moves to `blocked-by-prd`.
 
 Max 2 rework cycles per journey doc; iter 3 escalates per [verdict-contract.md](../rules/verdict-contract.rule.md) §3.
+
+### 17.1 Author self-render and self-audit (mandatory)
+
+Hand-written HTML/CSS does not reveal layout bugs (overflow, clipped CTAs, broken grids, mis-aligned rules, font-stack fallbacks, mis-quoted media queries, dark-mode regressions). The author MUST render the mock at the device size(s) declared in the journey's frontmatter `device:` field, take screenshots, look at them, and fix everything visible before requesting human review.
+
+**Why this rule exists.** A 2026-05-13 review of M3 mocks j6-j12 (consumer-c-legacy) found multiple bugs an LLM author could have caught with one render-and-look pass: clipped sticky CTAs on phone-portrait, doubled heatmap column headers, 6 px bar fills invisible at viewport scale, grid columns mis-sized making product names wrap to 3 lines, mock-photo placeholder chrome treated as a real photo. None of these required deep design taste — only a glance at the rendered output. Shipping markup as "done" without rendering it is the failure mode this section closes.
+
+**The self-audit checklist** (author runs this before declaring the mock ready for human review):
+
+1. **Render.** Open the mock via `file://` URL OR run a local dev server. Headless renders are acceptable (e.g. `chrome --headless=new --window-size=W,H --screenshot=out.png file:///...`). One screenshot per device size in the frontmatter (`phone 390×844`, `tablet 1280×800`, `laptop 1440×900` — sizes that match real surface targets, not random viewports).
+2. **Look at the screenshot.** This is the load-bearing step. Multimodal LLMs can read images directly; humans look. If reviewing via an LLM author, the screenshot must be passed back into the model's context so the audit runs against the rendered pixels, not against the author's mental image of the markup.
+3. **Run through the visible-failure checklist:**
+   - Any text clipped, overflowing, or wrapped to a surprising number of lines?
+   - Any CTA partially obscured by viewport edge or by another element?
+   - Any heading / large display number with weird kerning, broken character pairs, fallback font (Georgia instead of declared serif)?
+   - Any grid / table column too narrow for its content, or too wide leaving empty gutter?
+   - Any list rendered with mis-aligned columns row-to-row?
+   - Any progress / status bar invisible because fill is too thin or contrast too low?
+   - Any sticky / fixed element overlapping content underneath?
+   - Any decoration (border, dot, top-rule) at the wrong vertical alignment relative to text baseline?
+   - Any placeholder mock-content (display-styled "FACTURA" etc.) leaking into what should look like a real photo / document?
+   - Any duplicate label, repeated header, broken table head?
+   - Dark mode: re-render with `prefers-color-scheme: dark` honoured (browser preference or DevTools emulation); same checks.
+4. **Fix everything visible.** Iterate render → look → fix → re-render until the screenshot satisfies the checklist.
+5. **Then — and only then — request human review.** Surface the screenshot path alongside the mock path so the human reviewer can do their job (DESIGN.md alignment + capability coverage + WCAG-AA + componentes catalogue match) against the same artefact you saw.
+
+**Don't substitute reading the markup for looking at the render.** Reading `width: 100%; min-height: 64px; padding: var(--space-md);` tells you the rule. It does not tell you that the text inside that button is `font-size: var(--fs-lg)` (20 px) and won't fit at 390 px viewport — only the render shows that.
+
+**Self-review is allowed to be silent.** The author does not need to publish a self-review report; the rule is that the iteration loop exists, not that it produces ceremony. The deliverable is the corrected mock + the screenshot file in `docs/ux/_review-screenshots-YYYY-MM-DD/` (or equivalent path) as evidence. The Reviewer in step 3 above is allowed to ask "where's the self-review screenshot?" and refuse review if missing — same way a code reviewer can ask for a passing CI run before reading the diff.
+
+**This rule is anti-pattern-aware.** §16 ("hand-coded mocks pretending to be design") still stands — engine-driven variants are still mandated for Step 3. §17.1 applies to ANY rendered output regardless of provenance: engine-driven variants, hand-coded baselines, post-pick canonical scrubs (§9), and per-journey companion mocks (§4.5) all go through self-render-and-audit before human review.
+
+**Tooling note.** Author may automate the screenshot step with Playwright / Puppeteer / headless Chrome / Edge (Windows: Chrome typically at `C:\Program Files\Google\Chrome\Application\chrome.exe`). The render must happen in a real browser engine, not a static-HTML-to-image converter (those skip font loading, CSS variable resolution, and `@media` queries).
 
 ## 18 HITL gate impact
 
