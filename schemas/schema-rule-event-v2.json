@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-rule-event-v2.json",
+  "title": "rule-event v2",
+  "description": "One JSONL row per L1 hook fire. Extends v1 with optional enforcement-decision metadata (block_class, target_rel, bash_pattern_kind, etc.) so downstream reporting can group block reasons. Emitted by scripts/telemetry/rule_event_logger.py; consumed by scripts/telemetry/report.py. Privacy invariants enforced by scripts/telemetry/anonymize.py. Forward-compatible additions land as v3.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "timestamp",
+    "slug",
+    "llm",
+    "verdict",
+    "latency_ms",
+    "session_id_hash",
+    "trigger",
+    "self_check"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "rule-event/v2",
+      "description": "Schema version literal. v1 events remain valid; v2 adds the optional block_* fields below."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp, e.g. 2026-05-19T14:23:55Z."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "description": "Rule slug (D3 canonical regex)."
+    },
+    "llm": {
+      "type": "string",
+      "minLength": 1,
+      "description": "LLM model identifier, e.g. claude-opus-4-7, gemini-2.5-pro."
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["allow", "block", "warn"],
+      "description": "Outcome of the rule evaluation."
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time spent evaluating the rule, in milliseconds."
+    },
+    "session_id_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}$",
+      "description": "sha256(session_id)[:8]. One-way; the raw session_id MUST never appear in any event."
+    },
+    "trigger": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hook trigger label, e.g. PreToolUse:Edit, PreToolUse:Bash, PostToolUse:Bash."
+    },
+    "self_check": {
+      "type": "boolean",
+      "description": "True when the LLM self-validated per the rule's `## Process supervision` block."
+    },
+    "tokens_in": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Input tokens for the LLM call that triggered this event. Optional — PreToolUse hooks do not have token counts."
+    },
+    "tokens_out": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Output tokens for the LLM call. Optional."
+    },
+    "cache_read_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Anthropic prompt-cache reads. Optional."
+    },
+    "escape_hatch": {
+      "type": "string",
+      "description": "Set when the rule was bypassed via a documented escape hatch (e.g. `[no-doc-impact]`, `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE`). Absent on normal events."
+    },
+    "model": {
+      "type": "string",
+      "description": "Optional alias for `llm` used when copying gen_ai.response.model verbatim from log_event.py."
+    },
+    "block_class": {
+      "type": "string",
+      "enum": [
+        "none",
+        "apply_phase_bypass",
+        "outside_project",
+        "change_own_folder",
+        "flag_disabled",
+        "helper_missing"
+      ],
+      "description": "Classification of the decision. `none` = no violation found; `apply_phase_bypass` = target write_path without start record; the rest are non-blocking dispositions (outside project tree, edit to change's own folder, feature flag disabled, marker helper script absent)."
+    },
+    "block_tool": {
+      "type": "string",
+      "enum": ["Edit", "Write", "MultiEdit", "Bash"],
+      "description": "The tool that triggered the hook (mirrors the suffix of `trigger` but typed)."
+    },
+    "change_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "OpenSpec change slug whose write_paths matched the target. Same shape as the directory name under `openspec/changes/<id>/`."
+    },
+    "matched_pattern": {
+      "type": "string",
+      "description": "The write_path glob/literal from tasks.md that matched the target. Useful for debugging FP/FN in glob declarations."
+    },
+    "target_rel": {
+      "type": "string",
+      "description": "Project-relative path the tool tried to mutate. Forward-slash normalized. Not PII — internal repo path; documented as such in docs/concepts/telemetry-design.md."
+    },
+    "bash_pattern_kind": {
+      "type": "string",
+      "enum": [
+        "redirect-write",
+        "redirect-append",
+        "tee",
+        "sed-i",
+        "awk-i-inplace",
+        "perl-i",
+        "python-c-open",
+        "python-c-write-text",
+        "node-e-writeFile",
+        "mv-into-write-path",
+        "heredoc-redirect",
+        "powershell-outfile",
+        "powershell-setcontent",
+        "powershell-addcontent",
+        "powershell-newitem"
+      ],
+      "description": "Heuristic that matched a Bash command. Closed enum; new patterns require a schema bump. Present only when `block_tool=Bash` and a pattern fired."
+    },
+    "marker_present": {
+      "type": "boolean",
+      "description": "True if a `.apply_log.jsonl` `start` record was found for the matched change in the current session. Always false on block events; true on allow events that matched a change."
+    },
+    "override_reason": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Reason provided via `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE`. Emitted alongside `escape_hatch=AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` for audit visibility. Passes through `scrub_event`; do not include paths/tokens in the reason text."
+    },
+    "feature_flag": {
+      "type": "object",
+      "description": "Snapshot of feature-flag env vars relevant to the decision (e.g. {bash_inspection: '0'}). Optional; useful for correlating decisions with rollback state.",
+      "additionalProperties": {"type": "string"}
+    }
+  }
+}

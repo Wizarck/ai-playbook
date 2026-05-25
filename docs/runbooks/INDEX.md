@@ -5,6 +5,7 @@
 | File | Summary |
 | --- | --- |
 | [cascade-failure-template.md](cascade-failure-template.md) | Template for authoring a per-service cascade-failure recovery runbook when one service going down triggers exponential downstream impact. |
+| [caveman-toggle.md](caveman-toggle.md) | **New projects bootstrapped via `python -m scripts.bootstrap <name>` |
 | [coderabbit-fallback.md](coderabbit-fallback.md) | Execute the Profile B self-review fallback when CodeRabbit cannot review a PR, producing a populated §4.5 audit trail in the PR body. |
 | [docs-build-deploy.md](docs-build-deploy.md) | Build the static documentation site locally with mkdocs-material + Pagefind static-index, validate it strict, and (optionally) preview on http://localhost:8000. |
 | [git-worktree-bare-setup.md](git-worktree-bare-setup.md) | Set up the canonical bare-repo + per-branch worktree layout for a consumer project (greenfield, migration, or daily flow). |
@@ -17,4 +18,5 @@
 | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) | Emergency rotation of 1-3 suspected or confirmed compromised credentials within 1 hour (revoke + reissue + restart + history rewrite if published). |
 | [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) | Contain a wide-scope secrets leak (machine compromise, supplier compromise, public-repo leak with forks) through isolation, full credential rotation, history rewrite, and disclosure. |
 | [runbook-vps-down.md](runbook-vps-down.md) | Recover a VPS that is unreachable (SSH timeout, ping fail, HTTPS fail) — confirm scope, restore via cloud console, verify external reachability. |
+| [upgrade-to-bash-enforcement.md](upgrade-to-bash-enforcement.md) | In your consumer project with an active OpenSpec change whose `tasks.md` declares at least one `write_path`: |
 | [windows-dev-environment.md](windows-dev-environment.md) | Resolve non-obvious Windows + WSL2 dev-loop gotchas (Windows Store Python, Jest worker crashes on Node 24+, worktree removal under file-handle locks). |

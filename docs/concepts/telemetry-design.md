@@ -7,7 +7,7 @@ summary: |
   hook fire writes a JSONL row, the report CLI aggregates them into
   obey-rate / cost / lifecycle metrics. Covers event schema, privacy
   guarantees, and the academic references that motivated the design.
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Telemetry pipeline design
@@ -28,32 +28,61 @@ Every L1 hook fire goes through `scripts/hook_dispatcher.py::dispatch(...)`. Aft
 
 ### Event schema
 
-The canonical schema lives at `schemas/schema-rule-event-v1.json`. Required fields:
+The canonical schema lives at `schemas/schema-rule-event-v2.json` (v0.20.0+; v1 is the previous frozen revision at `schemas/schema-rule-event-v1.json`).
+
+**Required fields (unchanged across v1 → v2):**
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema` | string | Literal `"rule-event/v1"`. |
+| `schema` | string | Literal `"rule-event/v2"`. |
 | `timestamp` | string | ISO 8601 UTC. |
 | `slug` | string | Rule slug (D3 regex). |
 | `llm` | string | Model identifier. |
 | `verdict` | enum | `allow` / `block` / `warn`. |
 | `latency_ms` | number | Hook overhead. |
 | `session_id_hash` | string | sha256(session_id)[:8] — one-way. |
-| `trigger` | string | E.g. `PreToolUse:Edit`. |
+| `trigger` | string | E.g. `PreToolUse:Edit`, `PreToolUse:Bash`. |
 | `self_check` | boolean | True when the LLM self-validated per `## Process supervision`. |
 
-Optional fields: `tokens_in`, `tokens_out`, `cache_read_tokens`, `escape_hatch`, `model`.
+**Optional fields (v1):** `tokens_in`, `tokens_out`, `cache_read_tokens`, `escape_hatch`, `model`.
+
+**Optional fields added in v2** (consumed by `report.py compute_block_breakdown` / `compute_top_blocked_paths` / `compute_override_ratio`):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `block_class` | enum | Decision classification: `none` / `apply_phase_bypass` / `outside_project` / `change_own_folder` / `flag_disabled` / `helper_missing`. |
+| `block_tool` | enum | `Edit` / `Write` / `MultiEdit` / `Bash` — typed mirror of trigger suffix. |
+| `change_id` | string | OpenSpec change slug whose write_paths matched. |
+| `matched_pattern` | string | Literal/glob from `tasks.md` that matched (debugging FP/FN). |
+| `target_rel` | string | Project-relative path the tool tried to mutate. **No PII** — see "Privacy guarantees" below. |
+| `bash_pattern_kind` | enum | Heuristic that fired on a Bash command. Closed set (15 values); see [apply-skill-enforcement.rule.md](../rules/apply-skill-enforcement.rule.md) "Bash heuristics". |
+| `marker_present` | boolean | True when a `start` record was found for the matched change. |
+| `override_reason` | string | Provided via `AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE` (≥10 chars). |
+| `feature_flag` | object | Snapshot of feature-flag env vars (e.g. `{bash_inspection: "0"}`). |
+
+Forward-compatibility: schema v2 retains `additionalProperties: false`. Future additions land as `rule-event/v3`. Consumers running strict validators against the JSONL log are expected to upgrade to the v2 schema when bumping the playbook submodule past v0.20.0.
 
 ### Privacy guarantees
 
 The logger applies four layered protections:
 
 1. **One-way session hashing.** `hash_session_id(session_id)` returns 8 hex chars of sha256. The raw session_id is never persisted.
-2. **PII-key scrubbing.** `scrub_event(event)` strips any key matching the denylist (`file_path`, `path`, `directory`, `diff`, `content`, `body`, `message`, `user_message`, `raw_input`, `tool_input`, `session_id`).
-3. **Schema-allow-list.** Only the 13 schema fields are written; arbitrary additions are silently dropped.
+2. **PII-key scrubbing.** `scrub_event(event)` strips any key matching the denylist (`file_path`, `filepath`, `path`, `directory`, `dir`, `diff`, `content`, `body`, `message`, `messages`, `user_message`, `raw_input`, `tool_input`, `stdin`, `session_id`).
+3. **Schema-allow-list.** Only the schema fields enumerated in v2 are written; arbitrary additions are silently dropped.
 4. **Gitignored at consumer.** The state directory is conventionally gitignored, so accidental commits cannot leak the JSONL.
 
 Privacy invariants verified by `tests/test_telemetry_privacy.py`.
+
+#### Why `target_rel` and `matched_pattern` are not PII
+
+Both fields contain **paths within the consumer repo** (e.g. `backend/foo.py`, `backend/services/*.py`). These are:
+- Already committed under the consumer's `tasks.md` (`## Owns (write_paths)`).
+- Not user data, customer data, or external secrets.
+- Necessary for `report.py` to produce useful "Top blocked paths" / "Block reasons" aggregations.
+
+Field names deliberately avoid the literal substring `path` (denylisted by `scrub_event` as an exact key match — `target_rel`/`matched_pattern` instead of `target_path`/`matched_write_path`) so that future hardening of the denylist (e.g. a substring match) does not silently filter them. If the denylist is ever extended to substring matching, these field names remain safe.
+
+The **raw Bash command is NEVER logged.** Only the matched `bash_pattern_kind` (a closed-set enum value) is recorded. This means a command containing tokens, paths to user files, or arbitrary literals never enters the JSONL.
 
 ### Cost methodology
 
@@ -93,12 +122,12 @@ All eight sections render even on zero data with explicit placeholder copy. Empt
 
 ## Concrete example
 
-A typical Edit on a project file emits this event:
+A typical allow on an unrelated path emits a minimal v2 event:
 
 ```json
 {
-  "schema": "rule-event/v1",
-  "timestamp": "2026-05-19T14:23:55Z",
+  "schema": "rule-event/v2",
+  "timestamp": "2026-05-25T14:23:55Z",
   "slug": "english-only-docs",
   "llm": "claude-opus-4-7",
   "verdict": "allow",
@@ -106,6 +135,30 @@ A typical Edit on a project file emits this event:
   "session_id_hash": "a3f81c92",
   "trigger": "PreToolUse:Edit",
   "self_check": false
+}
+```
+
+A Bash block on a write_path bypass emits the enriched fields:
+
+```json
+{
+  "schema": "rule-event/v2",
+  "timestamp": "2026-05-25T14:24:10Z",
+  "slug": "apply-skill-enforcement",
+  "llm": "claude-opus-4-7",
+  "verdict": "block",
+  "latency_ms": 8.2,
+  "session_id_hash": "a3f81c92",
+  "trigger": "PreToolUse:Bash",
+  "self_check": false,
+  "block_class": "apply_phase_bypass",
+  "block_tool": "Bash",
+  "change_id": "transfer-tech-debt-sweep",
+  "matched_pattern": "backend/**/*.py",
+  "target_rel": "backend/app/blueprints/transfer/router.py",
+  "bash_pattern_kind": "sed-i",
+  "marker_present": false,
+  "feature_flag": {"bash_inspection": "1"}
 }
 ```
 

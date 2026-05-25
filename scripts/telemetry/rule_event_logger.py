@@ -40,7 +40,7 @@ from typing import Any
 from .anonymize import hash_session_id, scrub_event
 
 EVENTS_FILENAME = "rule-events.jsonl"
-SCHEMA_LITERAL = "rule-event/v1"
+SCHEMA_LITERAL = "rule-event/v2"
 DEFAULT_RETAIN_DAYS = 7
 
 

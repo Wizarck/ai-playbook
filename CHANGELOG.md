@@ -7,7 +7,48 @@ All notable changes to `ai-playbook` are documented here. Semver.
 > Reserved for the next iteration of post-review fixes. v0.20.0 remains the
 > visible milestone PR; tag only on explicit user approval.
 
-### Added
+### Added — apply-skill-enforcement L1 Bash + L3 PR-diff + telemetry v2
+
+- **`.claude/hooks/openspec-apply-enforce.py`** — Bash interception added to `GATED_TOOLS`. The hook now reads `tool_input.command` on PreToolUse Bash events and applies a closed-set regex panel to detect explicit mutations to declared `write_paths`. Patterns cover POSIX (redirects `>` `>>`, `tee`, `sed -i`, `awk -i inplace`, `perl -i`, `python -c "open(...,'w')"`, `python -c "...write_text(...)"`, `node -e "writeFileSync(...)"`, `mv/cp dest`) and PowerShell (`Out-File`, `Set-Content`, `Add-Content`, `New-Item -ItemType File`). Conservative high-confidence-or-pass policy: ambiguous commands pass with a stderr warning; the L3 PR-diff catches everything the heuristic misses. Three additional surfaces added: (a) `AIPLAYBOOK_BASH_INSPECTION=0` env flag to disable only the Bash branch (emergency rollback), (b) per-process `_parse_write_paths` memoization keyed by file mtime to amortise tasks.md parsing cost, (c) decision-level telemetry emission via `scripts.telemetry.rule_event_logger.log_event` (rule-event/v2 schema) on every allow/block/warn/override. Error messages differentiate Bash vs Edit/Write and surface both the `OVERRIDE` and `ROLLBACK` env vars.
+
+- **`schemas/schema-rule-event-v2.json`** — new event schema, additive over v1 (v1 file retained for reference). Adds 9 optional fields: `block_class` (enum: `none`/`apply_phase_bypass`/`outside_project`/`change_own_folder`/`flag_disabled`/`helper_missing`), `block_tool` (enum: `Edit`/`Write`/`MultiEdit`/`Bash`), `change_id`, `matched_pattern`, `target_rel` (NB: deliberately not `target_path` — the literal substring `path` is on the `scrub_event` denylist, so the field name avoids collision-by-substring if hardening of the denylist ever extends to substring matching), `bash_pattern_kind` (closed enum of 15 heuristics), `marker_present`, `override_reason`, `feature_flag`. `additionalProperties: false` preserved; future additions land as v3.
+
+- **`scripts/telemetry/rule_event_logger.py`** — `SCHEMA_LITERAL` bumped to `"rule-event/v2"`. Existing v1 events on disk remain readable; new emissions carry the v2 literal. Logger already supported optional `extra: dict` passthrough (per v1 design); v2 simply documents the fields it expected to receive.
+
+- **`scripts/rules/apply-skill-enforcement.rule.py`** — new `validate-pr-diff` subcommand invokable as `python -m scripts.rules.apply-skill-enforcement validate-pr-diff --base <sha> --head <sha> [--repo-root <path>]`. Computes `git diff <base>...<head>`, intersects changed paths with every active change's `## Owns (write_paths)`, and requires a `start` record in the matching `.apply_log.jsonl`. Exit 0 (clean) / 1 (violation) / 2 (schema break). Helpers `_parse_write_paths` and `_path_matches` are deliberately duplicated from the hook (sys.path injection from a PreToolUse subprocess is fragile cross-platform); equivalence to be guarded by a forthcoming `tests/test_apply_enforce_helpers_equivalence.py`.
+
+- **`.github/workflows/apply-skill-enforcement.rule.yml`** — new L3 workflow. Runs on every PR to `main`, invokes the validator above with `fetch-depth: 0`. To be marked as a required check in branch protection (manual step; not automatable from code).
+
+- **41 new tests** across `tests/test_apply_enforce_hook_template.py` (16 Bash + telemetry + flag cases on top of the original 10) and `tests/test_apply_skill_enforcement_rule.py` (7 fixture-based validate-pr-diff cases on a real git repo, plus the 5 existing `validate` cases). Cross-platform Bash patterns verified on Windows Git-Bash via subprocess invocation.
+
+### Changed
+
+- **`docs/rules/apply-skill-enforcement.rule.md`** — frontmatter `triggers` extended to `[Edit, Write, MultiEdit, Bash, PreToolUse]`. New sections: "Bash heuristics" (full POSIX + PowerShell pattern table), "Edge cases (FN/FP documented)" (table of inspected vs pass-through patterns with rationale for each), "Telemetry fields (rule-event/v2)" (table of every field emitted). `## Process supervision` rewritten to call out the three independent enforcers (L1 hook + L2 doc + L3 workflow) and the byte-identical helper invariant.
+
+- **`docs/concepts/telemetry-design.md`** — Event schema section split into "Required (unchanged across v1 → v2)" + "Optional fields added in v2". New "Why `target_rel` and `matched_pattern` are not PII" subsection documents the naming decision (no literal `path` substring to remain robust against future denylist hardening). Concrete example block now includes both a minimal allow and a Bash-block decision with the enriched v2 fields.
+
+- **`templates/new-project/.claude/settings.json.tmpl`** — `PreToolUse[*].matcher` bumped from `"Edit|Write|MultiEdit"` to `"Edit|Write|MultiEdit|Bash"`. Consumer projects bumping past v0.20.0 MUST update their own `.claude/settings.json` accordingly (the matcher is a project-local file rendered on bootstrap, not a template-managed file thereafter).
+
+- **`templates/new-project/.claude/hooks/openspec-apply-enforce.py.tmpl`** — byte-mirrored from `.claude/hooks/openspec-apply-enforce.py`. Tests assert byte-equivalence on each invocation.
+
+### Added — runbooks
+
+- **`docs/runbooks/upgrade-to-bash-enforcement.md`** — step-by-step guide for consumer projects bumping past v0.20.0. Covers: submodule bump, hook re-render, matcher update, local smoke test (`echo "x" > <write_path>` should block), rollback flag (`AIPLAYBOOK_BASH_INSPECTION=0`), full submodule revert path, telemetry verification, and L3 required-check activation in branch protection. Includes a "Common upgrade errors" table.
+
+### Consumer action
+
+**Required** (post-bump) for every consumer past v0.20.0:
+
+1. Bump the `.ai-playbook` submodule.
+2. Re-render `.claude/hooks/openspec-apply-enforce.py` from the template.
+3. Update `.claude/settings.json` matcher to include `Bash`: `"matcher": "Edit|Write|MultiEdit|Bash"`.
+4. (Optional but recommended) Activate the new L3 workflow as a required status check in GitHub branch protection on `main`.
+
+Forgetting step 3 leaves the Bash branch uncovered (silent regression). The [upgrade-to-bash-enforcement runbook](docs/runbooks/upgrade-to-bash-enforcement.md) walks through it.
+
+If false positives emerge from the heuristic, the rollback path is one env var: `export AIPLAYBOOK_BASH_INSPECTION=0`. This disables the Bash branch only; Edit/Write/MultiEdit remain gated. The L3 PR gate continues to enforce on merge.
+
+### Previous Unreleased entries (continue here)
 
 - **`scripts/mcp/render.py`** — SOPS-decrypted secrets resolution + Antigravity global config update (#94). Three new functions: `find_secrets_env(consumer_root)` probes two known siblings for `eligia-core/secrets/secrets.env`; `decrypt_sops_env(secrets_path)` shells out to `sops -d` (auto-setting `SOPS_AGE_KEY_FILE` from `~/.config/sops/age/keys.txt`) and parses the result as `KEY=VALUE`; `update_global_antigravity_mcp(merged, resolved_env, dry_run)` writes the merged MCP spec to `~/.gemini/antigravity/mcp_config.json` (when present) with CF-Access headers added for `auth: cf-access` servers and the known cf-access name prefixes (`google-workspace*`, `atlassian*`, `hindsight*`). The `run()` orchestrator wires them: SOPS file → `os.environ` fallback for `CF_ACCESS_CLIENT_{ID,SECRET}` before the Antigravity update. Dry-run preserved end-to-end. Known hardcodes documented in the PR body (sibling path, server-name heuristic, `HINDSIGHT_BANK_ID` "geeplo" fallback) — pragmatic, grep-and-fix later.
 
