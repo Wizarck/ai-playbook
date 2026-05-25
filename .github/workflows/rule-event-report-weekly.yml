@@ -1,0 +1,86 @@
+name: rule-event-report-weekly
+
+# Weekly aggregate of L1 rule-event telemetry. Renders both Markdown and
+# JSON; posts the Markdown into a tracking issue labelled `telemetry-report`
+# (creates the issue on first run, updates it thereafter).
+#
+# Source of events: <repo>/.ai-playbook-state/rule-events.jsonl (gitignored,
+# so the CI runner produces a "no data" report unless a separate job has
+# committed an aggregated log). The intended deployment is per-consumer:
+# each consumer that wants visibility copies this workflow into its own
+# .github/workflows/ and either (a) has CI runs writing telemetry to the
+# state dir, or (b) commits a sanitised aggregate from a private store.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"  # Mondays 09:00 UTC
+  workflow_dispatch:
+    inputs:
+      window:
+        description: "Reporting window: weekly | monthly | custom"
+        required: false
+        default: weekly
+      window_days:
+        description: "If window=custom, days N>0"
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Pick window
+        id: window
+        run: |
+          case "${{ github.event.inputs.window || 'weekly' }}" in
+            weekly|monthly) echo "args=${{ github.event.inputs.window || 'weekly' }}" >> "$GITHUB_OUTPUT" ;;
+            custom)
+              days="${{ github.event.inputs.window_days || '7' }}"
+              echo "args=custom --window-days ${days}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "args=weekly" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Generate Markdown + JSON report
+        run: |
+          python -m scripts.telemetry.report ${{ steps.window.outputs.args }} > report.md
+          python -m scripts.telemetry.report ${{ steps.window.outputs.args }} --json > report.json
+          echo "report.md head:" && head -n 5 report.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: telemetry-report
+          path: |
+            report.md
+            report.json
+          retention-days: 30
+
+      - name: Post or update tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --label "telemetry-report" --state open --json number --jq '.[0].number // empty')
+          title="Telemetry report — ${{ steps.window.outputs.args }} — $(date +%Y-%m-%d)"
+          if [ -n "$existing" ]; then
+            echo "Updating issue #$existing"
+            gh issue edit "$existing" --title "$title" --body-file report.md
+          else
+            echo "Creating new tracking issue"
+            gh issue create --title "$title" --body-file report.md \
+              --label "telemetry-report" || \
+            gh issue create --title "$title" --body-file report.md  # fall back if label missing
+          fi

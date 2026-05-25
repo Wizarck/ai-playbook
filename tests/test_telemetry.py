@@ -301,6 +301,103 @@ def test_load_events_skips_malformed_lines(tmp_path: Path, capsys) -> None:
     assert len(events) == 2
 
 
+def test_compute_block_breakdown_groups_by_class_tool_pattern() -> None:
+    events = [
+        {"verdict": "block", "slug": "apply-skill-enforcement", "block_class": "apply_phase_bypass",
+         "block_tool": "Bash", "bash_pattern_kind": "sed-i"},
+        {"verdict": "block", "slug": "apply-skill-enforcement", "block_class": "apply_phase_bypass",
+         "block_tool": "Bash", "bash_pattern_kind": "sed-i"},
+        {"verdict": "block", "slug": "apply-skill-enforcement", "block_class": "apply_phase_bypass",
+         "block_tool": "Edit", "bash_pattern_kind": ""},
+        {"verdict": "allow", "slug": "apply-skill-enforcement", "block_class": "none"},
+    ]
+    rows = rpt.compute_block_breakdown(events)
+    # 2 buckets: (Bash, sed-i) count=2 and (Edit, "") count=1.
+    assert len(rows) == 2
+    top = rows[0]
+    assert top["block_tool"] == "Bash"
+    assert top["bash_pattern_kind"] == "sed-i"
+    assert top["count"] == 2
+
+
+def test_compute_block_breakdown_ignores_non_blocks_and_none_class() -> None:
+    events = [
+        {"verdict": "allow", "slug": "x", "block_class": "none"},
+        {"verdict": "warn",  "slug": "x", "block_class": "helper_missing"},
+        {"verdict": "block", "slug": "x", "block_class": ""},
+        {"verdict": "block", "slug": "x"},  # no block_class field
+    ]
+    assert rpt.compute_block_breakdown(events) == []
+
+
+def test_compute_top_blocked_paths_orders_by_count() -> None:
+    events = [
+        {"verdict": "block", "slug": "rule-a", "target_rel": "backend/foo.py"},
+        {"verdict": "block", "slug": "rule-a", "target_rel": "backend/foo.py"},
+        {"verdict": "block", "slug": "rule-a", "target_rel": "backend/bar.py"},
+        {"verdict": "allow", "slug": "rule-a", "target_rel": "backend/baz.py"},  # ignored
+        {"verdict": "block", "slug": "rule-b", "target_rel": "frontend/x.tsx"},
+    ]
+    rows = rpt.compute_top_blocked_paths(events, top_n=10)
+    assert rows[0] == {"slug": "rule-a", "target_rel": "backend/foo.py", "count": 2}
+    # Only block events count; baz.py absent.
+    assert all(r["target_rel"] != "backend/baz.py" for r in rows)
+    # Total 3 distinct rows.
+    assert len(rows) == 3
+
+
+def test_compute_top_blocked_paths_respects_top_n() -> None:
+    events = [{"verdict": "block", "slug": "rule-a", "target_rel": f"p{i}.py"} for i in range(20)]
+    rows = rpt.compute_top_blocked_paths(events, top_n=5)
+    assert len(rows) == 5
+
+
+def test_compute_override_ratio_per_slug() -> None:
+    events = [
+        {"slug": "rule-a"},
+        {"slug": "rule-a", "escape_hatch": "X"},
+        {"slug": "rule-a"},
+        {"slug": "rule-b"},
+        {"slug": "rule-b", "escape_hatch": "Y"},
+        {"slug": "rule-b", "escape_hatch": "Y"},
+    ]
+    rows = rpt.compute_override_ratio(events, flag_threshold=0.5)
+    # Sorted by slug.
+    a, b = rows
+    assert a["slug"] == "rule-a"
+    assert a["total"] == 3 and a["overrides"] == 1
+    assert abs(a["override_ratio"] - 0.3333) < 0.001
+    assert a["over_threshold"] is False
+    assert b["slug"] == "rule-b"
+    assert b["total"] == 3 and b["overrides"] == 2
+    assert b["over_threshold"] is True  # 0.6667 > 0.5
+
+
+def test_compute_override_ratio_flag_at_5_percent() -> None:
+    events = [{"slug": "x"} for _ in range(99)]
+    events.append({"slug": "x", "escape_hatch": "Z"})  # 1/100 = 1%
+    rows = rpt.compute_override_ratio(events)
+    assert rows[0]["over_threshold"] is False
+    # Add 4 more overrides → 5/100 = 5%; threshold is strictly >0.05 by default.
+    events.extend({"slug": "x", "escape_hatch": "Z"} for _ in range(4))
+    rows = rpt.compute_override_ratio(events)
+    # 5/104 = ~4.81% — still below 5%.
+    assert rows[0]["over_threshold"] is False
+    # 6 overrides → 6/105 = ~5.71%.
+    events.append({"slug": "x", "escape_hatch": "Z"})
+    rows = rpt.compute_override_ratio(events)
+    assert rows[0]["over_threshold"] is True
+
+
+def test_render_markdown_contains_v2_sections() -> None:
+    """Sections 1.bis, 1.ter, 6.bis appear in the rendered markdown."""
+    rpt_obj = rpt.build_report(window_days=1, state_dir=Path("/no/such/dir/__missing"))
+    out = rpt.render_markdown(rpt_obj)
+    assert "## 1.bis Block reasons breakdown" in out
+    assert "## 1.ter Top blocked paths" in out
+    assert "## 6.bis Override ratio (per slug)" in out
+
+
 def test_render_markdown_contains_all_eight_sections(tmp_path: Path) -> None:
     report = rpt.build_report(
         window_days=30,
