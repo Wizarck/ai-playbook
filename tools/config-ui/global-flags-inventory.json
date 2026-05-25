@@ -1,0 +1,16 @@
+{
+  "schema": "global-flags-inventory/v1",
+  "description": "Static catalogue of binary env-driven feature flags that do NOT have a per-feature state file. apply_config.py projects each flag's bundle value (true/false) to an env var entry inside .ai-playbook/feature-flags.env using the env_var + value_on + value_off mapping below. The consumer must source that file in their shell init (direnv .envrc, bashrc, fish init) for the flags to take effect at runtime.",
+  "flags": [
+    {
+      "key": "llm_routing_strict",
+      "label": "LLM routing: strict mode",
+      "description": "Fail loudly when a task class has no matching model in litellm-router.yaml. When false, the router falls back to defaults and emits a warning. Strict mode is recommended for production but can be noisy during local development.",
+      "env_var": "AIPLAYBOOK_LLM_ROUTING_STRICT",
+      "default": false,
+      "value_on": "1",
+      "value_off": "",
+      "doc_path": "docs/concepts/model-routing.md"
+    }
+  ]
+}

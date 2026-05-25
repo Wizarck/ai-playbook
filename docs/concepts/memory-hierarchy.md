@@ -7,7 +7,7 @@ summary: |
   retention windows, and failure modes. This spec defines the tiers, the
   bank_id convention for durable memory, the read/write discipline, decay
   policy, retrieval thresholds, and the handoff to the…
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Memory Hierarchy
@@ -27,6 +27,40 @@ envelope in [agent-contract.md](agent-contract.md).
 | **Project** | `openspec/` + repo docs (`docs/`, `ADRs/`, `runbooks/`) | Active-change artefacts, decisions, PRDs | One project | On-task: read before deciding | Via OpenSpec CLI and PR only; never hand-edit `openspec/specs/*.md` |
 | **Durable / personal** | Hindsight MCP, `bank_id=<project>` or `<project>-personal` | Prior decisions, gotchas, retros, lessons | Per-project, queryable by any agent authorised | `hindsight.recall` at bootstrap + on-demand | `hindsight.retain` after a meaningful lesson |
 | **Durable / universal** | `ai-playbook/specs/` (this repo), consumed via git submodule | Norms, schemas, contracts (this file, for instance) | All projects | Automatic via submodule — read on demand | RFC + PR to this repo, semver-bumped |
+
+### Diagram — tier flow + handoff
+
+```mermaid
+flowchart TB
+    subgraph Volatile["Volatile (lost at session end)"]
+        Session["Session<br/>in-process context window<br/>retention: one session"]
+    end
+
+    subgraph Persistent["Persistent (survives session end)"]
+        Project["Project<br/>openspec/ + docs/ + ADRs/<br/>retention: until archive"]
+        DurablePersonal["Durable / personal<br/>Hindsight MCP (bank_id)<br/>retention: 90-day soft decay"]
+        DurableUniversal["Durable / universal<br/>ai-playbook/specs/ (submodule)<br/>retention: immortal (RFC + PR)"]
+    end
+
+    Volatile -- "bootstrap recall<br/>(top_k=5, sim ≥0.7)" --> DurablePersonal
+    DurablePersonal -- "recall results<br/>injected at spawn" --> Session
+    Session -- "retro promote<br/>(hindsight.retain on lesson)" --> DurablePersonal
+    Session -- "OpenSpec PR<br/>(decision artefacts)" --> Project
+    DurablePersonal -. "promote to universal<br/>(RFC + PR + semver)" .-> DurableUniversal
+    DurableUniversal -- "submodule read<br/>(on demand)" --> Session
+    Project -- "ADR / runbook read<br/>(on demand)" --> Session
+
+    classDef volatile fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef project fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef personal fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    classDef universal fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    class Session volatile
+    class Project project
+    class DurablePersonal personal
+    class DurableUniversal universal
+```
+
+Solid arrows are routine read/write paths exercised every session; the dashed promotion edge from personal to universal fires only on RFC.
 
 ## 2. `bank_id` conventions
 
@@ -112,6 +146,41 @@ A stored lesson that conflicts with observed current state is handled as follows
    `memory_conflict`) so the retro cadence surfaces repeat offenders.
 
 Never "argue with observed state from memory". Observed state wins; memory is updated.
+
+### Diagram — decay resolution
+
+```mermaid
+flowchart TD
+    Entry["Recalled lesson contradicts<br/>observed state"]
+    Verify["Verify current state<br/>(read authoritative source:<br/>file, running service)"]
+    Decide{{"¿Stale or<br/>partially-true?"}}
+    Stale["Delete entry<br/>OR annotate invalidated_on:<br/>&lt;ISO date&gt; + new pointer"]
+    Partial["Date-annotate existing entry<br/>+ add successor entry<br/>(e.g. 'moved 2026-03-14')"]
+    Meta["Retain meta-lesson<br/>kind=failure<br/>subtype=memory_conflict<br/>(surfaces repeat offenders)"]
+
+    Entry --> Verify
+    Verify --> Decide
+    Decide -- "stale" --> Stale
+    Decide -- "partially true" --> Partial
+    Stale --> Meta
+    Partial --> Meta
+
+    Rule["Never argue with observed state<br/>from memory; observed state wins"]
+    Rule -. "governs all paths" .-> Decide
+
+    classDef entry fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef decide fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef action fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef meta fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    classDef rule fill:#ffebee,stroke:#c62828,color:#b71c1c
+    class Entry entry
+    class Decide decide
+    class Verify,Stale,Partial action
+    class Meta meta
+    class Rule rule
+```
+
+Both branches converge on the meta-lesson retain so retros (broader-sweep recall, `top_k=20`) can detect recurring decay events and propose deeper fixes.
 
 ## 7. Handoff to the spawn envelope
 

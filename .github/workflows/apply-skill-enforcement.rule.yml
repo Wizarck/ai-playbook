@@ -23,8 +23,23 @@ jobs:
       - name: Install
         run: pip install -e .
 
+      - name: Check rule toggle (skip validation if L3 OFF)
+        id: toggle
+        run: |
+          python -m scripts.rules_toggle status \
+            --slug apply-skill-enforcement \
+            --layer L3 \
+            --exit-code
+        continue-on-error: true
+
       - name: Validate
+        if: steps.toggle.outcome == 'success'
         run: |
           python -m scripts.rules.apply-skill-enforcement validate-pr-diff \
             --base "${{ github.event.pull_request.base.sha }}" \
             --head "${{ github.event.pull_request.head.sha }}"
+
+      - name: Note skipped validation (if applicable)
+        if: steps.toggle.outcome == 'failure'
+        run: |
+          echo "::notice title=apply-skill-enforcement skipped::The L3 layer of apply-skill-enforcement is disabled in this repo's .ai-playbook/rules-toggle.json. Validation step skipped."

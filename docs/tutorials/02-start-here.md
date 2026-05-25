@@ -7,6 +7,7 @@ estimated_time: "1 min"
 prerequisite_concepts: []
 audience: new-contributor
 order: 2
+last_validated: "2026-05-25"
 ---
 
 # Start here — 60-second orientation
@@ -27,26 +28,21 @@ If you came here to make a change, jump to step 3.
 
 ## 2. The three-level dispatcher chain (≤25 s)
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│  Level 1 — Universal                                           │
-│  ai-playbook/  (this repo; docs/, scripts/, schemas/)          │
-│  Consumed via git submodule at <consumer>/.ai-playbook/        │
-└────────────────────────────────────────────────────────────────┘
-                             │ inherits_from
-                             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  Level 2 — Project                                             │
-│  <consumer>/AGENTS.md  (project dispatcher; thin)              │
-│  Identity, active work, hard rules, capability map.            │
-└────────────────────────────────────────────────────────────────┘
-                             │ personal: true (maintainer only)
-                             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  Level 3 — Personal add-on (optional)                          │
-│  e.g. acme-core/ACME.md                                    │
-│  Loaded conditionally via ~/.ai-playbook/projects.yaml.        │
-└────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    L1["Level 1 — Universal<br/>storage: this repo (git submodule)<br/>provides: universal schemas + scripts<br/>at &lt;consumer&gt;/.ai-playbook/"]
+    L2["Level 2 — Project<br/>storage: consumer repo<br/>provides: project identity + active work<br/>+ capability map (&lt;consumer&gt;/AGENTS.md)"]
+    L3["Level 3 — Personal add-on<br/>(optional, conditional)<br/>storage: personal infra<br/>provides: infra paths + SOPS keys<br/>e.g. acme-core/ACME.md"]
+
+    L1 -->|inherits_from| L2
+    L2 -.->|personal: true<br/>(maintainer only)| L3
+
+    classDef l1 fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef l2 fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef l3 fill:#eceff1,stroke:#607d8b,color:#37474f,stroke-dasharray: 5 5
+    class L1 l1
+    class L2 l2
+    class L3 l3
 ```
 
 Full contract: [dispatcher-chain.md](../concepts/dispatcher-chain.md). Registry format: [projects-registry.md](../concepts/projects-registry.md).

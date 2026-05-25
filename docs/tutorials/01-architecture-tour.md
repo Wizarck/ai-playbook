@@ -7,6 +7,7 @@ estimated_time: "15 min"
 prerequisite_concepts: []
 audience: new-contributor
 order: 1
+last_validated: "2026-05-25"
 ---
 
 # Architecture tour — your first 15 minutes
@@ -43,6 +44,33 @@ The repo follows a [Diátaxis](https://diataxis.fr/)-inspired layout with a norm
 | `docs/concepts/` | **Conceptual reference + explanation** — no enforcement language | Declarative prose; "Why / What / How it relates / Concrete example" sections | [enforcement-layers.md](../concepts/enforcement-layers.md) |
 | `docs/runbooks/` | **How-to** — multi-step procedures for known goals | Numbered steps, expected outputs, failure recovery | [windows-dev-environment.md](../runbooks/windows-dev-environment.md) |
 | `docs/tutorials/` | **Learning-oriented** — lead-by-the-hand walkthroughs | "What you'll learn / Estimated time / Prerequisites" preamble | This file |
+
+```mermaid
+flowchart LR
+    Rules["docs/rules/<br/>normative<br/>frontmatter: paired_hardrule:<br/>(validate_pairing.py<br/>enforces disjointness)"]
+    Concepts["docs/concepts/<br/>explanation<br/>no paired_hardrule"]
+    Runbooks["docs/runbooks/<br/>procedure<br/>numbered steps"]
+    Tutorials["docs/tutorials/<br/>learning<br/>cold-start walkthroughs"]
+
+    Rules -->|documents why| Concepts
+    Concepts -->|how to apply| Runbooks
+    Tutorials -.->|learn by doing| Rules
+    Tutorials -.->|learn by doing| Concepts
+    Tutorials -.->|learn by doing| Runbooks
+
+    Note["Diátaxis-inspired layout<br/>+ normative-reference subcategory"]
+
+    classDef rules fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef concepts fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef runbooks fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef tutorials fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    classDef note fill:#fffde7,stroke:#f9a825,color:#f57f17,stroke-dasharray: 3 3
+    class Rules rules
+    class Concepts concepts
+    class Runbooks runbooks
+    class Tutorials tutorials
+    class Note note
+```
 
 The discriminator between **rules** and **concepts** is mechanical: a rule has `paired_hardrule:` in its frontmatter pointing at a Python file under `scripts/rules/`; a concept does not. The validator `scripts/validate_pairing.py` enforces this disjointness — you will run it in step 7.
 
