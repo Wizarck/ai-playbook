@@ -469,3 +469,83 @@ def test_cli_tag_not_found_exits_1(
     monkeypatch.setattr(release_cut, "resolve_tag", lambda p, explicit=None: None)
     rc = release_cut.main(["--repo-root", str(root), "--tag", "v9.9.9"])
     assert rc == 1
+
+
+# ---------------------------------------------------------------------------
+# OTel parent span — run_release wraps the pipeline in release.cut
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSpan:
+    def __init__(self) -> None:
+        self.attrs: dict[str, object] = {}
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.attrs[key] = value
+
+
+def _install_recording_span(monkeypatch: pytest.MonkeyPatch) -> list:
+    from contextlib import contextmanager
+
+    import scripts.tracing.trace_emit as te
+    captured: list = []
+
+    @contextmanager
+    def fake_span(name, attrs=None):
+        rec = _RecordingSpan()
+        captured.append((name, dict(attrs or {}), rec))
+        yield rec
+
+    monkeypatch.setattr(te, "span", fake_span)
+    return captured
+
+
+def test_run_release_opens_release_cut_parent_span(
+    tmp_path: Path, jsonl_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = _install_recording_span(monkeypatch)
+    root = _make_repo(tmp_path)
+    monkeypatch.setattr(release_cut, "resolve_tag", lambda p, explicit=None: "v1.2.3")
+    monkeypatch.setattr(release_cut, "resolve_previous_tag", lambda p, t: "v1.2.2")
+    monkeypatch.setattr(
+        release_cut, "archived_change_proposals",
+        lambda p, since_tag, current_tag: [],
+    )
+    monkeypatch.setattr(issue_sync, "_gh_repo_visibility", lambda p: "PUBLIC")
+    monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/repo")
+    monkeypatch.setattr(release_cut, "gh_release_exists", lambda tag, cwd: False)
+    monkeypatch.setattr(release_cut, "gh_release_create", lambda **kw: (True, "ok"))
+
+    rc, outcome = release_cut.run_release(repo_root=root, tag_override="v1.2.3")
+    assert rc == 0
+
+    # The parent release.cut span MUST appear; per-step notification spans
+    # (release_cut.start, release_cut.changes_collected, github_released,
+    # release_cut.complete) come from notify(), which is also patched here.
+    parents = [c for c in captured if c[0] == "release.cut"]
+    assert len(parents) == 1
+    name, opening_attrs, rec = parents[0]
+    assert opening_attrs["ai_playbook.release.tag_override"] == "v1.2.3"
+    assert opening_attrs["ai_playbook.release.dry_run"] is False
+    assert rec.attrs["ai_playbook.release.ok"] is True
+    assert rec.attrs["ai_playbook.release.exit_code"] == 0
+    assert "github_released" in rec.attrs["ai_playbook.release.steps"]
+
+
+def test_run_release_span_records_failure_exit_code(
+    tmp_path: Path, jsonl_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = _install_recording_span(monkeypatch)
+    root = _make_repo(tmp_path)
+    monkeypatch.setattr(release_cut, "resolve_tag", lambda p, explicit=None: None)
+
+    rc, outcome = release_cut.run_release(repo_root=root, tag_override="v9.9.9")
+    assert rc == 1
+    assert outcome.ok is False
+
+    parents = [c for c in captured if c[0] == "release.cut"]
+    assert len(parents) == 1
+    _, _, rec = parents[0]
+    assert rec.attrs["ai_playbook.release.ok"] is False
+    assert rec.attrs["ai_playbook.release.exit_code"] == 1
+    assert "tag-not-found" in rec.attrs["ai_playbook.release.errors"]

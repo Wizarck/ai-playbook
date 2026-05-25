@@ -155,3 +155,67 @@ def test_dispatch_emit_telemetry_writes_jsonl(
     assert log.is_file()
     lines = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
     assert len(lines) == len(fake_rules)
+
+
+# ---------------------------------------------------------------------------
+# Parent OTel span — dispatch() opens hook.<trigger> wrapping all fired rules
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSpan:
+    def __init__(self) -> None:
+        self.attrs: dict[str, object] = {}
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.attrs[key] = value
+
+
+def _install_recording_span(monkeypatch: pytest.MonkeyPatch) -> list:
+    from contextlib import contextmanager
+
+    import scripts.tracing.trace_emit as te
+    captured: list = []
+
+    @contextmanager
+    def fake_span(name, attrs=None):
+        rec = _RecordingSpan()
+        captured.append((name, dict(attrs or {}), rec))
+        yield rec
+
+    monkeypatch.setattr(te, "span", fake_span)
+    return captured
+
+
+def test_dispatch_opens_hook_trigger_span_with_fired_count(
+    fake_rules: list[hd.Rule], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+    captured = _install_recording_span(monkeypatch)
+
+    fired = hd.dispatch(fake_rules, "Edit", {"llm": "claude-opus-4-7"})
+
+    assert len(captured) == 1
+    name, opening_attrs, rec = captured[0]
+    assert name == "hook.Edit"
+    assert opening_attrs["ai_playbook.hook.trigger"] == "Edit"
+    assert opening_attrs["ai_playbook.hook.rules_loaded"] == len(fake_rules)
+    # Post-annotations.
+    assert rec.attrs["ai_playbook.hook.fired_count"] == len(fired)
+    assert "ai_playbook.hook.fired_slugs" in rec.attrs
+    assert rec.attrs["ai_playbook.rule.llm"] == "claude-opus-4-7"
+
+
+def test_dispatch_no_op_when_no_rules_match(
+    fake_rules: list[hd.Rule], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Span still opens (so an empty hook is visible) but fired_count=0."""
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+    captured = _install_recording_span(monkeypatch)
+
+    fired = hd.dispatch(fake_rules, "Write", {})  # no rule matches Write
+    assert fired == []
+
+    assert len(captured) == 1
+    _, _, rec = captured[0]
+    assert rec.attrs["ai_playbook.hook.fired_count"] == 0
+    assert "ai_playbook.hook.fired_slugs" not in rec.attrs

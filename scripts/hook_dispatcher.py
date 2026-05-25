@@ -104,6 +104,23 @@ def dispatch(
     except Exception:  # noqa: BLE001 — never break the hook path.
         log_event = None  # type: ignore[assignment]
 
+    # Parent OTel span wrapping the whole dispatch. Each rule's own `rule.<slug>`
+    # span (from `cli_emit` when the hardrule actually runs in a consumer
+    # subprocess) will appear as a sibling/child in Langfuse keyed by the same
+    # trigger. No-op safe when OTel is unavailable.
+    try:
+        from scripts.tracing import trace_emit
+        dispatch_span_cm = trace_emit.span(
+            f"hook.{trigger}",
+            {
+                "ai_playbook.hook.trigger": trigger,
+                "ai_playbook.hook.rules_loaded": len(rules),
+            },
+        )
+    except Exception:  # noqa: BLE001
+        from contextlib import nullcontext
+        dispatch_span_cm = nullcontext(None)
+
     llm = str(event.get("llm") or event.get("model") or "unknown")
     session_id = str(event.get("session_id") or "")
     tokens_in = event.get("tokens_in")
@@ -111,37 +128,51 @@ def dispatch(
     cache_read_tokens = event.get("cache_read_tokens")
     escape_hatch = event.get("escape_hatch")
 
-    for r in rules:
-        if not r.matches(trigger):
-            continue
-        fired.append(r.slug)
-        if log_event is None:
-            continue
-        t0 = time.perf_counter_ns()
-        verdict = "allow"  # Default; richer dispatch can override.
-        # Measure pure dispatch latency. The actual hardrule invocation is
-        # consumer-side; this latency reflects the dispatcher overhead only.
-        t1 = time.perf_counter_ns()
-        try:
-            log_event(
-                slug=r.slug,
-                llm=llm,
-                verdict=verdict,
-                latency_ms=(t1 - t0) / 1e6,
-                trigger=trigger,
-                session_id=session_id,
-                self_check=bool(event.get("self_check", False)),
-                tokens_in=int(tokens_in) if isinstance(tokens_in, (int, float)) else None,
-                tokens_out=int(tokens_out) if isinstance(tokens_out, (int, float)) else None,
-                cache_read_tokens=(
-                    int(cache_read_tokens)
-                    if isinstance(cache_read_tokens, (int, float))
-                    else None
-                ),
-                escape_hatch=str(escape_hatch) if escape_hatch else None,
-            )
-        except Exception:  # noqa: BLE001 — never raise out of dispatch.
-            pass
+    with dispatch_span_cm as dispatch_span:
+        for r in rules:
+            if not r.matches(trigger):
+                continue
+            fired.append(r.slug)
+            if log_event is None:
+                continue
+            t0 = time.perf_counter_ns()
+            verdict = "allow"  # Default; richer dispatch can override.
+            # Measure pure dispatch latency. The actual hardrule invocation is
+            # consumer-side; this latency reflects the dispatcher overhead only.
+            t1 = time.perf_counter_ns()
+            try:
+                log_event(
+                    slug=r.slug,
+                    llm=llm,
+                    verdict=verdict,
+                    latency_ms=(t1 - t0) / 1e6,
+                    trigger=trigger,
+                    session_id=session_id,
+                    self_check=bool(event.get("self_check", False)),
+                    tokens_in=int(tokens_in) if isinstance(tokens_in, (int, float)) else None,
+                    tokens_out=int(tokens_out) if isinstance(tokens_out, (int, float)) else None,
+                    cache_read_tokens=(
+                        int(cache_read_tokens)
+                        if isinstance(cache_read_tokens, (int, float))
+                        else None
+                    ),
+                    escape_hatch=str(escape_hatch) if escape_hatch else None,
+                )
+            except Exception:  # noqa: BLE001 — never raise out of dispatch.
+                pass
+
+        if dispatch_span is not None:
+            try:
+                dispatch_span.set_attribute("ai_playbook.hook.fired_count", len(fired))
+                if fired:
+                    # Cap to keep span attrs small; full list lives in JSONL.
+                    dispatch_span.set_attribute(
+                        "ai_playbook.hook.fired_slugs", ",".join(fired[:20])
+                    )
+                if llm and llm != "unknown":
+                    dispatch_span.set_attribute("ai_playbook.rule.llm", llm)
+            except Exception:  # noqa: BLE001
+                pass
 
     return fired
 
