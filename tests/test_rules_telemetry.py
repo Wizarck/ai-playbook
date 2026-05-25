@@ -329,3 +329,137 @@ def test_script_emit_fails_safe_on_logger_error(
     monkeypatch.setattr(logger_mod, "log_event", _boom)
     rc = _telemetry.script_emit("doctor", lambda: 7)
     assert rc == 7
+
+
+# ---------------------------------------------------------------------------
+# OTel span emission alongside the JSONL row
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSpan:
+    """Stand-in span that records every set_attribute call so tests can
+    assert what cli_emit annotated the span with."""
+
+    def __init__(self) -> None:
+        self.attributes: dict[str, object] = {}
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.attributes[key] = value
+
+
+def _install_fake_trace_emit(monkeypatch: pytest.MonkeyPatch) -> _RecordingSpan:
+    """Patch scripts.tracing.trace_emit.span with a context manager that
+    yields a _RecordingSpan and captures the initial attrs dict. Returns
+    the span instance so the caller can assert against it after cli_emit."""
+    from contextlib import contextmanager
+
+    span = _RecordingSpan()
+    init_calls: dict[str, object] = {"name": None, "attrs": None}
+
+    @contextmanager
+    def fake_span(name: str, attrs: dict[str, object] | None = None):
+        init_calls["name"] = name
+        init_calls["attrs"] = dict(attrs or {})
+        # Stash the init values on the span itself for the assertion side.
+        span.attributes.update(init_calls["attrs"])  # type: ignore[arg-type]
+        span.init_name = name  # type: ignore[attr-defined]
+        yield span
+
+    import scripts.tracing.trace_emit as trace_emit_mod
+
+    monkeypatch.setattr(trace_emit_mod, "span", fake_span)
+    return span
+
+
+def test_cli_emit_opens_otel_span_with_rule_attrs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("AI_PLAYBOOK_LLM", "claude-haiku-4-5")
+    monkeypatch.setenv("AI_PLAYBOOK_HOOK_TRIGGER", "PreToolUse:Edit")
+    span = _install_fake_trace_emit(monkeypatch)
+
+    rc = _telemetry.cli_emit("update-playbook", lambda: 0)
+    assert rc == 0
+
+    # init attrs landed
+    assert span.attributes["ai_playbook.rule.slug"] == "update-playbook"
+    assert span.attributes["ai_playbook.rule.trigger"] == "PreToolUse:Edit"
+    assert span.attributes["ai_playbook.rule.llm"] == "claude-haiku-4-5"
+    # post-hoc annotation
+    assert span.attributes["ai_playbook.rule.verdict"] == "allow"
+    assert isinstance(span.attributes["ai_playbook.rule.latency_ms"], float)
+    assert span.attributes["ai_playbook.rule.latency_ms"] >= 0.0
+    # span name follows the rule.{slug} convention
+    assert getattr(span, "init_name", None) == "rule.update-playbook"
+
+
+def test_cli_emit_otel_records_correct_verdict_for_block_and_warn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+    span_block = _install_fake_trace_emit(monkeypatch)
+    _telemetry.cli_emit("some-rule", lambda: 1)
+    assert span_block.attributes["ai_playbook.rule.verdict"] == "block"
+
+    span_warn = _install_fake_trace_emit(monkeypatch)
+    _telemetry.cli_emit("some-rule", lambda: 2)
+    assert span_warn.attributes["ai_playbook.rule.verdict"] == "warn"
+
+
+def test_cli_emit_writes_jsonl_even_when_otel_blows_up(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Critical invariant: an exception in the OTel path must NOT prevent
+    the JSONL row from being written. Both transports are independent and
+    fail-safe, but operators rely on the JSONL as the durable log."""
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+
+    import scripts.tracing.trace_emit as trace_emit_mod
+
+    def boom(*_a: object, **_kw: object):
+        raise RuntimeError("otel exploded")
+
+    monkeypatch.setattr(trace_emit_mod, "span", boom)
+
+    rc = _telemetry.cli_emit("some-rule", lambda: 0)
+    assert rc == 0
+
+    events = state_dir / "rule-events.jsonl"
+    assert events.is_file(), "JSONL row missing — OTel failure leaked"
+    payload = events.read_text(encoding="utf-8").strip().splitlines()
+    assert len(payload) == 1
+    row = json.loads(payload[0])
+    assert row["slug"] == "some-rule"
+    assert row["verdict"] == "allow"
+
+
+def test_cli_emit_does_not_emit_otel_when_tracing_module_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """If `scripts.tracing.trace_emit` cannot be imported at all, cli_emit
+    falls back to a nullcontext and still writes the JSONL row."""
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(tmp_path / "state"))
+
+    import sys
+
+    real_import = _telemetry.__builtins__["__import__"] if isinstance(
+        _telemetry.__builtins__, dict
+    ) else __builtins__.__import__  # type: ignore[attr-defined]
+
+    def fake_import(name: str, *args: object, **kwargs: object):
+        if name == "scripts.tracing" or name == "scripts.tracing.trace_emit":
+            raise ImportError(f"simulated absent: {name}")
+        return real_import(name, *args, **kwargs)  # type: ignore[misc]
+
+    # Wipe any cached import so our fake takes effect.
+    for cached in ("scripts.tracing", "scripts.tracing.trace_emit"):
+        sys.modules.pop(cached, None)
+    monkeypatch.setattr("builtins.__import__", fake_import)
+
+    rc = _telemetry.cli_emit("some-rule", lambda: 0)
+    assert rc == 0
+    # JSONL still written
+    events = (tmp_path / "state") / "rule-events.jsonl"
+    assert events.is_file()
