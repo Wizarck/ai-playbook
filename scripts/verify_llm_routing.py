@@ -365,4 +365,5 @@ def _main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(_main())
+    from scripts.rules._telemetry import script_emit
+    raise SystemExit(script_emit("verify-llm-routing", _main))

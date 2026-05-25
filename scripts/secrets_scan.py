@@ -543,4 +543,5 @@ __all__ = [
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from scripts.rules._telemetry import script_emit
+    raise SystemExit(script_emit("secrets-scan", main))
