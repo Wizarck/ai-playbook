@@ -104,6 +104,9 @@ class BootstrapArgs:
                                       # against the resolved target dir + exit.
     no_caveman: bool = False          # If True, skip the default-on caveman
                                       # activation step (see enable_caveman_default).
+    from_config: Path | None = None   # If set, apply an ai-playbook-config/v1 bundle
+                                      # after the base bootstrap flow completes.
+                                      # See scripts/apply_config.py.
 
 
 # ---------------------------------------------------------------------------
@@ -490,8 +493,12 @@ def print_next_steps(target_dir: Path, project_name: str) -> None:
           "mcp-servers.project.yaml if you need to override base/personal layers.")
     print("   4. Check caveman status: `python -m scripts.caveman status` "
           "(default-on unless --no-caveman was passed; see docs/runbooks/caveman-toggle.md).")
-    print("   5. Write your first OpenSpec change: `/opsx:propose <topic>`.")
-    print(f"   6. Commit + push the consumer: "
+    print("   5. If you applied a config bundle (--from-config), source the env file in your shell init: "
+          "`set -a; source .ai-playbook/feature-flags.env; set +a` (or via direnv .envrc).")
+    print("      Re-apply changes anytime with: `python -m scripts.apply_config <bundle.json>`. "
+          "Build a new bundle in the HTML UI at `.ai-playbook/tools/config-ui/index.html`.")
+    print("   6. Write your first OpenSpec change: `/opsx:propose <topic>`.")
+    print(f"   7. Commit + push the consumer: "
           f"`git add . && git commit -m 'chore: bootstrap {project_name} via ai-playbook' && git push`.")
 
 # ---------------------------------------------------------------------------
@@ -529,6 +536,11 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                              "bootstrap runs `caveman on --mode full --components <all>` "
                              "against the new project. Opt-out only; the "
                              "consumer can still flip it on later.")
+    parser.add_argument("--from-config", dest="from_config", type=Path, default=None,
+                        help="Apply an ai-playbook-config/v1 bundle JSON (exported from "
+                             "tools/config-ui/) after the base bootstrap flow. Mutates "
+                             "rules-toggle.json + caveman.json (via its CLI) + "
+                             "feature-flags.env. See scripts/apply_config.py.")
     add_break_glass_flag(parser)
     ns = parser.parse_args(argv)
     project_name = ns.project_name
@@ -548,6 +560,7 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         dry_run=ns.dry_run,
         refresh_skills=ns.refresh_skills,
         no_caveman=ns.no_caveman,
+        from_config=ns.from_config,
     )
 
 
@@ -706,8 +719,37 @@ def main(argv: list[str] | None = None) -> int:
     # Step 5: render .mcp.json + .gemini/settings.json from the merged layers.
     render_mcp_configs(target_dir, args.project_name, args.dry_run)
 
+    # Step 6: apply ai-playbook-config bundle (rules + features + global_flags)
+    # if --from-config was passed. Runs LAST so any caveman state from step 4.6
+    # is overridden by the bundle's declared intent.
+    if args.from_config is not None:
+        apply_from_config(target_dir, args.from_config, dry_run=args.dry_run)
+
     print_next_steps(target_dir, args.project_name)
     return 0
+
+
+def apply_from_config(target_dir: Path, bundle_path: Path, *, dry_run: bool) -> None:
+    """Invoke scripts.apply_config on the bundle. Best-effort — prints the report.
+
+    Failures in individual sections are surfaced but do not abort bootstrap;
+    the consumer is left in a partially-configured state and can re-run
+    `python -m scripts.apply_config <bundle>` after fixing the issue.
+    """
+    if dry_run:
+        print(f"(dry-run) Would apply config bundle: {bundle_path}")
+        return
+    print(f"→ apply_config: applying {bundle_path}")
+    try:
+        from scripts import apply_config as ac
+        report = ac.apply(bundle_path, target=target_dir, dry_run=False)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"⚠️ apply_config failed: {exc}")
+        return
+    print(report.to_markdown())
+    if not report.ok:
+        print("⚠️ apply_config: one or more sections failed; see report above. "
+              "Re-run `python -m scripts.apply_config <bundle>` after fixing the issue.")
 
 
 def render_mcp_configs(target_dir: Path, project_name: str, dry_run: bool) -> None:

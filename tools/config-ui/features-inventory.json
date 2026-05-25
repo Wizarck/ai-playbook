@@ -1,0 +1,59 @@
+{
+  "schema": "features-inventory/v1",
+  "description": "Static catalogue of ai-playbook 'features' — installed components with their own state file, side effects, and CLI. Distinct from rules: a rule validates an invariant; a feature is something you install/configure. apply_config.py delegates to each feature's CLI (e.g. python -m scripts.caveman) rather than writing state files directly, so materialisation, backups, and CLI-only invariants stay intact.",
+  "features": {
+    "caveman": {
+      "label": "Caveman mode",
+      "description": "Terse rule injection + auto-compress + cavecrew subagents + MCP wrap. The response_style component materialises a block in AGENTS.md; mcp_shrink wraps .mcp.json + .gemini/settings.json with the caveman-shrink npm package. All side effects are backed up first under .ai-playbook/backups/.",
+      "doc_path": "docs/concepts/caveman-mode.md",
+      "schema_path": "schemas/schema-caveman-toggle-v1.json",
+      "cli_module": "scripts.caveman",
+      "modes": ["lite", "full", "ultra"],
+      "default_mode": "full",
+      "components": [
+        {
+          "key": "response_style",
+          "label": "Response style (AGENTS.md block)",
+          "description": "Inject the caveman ruleset into AGENTS.md as an auto-managed block + enable per-turn reinforcement (the caveman-reinforce.rule.py pairs with this).",
+          "default": false,
+          "side_effects": ["materialise AGENTS.md auto-managed block", "backup AGENTS.md before mutation"]
+        },
+        {
+          "key": "compress_docs",
+          "label": "/caveman-compress skill",
+          "description": "Capability flag — does NOT auto-compress. Gates the /caveman-compress skill and the `caveman compress <file>` CLI subcommand.",
+          "default": false,
+          "side_effects": []
+        },
+        {
+          "key": "subagents_cavecrew",
+          "label": "cavecrew-* subagents",
+          "description": "Allow Claude to delegate to cavecrew-investigator / cavecrew-builder / cavecrew-reviewer subagents when applicable.",
+          "default": false,
+          "side_effects": []
+        },
+        {
+          "key": "commit_caveman",
+          "label": "caveman-commit skill",
+          "description": "Enable the caveman-commit skill (terse Conventional Commits).",
+          "default": false,
+          "side_effects": []
+        },
+        {
+          "key": "review_caveman",
+          "label": "caveman-review skill",
+          "description": "Enable the caveman-review skill (one-line PR review).",
+          "default": false,
+          "side_effects": []
+        },
+        {
+          "key": "mcp_shrink",
+          "label": "MCP shrink wrapper",
+          "description": "Wrap stdio MCP server commands in .mcp.json + .gemini/settings.json with `npx caveman-shrink` to compress tool descriptions in flight. Requires Node + npx at runtime.",
+          "default": false,
+          "side_effects": ["wrap .mcp.json", "wrap .gemini/settings.json", "backup both before mutation"]
+        }
+      ]
+    }
+  }
+}

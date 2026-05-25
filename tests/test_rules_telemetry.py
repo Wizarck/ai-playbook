@@ -165,3 +165,96 @@ def test_cli_emit_invokes_ensure_utf8_streams(
     monkeypatch.setattr(_telemetry, "_ensure_utf8_streams", lambda: called.append(True))
     _telemetry.cli_emit("update-playbook", lambda: 0)
     assert called == [True]
+
+
+# ---------------------------------------------------------------------------
+# rules-toggle short-circuit (Phase F)
+# ---------------------------------------------------------------------------
+
+
+def _fake_consumer(tmp_path: Path, toggle_state: dict | None = None) -> Path:
+    """Build a tmp consumer with AGENTS.md and an optional rules-toggle.json."""
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / "AGENTS.md").write_text("# fake\n", encoding="utf-8")
+    if toggle_state is not None:
+        toggle_path = consumer / ".ai-playbook" / "rules-toggle.json"
+        toggle_path.parent.mkdir(parents=True, exist_ok=True)
+        toggle_path.write_text(json.dumps(toggle_state), encoding="utf-8")
+    return consumer
+
+
+def test_cli_emit_short_circuits_when_rule_disabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """If rules-toggle.json says enabled=false, cli_emit skips main_fn + emits warn."""
+    consumer = _fake_consumer(tmp_path, toggle_state={
+        "schema": "rules-toggle/v1",
+        "rules": {
+            "verdict-contract": {"enabled": False, "reason": "ten-chars test"},
+        },
+    })
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    monkeypatch.chdir(consumer)
+
+    invocations: list[bool] = []
+    def main_fn() -> int:
+        invocations.append(True)
+        return 1  # would normally block
+
+    rc = _telemetry.cli_emit("verdict-contract", main_fn)
+    assert rc == 0, "rule disabled → cli_emit must return 0 (pass-through)"
+    assert invocations == [], "main_fn must NOT be called when the rule is disabled"
+
+    events = json.loads((state_dir / "rule-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert events["verdict"] == "warn"
+    assert events["block_class"] == "rule_disabled"
+    assert events["toggle_layer"] == "L1"
+    assert events["slug"] == "verdict-contract"
+
+
+def test_cli_emit_runs_normally_when_rule_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """A rule with no override (or enabled=true) runs main_fn as before."""
+    consumer = _fake_consumer(tmp_path, toggle_state={
+        "schema": "rules-toggle/v1",
+        "rules": {},  # no overrides
+    })
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    monkeypatch.chdir(consumer)
+
+    invocations: list[bool] = []
+    def main_fn() -> int:
+        invocations.append(True)
+        return 0
+
+    rc = _telemetry.cli_emit("verdict-contract", main_fn)
+    assert rc == 0
+    assert invocations == [True]
+    events = json.loads((state_dir / "rule-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert events["verdict"] == "allow"
+    assert events.get("block_class") != "rule_disabled"
+
+
+def test_cli_emit_runs_normally_when_no_toggle_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """No rules-toggle.json at all → cli_emit behaves exactly as before this feature."""
+    consumer = _fake_consumer(tmp_path)  # no toggle state
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
+    monkeypatch.chdir(consumer)
+
+    invocations: list[bool] = []
+    def main_fn() -> int:
+        invocations.append(True)
+        return 1
+
+    rc = _telemetry.cli_emit("verdict-contract", main_fn)
+    assert rc == 1
+    assert invocations == [True]
+    events = json.loads((state_dir / "rule-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert events["verdict"] == "block"

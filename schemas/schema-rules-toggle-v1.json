@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-rules-toggle-v1.json",
+  "title": "rules-toggle state (v1)",
+  "description": "Per-consumer rules toggle state. Single source of truth at <project>/.ai-playbook/rules-toggle.json (gitignored). Sparse representation: only entries that diverge from the all-ON default are present; rules absent from `rules{}` are assumed ON in every layer. Read/written by scripts/rules_toggle.py and scripts/apply_config.py. Forward-compatible additions land as v2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "rules"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "rules-toggle/v1",
+      "description": "Schema version literal. MUST be 'rules-toggle/v1'."
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of the last write. Optional but recommended for audit clarity."
+    },
+    "applied_by": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Identifier of the agent/user that last wrote the file. Sourced from `$USER`/`$USERNAME` by the CLI; bundle imports may set explicitly."
+    },
+    "rules": {
+      "type": "object",
+      "description": "Map of rule-slug -> per-rule override. Rules absent from this map default to fully ON.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled"],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Master switch for this rule. When false, all layers (L1/L2/L3) are skipped regardless of `layers` entries below; the rule emits telemetry `block_class=rule_disabled` and exits 0."
+          },
+          "layers": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Per-layer override. A missing layer key inherits from `enabled`. Use to disable a single layer (e.g. L3 in CI) while keeping the others active.",
+            "properties": {
+              "L1": {
+                "type": "boolean",
+                "description": "PreToolUse hook + rule.py wrapper. False disables them."
+              },
+              "L2": {
+                "type": "boolean",
+                "description": "Sandwich-defense reinforcement (markdown rule visible to the model). False mutes the L2 surface."
+              },
+              "L3": {
+                "type": "boolean",
+                "description": "GitHub Actions workflow validation. False causes the workflow step to skip via the `rules_toggle status --exit-code` gate."
+              }
+            }
+          },
+          "advanced": {
+            "type": "object",
+            "additionalProperties": { "type": "boolean" },
+            "description": "Per-rule advanced sub-toggles (e.g. {bash_inspection: false} for apply-skill-enforcement). Keys come from the rule's `advanced[]` entry in tools/config-ui/rules-inventory.json; values project to env vars in .ai-playbook/feature-flags.env via the inventory mapping."
+          },
+          "reason": {
+            "type": ["string", "null"],
+            "minLength": 10,
+            "description": "Human-readable justification for the override. Required when disabling a rule whose inventory entry carries `break_glass_env` (enforced by scripts/rules_toggle.py, not the schema)."
+          },
+          "disabled_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 UTC timestamp of when the rule was last disabled. Cleared when the rule is re-enabled."
+          },
+          "ttl_days": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Reserved for v2 auto-restore. v1 ignores this field; manual re-enable required."
+          }
+        }
+      }
+    }
+  }
+}
