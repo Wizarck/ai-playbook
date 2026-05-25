@@ -1,4 +1,4 @@
-"""Telemetry wrapper for L1 rule CLI scripts (Slice v0.19.1).
+"""Telemetry wrapper for rule scripts AND direct-CLI helpers.
 
 Each ``scripts/rules/<slug>.rule.py`` ends with::
 
@@ -6,24 +6,35 @@ Each ``scripts/rules/<slug>.rule.py`` ends with::
         from scripts.rules._telemetry import cli_emit
         raise SystemExit(cli_emit("<slug>", main))
 
-``cli_emit`` times the rule's ``main()`` call, maps its exit code to a
-``rule-event/v1`` verdict, and appends one JSONL row via
+Direct-CLI helpers (``doctor``, ``bootstrap``, ``secrets_scan``, …) end with::
+
+    if __name__ == "__main__":
+        from scripts.rules._telemetry import script_emit
+        raise SystemExit(script_emit("<slug>", main))
+
+Both paths share the same plumbing — ``script_emit`` is a thin alias that
+sets ``kind="script"``. The shared wrapper times ``main()``, maps its exit
+code to a ``rule-event/v1`` verdict, and appends one JSONL row via
 ``scripts.telemetry.rule_event_logger.log_event``. Logging is fail-safe — any
-exception from the logger is swallowed; the rule's exit code is never
+exception from the logger is swallowed; the script's exit code is never
 altered by telemetry side-effects.
+
+Each JSONL row carries a ``kind`` field (``"rule"`` | ``"script"``) so the
+monthly ``scripts.telemetry.report`` CLI can split counts between L1 rules
+and direct-CLI invocations without losing the unified aggregation surface.
 
 Verdict mapping
 ---------------
 
-* ``rc == 0`` → ``verdict="allow"``  — rule passed.
-* ``rc == 1`` → ``verdict="block"``  — rule found a violation.
+* ``rc == 0`` → ``verdict="allow"``  — rule/script passed.
+* ``rc == 1`` → ``verdict="block"``  — rule/script found a violation.
 * ``rc >= 2`` → ``verdict="warn"``   — schema break / fatal (could not evaluate).
 
 Environment passthrough
 -----------------------
 
 The wrapper reads three optional env vars to enrich the event without
-changing the rule's CLI contract:
+changing the script's CLI contract:
 
 * ``AI_PLAYBOOK_LLM`` — model identifier (default ``"unknown"``).
 * ``AI_PLAYBOOK_HOOK_TRIGGER`` — hook label, e.g. ``PreToolUse:Edit``
@@ -31,7 +42,8 @@ changing the rule's CLI contract:
 * ``CLAUDE_CODE_SESSION_ID`` (preferred) or ``AI_PLAYBOOK_SESSION_ID``
   (fallback) — raw session id; hashed by the logger before storage.
 
-Public API: ``cli_emit(slug, main_fn, argv=None)``.
+Public API: ``cli_emit(slug, main_fn, argv=None, *, kind="rule")`` and
+``script_emit(slug, main_fn, argv=None)`` (alias: ``kind="script"``).
 """
 from __future__ import annotations
 
@@ -41,7 +53,7 @@ import sys
 import time
 from collections.abc import Callable
 
-__all__ = ["cli_emit", "verdict_from_rc"]
+__all__ = ["cli_emit", "script_emit", "verdict_from_rc"]
 
 _logger = logging.getLogger(__name__)
 
@@ -117,11 +129,18 @@ def cli_emit(
     slug: str,
     main_fn: Callable[..., int],
     argv: list[str] | None = None,
+    *,
+    kind: str = "rule",
 ) -> int:
     """Invoke ``main_fn(argv)``, log one telemetry event, return the rc.
 
+    ``kind="rule"`` (default) preserves the historical contract for the 41
+    ``*.rule.py`` callers. ``kind="script"`` is for direct-CLI helpers wrapped
+    via :func:`script_emit` — both paths share the same JSONL surface so the
+    monthly report can aggregate or split as needed.
+
     Fail-safe: any telemetry-side exception is silently swallowed so the
-    rule's own exit code reaches the caller unchanged.
+    caller's own exit code reaches the caller unchanged.
 
     Toggle short-circuit: if the consumer's ``rules-toggle.json`` has
     ``rules.<slug>.enabled=false`` (or ``layers.L1=false``), skip ``main_fn``
@@ -154,8 +173,18 @@ def cli_emit(
                 or ""
             ),
             self_check=False,
+            extra={"kind": kind},
         )
     except Exception:  # noqa: BLE001 — telemetry must never break the rule
         _logger.warning("cli_emit(%r) telemetry drop", slug, exc_info=True)
 
     return rc
+
+
+def script_emit(
+    slug: str,
+    main_fn: Callable[..., int],
+    argv: list[str] | None = None,
+) -> int:
+    """Direct-CLI counterpart of :func:`cli_emit` — sets ``kind="script"``."""
+    return cli_emit(slug, main_fn, argv, kind="script")

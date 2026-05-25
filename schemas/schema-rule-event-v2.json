@@ -154,6 +154,11 @@
       "type": "object",
       "description": "Snapshot of feature-flag env vars relevant to the decision (e.g. {bash_inspection: '0'}). Optional; useful for correlating decisions with rollback state.",
       "additionalProperties": {"type": "string"}
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["rule", "script"],
+      "description": "Invocation class. `rule` (default) for the 41 *.rule.py callers wrapped via cli_emit. `script` for direct-CLI helpers wrapped via script_emit (doctor, bootstrap, secrets-scan, verify-llm-routing, openspec-validate, gen-indexes, validate-pairing, verdict-lint, schema-validate, inject-context, upstream-sync, simulate-incident-response, discover-projects). Legacy rows without this field default to `rule` in report.py aggregation."
     }
   }
 }
