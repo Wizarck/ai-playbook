@@ -142,7 +142,6 @@ nav:
       - "Slos": concepts/slos.md
       - "Upstream sync": concepts/upstream-sync.md
       - "Ux track": concepts/ux-track.md
-      - "V080 roadmap": concepts/v080-roadmap.md
       - "V090 roadmap": concepts/v090-roadmap.md
       - "Zero touch automation": concepts/zero-touch-automation.md
   - Rules:

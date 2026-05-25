@@ -7,7 +7,7 @@ summary: |
   during a user-visible outage or a data-corruption event. This spec is the
   coordination layer; per-service "how do I fix Hermes" content stays in
   service-scoped runbooks (see §8). Every section below is…
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Incident Response
@@ -72,11 +72,69 @@ Eight concrete scenarios across availability / data / security / capacity. Each 
 
 Scenarios are starter set, not exhaustive. New scenarios land in this table in the same PR that introduces the detection rule. The simulator (`scripts/simulate_incident_response.py`) walks one scenario end-to-end as a smoke test.
 
+### Diagram 3A — incident lifecycle (trigger → resolution → post-mortem)
+
+```mermaid
+flowchart TD
+    Trigger["Trigger event<br/>(detection signal fires)"] --> Classify{"Severity<br/>classification"}
+    Classify -->|S1| S1["S1<br/>≤5 min immediate action<br/>MTTR ≤30 min mitigation"]
+    Classify -->|S2| S2["S2<br/>≤5 min immediate action<br/>MTTR ≤2 h mitigation"]
+    Classify -->|S3| S3["S3<br/>≤15 min immediate action<br/>MTTR ≤1 business day"]
+    Classify -->|S4| S4["S4<br/>best-effort<br/>(non-customer-affecting)"]
+    S1 --> Mit{"Mitigated?"}
+    S2 --> Mit
+    S3 --> Mit
+    S4 --> Mit
+    Mit -->|No| Esc["Escalation<br/>solo / family-of-3 / team-of-N<br/>(per §5 state)"]
+    Esc --> Mit
+    Mit -->|Yes| Res{"Resolved?"}
+    Res -->|No| Esc
+    Res -->|Yes| PM{"Post-mortem<br/>trigger"}
+    PM -->|S1| PMM["Post-mortem mandatory<br/>≤7 days"]
+    PM -->|S2| PMO["Post-mortem optional<br/>gotcha entry mandatory"]
+    PM -->|S3 / S4| PMN["Incident note<br/>in incidents.jsonl only"]
+    PMM --> Out["incidents.jsonl event<br/>state: resolved"]
+    PMO --> Out
+    PMN --> Out
+
+    classDef s1 fill:#ffebee,stroke:#c62828,color:#b71c1c
+    classDef s2 fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef s3 fill:#fffde7,stroke:#f9a825,color:#f57f17
+    classDef s4 fill:#eceff1,stroke:#546e7a,color:#263238
+    classDef out fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    class S1,PMM s1
+    class S2,PMO s2
+    class S3 s3
+    class S4,PMN s4
+    class Out out
+```
+
+MTTR clock starts at first probe failure (§4 detection signal) and stops at the `incidents.jsonl` event with `state: resolved`. The escalation loop runs in parallel with mitigation — paging the next person up does not pause the immediate-action work.
+
 ---
 
 ## 5. On-call rotation contract
 
 Three documented states. The system today is **solo**; family-of-3 and team-of-N paths are wired in spec only — they activate when the trigger fields populate.
+
+### Diagram 3B — on-call rotation states + transitions
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Solo : current state
+    Solo : Solo (current)\n— Page: Telegram bot\n— Ack: /ack within ack window\n— Schedule export: none\n— Handoff: n/a
+    FamilyOf3 : Family-of-3\n— Page: Telegram bot\n— Ack: primary 10 min, then secondary\n— Schedule: consumers.yaml::oncall_schedule\n— Handoff: oncall-log.md (≤5 lines)
+    TeamOfN : Team-of-N\n— Page: PagerDuty / Opsgenie\n— Ack: vendor-managed escalation\n— Schedule: OTel gauge oncall.who_is_on_call\n— Handoff: oncall-log.md + vendor schedule
+    Solo --> FamilyOf3 : ≥2 entries in consumers.yaml\nwith oncall_eligible: true\n(manual flip in enforcement-status.md)
+    FamilyOf3 --> TeamOfN : ≥4 entries in consumers.yaml\nwith oncall_eligible: true\n(manual flip in enforcement-status.md)
+    note right of Solo
+        Transitions are auto-detected
+        by the lifecycle scanner but
+        require a manual flip in
+        enforcement-status.md per D4.4.
+    end note
+```
 
 ### 5.1 Solo (current state)
 

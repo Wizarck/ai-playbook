@@ -4,7 +4,7 @@ slug: release
 description: Cut a new ai-playbook semver tag. Consumers bump at their own pace (pull model, v0.19.0+).
 audience: developer
 estimated_time: 15-30 min
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Cut a new ai-playbook version tag
@@ -28,6 +28,51 @@ Skip when:
 - Working tree is clean and up-to-date with origin: `git status --short` empty and `git log @{upstream}..HEAD` empty.
 
 ## Steps
+
+### Overview — release flow at a glance
+
+```mermaid
+flowchart TD
+    Start["Changes ready to ship"] --> Kind{"What kind<br/>of change?"}
+    Kind -->|docs / typo / stub| Patch["patch bump<br/>0.18.0 → 0.18.1"]
+    Kind -->|new scripts + specs<br/>(additive)| Minor["minor bump<br/>0.18.0 → 0.19.0"]
+    Kind -->|breaking schema /<br/>removed script| Major["major bump<br/>0.x → 1.0.0<br/>RFC required first"]
+
+    Patch --> Substantial{"Substantial?<br/>(multi-spec / multi-script)"}
+    Minor --> Substantial
+    Major --> Substantial
+
+    Substantial -->|yes| Rc["rc-first variant<br/>tag vX.Y.Z-rc1"]
+    Substantial -->|no| Bump["§2 — bump VERSION<br/>+ update CHANGELOG"]
+
+    Rc --> RcValidate["validate against<br/>working checkout"]
+    RcValidate --> RcOk{"all green?"}
+    RcOk -->|no — iterate| RcBump["tag rc2, rc3 …<br/>fix-and-retest loop"]
+    RcBump --> RcValidate
+    RcOk -->|yes — promote| Bump
+
+    Bump --> Zombie{"§3 — removed or<br/>renamed consumer surface?"}
+    Zombie -->|yes| Manifest["append zombies-manifest.yaml<br/>+ bump manifest_version"]
+    Zombie -->|no| Commit
+    Manifest --> ZombieGate["cleanup-zombies.rule.py<br/>validate (pre-commit gate)"]
+    ZombieGate --> Commit["§4 — git commit<br/>+ git tag -a vX.Y.Z"]
+
+    Commit --> Push["§5 — git push origin<br/>main + vX.Y.Z"]
+    Push --> Release["GitHub auto-creates<br/>Release from tag<br/>(CHANGELOG = body)"]
+    Release --> Smoke["§7 — first-run smoke test<br/>against a real consumer<br/>(OUTSIDE of CI)"]
+    Smoke --> SmokeOk{"smoke passes?"}
+    SmokeOk -->|no — rc only| RcBump
+    SmokeOk -->|yes| Done["Tag published<br/>consumers pull at own pace"]
+
+    classDef decision fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef gate fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef success fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef rc fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    class Kind,Substantial,Zombie,RcOk,SmokeOk decision
+    class ZombieGate,Smoke gate
+    class Done success
+    class Rc,RcValidate,RcBump rc
+```
 
 ### 1. Pick the semver bump
 

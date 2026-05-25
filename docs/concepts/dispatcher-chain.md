@@ -7,7 +7,7 @@ summary: |
   Gemini CLI, Antigravity, Cursor) resolves the same rules regardless of which
   CLI invoked it. The chain is LLM-agnostic — CLI-specific pointer files
   (CLAUDE.md, GEMINI.md, .cursor/rules/*.mdc) are thin…
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Dispatcher Chain
@@ -38,6 +38,32 @@ At session start, the CLI loads files in this order:
 
 No other files participate. Any rule not expressible in one of these three levels is out of scope.
 
+### Diagram 1A — resolution pipeline
+
+```mermaid
+flowchart LR
+    Router["~/.claude/CLAUDE.md<br/>(built-in router)<br/>universal principles"]
+    Project["&lt;repo&gt;/AGENTS.md<br/>(project dispatcher)<br/>project identity + hard rules"]
+    Specs[".ai-playbook/specs/&lt;name&gt;.md<br/>(playbook specs)<br/>universal norms + schemas"]
+    Personal["consumer-d/consumer-d.md<br/>(personal add-on)<br/>infra paths + secrets locations"]
+
+    Router -- "loads on session start" --> Project
+    Project -- "inherits_from" --> Specs
+    Specs -. "on-demand per task" .-> Project
+    Router -. "if personal:true (registry)" .-> Personal
+
+    classDef builtin fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef project fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef specs fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef personal fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    class Router builtin
+    class Project project
+    class Specs specs
+    class Personal personal
+```
+
+The Router → Project edge is eager (session-start load); Project → Specs is the static `inherits_from` declaration; Specs → Project is the on-demand read at task time. The Personal branch fires only when the registry entry matching cwd carries `personal: true`.
+
 ## Override semantics
 
 ### Precedence (last writer wins, with guardrails)
@@ -46,6 +72,41 @@ No other files participate. Any rule not expressible in one of these three level
 2. **Project-level override** — documented in `AGENTS.md` §7 "Overrides inherited from playbook" with rationale. Empty by default.
 3. **Personal add-on override** (admin scope only) — documented inline in `consumer-d.md`; cannot override `OVERRIDE: none` gates.
 4. **Break-glass** — `--force-with-reason="<text≥10 chars>"` on a CLI invocation only; never a durable override. Logged to `.ai-playbook/overrides.log` + emitted as OTel `ai_playbook.override.*` span (see `break-glass.md`).
+
+### Diagram 1B — precedence + OVERRIDE: none guardrails
+
+```mermaid
+flowchart TD
+    Default["1. Playbook default<br/>baseline rule"]
+    ProjectOv["2. Project override<br/>AGENTS.md §7 + rationale"]
+    PersonalOv["3. Personal override<br/>consumer-d.md (admin scope)"]
+    Resolved["Resolved policy<br/>(last writer wins)"]
+
+    Default --> ProjectOv
+    ProjectOv --> PersonalOv
+    PersonalOv --> Resolved
+
+    Gate{{"OVERRIDE: none gate?<br/>(secrets_scan,<br/>break-glass.md §4)"}}
+    ProjectOv -. "drift_check.py checks" .-> Gate
+    PersonalOv -. "drift_check.py checks" .-> Gate
+    Gate -- "no — allowed" --> Resolved
+    Gate -- "yes — rejected" --> Blocked["Override rejected<br/>commit / session fails"]
+
+    BreakGlass["4. Break-glass<br/>--force-with-reason=&quot;...&quot;<br/>(one-shot only)"]
+    BreakGlass -- "logged to overrides.log<br/>+ OTel ai_playbook.override.* span" --> Resolved
+    BreakGlass -. "still cannot bypass<br/>OVERRIDE: none" .-> Blocked
+
+    classDef allowed fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef blocked fill:#ffebee,stroke:#c62828,color:#b71c1c
+    classDef gate fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef glass fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    class Default,ProjectOv,PersonalOv,Resolved allowed
+    class Blocked blocked
+    class Gate gate
+    class BreakGlass glass
+```
+
+Green nodes are durable, allowed precedence steps. The orange diamond is the `OVERRIDE: none` guard enforced by `scripts/drift_check.py`. The purple break-glass branch is one-shot only (per CLI invocation) and still cannot pierce the `OVERRIDE: none` gate.
 
 ### Conflict detection
 

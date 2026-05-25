@@ -71,6 +71,11 @@ RULE_SLUG = "apply-skill-enforcement"
 # cache is harmless and useful if the hook ever runs in a longer-lived shell.
 _TASKS_CACHE: dict[tuple[str, int], list[str]] = {}
 
+# Per-process memoization of the rules-toggle state file, keyed by mtime_ns.
+# Value is the parsed dict (or None if absent/corrupt — treated as "all ON").
+# Same lifecycle as _TASKS_CACHE.
+_TOGGLE_CACHE: dict[int, dict] = {}
+
 
 # ============================================================================
 # Bash command inspection (POSIX + PowerShell heuristics).
@@ -336,6 +341,38 @@ def _path_matches(target: str, write_path: str) -> bool:
     return write_path.endswith("/") and target.startswith(write_path)
 
 
+def _is_rule_disabled(project: Path, slug: str, layer: str = "L1") -> bool:
+    """Return True if `slug` is OFF at `layer` per .ai-playbook/rules-toggle.json.
+
+    Mirrors scripts/rules_toggle.is_rule_disabled — duplicated here so the hook
+    runs without sys.path injection (PreToolUse subprocess context). Drift is
+    guarded by tests/test_apply_enforce_helpers_equivalence.py.
+
+    File absent / corrupt → False (fail-safe: rule ON).
+    """
+    p = project / ".ai-playbook" / "rules-toggle.json"
+    if not p.is_file():
+        return False
+    try:
+        mtime_ns = p.stat().st_mtime_ns
+    except OSError:
+        return False
+    cached = _TOGGLE_CACHE.get(mtime_ns)
+    if cached is None:
+        try:
+            cached = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        _TOGGLE_CACHE[mtime_ns] = cached
+    entry = (cached.get("rules") or {}).get(slug)
+    if entry is None:
+        return False
+    if entry.get("enabled") is False:
+        return True
+    layers = entry.get("layers") or {}
+    return layers.get(layer) is False
+
+
 def _find_matching_changes(project: Path, target_rel: str) -> list[tuple[str, list[str]]]:
     """Return [(change_id, matched_write_paths), ...] for active changes."""
     matches: list[tuple[str, list[str]]] = []
@@ -551,6 +588,13 @@ def _decide_edit(
     start: float,
 ) -> int:
     """Edit/Write/MultiEdit deterministic path: tool_input.file_path is the target."""
+    if _is_rule_disabled(project, RULE_SLUG, layer="L1"):
+        _emit_telemetry(
+            project, "warn", tool_name,
+            {"block_tool": tool_name, "block_class": "rule_disabled", "toggle_layer": "L1"},
+            (time.monotonic() - start) * 1000.0, session_id,
+        )
+        return 0
     target_rel = _project_relative(project, file_path)
     base_extra = {"block_tool": tool_name}
 
@@ -640,6 +684,13 @@ def _decide_bash(
     start: float,
 ) -> int:
     """Bash heuristic path: extract candidate targets from the command surface."""
+    if _is_rule_disabled(project, RULE_SLUG, layer="L1"):
+        _emit_telemetry(
+            project, "warn", "Bash",
+            {"block_tool": "Bash", "block_class": "rule_disabled", "toggle_layer": "L1"},
+            (time.monotonic() - start) * 1000.0, session_id,
+        )
+        return 0
     bash_flag = os.environ.get("AIPLAYBOOK_BASH_INSPECTION", "1").strip()
     feature_flag = {"bash_inspection": bash_flag}
     base_extra = {"block_tool": "Bash", "feature_flag": feature_flag}

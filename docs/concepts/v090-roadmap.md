@@ -196,7 +196,6 @@ It does NOT iterate the commits in `$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF` (C
 
 - [`docs/concepts/release-management.md`](release-management.md) §4.5 — the AI-reviewer feedback loop this release extends.
 - [`docs/runbooks/release.md`](../runbooks/release.md) — release flow, this release follows the rc-first pattern (substantial release).
-- [`docs/concepts/v0.8.0-roadmap.md`](v080-roadmap.md) — prior roadmap, reference for format.
 - `consumer-e` PR #41 — manual reference run of L1 (the worker AI did the self-review by hand on 2026-05-01 because CodeRabbit was rate-limited; v0.9.0 codifies what was done there).
 - `livekit` PR #36 — the manual `inherits_from:` bump that surfaced followup #1.
 - `ai-playbook` v0.9.0-rc1 → rc2 cycle — the supersede mishap that surfaced followup #2.

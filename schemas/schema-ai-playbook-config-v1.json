@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-ai-playbook-config-v1.json",
+  "title": "ai-playbook bundle config (v1)",
+  "description": "Declarative bundle produced by tools/config-ui (HTML) and consumed by scripts/apply_config.py + scripts/bootstrap.py --from-config. Tri-category surface: rules{} (per-rule toggles + layers + advanced), features{} (installed components with state files + side effects — today only caveman), global_flags{} (binary env-driven toggles, no state file). Sparse: only modified-from-default entries appear. Sub-shapes are declarative intent only — the canonical state lives in per-feature files (.ai-playbook/rules-toggle.json, .ai-playbook/caveman.json, .ai-playbook/feature-flags.env), each gitignored.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "ai-playbook-config/v1",
+      "description": "Schema version literal. MUST be 'ai-playbook-config/v1'."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when the UI exported this bundle. Optional."
+    },
+    "generated_by": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Identifier of the agent/user that exported the bundle. Optional; UI defaults to 'anonymous' when no git user is detectable in-browser."
+    },
+    "rules": {
+      "type": "object",
+      "description": "Sparse map of rule-slug -> override. Same shape as schema-rules-toggle-v1.json's `rules` field; apply_config projects these into <consumer>/.ai-playbook/rules-toggle.json verbatim. Rules absent are inherited as fully-ON.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "layers": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "L1": { "type": "boolean" },
+              "L2": { "type": "boolean" },
+              "L3": { "type": "boolean" }
+            }
+          },
+          "advanced": {
+            "type": "object",
+            "additionalProperties": { "type": "boolean" }
+          },
+          "reason": { "type": ["string", "null"], "minLength": 10 },
+          "disabled_at": { "type": ["string", "null"], "format": "date-time" },
+          "ttl_days": { "type": ["integer", "null"], "minimum": 1 }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Installed features with their own state file + side effects. Only features explicitly modified appear here. apply_config delegates to each feature's CLI (e.g. `python -m scripts.caveman on/off`) to preserve materialisation + backups.",
+      "properties": {
+        "caveman": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "description": "Caveman declarative intent. apply_config translates this to `python -m scripts.caveman on --mode X --components csv` or `off`. The canonical state lives at .ai-playbook/caveman.json (managed by the caveman CLI only; see schema-caveman-toggle-v1.json).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Master switch. When false, apply_config calls `caveman off` (strips AGENTS.md block + restores MCP wrappers)."
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["lite", "full", "ultra"],
+              "description": "Intensity level for response_style. Consulted only when enabled=true."
+            },
+            "components": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Per-component flags. Keys mirror schema-caveman-toggle-v1.json#/properties/components.",
+              "properties": {
+                "response_style": { "type": "boolean" },
+                "compress_docs": { "type": "boolean" },
+                "subagents_cavecrew": { "type": "boolean" },
+                "commit_caveman": { "type": "boolean" },
+                "review_caveman": { "type": "boolean" },
+                "mcp_shrink": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "global_flags": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" },
+      "description": "Binary env-driven toggles without their own state file. Keys come from tools/config-ui/global-flags-inventory.json. apply_config projects these into <consumer>/.ai-playbook/feature-flags.env via the inventory's env_var/value_on/value_off mapping. Consumer must source the file in their shell init (direnv .envrc, bashrc, etc.) for the flags to take effect."
+    }
+  }
+}

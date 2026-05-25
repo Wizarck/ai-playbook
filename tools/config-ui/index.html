@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ai-playbook config UI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">
+      <span class="logo">⚙</span>
+      <h1>ai-playbook config</h1>
+      <span class="subtitle">rules · features · global flags</span>
+    </div>
+    <div class="actions">
+      <button id="btn-import" class="btn">Import…</button>
+      <input id="file-import" type="file" accept="application/json,.json" hidden />
+      <button id="btn-export" class="btn primary">Export bundle</button>
+      <button id="btn-reset" class="btn ghost">Reset to defaults</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <aside id="next-steps" class="next-steps" hidden>
+    <div class="next-steps-header">
+      <strong>✅ Saved. Next: apply the bundle.</strong>
+      <button class="btn ghost" id="ns-dismiss" type="button" aria-label="Dismiss">×</button>
+    </div>
+    <p id="ns-saved-info" class="next-steps-info"></p>
+
+    <div class="cmd-group" id="ns-move" hidden>
+      <div class="cmd-label">1. Move the downloaded file into the consumer's <code>.ai-playbook/</code></div>
+      <div class="cmd-row">
+        <code id="ns-move-pwsh" class="cmd">Move-Item "$env:USERPROFILE\Downloads\applied-config.json" ".ai-playbook\applied-config.json" -Force</code>
+        <button class="btn small" type="button" data-copy="ns-move-pwsh">Copy</button>
+      </div>
+      <div class="cmd-row">
+        <code id="ns-move-posix" class="cmd">mv ~/Downloads/applied-config.json .ai-playbook/applied-config.json</code>
+        <button class="btn small" type="button" data-copy="ns-move-posix">Copy</button>
+      </div>
+    </div>
+
+    <div class="cmd-group">
+      <div class="cmd-label">Apply the bundle from the project root</div>
+      <div class="cmd-row">
+        <span class="cmd-tag">PowerShell</span>
+        <code id="ns-pwsh" class="cmd">python -m scripts.apply_config .ai-playbook\applied-config.json</code>
+        <button class="btn small" type="button" data-copy="ns-pwsh">Copy</button>
+      </div>
+      <div class="cmd-row">
+        <span class="cmd-tag">POSIX</span>
+        <code id="ns-posix" class="cmd">python -m scripts.apply_config .ai-playbook/applied-config.json</code>
+        <button class="btn small" type="button" data-copy="ns-posix">Copy</button>
+      </div>
+    </div>
+
+    <div class="cmd-group">
+      <div class="cmd-label">Or paste into a Claude Code session in this project</div>
+      <div class="cmd-row">
+        <code id="ns-claude" class="cmd cmd-prompt">Run `python -m scripts.apply_config .ai-playbook/applied-config.json` from the project root, then confirm that `rules-toggle.json`, `caveman.json`, and `feature-flags.env` reflect the bundle I just exported.</code>
+        <button class="btn small" type="button" data-copy="ns-claude">Copy</button>
+      </div>
+    </div>
+
+    <p class="next-steps-hint">After applying, close and re-open this HTML to see the new "applied" state load from <code>applied-config.js</code>.</p>
+  </aside>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="rules">Rules <span id="tab-count-rules" class="count">…</span></button>
+    <button class="tab" data-tab="features">Features <span id="tab-count-features" class="count">…</span></button>
+    <button class="tab" data-tab="global">Global flags <span id="tab-count-global" class="count">…</span></button>
+    <button class="tab" data-tab="preview">Preview JSON</button>
+  </nav>
+
+  <main>
+    <section id="panel-rules" class="panel active">
+      <div class="rules-toolbar">
+        <input id="rules-search" class="search" placeholder="Filter by slug, status, description…" />
+        <label class="filter"><input type="checkbox" id="filter-modified" /> Only modified</label>
+        <label class="filter"><input type="checkbox" id="filter-has-advanced" /> Has advanced</label>
+        <label class="filter"><input type="checkbox" id="filter-break-glass" /> Has break-glass</label>
+      </div>
+      <ul id="rules-list" class="rules-list"></ul>
+    </section>
+
+    <section id="panel-features" class="panel" hidden>
+      <div id="features-list"></div>
+    </section>
+
+    <section id="panel-global" class="panel" hidden>
+      <div id="global-list"></div>
+    </section>
+
+    <section id="panel-preview" class="panel" hidden>
+      <pre id="preview-json" class="preview"></pre>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="hint">
+      <strong>file://</strong> mode: this UI works as a static file via double-click. The applied-state sidecar
+      (<code>../../applied-config.js</code>) is loaded via <code>&lt;script src&gt;</code>, which browsers permit
+      even when <code>fetch()</code> from <code>file://</code> is blocked. The inventories (rules, features, global flags)
+      are loaded via <code>fetch()</code>; if your browser blocks that, run
+      <code>python -m http.server</code> from this directory and open <code>http://localhost:8000/</code>.
+    </div>
+  </footer>
+
+  <!-- Applied-state sidecar. Generated by scripts/apply_config.py and lives at
+       <consumer>/.ai-playbook/applied-config.js. Sets window.APPLIED_CONFIG with
+       the bundle dict last persisted by apply_config. If the file is absent
+       (consumer never ran apply_config), the script tag 404s silently and
+       app.js falls back to fetching defaults.json. -->
+  <script src="../../applied-config.js" onerror="window.APPLIED_CONFIG_MISSING=true"></script>
+  <script src="app.js"></script>
+</body>
+</html>

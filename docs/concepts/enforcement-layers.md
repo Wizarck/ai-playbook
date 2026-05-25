@@ -168,6 +168,22 @@ flowchart TB
 
 Cursor and Gemini lose L1 but retain L2 + L3 — the floor stays intact. The cost is latency: a violating commit that would have been caught at edit time under Claude is now caught at PR merge time. The trade-off is documented in `cross-llm-activation.md`.
 
+## Meta-layer: rules-toggle (short-circuits L1/L2/L3)
+
+Beyond the three enforcement layers, consumers can persistently disable a rule (or one of its layers) via `<consumer>/.ai-playbook/rules-toggle.json`. This file is **gitignored**; the bootstrap template adds the entry automatically. When set, it short-circuits each layer:
+
+- **L1 hook** + **`scripts/rules/_telemetry.py::cli_emit`**: read the toggle on every invocation. If the rule is OFF at L1, emit `verdict=warn` / `block_class=rule_disabled` / `toggle_layer=L1` and exit 0 without running the rule body.
+- **L3 workflow**: each `.rule.yml` runs a `Check rule toggle` step that calls `python -m scripts.rules_toggle status --slug <slug> --layer L3 --exit-code`. The validation step is gated on the toggle's outcome.
+
+The toggle is **not** a replacement for the per-rule break-glass env vars (`AIPLAYBOOK_*_SKIP` / `AIPLAYBOOK_*_OVERRIDE`); the two are complementary:
+
+| Need | Use |
+|---|---|
+| Persistent disable (days / weeks; ops freeze, hotfix window) | `rules-toggle.json` (set via the HTML UI or `scripts/rules_toggle off ...`). |
+| One-shot (single command, immediate revert) | Per-rule env var in the shell that runs the command. |
+
+See [ai-playbook-config.md](ai-playbook-config.md) for the full bundle pipeline (HTML UI → JSON → `apply_config`) and [../runbooks/use-config-ui.md](../runbooks/use-config-ui.md) for the operator walkthrough.
+
 ## How it relates to other concepts
 
 - The discriminator that decides whether a doc is a rule (L2) or a concept (this doc) is the presence of `paired_hardrule:` in the frontmatter — see `enforcement-pairing-exceptions.md` for the advisory-only escape hatch.

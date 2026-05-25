@@ -7,7 +7,7 @@ summary: |
   multiple agents and humans collaborating on the same project without
   coordination overhead. This document maps the canonical hierarchy, the
   parallelism modes, and the entry/exit points so any actor…
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Development Flow
@@ -26,57 +26,37 @@ That's the whole flow. The rest of this doc explains the parts and points at whe
 
 ## 1. The four-level hierarchy
 
+```mermaid
+flowchart TD
+    Roadmap["ROADMAP<br/>v0.9.0-roadmap.md"] --> Phase["PHASE / WAVE / SLICE<br/>openspec-slice-phase5.md"]
+    Phase --> Change["OPENSPEC CHANGE<br/>(THE UNIT OF WORK)<br/>openspec/changes/&lt;change-id&gt;/<br/>proposal.md + tasks.md + specs/"]
+    Change --> Branch["BRANCH<br/>&lt;type&gt;/&lt;change-id&gt;<br/>branch-name-validator.yml"]
+    Branch --> Commits["COMMITS<br/>conventional commits<br/>prepare-commit-msg + auto_tick_tasks.py"]
+    Commits --> PR["PULL REQUEST<br/>base: main<br/>ruff + pytest 3.11/3.12 + CodeRabbit"]
+    PR --> Main["MAIN<br/>always green, always mergeable<br/>merge ≠ release"]
+    Main --> Tag["TAG vX.Y.Z<br/>(THE RELEASE EVENT)<br/>release_cut.py + release.md"]
+    Tag --> Consumers["CONSUMERS<br/>pull at their own pace<br/>cd .ai-playbook && git checkout vX.Y.Z"]
+
+    classDef unit fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef release fill:#ffebee,stroke:#c62828,color:#b71c1c
+    classDef ci fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef plan fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    class Roadmap,Phase plan
+    class Change unit
+    class Branch,Commits,PR,Main ci
+    class Tag release
+    class Consumers ci
 ```
-ROADMAP                                   docs/concepts/v0.9.0-roadmap.md
-  └── PHASE / WAVE / SLICE                docs/openspec-slice-phase5.md
-        │
-        ▼
-OPENSPEC CHANGE  ◄────────────────────── THE UNIT OF WORK
-  • openspec/changes/<change-id>/
-  •   proposal.md   problem + approach + decisions (Dx.y)
-  •   tasks.md      granular checklist `- [ ]` per implementable step
-  •   specs/        deltas to playbook specifications
-  See: docs/concepts/runbook-bmad-openspec.md
-        │
-        ▼
-BRANCH (one OpenSpec change = one branch)
-  • Naming: `<type>/<change-id>` where type ∈ {feat, fix, chore, docs, refactor}
-  • Lives in its own worktree (when ≥ 3 concurrent slices)
-  See: docs/concepts/git-worktree-bare-layout.md, docs/runbooks/git-worktree-bare-setup.md
-        │
-        ▼
-COMMITS (multiple, semantically distinct)
-  • Conventional commits (feat:, fix:, docs:, chore:, refactor:, test:)
-  • One commit = one logical step within the change
-  • Commit subject auto-ticks matching tasks.md checkboxes
-  See: scripts/auto_tick_tasks.py + .git/hooks/prepare-commit-msg
-        │
-        ▼
-PULL REQUEST (one branch = one PR, base: main)
-  • CI: ruff + pytest 3.11 + pytest 3.12 + CodeRabbit + 3-layer review
-  • Merge style: merge-commit (multi-commit) | squash (trivial single-commit)
-  See: docs/concepts/merge-policy.md, docs/concepts/parallel-review.md
-        │
-        ▼
-MAIN (accumulating PRs for the next release tag)
-  • Always green (CI passes), always mergeable
-  • Merge to main ≠ release. Many PRs may accumulate between releases.
-  • Tagging is a separate operation, not auto-triggered by merge.
-        │
-        ▼
-TAG  ◄──────────────────────────────── THE RELEASE EVENT
-  • git tag -a vX.Y.Z + push tag
-  • GitHub auto-creates a Release from the tag (CHANGELOG = release notes)
-  • Playbook is done — no push to consumers (pull model, v0.19.0+)
-  See: docs/runbooks/release.md, scripts/release_cut.py
-        │
-        ▼
-CONSUMERS (pull at their own pace)
-  • Each consumer decides when to absorb the new tag:
-      cd .ai-playbook && git fetch && git checkout vX.Y.Z
-    or via Dependabot/Renovate submodule-update PRs.
-  See: docs/concepts/projects-registry.md (local dev registry, gitignored)
-```
+
+See:
+
+- ROADMAP / PHASE — `docs/concepts/v0.9.0-roadmap.md`, `docs/openspec-slice-phase5.md`
+- OPENSPEC CHANGE — `docs/concepts/runbook-bmad-openspec.md`
+- BRANCH — `docs/concepts/git-worktree-bare-layout.md`, `docs/runbooks/git-worktree-bare-setup.md`
+- COMMITS — `scripts/auto_tick_tasks.py` + `.git/hooks/prepare-commit-msg`
+- PR — `docs/concepts/merge-policy.md`, `docs/concepts/parallel-review.md`
+- TAG — `docs/runbooks/release.md`, `scripts/release_cut.py`
+- CONSUMERS — `docs/concepts/projects-registry.md` (local dev registry, gitignored)
 
 The hierarchy is **strict**: every commit is inside a branch, every branch is inside a PR, every PR maps to one OpenSpec change, every change is part of a slice/wave/phase in the roadmap. CI gates enforce each level (see §5).
 
@@ -85,6 +65,28 @@ The hierarchy is **strict**: every commit is inside a branch, every branch is in
 ## 2. The three axes of parallelism
 
 Three orthogonal mechanisms let multiple agents/humans work concurrently without stepping on each other. Use the smallest one that fits your scenario.
+
+```mermaid
+flowchart TD
+    Root{"How much work<br/>in flight?"}
+    Root -->|"1 change, 1 group"| Seq["Sequential (default)<br/>single working tree<br/>no parallelism"]
+    Root -->|"≥ 3 OpenSpec changes<br/>disjoint scope"| A1["Axis 1 — Wave-N<br/>release-management.md §6.4<br/>+ worktrees if ≥ 3 concurrent"]
+    Root -->|"1 change, ≥ 4 task groups<br/>disjoint write-paths"| A2["Axis 2 — Intra-slice<br/>release-management.md §6.6<br/>skill openspec-apply-parallel"]
+    A1 --> A3["Axis 3 — Worktrees<br/>git-worktree-bare-layout.md<br/>scripts/wt_add.py"]
+    A2 --> A3
+    A3 -->|"thresholds met"| Run["one worktree per branch<br/>per worker (agent or human)"]
+
+    classDef default_node fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef axis1 fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef axis2 fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef axis3 fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    classDef question fill:#fffde7,stroke:#f9a825,color:#f57f17
+    class Root question
+    class Seq default_node
+    class A1 axis1
+    class A2 axis2
+    class A3,Run axis3
+```
 
 ### Axis 1 — Wave-N (between independent OpenSpec changes)
 
@@ -145,58 +147,51 @@ Any agent (LLM) following this doc that decides "trivial" path must justify in P
 
 ### 3.2 OpenSpec change path
 
-```
-Author proposal:        openspec/changes/<change-id>/proposal.md
-                        problem + approach + decisions
-                        See: skill `openspec-propose`
-                          ▼
-Author tasks.md:        openspec/changes/<change-id>/tasks.md
-                        granular `- [ ]` checklist
-                          ▼
-Create branch:          git checkout -b <type>/<change-id> [main]
-                        (or wt_add.py for worktree-based)
-                          ▼
-Implement + commit:     conventional commit subjects auto-tick boxes
-                        in tasks.md (prepare-commit-msg hook + scripts/auto_tick_tasks.py)
-                          ▼
-Open PR:                gh pr create --base main --title "..." --body "..."
-                          ▼
-CI runs:                ruff → pytest 3.11/3.12 → CodeRabbit → bmad-code-review
-                          ▼
-Address review:         additional commits as needed (preserve semantic history)
-                          ▼
-Merge:                  merge-commit if ≥ 2 commits, squash if 1 trivial commit
-                        (See docs/concepts/merge-policy.md)
-                          ▼
-Archive:                openspec archive <change-id>
-                        Verifies tasks.md is N/N ticked (CI gate check-tasks-checkboxes.yml)
-                          ▼
-Branch deleted          (auto via gh pr merge --delete-branch)
+```mermaid
+flowchart TD
+    Proposal["Author proposal<br/>openspec/changes/&lt;id&gt;/proposal.md<br/>skill: openspec-propose"] --> Tasks["Author tasks.md<br/>granular `- [ ]` checklist"]
+    Tasks --> Branch["Create branch<br/>git checkout -b &lt;type&gt;/&lt;id&gt;<br/>(or wt_add.py)"]
+    Branch --> Impl["Implement + commit<br/>conventional commits<br/>auto-tick tasks.md"]
+    Impl --> PR["Open PR<br/>gh pr create --base main"]
+    PR --> Ruff["CI: ruff"]
+    Ruff --> Pytest["CI: pytest 3.11 / 3.12"]
+    Pytest --> CR["CI: CodeRabbit"]
+    CR --> BMAD["CI: bmad-code-review"]
+    BMAD --> Review["Address review<br/>additional commits<br/>(preserve semantic history)"]
+    Review --> Merge["Merge<br/>merge-commit if ≥ 2 commits<br/>squash if 1 trivial commit"]
+    Merge --> Archive["openspec archive &lt;id&gt;<br/>tasks.md N/N ticked<br/>(check-tasks-checkboxes.yml)"]
+    Archive --> Done["Branch deleted<br/>gh pr merge --delete-branch"]
+
+    classDef step fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef gate fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef final fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    class Proposal,Tasks,Branch,Impl,PR,Review step
+    class Ruff,Pytest,CR,BMAD gate
+    class Merge,Archive,Done final
 ```
 
 ### 3.3 Release path
 
 When the maintainer (Profile A — see [`docs/concepts/role-matrix.md`](role-matrix.md)) decides the accumulated PRs in main are a coherent release:
 
-```
-Release-prep PR:        chore(release): vX.Y.Z
-                        - bump VERSION
-                        - update CHANGELOG.md (consolidated notes from all PRs)
-                          ▼
-Merge release-prep      to main
-                          ▼
-Tag + push:             git tag -a vX.Y.Z -m "..." + git push origin vX.Y.Z
-                          ▼
-GitHub auto-creates a Release from the tag (CHANGELOG = release notes).
-                          ▼
-Consumers pull at their own pace:
-                        cd .ai-playbook && git fetch && git checkout vX.Y.Z
-                        (or via Dependabot/Renovate submodule-update PRs)
-                          ▼
-Consumers merge         to land on the new playbook version
-                          ▼
-OpenSpec archive:       in each consumer where the change applied,
-                        `openspec archive <change-id>` retires the proposal
+```mermaid
+flowchart TD
+    Prep["Release-prep PR<br/>chore(release): vX.Y.Z<br/>bump VERSION + CHANGELOG.md"] --> MergeMain["Merge release-prep<br/>to main"]
+    MergeMain --> Tag["git tag -a vX.Y.Z<br/>git push origin vX.Y.Z"]
+    Tag --> Release["GitHub auto-creates Release<br/>CHANGELOG = release notes"]
+    Release --> Boundary["Playbook side: DONE<br/>no push to consumers<br/>(pull model v0.19.0+)"]
+    Boundary -.->|"consumers act<br/>independently"| Pull["Consumer pulls<br/>cd .ai-playbook && git fetch<br/>git checkout vX.Y.Z<br/>(or Dependabot/Renovate)"]
+    Pull --> MergeConsumer["Consumer merges<br/>lands new playbook version"]
+    MergeConsumer --> ArchiveConsumer["openspec archive &lt;change-id&gt;<br/>(per consumer where change applied)"]
+
+    classDef playbook fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef release fill:#ffebee,stroke:#c62828,color:#b71c1c
+    classDef boundary fill:#fffde7,stroke:#f9a825,color:#f57f17
+    classDef consumer fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    class Prep,MergeMain playbook
+    class Tag,Release release
+    class Boundary boundary
+    class Pull,MergeConsumer,ArchiveConsumer consumer
 ```
 
 Release timing is a **policy decision**, not auto-cut. See [release-management.md §3](release-management.md) for criteria (semver discipline, CHANGELOG quality, breaking-change review).

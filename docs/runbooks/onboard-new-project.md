@@ -4,7 +4,7 @@ slug: onboard-new-project
 description: Attach a new repo to the ai-playbook (submodule pin, dispatcher routers, MCP config, SessionStart hook, propagation, Profile A/B enforcement).
 audience: developer
 estimated_time: 10-15 min (Profile A adds ~5 min for CodeRabbit install)
-last_validated: "2026-05-19"
+last_validated: "2026-05-25"
 ---
 
 # Onboard a new project to the playbook
@@ -24,6 +24,47 @@ The new repo has:
 - GitHub Project board with the canonical Status schema (and, for Profile A, branch protection + CodeRabbit + merge queue).
 
 A Claude Code session at the repo root then auto-recalls from Hindsight bank `<project>` at startup and recognises the universal specs via inheritance. Submodule bumps are pulled by the consumer at its own pace (Dependabot / Renovate / manual `git submodule update`) per the v0.19.0 pull-model contract.
+
+### Overview — bootstrap dependency graph
+
+```mermaid
+flowchart TD
+    S1["§1 — Decide bank<br/>+ choose profile"] --> Profile{"Profile<br/>A or B?"}
+    Profile -->|public + OSS<br/>(full enforcement)| ProfileA["Profile A"]
+    Profile -->|private<br/>(convention-based)| ProfileB["Profile B"]
+
+    ProfileA --> S2
+    ProfileB --> S2
+
+    S2["§2 — Create GH repo<br/>(skip if already exists)"] --> S3["§3 — Run bootstrap.py<br/>(submodule + templates + hooks)"]
+    S3 --> S4["§4 — Fill manual<br/>placeholders in AGENTS.md<br/>+ schema_validate"]
+    S4 --> S5["§5 — Commit + push project"]
+    S5 --> S6["§6 (optional) —<br/>Dependabot / Renovate<br/>for submodule bumps"]
+    S5 --> S7["§7 — Bootstrap GH Project board<br/>--profile auto"]
+
+    S7 --> ProfileBranch{"profile<br/>auto-detected"}
+    ProfileBranch -->|Profile A| PA["branch protection<br/>+ repo settings<br/>+ .coderabbit.yaml<br/>+ canonical Status schema"]
+    ProfileBranch -->|Profile B| PB["repo settings only<br/>+ canonical Status schema<br/>(branch protection N/A on Free)"]
+
+    PA --> S9["§9 — Install CodeRabbit<br/>GitHub App<br/>(Profile A only)"]
+    S9 --> S10["§10 — Configure<br/>CONSUMER_D_GOD_MODE secret<br/>(Profile A only)"]
+    S10 --> S11
+    PB --> S11["§11 — Verify SessionStart hook<br/>(Hindsight bank auto-recall)"]
+
+    S11 --> S12["§12 (optional) —<br/>Copy auto-transition<br/>+ dep-check<br/>+ coderabbit-fallback workflows"]
+    S6 -.-> S12
+
+    classDef profileA fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef profileB fill:#fff3e0,stroke:#ef6c00,color:#e65100
+    classDef decision fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef optional fill:#f5f5f5,stroke:#757575,color:#424242,stroke-dasharray: 5 5
+    class ProfileA,PA,S9,S10 profileA
+    class ProfileB,PB profileB
+    class Profile,ProfileBranch decision
+    class S6,S12 optional
+```
+
+Dependencies: §7 requires §5 (project must be pushed before the GH Project board can attach to it); §9 requires §7 (CodeRabbit installs on top of the `.coderabbit.yaml` written by `bootstrap_gh_project.py --profile auto`); §10 requires §7 (CI workflows need the board for status updates). §6 and §12 are independent opt-ins.
 
 ## When to use this
 
@@ -94,6 +135,7 @@ Flags:
 | `--default-branch master\|main` | Stored in AGENTS.md frontmatter; informational only. |
 | `--personal` | For personal repos only. Marks `personal: true`; loads the personal add-on if configured. |
 | `--dry-run` | Simulate without writing. Recommended on first pass. |
+| `--from-config PATH` | Apply a config bundle exported from `tools/config-ui/` after the base bootstrap. Mutates `rules-toggle.json` + `caveman.json` (via its CLI) + `feature-flags.env`. See [Concept: ai-playbook-config](../concepts/ai-playbook-config.md) and [Runbook: use-config-ui](use-config-ui.md). |
 
 Expected output (the actual `vX.Y.Z` shown reflects the playbook's current
 `VERSION` file at the time you run bootstrap — bootstrap reads it dynamically):
