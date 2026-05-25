@@ -122,11 +122,18 @@ def _warn(msg: str) -> None:
         pass
 
 
-def _setup_langfuse_once() -> bool:
+def _setup_langfuse_once(provider: Any | None = None) -> bool:
     """Best-effort construct the Langfuse client singleton.
 
     Returns True if configured, False otherwise. The Langfuse Python SDK reads
     its own env vars, so we only have to decide whether to call the constructor.
+
+    When ``provider`` is non-None, it is passed as ``tracer_provider=provider``
+    so the SDK uses **our** ``TracerProvider`` (the same one carrying the OTLP
+    exporter) instead of fetching whatever happens to be installed as the
+    process-global. This makes the dual-export wiring robust to other code
+    that may mutate the global ``trace.set_tracer_provider`` either before or
+    after ``init_tracing`` runs.
     """
     public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
     secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
@@ -138,7 +145,10 @@ def _setup_langfuse_once() -> bool:
         _warn("langfuse not installed; skipping Langfuse exporter. `pip install langfuse`.")
         return False
     try:
-        Langfuse()  # v4+ reads env vars automatically
+        if provider is not None:
+            Langfuse(tracer_provider=provider)
+        else:
+            Langfuse()  # SDK reads env vars automatically
     except Exception as exc:  # noqa: BLE001 — defensive; never crash the caller
         _warn(f"Langfuse init failed: {exc!r}; continuing without it.")
         return False
@@ -212,11 +222,14 @@ def init_tracing(
         # Silent by design — "no endpoint configured" is a valid state, not an error.
         pass
 
-    # Langfuse — LLM-native view (prompts, outputs, cost). Lives alongside OTel
-    # but uses its own SDK; we just flip the client on.
+    # Langfuse — LLM-native view (prompts, outputs, cost). Same OTel pipeline
+    # as the OTLP exporter above: we pass our ``TracerProvider`` explicitly so
+    # the SDK attaches its ``LangfuseSpanProcessor`` to it, and every span is
+    # then exported to both Langfuse Cloud and the OTLP endpoint without
+    # depending on the global tracer-provider state.
     match (enable_langfuse, _tracing_disabled()):
         case (True, False):
-            _setup_langfuse_once()
+            _setup_langfuse_once(provider=provider)
         case _:
             pass
 

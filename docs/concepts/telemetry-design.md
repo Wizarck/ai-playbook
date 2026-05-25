@@ -26,6 +26,8 @@ The v0.20.0 "world reference" milestone needs evidence, not assertion. Three for
 
 Every L1 hook fire goes through `scripts/hook_dispatcher.py::dispatch(...)`. After matching rules against the trigger, the dispatcher calls `scripts.telemetry.rule_event_logger.log_event(...)`, which appends one JSONL line to `<consumer>/.ai-playbook-state/rule-events.jsonl`. The path resolves via `AI_PLAYBOOK_STATE_DIR` env var (override) or `<cwd>/.ai-playbook-state/` (default). The directory is gitignored at the consumer.
 
+`cli_emit` / `script_emit` additionally open an OTel span (`rule.<slug>`) around the rule's `main_fn` execution when `scripts/tracing/trace_emit.py` is importable AND `init_tracing` has been called this process. The span carries `ai_playbook.rule.{slug,trigger,llm,verdict,latency_ms}` attributes so the same fires that populate the local JSONL also surface in Langfuse / any OTLP backend in real time. Both transports are independently fail-safe: an exception in either path never alters the caller's exit code and never blocks the other. Wiring details in [scripts/tracing/README.md](../../scripts/tracing/README.md).
+
 ### Event schema
 
 The canonical schema lives at `schemas/schema-rule-event-v2.json` (v0.20.0+; v1 is the previous frozen revision at `schemas/schema-rule-event-v1.json`).
