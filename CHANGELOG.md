@@ -7,6 +7,12 @@ All notable changes to `ai-playbook` are documented here. Semver.
 > Reserved for the next iteration of post-review fixes. v0.20.0 remains the
 > visible milestone PR; tag only on explicit user approval.
 
+### Added
+
+- **`scripts/mcp/render.py`** — SOPS-decrypted secrets resolution + Antigravity global config update (#94). Three new functions: `find_secrets_env(consumer_root)` probes two known siblings for `eligia-core/secrets/secrets.env`; `decrypt_sops_env(secrets_path)` shells out to `sops -d` (auto-setting `SOPS_AGE_KEY_FILE` from `~/.config/sops/age/keys.txt`) and parses the result as `KEY=VALUE`; `update_global_antigravity_mcp(merged, resolved_env, dry_run)` writes the merged MCP spec to `~/.gemini/antigravity/mcp_config.json` (when present) with CF-Access headers added for `auth: cf-access` servers and the known cf-access name prefixes (`google-workspace*`, `atlassian*`, `hindsight*`). The `run()` orchestrator wires them: SOPS file → `os.environ` fallback for `CF_ACCESS_CLIENT_{ID,SECRET}` before the Antigravity update. Dry-run preserved end-to-end. Known hardcodes documented in the PR body (sibling path, server-name heuristic, `HINDSIGHT_BANK_ID` "geeplo" fallback) — pragmatic, grep-and-fix later.
+
+- **`scripts/bootstrap.py`** + **`scripts/auto_managed.py`** + **`AGENTS.md`** + **playbook self** — caveman default-on for new projects (#95). Bootstrap now activates caveman as step 4.6 (post-templates, pre-mcp-render) with `mode=full` and all six components, so the `mcp_shrink` post-render hook wraps `.mcp.json` + `.gemini/settings.json` on the first pass. Opt out with `--no-caveman`; existing consumers flip it manually with `python -m scripts.caveman on`. The playbook itself dogfoods caveman: `.ai-playbook/caveman.json` toggle is committed (gitignore exception added so only the toggle is tracked, not `notifications.jsonl` / `overrides.log` / `backups/`), and `AGENTS.md` carries the materialised `caveman/ruleset:full` block. `scripts/auto_managed.py` grew a special-case for `caveman/ruleset:<mode>` that delegates to `materialise.render_block_content` — byte-identical to `caveman on` by construction. 4 new bootstrap tests covering default-on invocation, `--no-caveman` opt-out, dry-run no-op, and best-effort failure handling. Runbook updated with the default-on policy + opt-out path.
+
 ## [0.19.5] — 2026-05-25 — Worktree retirement helpers (`wt_remove` + `wt_sweep`)
 
 Closes the missing half of the worktree lifecycle introduced in earlier
