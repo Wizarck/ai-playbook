@@ -2,10 +2,11 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased]
+## [0.19.6] — 2026-05-25 — config UI + L1 Bash enforcement + OTel tracing + script_emit + Mermaid docs
 
-> Reserved for the next iteration of post-review fixes. v0.20.0 remains the
-> visible milestone PR; tag only on explicit user approval.
+VERSION file lagged at `0.19.4` while tag `v0.19.5` was cut (release-runbook drift); this release fixes the mismatch by jumping VERSION 0.19.4 → 0.19.6 and bundling everything accumulated on `main` since `v0.19.5` into a single tag.
+
+Backwards-compatible aggregate: 20+ commits across 9 PRs, all additive (new scripts, new schemas, new docs, new tests). One consumer-facing knob change (`.claude/settings.json` matcher must include `Bash`) — see the **Consumer action** sections below.
 
 ### Added — apply-skill-enforcement L1 Bash + L3 PR-diff + telemetry v2
 
@@ -132,6 +133,47 @@ The UI surfaces are **opt-in**: no state file = all rules ON, caveman OFF, no en
 - **`scripts/mcp/render.py`** — SOPS-decrypted secrets resolution + Antigravity global config update (#94). Three new functions: `find_secrets_env(consumer_root)` probes two known siblings for `eligia-core/secrets/secrets.env`; `decrypt_sops_env(secrets_path)` shells out to `sops -d` (auto-setting `SOPS_AGE_KEY_FILE` from `~/.config/sops/age/keys.txt`) and parses the result as `KEY=VALUE`; `update_global_antigravity_mcp(merged, resolved_env, dry_run)` writes the merged MCP spec to `~/.gemini/antigravity/mcp_config.json` (when present) with CF-Access headers added for `auth: cf-access` servers and the known cf-access name prefixes (`google-workspace*`, `atlassian*`, `hindsight*`). The `run()` orchestrator wires them: SOPS file → `os.environ` fallback for `CF_ACCESS_CLIENT_{ID,SECRET}` before the Antigravity update. Dry-run preserved end-to-end. Known hardcodes documented in the PR body (sibling path, server-name heuristic, `HINDSIGHT_BANK_ID` "geeplo" fallback) — pragmatic, grep-and-fix later.
 
 - **`scripts/bootstrap.py`** + **`scripts/auto_managed.py`** + **`AGENTS.md`** + **playbook self** — caveman default-on for new projects (#95). Bootstrap now activates caveman as step 4.6 (post-templates, pre-mcp-render) with `mode=full` and all six components, so the `mcp_shrink` post-render hook wraps `.mcp.json` + `.gemini/settings.json` on the first pass. Opt out with `--no-caveman`; existing consumers flip it manually with `python -m scripts.caveman on`. The playbook itself dogfoods caveman: `.ai-playbook/caveman.json` toggle is committed (gitignore exception added so only the toggle is tracked, not `notifications.jsonl` / `overrides.log` / `backups/`), and `AGENTS.md` carries the materialised `caveman/ruleset:full` block. `scripts/auto_managed.py` grew a special-case for `caveman/ruleset:<mode>` that delegates to `materialise.render_block_content` — byte-identical to `caveman on` by construction. 4 new bootstrap tests covering default-on invocation, `--no-caveman` opt-out, dry-run no-op, and best-effort failure handling. Runbook updated with the default-on policy + opt-out path.
+
+### Added — agent telemetry pipeline (OTel + Langfuse)
+
+- **`scripts/tracing/`** (new package) + **`scripts/tracing/README.md`** — OTel tracing pipeline scaffold. `otel_setup.py::init_tracing()` initialises an explicit `TracerProvider` and passes it to `Langfuse(tracer_provider=provider)` directly (instead of relying on the SDK fetching whatever happens to be installed as the process-global TracerProvider) — robust to other libraries mutating the global tracer-provider state after init. Dual-export remains intact (Langfuse Cloud + OTLP collector). `trace_emit.span(name, attrs)` exposes a no-op-safe context manager that yields a real span when OTel is initialised and a `nullcontext(None)` otherwise. Kill switch via `AI_PLAYBOOK_DISABLE_TRACING=1`. (#85)
+
+- **`scripts/_llm.py`** + **`scripts/hook_dispatcher.py`** + **`scripts/hindsight.py`** + **`scripts/notify.py`** + **`scripts/release_cut.py`** — instrumentation of the playbook's load-bearing call sites (#86). Every LLM gateway call, hook dispatch, hindsight retain/recall, notification emission, and release-cut step now opens a `langfuse-shaped` span with `ai_playbook.*` attributes so the same operations that populate the local JSONL log also surface in Langfuse / any OTLP backend in real time. Per-component `latency_ms`, `outcome`, `slug` / `route` / `kind` attributes preserved; raw payloads sanitised through `scripts/secrets_scan.py` before attachment. New test files: `test_hook_latency.py` (64 lines), `test_llm_helper.py` (110 lines), `test_notify.py` (61 lines), `test_release_cut.py` (80 lines).
+
+- **`scripts/rules/_telemetry.py`** — `cli_emit` now wraps `main_fn` execution in an OTel span (`rule.<slug>`) alongside the existing JSONL row (#85). Span attributes (`ai_playbook.rule.{slug,trigger,llm,verdict,latency_ms}`) populate so the same rule fires that already write to `.ai-playbook-state/rule-events.jsonl` also show up in real-time observability UIs. Both transports remain independently fail-safe — an exception in either path never alters the rule's exit code and never blocks the other. 4 new tests cover span attribute population for every verdict + the cross-transport invariant when OTel blows up. Docstring rewrote to describe the dual-transport contract.
+
+### Added — script_emit + count direct-CLI invocations
+
+- **`scripts/rules/_telemetry.py`** — `cli_emit` gains a `kind="rule"|"script"` parameter (#87, backward-compat default `rule` so the 41 existing `*.rule.py` callers keep working unchanged). New `script_emit(slug, main_fn, argv=None)` alias sets `kind="script"` for readability at call sites. 13 direct-CLI scripts that previously had no execution counter are now wrapped: `doctor`, `bootstrap`, `secrets-scan`, `verify-llm-routing`, `openspec-validate`, `gen-indexes`, `validate-pairing`, `verdict-lint`, `schema-validate`, `inject-context`, `upstream-sync`, `simulate-incident-response`, `discover-projects`. Each wrap is a 2-line change to the script's `if __name__ == "__main__":` block. Every invocation now appends a row to `.ai-playbook-state/rule-events.jsonl` with `kind="script"`.
+
+- **`scripts/telemetry/report.py`** — `compute_obey_rate()` carries `kind` through to output rows (legacy rows without the field default to `rule`). New `compute_invocations_by_kind()` for the top-level rule/script split. Markdown table gains a `kind` column.
+
+- **`schemas/schema-rule-event-v2.json`** — additive: `kind` enum (`rule` / `script`) added as optional property. `additionalProperties: false` preserved.
+
+- **`docs/concepts/telemetry-design.md`** — Optional v2 fields table extended with `kind`. The dual-transport section (JSONL + OTel span) documents the cross-link to `scripts/tracing/README.md`.
+
+- **`tests/test_rules_telemetry.py`** — 5 new cases: `kind="rule"` default, `kind="script"` explicit, `script_emit` is alias for `kind="script"`, `argv` threading, fail-safe on logger error.
+
+### Added — docs visuals (15 Mermaid diagrams + cleanup)
+
+- **9 docs gained Mermaid diagrams** (#97), color-coded per the `enforcement-layers.md` convention (green=L1/OK, orange=L2/gate, blue=L3/decision, purple=axis3, red=fail):
+  - `docs/concepts/development-flow.md` — 4 diagrams: four-level hierarchy (ROADMAP→PHASE→CHANGE→BRANCH→COMMITS→PR→MAIN→TAG→CONSUMERS), three axes of parallelism decision tree, OpenSpec change path, release path.
+  - `docs/concepts/dispatcher-chain.md` — 2 diagrams: resolution pipeline (Router→AGENTS.md→Specs→Personal add-on), override-precedence flow with `OVERRIDE: none` guards.
+  - `docs/concepts/memory-hierarchy.md` — 2 diagrams: 4-tier hierarchy (Volatile/Persistent subgraphs), decay-policy conflict-resolution flow.
+  - `docs/concepts/incident-response.md` — 2 diagrams: incident lifecycle (trigger→severity classify S1/S2/S3/S4→action→mitigated→resolved→post-mortem), on-call rotation `stateDiagram-v2` (Solo→Family-of-3→Team-of-N with `oncall_eligible` count triggers).
+  - `docs/concepts/git-worktree-bare-layout.md` — 1 diagram: `.bare/` shared-objects-DB visualization (ASCII preserved alongside for grep-ability).
+  - `docs/runbooks/release.md` — 1 diagram: semver decision tree + rc-first variant + full release sequence with zombie gate + smoke test.
+  - `docs/runbooks/onboard-new-project.md` — 1 diagram: 11-step bootstrap dependency graph with Profile A (OSS+CodeRabbit+branch protection) vs Profile B (private, convention-based) branching.
+  - `docs/tutorials/02-start-here.md` — 1 diagram: 3-level dispatcher chain (replaces ASCII boxes for better GitHub/mkdocs render).
+  - `docs/tutorials/01-architecture-tour.md` — 1 diagram: four doc types with discriminators (rules `paired_hardrule:` vs concepts) + cross-references.
+
+- **Legacy doc cleanup** (#97):
+  - `docs/concepts/v080-roadmap.md` deleted — roadmap closed, items shipped or promoted to `v090-roadmap.md`. References cleaned in `mkdocs.yml`, `docs/concepts/v090-roadmap.md`, and a stale `skills/openspec-archive-change/SKILL.md` pointer.
+  - `INDEX.md` regenerated via `scripts/gen_indexes.py`.
+
+### Added — UX track author self-render + self-audit
+
+- **`docs/concepts/ux-track.md`** §17 + new §17.1 (#98) — mandates author self-render and self-audit before requesting human review. Adds step 2 to §17 QA discipline (renumbers existing 2→3, 3→4). New §17.1 sub-section with: 11-point visible-failure checklist (clipped CTAs, overflowing text, broken kerning/fallback fonts, mis-sized grids, invisible bar fills, sticky overlaps, mis-aligned decorations, mock-content leaking, duplicate headers, dark-mode regressions), screenshot-as-evidence requirement (`docs/ux/_review-screenshots-YYYY-MM-DD/`), tooling notes (Playwright / Puppeteer / headless Chrome — must be a real browser engine, not static-HTML-to-image converters). Trigger event: 2026-05-13 review of M3 mocks j6-j12 (consumer-c-legacy) found multiple bugs an LLM author would have caught with one render-and-look pass.
 
 ## [0.19.5] — 2026-05-25 — Worktree retirement helpers (`wt_remove` + `wt_sweep`)
 
