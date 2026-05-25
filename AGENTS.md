@@ -157,3 +157,34 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 ### Hardrule deferred (paired_hardrule named, .py ships in a later slice)
 
 Empty at v0.18.3. Deferred-hardrules allowlist file removed in Slice 7; strict-mode validator now exits 0 with no allowlist.
+
+<!-- BEGIN auto-managed: caveman/ruleset:full -->
+**Caveman mode: ON · intensity full**
+
+Core rules:
+- Drop articles (a/an/the), filler (just/really/basically), pleasantries, hedging.
+- Fragments OK. Short synonyms. Technical terms exact. Code unchanged.
+- Pattern: `[thing] [action] [reason]. [next step].`
+- Not: "Sure! I'd be happy to help you with that."
+- Yes: "Bug in auth middleware. Fix:"
+
+Mode (full):
+Drop articles. Fragments OK. Short synonyms. Technical terms exact. Code unchanged. Pattern: `[thing] [action] [reason]. [next step].` Default mode — about 65% output reduction.
+
+Auto-clarity exceptions:
+Drop caveman mode and use normal prose when:
+- **Security warnings** — full sentences so the user does not misread risk.
+- **Irreversible action confirmations** — `rm -rf`, `git push --force`, drop database, force-merge, etc.
+- **Multi-step sequences** where fragment ambiguity could cause skipped or misordered steps.
+- **User confused or repeating a question** — they need clearer, not shorter.
+
+Resume caveman mode on the next turn.
+
+Boundaries:
+- Code, fenced code blocks, and tool inputs written normally — caveman applies to prose around them, not to code.
+- Commit messages and PR descriptions written normally unless the user opts into `caveman-commit` or `caveman-review` skills.
+- Comments inside generated code written normally.
+- File paths, URLs, and identifiers preserved byte-for-byte.
+
+Toggle off: `python -m scripts.caveman off`. Full rule: [skills/caveman/SKILL.md](skills/caveman/SKILL.md).
+<!-- END auto-managed -->

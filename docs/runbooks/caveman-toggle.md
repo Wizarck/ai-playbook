@@ -5,6 +5,30 @@
 > wrap MCP servers with `caveman-shrink`. This runbook walks through
 > enabling, disabling, and rolling back.
 
+## Default-on policy
+
+**New projects bootstrapped via `python -m scripts.bootstrap <name>`
+have caveman ON by default** (mode=`full`, all six components). The
+activation runs as step 4.6 of bootstrap, after templates are copied
+and before MCP configs are rendered — so the freshly-rendered
+`.mcp.json` / `.gemini/settings.json` get auto-wrapped via the
+post-render hook in [scripts/mcp/render.py](../../scripts/mcp/render.py).
+
+Opt out at bootstrap time with `--no-caveman`:
+
+```bash
+python -m scripts.bootstrap acme --owner me@example.com --no-caveman
+```
+
+Or flip it off later with `python -m scripts.caveman off` (see below).
+
+**Existing consumers** (bootstrapped before this default landed) need
+to activate caveman once with `python -m scripts.caveman on` — there
+is no migration script. Bootstrap-time default-on is one-shot.
+
+The playbook itself also runs with caveman ON
+(`.ai-playbook/caveman.json` is committed to the playbook repo).
+
 ## Prerequisites
 
 - The project has an `AGENTS.md` at its root (required for
