@@ -342,6 +342,103 @@ def compute_break_glass_usage(
 
 
 # ---------------------------------------------------------------------------
+# rule-event/v2: block-reason breakdown, top-blocked paths, override ratio.
+# Consumed only when events carry the v2 optional fields (`block_class`,
+# `block_tool`, `bash_pattern_kind`, `target_rel`). Empty when running over
+# pure v1 logs.
+# ---------------------------------------------------------------------------
+
+
+def compute_block_breakdown(
+    events: list[dict[str, Any]], *, top_n: int = 25
+) -> list[dict[str, Any]]:
+    """Per (slug, block_class, block_tool, bash_pattern_kind) — counts.
+
+    Only rows where `verdict == "block"` AND `block_class` is set are included.
+    Returns up to `top_n` rows sorted by descending count.
+    """
+    buckets: Counter[tuple[str, str, str, str]] = Counter()
+    for ev in events:
+        if ev.get("verdict") != "block":
+            continue
+        block_class = str(ev.get("block_class") or "")
+        if not block_class or block_class == "none":
+            continue
+        key = (
+            str(ev.get("slug") or "unknown"),
+            block_class,
+            str(ev.get("block_tool") or ""),
+            str(ev.get("bash_pattern_kind") or ""),
+        )
+        buckets[key] += 1
+    rows = [
+        {
+            "slug": slug,
+            "block_class": bc,
+            "block_tool": bt,
+            "bash_pattern_kind": bpk,
+            "count": count,
+        }
+        for (slug, bc, bt, bpk), count in buckets.most_common(top_n)
+    ]
+    return rows
+
+
+def compute_top_blocked_paths(
+    events: list[dict[str, Any]], *, top_n: int = 10
+) -> list[dict[str, Any]]:
+    """Per (slug, target_rel) when verdict=block — most-frequently-blocked targets.
+
+    Signals where developers / agents are repeatedly running into the gate.
+    """
+    buckets: Counter[tuple[str, str]] = Counter()
+    for ev in events:
+        if ev.get("verdict") != "block":
+            continue
+        target = ev.get("target_rel")
+        if not target:
+            continue
+        buckets[(str(ev.get("slug") or "unknown"), str(target))] += 1
+    return [
+        {"slug": slug, "target_rel": tr, "count": count}
+        for (slug, tr), count in buckets.most_common(top_n)
+    ]
+
+
+def compute_override_ratio(
+    events: list[dict[str, Any]], *, flag_threshold: float = 0.05
+) -> list[dict[str, Any]]:
+    """Per slug — overrides / (allow + block + warn) ratio.
+
+    Flags `over_threshold=True` when the ratio exceeds `flag_threshold`
+    (default 5%) — sustained over-use of the override hatch implies the
+    rule is mis-calibrated and should be revisited in a retro.
+    """
+    totals: Counter[str] = Counter()
+    overrides: Counter[str] = Counter()
+    for ev in events:
+        slug = str(ev.get("slug") or "unknown")
+        totals[slug] += 1
+        if ev.get("escape_hatch"):
+            overrides[slug] += 1
+    rows: list[dict[str, Any]] = []
+    for slug in sorted(totals):
+        total = totals[slug]
+        ovr = overrides.get(slug, 0)
+        ratio = (ovr / total) if total else 0.0
+        rows.append(
+            {
+                "slug": slug,
+                "total": total,
+                "overrides": ovr,
+                "override_ratio": round(ratio, 4),
+                "over_threshold": ratio > flag_threshold,
+            }
+        )
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Absorbed: lifecycle_check — model retirements
 # ---------------------------------------------------------------------------
 
@@ -546,6 +643,10 @@ class Report:
     break_glass_usage: list[dict[str, Any]]
     memory_decay: dict[str, Any]
     pricing_loaded: bool
+    # v0.20.0+ — rule-event/v2 derived sections.
+    block_breakdown: list[dict[str, Any]] = field(default_factory=list)
+    top_blocked_paths: list[dict[str, Any]] = field(default_factory=list)
+    override_ratio: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -564,6 +665,9 @@ class Report:
             "openspec_staleness": self.openspec_staleness,
             "break_glass_usage": self.break_glass_usage,
             "memory_decay": self.memory_decay,
+            "block_breakdown": self.block_breakdown,
+            "top_blocked_paths": self.top_blocked_paths,
+            "override_ratio": self.override_ratio,
         }
 
 
@@ -591,6 +695,34 @@ def render_markdown(report: Report) -> str:
                 f"| `{r['slug']}` | `{r['llm']}` | {r['total']} | {r['allow']} | "
                 f"{r['block']} | {r['warn']} | {r['obey_rate']:.2%} |"
             )
+    lines.append("")
+
+    # 1.bis Block reasons breakdown (rule-event/v2)
+    lines.append("## 1.bis Block reasons breakdown")
+    lines.append("")
+    if not report.block_breakdown:
+        lines.append("_No `block_class` data in window (v2 events absent or no blocks)._")
+    else:
+        lines.append("| slug | block_class | tool | bash_pattern | count |")
+        lines.append("|---|---|---|---|---|")
+        for r in report.block_breakdown:
+            lines.append(
+                f"| `{r['slug']}` | `{r['block_class']}` | "
+                f"`{r['block_tool'] or '—'}` | "
+                f"`{r['bash_pattern_kind'] or '—'}` | {r['count']} |"
+            )
+    lines.append("")
+
+    # 1.ter Top blocked paths (rule-event/v2)
+    lines.append("## 1.ter Top blocked paths")
+    lines.append("")
+    if not report.top_blocked_paths:
+        lines.append("_No `target_rel` data in window (v2 events absent or no blocks)._")
+    else:
+        lines.append("| slug | target_rel | count |")
+        lines.append("|---|---|---|")
+        for r in report.top_blocked_paths:
+            lines.append(f"| `{r['slug']}` | `{r['target_rel']}` | {r['count']} |")
     lines.append("")
 
     # 2. Cost per rule
@@ -673,6 +805,22 @@ def render_markdown(report: Report) -> str:
             lines.append(f"| `{r['escape_hatch']}` | {r['count']} |")
     lines.append("")
 
+    # 6.bis Override ratio per slug (v2)
+    lines.append("## 6.bis Override ratio (per slug)")
+    lines.append("")
+    if not report.override_ratio:
+        lines.append("_No per-slug override data in window._")
+    else:
+        lines.append("| slug | total | overrides | ratio | flag |")
+        lines.append("|---|---|---|---|---|")
+        for r in report.override_ratio:
+            flag_marker = " ⚠ **>5%**" if r.get("over_threshold") else ""
+            lines.append(
+                f"| `{r['slug']}` | {r['total']} | {r['overrides']} | "
+                f"{r['override_ratio']:.2%} |{flag_marker} |"
+            )
+    lines.append("")
+
     # 7. OpenSpec staleness
     lines.append("## 7. OpenSpec staleness")
     lines.append("")
@@ -738,6 +886,9 @@ def build_report(
         break_glass_usage=compute_break_glass_usage(in_window),
         memory_decay=check_memory_decay(),
         pricing_loaded=pricing.loaded,
+        block_breakdown=compute_block_breakdown(in_window),
+        top_blocked_paths=compute_top_blocked_paths(in_window),
+        override_ratio=compute_override_ratio(in_window),
     )
 
 

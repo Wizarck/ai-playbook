@@ -21,6 +21,14 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 - **41 new tests** across `tests/test_apply_enforce_hook_template.py` (16 Bash + telemetry + flag cases on top of the original 10) and `tests/test_apply_skill_enforcement_rule.py` (7 fixture-based validate-pr-diff cases on a real git repo, plus the 5 existing `validate` cases). Cross-platform Bash patterns verified on Windows Git-Bash via subprocess invocation.
 
+- **`tests/test_apply_enforce_helpers_equivalence.py`** — guards INV-5. Loads the hook template (`.tmpl`) via in-memory `compile`/`exec` into a fresh `types.ModuleType` (deliberately NOT `importlib.SourceFileLoader` — that path writes a `.pyc` sibling under `templates/.../__pycache__/` that poisons the bootstrap-template suite). 10 tasks.md fixtures + 11 (target, write_path) cases + regex-pattern byte-identity checks.
+
+- **`tests/test_apply_log_jsonl_concurrent.py`** — guards INV-2. 10 processes × 10 rows each appending concurrently to a single `.apply_log.jsonl`; asserts JSONL well-formedness, total count, distinct rows, newline count. Confirms POSIX atomic-append semantics hold on Windows for the typical marker-helper write size.
+
+- **`scripts/telemetry/report.py`** — three new aggregators driven by rule-event/v2 fields: `compute_block_breakdown(events, top_n=25)` groups by `(slug, block_class, block_tool, bash_pattern_kind)`, `compute_top_blocked_paths(events, top_n=10)` ranks `target_rel` by block frequency, `compute_override_ratio(events, flag_threshold=0.05)` per slug with automatic flagging when overrides exceed 5% of fires. Wired into the `Report` dataclass + `to_dict()` (JSON output) + `render_markdown` as new sections 1.bis "Block reasons breakdown", 1.ter "Top blocked paths", and 6.bis "Override ratio (per slug)" with a ⚠ flag rendered when `over_threshold=True`.
+
+- **`.github/workflows/rule-event-report-weekly.yml`** — scheduled workflow (Mondays 09:00 UTC, plus `workflow_dispatch` with weekly/monthly/custom window). Renders both Markdown and JSON reports as artifacts; posts/updates a single tracking issue labelled `telemetry-report`. Source of events is the consumer's `.ai-playbook-state/rule-events.jsonl` (gitignored, so a fresh clone produces a "no data" report unless the consumer's own CI/aggregation pipeline populates it).
+
 ### Changed
 
 - **`docs/rules/apply-skill-enforcement.rule.md`** — frontmatter `triggers` extended to `[Edit, Write, MultiEdit, Bash, PreToolUse]`. New sections: "Bash heuristics" (full POSIX + PowerShell pattern table), "Edge cases (FN/FP documented)" (table of inspected vs pass-through patterns with rationale for each), "Telemetry fields (rule-event/v2)" (table of every field emitted). `## Process supervision` rewritten to call out the three independent enforcers (L1 hook + L2 doc + L3 workflow) and the byte-identical helper invariant.
