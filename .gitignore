@@ -56,3 +56,8 @@ hindsight-queue.jsonl
 # proposals/tasks/archive. Consumer-side `openspec/` folders are governed by
 # each consumer's own .gitignore (not this file).
 openspec/
+
+# BMAD planning artifacts (workflow trail, per-dev scratch). Canonical durable
+# artefacts produced by BMAD skills (PRDs, ADRs, slicing) get promoted to
+# docs/. See docs/concepts/bmad-openspec-bridge.md §2 (path canon).
+_bmad-output/
