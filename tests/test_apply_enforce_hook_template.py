@@ -86,6 +86,75 @@ def _seed_change(
     return change_dir
 
 
+def _invoke_hook_bash(
+    hook: Path,
+    project: Path,
+    command: str,
+    *,
+    session_id: str = "test-session-1",
+    override: str | None = None,
+    bash_inspection: str | None = None,
+    state_dir: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Invoke the rendered hook with a Bash tool payload.
+
+    Bash payloads carry `tool_input.command`, not `file_path`. The hook
+    must inspect the command string heuristically and decide allow/block
+    based on whether any extracted target path falls under a declared
+    write_path without a session marker.
+    """
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": command},
+        "cwd": str(project),
+        "session_id": session_id,
+    }
+    env = os.environ.copy()
+    env.pop("AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE", None)
+    env.pop("AIPLAYBOOK_BASH_INSPECTION", None)
+    env["CLAUDE_SESSION_ID"] = session_id
+    # Inject PYTHONPATH so the hook can import scripts.telemetry from the
+    # upstream repo (consumers receive this via the .ai-playbook submodule
+    # in production; tests use the source-of-truth modules directly).
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{REPO_ROOT}{os.pathsep}{existing_pp}" if existing_pp else str(REPO_ROOT)
+    )
+    if override is not None:
+        env["AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE"] = override
+    if bash_inspection is not None:
+        env["AIPLAYBOOK_BASH_INSPECTION"] = bash_inspection
+    if state_dir is not None:
+        env["AI_PLAYBOOK_STATE_DIR"] = str(state_dir)
+    return subprocess.run(
+        [sys.executable, str(hook)],
+        cwd=project,
+        env=env,
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+
+def _read_telemetry_events(state_dir: Path) -> list[dict]:
+    """Read all rule-event JSONL rows written under state_dir/rule-events.jsonl."""
+    events_path = state_dir / "rule-events.jsonl"
+    if not events_path.is_file():
+        return []
+    rows: list[dict] = []
+    for line in events_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return rows
+
+
 def _invoke_hook(
     hook: Path,
     project: Path,
@@ -256,3 +325,244 @@ def test_hook_writes_canonical_error_shape(tmp_path: Path) -> None:
     assert "OVERRIDE" in stderr
     # Slice id surfaces
     assert "demo-slice" in stderr
+
+
+# ---------------------------------------------------------------------------
+# Bash heuristic tests (v0.20.0+)
+#
+# The hook intercepts Bash tool_input.command and extracts candidate write
+# targets via regex. High-confidence matches against declared write_paths
+# without a session marker block (exit 2); ambiguous commands and commands
+# not touching declared paths pass (exit 0).
+# ---------------------------------------------------------------------------
+
+
+def test_hook_blocks_bash_redirect_write_to_write_path(tmp_path: Path) -> None:
+    """`echo "x" > backend/foo.py` writes to a declared write_path → block."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, 'echo "x" > backend/foo.py')
+    assert proc.returncode == 2, proc.stderr
+    assert "Bash command writes to declared write_path" in proc.stderr
+    assert "demo-slice" in proc.stderr
+
+
+def test_hook_blocks_bash_sed_inplace_to_write_path(tmp_path: Path) -> None:
+    """`sed -i 's/a/b/' backend/foo.py` → block with pattern_kind=sed-i."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, "sed -i 's/a/b/' backend/foo.py")
+    assert proc.returncode == 2, proc.stderr
+    assert "sed-i" in proc.stderr
+
+
+def test_hook_blocks_bash_python_c_open_write(tmp_path: Path) -> None:
+    """python -c "open('path', 'w').write(...)" → block with pattern_kind=python-c-open."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(
+        hook, project,
+        "python -c \"open('backend/foo.py', 'w').write('hi')\"",
+    )
+    assert proc.returncode == 2, proc.stderr
+    assert "python-c-open" in proc.stderr
+
+
+def test_hook_blocks_bash_tee_to_write_path(tmp_path: Path) -> None:
+    """`echo x | tee backend/foo.py` → block."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, "echo x | tee backend/foo.py")
+    assert proc.returncode == 2, proc.stderr
+    assert "tee" in proc.stderr
+
+
+def test_hook_blocks_bash_powershell_setcontent(tmp_path: Path) -> None:
+    """`Set-Content -Path backend/foo.py "x"` (PowerShell) → block."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(
+        hook, project, 'Set-Content -Path backend/foo.py "hello"',
+    )
+    assert proc.returncode == 2, proc.stderr
+    assert "powershell-setcontent" in proc.stderr
+
+
+def test_hook_blocks_bash_powershell_outfile(tmp_path: Path) -> None:
+    """`"x" | Out-File backend/foo.py` (PowerShell) → block."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(
+        hook, project, '"x" | Out-File backend/foo.py',
+    )
+    assert proc.returncode == 2, proc.stderr
+    assert "powershell-outfile" in proc.stderr
+
+
+def test_hook_allows_bash_redirect_outside_write_paths(tmp_path: Path) -> None:
+    """`echo x > /tmp/scratch` (outside declared write_paths) → allow."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, "echo x > /tmp/scratch")
+    assert proc.returncode == 0, f"unrelated path should pass; stderr={proc.stderr}"
+
+
+def test_hook_allows_bash_git_status(tmp_path: Path) -> None:
+    """`git status` (no mutation pattern) → allow."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, "git status")
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_hook_allows_bash_python_c_read_only(tmp_path: Path) -> None:
+    """`python -c "print('hi')"` (no write mode) → allow."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, "python -c \"print('hi')\"")
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_hook_allows_bash_when_marker_present(tmp_path: Path) -> None:
+    """Bash redirect to write_path WITH marker → allow."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    marker = project / "openspec" / "changes" / "demo-slice" / ".apply_log.jsonl"
+    marker.write_text(
+        '{"event":"start","change_id":"demo-slice","session_id":"test-session-1",'
+        '"ts":"2026-05-25T10:00:00.000Z","skill_version":"1.1"}\n',
+        encoding="utf-8",
+    )
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, 'echo "x" > backend/foo.py')
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_hook_feature_flag_disables_bash_branch(tmp_path: Path) -> None:
+    """AIPLAYBOOK_BASH_INSPECTION=0 skips Bash inspection entirely → allow."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(
+        hook, project, 'echo "x" > backend/foo.py',
+        bash_inspection="0",
+    )
+    assert proc.returncode == 0, (
+        f"AIPLAYBOOK_BASH_INSPECTION=0 should bypass Bash gate; stderr={proc.stderr}"
+    )
+
+
+def test_hook_honours_bash_override_env(tmp_path: Path) -> None:
+    """AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE allows a Bash bypass + audits it."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(
+        hook, project, 'echo "x" > backend/foo.py',
+        override="emergency post-review hotfix",
+    )
+    assert proc.returncode == 0, proc.stderr
+    marker = project / "openspec" / "changes" / "demo-slice" / ".apply_log.jsonl"
+    assert marker.is_file()
+    records = [
+        json.loads(line)
+        for line in marker.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    overrides = [r for r in records if r.get("event") == "override"]
+    assert len(overrides) == 1
+    assert "emergency" in overrides[0]["reason"]
+
+
+def test_hook_allows_bash_ambiguous_with_no_match(tmp_path: Path) -> None:
+    """Command without recognisable mutation pattern → allow."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    proc = _invoke_hook_bash(hook, project, "ls -la backend/foo.py")
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_hook_emits_telemetry_on_bash_block(tmp_path: Path) -> None:
+    """Bash block emits a rule-event JSONL row with verdict=block and pattern_kind."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    state_dir = tmp_path / "ai-playbook-state"
+    proc = _invoke_hook_bash(
+        hook, project, "sed -i 's/a/b/' backend/foo.py",
+        state_dir=state_dir,
+    )
+    assert proc.returncode == 2, proc.stderr
+    events = _read_telemetry_events(state_dir)
+    block_events = [e for e in events if e.get("verdict") == "block"]
+    assert len(block_events) == 1, f"expected 1 block event, got {events}"
+    ev = block_events[0]
+    assert ev["slug"] == "apply-skill-enforcement"
+    assert ev["trigger"] == "PreToolUse:Bash"
+    # Schema v2 fields (passed via extra; logger merges them).
+    assert ev.get("block_class") == "apply_phase_bypass"
+    assert ev.get("block_tool") == "Bash"
+    assert ev.get("bash_pattern_kind") == "sed-i"
+    assert ev.get("change_id") == "demo-slice"
+    assert ev.get("target_rel") == "backend/foo.py"
+    assert ev.get("marker_present") is False
+
+
+def test_hook_emits_telemetry_on_edit_block(tmp_path: Path) -> None:
+    """Edit block emits rule-event with block_tool=Edit and no bash_pattern_kind."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    state_dir = tmp_path / "ai-playbook-state"
+    env = os.environ.copy()
+    env.pop("AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE", None)
+    env["CLAUDE_SESSION_ID"] = "test-session-1"
+    env["AI_PLAYBOOK_STATE_DIR"] = str(state_dir)
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{REPO_ROOT}{os.pathsep}{existing_pp}" if existing_pp else str(REPO_ROOT)
+    )
+    payload = {
+        "tool_name": "Edit",
+        "tool_input": {"file_path": str(project / "backend/foo.py")},
+        "cwd": str(project),
+        "session_id": "test-session-1",
+    }
+    proc = subprocess.run(
+        [sys.executable, str(hook)],
+        cwd=project, env=env, input=json.dumps(payload),
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    assert proc.returncode == 2, proc.stderr
+    events = _read_telemetry_events(state_dir)
+    block = next((e for e in events if e.get("verdict") == "block"), None)
+    assert block is not None, f"expected block event; got {events}"
+    assert block["trigger"] == "PreToolUse:Edit"
+    assert block.get("block_tool") == "Edit"
+    assert block.get("bash_pattern_kind") is None
+    assert block.get("change_id") == "demo-slice"
+
+
+def test_hook_emits_telemetry_on_allow(tmp_path: Path) -> None:
+    """Non-blocking decisions also emit telemetry (with block_class=none)."""
+    project = _seed_project(tmp_path)
+    _seed_change(project, "demo-slice", ["backend/foo.py"])
+    hook = _render_template(project / ".claude" / "hooks" / "openspec-apply-enforce.py")
+    state_dir = tmp_path / "ai-playbook-state"
+    proc = _invoke_hook_bash(hook, project, "git status", state_dir=state_dir)
+    assert proc.returncode == 0
+    events = _read_telemetry_events(state_dir)
+    allow = next((e for e in events if e.get("verdict") == "allow"), None)
+    assert allow is not None, f"expected allow event; got {events}"
+    assert allow["trigger"] == "PreToolUse:Bash"
+    assert allow.get("block_class") == "none"

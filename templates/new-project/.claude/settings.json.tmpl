@@ -1,5 +1,5 @@
 {
-  "_comment": "Project-level Claude Code settings. SessionStart hook auto-recalls Hindsight context per .ai-playbook/specs/memory-hierarchy.md §4. PreToolUse hook enforces apply-skill orchestration per .ai-playbook/specs/apply-skill-enforcement.md (v0.14.0).",
+  "_comment": "Project-level Claude Code settings. SessionStart hook auto-recalls Hindsight context per .ai-playbook/specs/memory-hierarchy.md §4. PreToolUse hook enforces apply-skill orchestration per .ai-playbook/specs/apply-skill-enforcement.md. Matcher includes Bash (v0.20.0+) for heuristic detection of terminal-side writes to declared write_paths; set AIPLAYBOOK_BASH_INSPECTION=0 to disable that branch only.",
   "hooks": {
     "SessionStart": [
       {
@@ -14,7 +14,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write|MultiEdit|Bash",
         "hooks": [
           {
             "type": "command",

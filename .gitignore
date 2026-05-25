@@ -17,6 +17,9 @@ env/
 *.swp
 *~
 
+# Per-developer Claude Code settings (hooks, permissions, etc.)
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db

@@ -54,7 +54,7 @@ def test_cli_emit_writes_event(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     events_file = state_dir / "rule-events.jsonl"
     assert events_file.is_file()
     row = json.loads(events_file.read_text(encoding="utf-8").splitlines()[-1])
-    assert row["schema"] == "rule-event/v1"
+    assert row["schema"] == "rule-event/v2"
     assert row["slug"] == "verdict-contract"
     assert row["llm"] == "claude-test"
     assert row["verdict"] == "block"

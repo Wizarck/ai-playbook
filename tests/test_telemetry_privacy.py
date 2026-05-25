@@ -161,6 +161,6 @@ def test_event_schema_required_fields(tmp_path: Path, monkeypatch: pytest.Monkey
         "self_check",
     ):
         assert required in event, f"missing required field {required}"
-    assert event["schema"] == "rule-event/v1"
+    assert event["schema"] == "rule-event/v2"
     assert event["verdict"] == "block"
     assert event["self_check"] is True
