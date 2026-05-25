@@ -50,8 +50,9 @@ The canonical schema lives at `schemas/schema-rule-event-v2.json` (v0.20.0+; v1 
 
 | Field | Type | Meaning |
 |---|---|---|
-| `block_class` | enum | Decision classification: `none` / `apply_phase_bypass` / `outside_project` / `change_own_folder` / `flag_disabled` / `helper_missing`. |
+| `block_class` | enum | Decision classification: `none` / `apply_phase_bypass` / `outside_project` / `change_own_folder` / `flag_disabled` / `helper_missing` / `rule_disabled`. `rule_disabled` is emitted by the L1 hook + `cli_emit` wrapper when the consumer's `.ai-playbook/rules-toggle.json` says the rule is OFF (see [ai-playbook-config.md](ai-playbook-config.md)). |
 | `block_tool` | enum | `Edit` / `Write` / `MultiEdit` / `Bash` — typed mirror of trigger suffix. |
+| `toggle_layer` | enum | Present when `block_class=rule_disabled`. One of `L1` / `L2` / `L3` — identifies which layer of the rules-toggle short-circuited the decision. Only `L1` is observable in runtime telemetry today (the L3 short-circuit lives in workflow YAML, not the event stream). |
 | `change_id` | string | OpenSpec change slug whose write_paths matched. |
 | `matched_pattern` | string | Literal/glob from `tasks.md` that matched (debugging FP/FN). |
 | `target_rel` | string | Project-relative path the tool tried to mutate. **No PII** — see "Privacy guarantees" below. |

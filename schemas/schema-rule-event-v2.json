@@ -92,9 +92,15 @@
         "outside_project",
         "change_own_folder",
         "flag_disabled",
-        "helper_missing"
+        "helper_missing",
+        "rule_disabled"
       ],
-      "description": "Classification of the decision. `none` = no violation found; `apply_phase_bypass` = target write_path without start record; the rest are non-blocking dispositions (outside project tree, edit to change's own folder, feature flag disabled, marker helper script absent)."
+      "description": "Classification of the decision. `none` = no violation found; `apply_phase_bypass` = target write_path without start record; the rest are non-blocking dispositions (outside project tree, edit to change's own folder, feature flag disabled, marker helper script absent, rule disabled via consumer's .ai-playbook/rules-toggle.json)."
+    },
+    "toggle_layer": {
+      "type": "string",
+      "enum": ["L1", "L2", "L3"],
+      "description": "Present when `block_class=rule_disabled`. Identifies which layer of the rules-toggle short-circuited the decision (L1 = PreToolUse hook / rule.py wrapper; L3 = GitHub Actions workflow). The L2 value is reserved; L2 enforcement is sandwich-defense and cannot be toggled from the rules-toggle file (it is part of the doc surface, not a runtime decision)."
     },
     "block_tool": {
       "type": "string",
