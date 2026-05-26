@@ -43,6 +43,21 @@ projects.yaml
 .ai-playbook-state/
 overrides.log
 
+# Consumer-side state spillover into the submodule root.
+# When this repo is mounted as a submodule at `<consumer>/.ai-playbook/`,
+# the consumer's caveman/rules-toggle/apply_config scripts write state at
+# `<consumer>/.ai-playbook/<file>` — which from the submodule's perspective
+# appears at the submodule ROOT and pollutes `git status` there. Anchor each
+# pattern to the .gitignore root with `/` so standalone playbook checkouts
+# are unaffected (these names never appear at `<playbook>/` proper).
+/caveman.json
+/backups/
+/rules-toggle.json
+/rules-toggle-audit.jsonl
+/feature-flags.env
+/events.jsonl
+/.caveman-statusline-suffix
+
 # Consumers registry (per-org, never committed — see consumers.yaml.example
 # for the schema; copy to consumers.yaml locally and fill in real data).
 consumers.yaml
