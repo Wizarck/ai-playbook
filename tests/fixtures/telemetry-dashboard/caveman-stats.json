@@ -1,0 +1,22 @@
+{
+  "activation_rate": 0.83,
+  "caveman_state": "on",
+  "components": {
+    "commit_caveman": true,
+    "compress_docs": true,
+    "mcp_shrink": true,
+    "response_style": true,
+    "review_caveman": true,
+    "subagents_cavecrew": true
+  },
+  "cost_per_m_input_usd": 3.0,
+  "cost_per_m_output_usd": 15.0,
+  "cost_saved_usd": 38.2,
+  "mode": "full",
+  "savings_rate": 0.65,
+  "session_count": 47,
+  "tokens_in_delta": -12450,
+  "tokens_in_total": 482300,
+  "tokens_out_delta": -41680,
+  "tokens_out_total": 196100
+}

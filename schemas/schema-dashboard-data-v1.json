@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-dashboard-data-v1.json",
+  "title": "dashboard-data v1",
+  "description": "Sidecar payload assigned to window.DASHBOARD_DATA by tools/config-ui/dashboard-data.js. Produced offline by scripts/telemetry/build_dashboard_data.py from rule-event/v2 JSONL plus caveman stats plus pricing.yaml. Loaded by the Dashboard tab in tools/config-ui/index.html via <script src>; never via fetch() (browsers block fetch on file://). Forward-compatible additions land as v2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "pricing_version",
+    "window",
+    "empty_state_threshold",
+    "caveman_state",
+    "panels"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "dashboard-data/v1",
+      "description": "Schema version literal. Renderer MUST refuse unknown values with a schema-mismatch banner."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of the aggregator run."
+    },
+    "pricing_version": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256 of configs/pricing.yaml at aggregator run time. Surfaced adjacent to the cost-saved figure so stale prices are visible."
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["days", "from_iso", "to_iso", "events_seen", "events_skipped"],
+      "properties": {
+        "days": {
+          "type": "integer",
+          "enum": [7, 30],
+          "description": "Window length in days."
+        },
+        "from_iso": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to_iso": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "events_seen": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of well-formed rule-event/v2 events parsed."
+        },
+        "events_skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of torn or unparseable JSONL lines skipped without crashing."
+        }
+      }
+    },
+    "empty_state_threshold": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "When events_seen is strictly less than this value, the renderer SHALL display the pedagogical empty state instead of any panel. Default 100."
+    },
+    "caveman_state": {
+      "type": "string",
+      "enum": ["on", "off", "missing"],
+      "description": "Detected state from caveman.json. Drives panels.caveman branching."
+    },
+    "panels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hero", "secondary", "trend", "matrix", "honesty", "friction", "caveman"],
+      "properties": {
+        "hero": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["incidents_prevented_7d", "prompt_injection_blocks"],
+          "properties": {
+            "incidents_prevented_7d": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of events with verdict='block' AND no break-glass override. Warnings excluded."
+            },
+            "prompt_injection_blocks": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Subset of incidents_prevented_7d where escape_hatch is set OR block_class indicates command injection. Labelled OWASP LLM01."
+            }
+          }
+        },
+        "secondary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["obey_rate_7d", "cost_saved_usd", "health_emoji"],
+          "properties": {
+            "obey_rate_7d": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "cost_saved_usd": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value", "methodology"],
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "methodology": {
+                  "type": "string",
+                  "description": "URL or anchor to the documented cost methodology."
+                }
+              }
+            },
+            "health_emoji": {
+              "type": "string",
+              "enum": ["green", "yellow", "red"],
+              "description": "Derived from obey_rate_7d: green >= 0.95, yellow >= 0.85, red < 0.85."
+            }
+          }
+        },
+        "trend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["points"],
+          "properties": {
+            "points": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["iso_day", "obey_rate", "events"],
+                "properties": {
+                  "iso_day": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "obey_rate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "events": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "matrix": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rows"],
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["rule_slug", "by_llm", "drift_flag"],
+                "properties": {
+                  "rule_slug": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,40}$"
+                  },
+                  "by_llm": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "description": "Map of LLM identifier to obey-rate."
+                  },
+                  "drift_flag": {
+                    "type": "string",
+                    "enum": ["none", "cross_llm", "time_over_time", "both"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "honesty": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rows"],
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["llm", "self_check_verdict_agreement_rate", "n_events"],
+                "properties": {
+                  "llm": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "self_check_verdict_agreement_rate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "n_events": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "friction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rows"],
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["rule_slug", "break_glass_count", "override_reasons_top"],
+                "properties": {
+                  "rule_slug": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,40}$"
+                  },
+                  "break_glass_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "override_reasons_top": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "caveman": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "activation_rate",
+                "mode",
+                "components",
+                "tokens_in_delta",
+                "tokens_out_delta",
+                "cost_saved_usd"
+              ],
+              "properties": {
+                "activation_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["lite", "full", "ultra"]
+                },
+                "components": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  }
+                },
+                "tokens_in_delta": {
+                  "type": "integer"
+                },
+                "tokens_out_delta": {
+                  "type": "integer"
+                },
+                "cost_saved_usd": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["state"],
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": ["off", "missing"]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -2,6 +2,30 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [Unreleased] — telemetry dashboard tab
+
+Backwards-compatible additions. No schema bumps to `rule-event/v2`; the dashboard reads only existing fields.
+
+### Added — telemetry Dashboard tab in the config UI
+
+- **`schemas/schema-dashboard-data-v1.json`** — new sidecar contract (`dashboard-data/v1`). Top-level: `schema_version`, `generated_at`, `pricing_version` (sha256 of `configs/pricing.yaml` at run time), `window`, `empty_state_threshold`, `caveman_state`, `panels`. Panel sub-schemas: hero (incidents + LLM01 sub-count), secondary (obey-rate + cost + emoji), trend (daily buckets), matrix (rule × LLM with drift flag), honesty (`self_check` ↔ `verdict` agreement per LLM), friction (top break-glass rules), caveman (on/off/missing branches via `oneOf`).
+- **`scripts/telemetry/build_dashboard_data.py`** — new offline aggregator. CLI: `--window {7d,30d}`, `--output`, `--consumer-root`, `--state-dir`, `--pricing-path`, `--schema-path`, `--empty-state-threshold`, `--quiet`, `--no-validate`. Reads `<consumer>/.ai-playbook-state/rule-events.jsonl` (`rule-event/v2`), invokes `scripts/caveman/stats` via direct import (fallback subprocess `python -m scripts.caveman.stats --json`), pins `configs/pricing.yaml` sha256 per run. Atomic temp+rename write. Torn-line tolerant (skips + counts `events_skipped`). Privacy guards re-validate `target_rel` against glob form. Computes drift in two senses (cross-LLM spread > 0.10; per-LLM time-over-time delta > 0.05) with sample-size floors (matrix 30 events / rule, honesty 50 events / LLM). Validates output against `schema-dashboard-data-v1.json` before atomic rename; on failure exits non-zero and leaves the prior sidecar untouched.
+- **`scripts/apply_config.py`** — new `_rebuild_dashboard_sidecar(target)` helper invoked as Section 5 after the `applied-config.js` write. Failure isolated: any exception from the aggregator is captured in the `SectionResult` and never raised, so a broken telemetry pipeline cannot break `apply_config`.
+- **`tools/config-ui/index.html`** — new **Dashboard** tab nav button + `<section id="panel-dashboard">`. New `<script>` tags (in order): `dashboard-data.js` sidecar (`onerror` sets `window.DASHBOARD_DATA_MISSING=true`), Chart.js 4.4.7 from `https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js` with `integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC"` (single external dep, SRI-pinned), `dashboard.js` renderer, then `app.js`.
+- **`tools/config-ui/dashboard.js`** — new vanilla-JS renderer exposing `window.DashboardRender.mount(target)`. Branches on missing sidecar / schema mismatch / empty state / chart-library-failed / data-rendered. Renders hero + 3 secondary stats + 5 panels (trend Chart.js line, matrix with drift highlighting, honesty meter, friction bars, Caveman impact with off/missing branches). **Refresh** button copies `python -m scripts.telemetry.build_dashboard_data` to the clipboard (browsers cannot shell out from `file://`); falls back to `document.execCommand("copy")` when the async Clipboard API is denied.
+- **`tools/config-ui/style.css`** — appended Dashboard tab styles (`.dash-hero`, `.dash-panel`, `.dash-matrix`, `.dash-bar`, `.dash-empty`, `.dash-footer`, banners, responsive ≤900 px breakpoint).
+- **`tools/config-ui/app.js`** — wired Dashboard tab activation to `window.DashboardRender.mount("#dashboard-root")`.
+- **`templates/new-project/.gitignore.tmpl`** — added `.ai-playbook/dashboard-data.js` to the consumer-template ignore block so the sidecar never accidentally lands in consumer commits.
+- **`docs/concepts/telemetry-dashboard.md`** — promoted from `draft seed (pre-BMAD)` to `spec (post-BMAD)` with the panel structure, data contract, three refresh modes, hard constraints C1–C10, and v2-candidate list ratified by the BMAD product-brief cycle.
+- **`docs/runbooks/use-config-ui.md`** — appended Dashboard tab operator section (panel descriptions, refresh modes, empty state, privacy, chart-library-failed behaviour).
+- **`tests/test_build_dashboard_data.py`** — new aggregator test suite: golden-shape assertions against the 5k fixture, privacy invariants, atomic-write preservation on validation failure, torn-line tolerance, SLO benchmark (< 2 s on 5 k events, < 100 KB sidecar — 4 s CI budget), empty-state branch, caveman branches (on / off / missing), JSON-schema validation. Optional UI smoke tests deferred to `tests/integration/` once Playwright is wired.
+- **`tests/fixtures/telemetry-dashboard/`** — new deterministic generator (seed 42) emitting `rule-events-5k.jsonl` (5000 events over 30 days, 3 LLMs, 10 rule slugs, biased to produce cross-LLM drift), `rule-events-empty.jsonl` (42 events, below the 100 threshold), `rule-events-torn.jsonl` (250 events with the final line truncated), and `caveman-stats.json` (mode=full snapshot).
+
+### Consumer action
+
+- **None.** This change is additive: the sidecar appears for consumers on the next `apply_config` run; the Dashboard tab appears in the bundled UI; no rule-event schema bump.
+- Air-gapped / proxy-blocked consumers will see a `chart library failed to load` banner on the Dashboard tab until the native-SVG fallback ships in a later release. Numbers still render without charts.
+
 ## [0.19.6] — 2026-05-25 — config UI + L1 Bash enforcement + OTel tracing + script_emit + Mermaid docs
 
 VERSION file lagged at `0.19.4` while tag `v0.19.5` was cut (release-runbook drift); this release fixes the mismatch by jumping VERSION 0.19.4 → 0.19.6 and bundling everything accumulated on `main` since `v0.19.5` into a single tag.

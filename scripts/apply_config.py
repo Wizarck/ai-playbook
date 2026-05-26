@@ -513,7 +513,50 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
     ab_sr = _write_applied_bundle(target, bundle)
     report.sections.append(ab_sr)
 
+    # Section 5: regenerate the telemetry-dashboard sidecar (best-effort).
+    # Failure here must never break apply_config — log only.
+    ds_sr = _rebuild_dashboard_sidecar(target)
+    report.sections.append(ds_sr)
+
     return report
+
+
+def _rebuild_dashboard_sidecar(target: Path) -> SectionResult:
+    """Post-hook: invoke the telemetry-dashboard aggregator.
+
+    Wrapped in try/except so any failure is captured as a non-fatal
+    SectionResult — apply_config SHALL exit zero even when the aggregator
+    fails (per openspec/changes/telemetry-dashboard/specs/
+    telemetry-dashboard-aggregator/spec.md ``apply_config post-hook
+    integration`` requirement).
+    """
+    sr = SectionResult(name="dashboard-sidecar", ok=True)
+    try:
+        # Imported lazily so apply_config keeps working on consumers that
+        # have not yet bumped past the playbook version that ships this hook.
+        from scripts.telemetry import build_dashboard_data
+    except Exception as exc:  # noqa: BLE001 — best-effort.
+        sr.ok = True  # not a failure of apply_config itself
+        sr.detail = f"skipped: build_dashboard_data import failed ({exc})"
+        return sr
+
+    try:
+        rc = build_dashboard_data.main([
+            "--consumer-root", str(target),
+            "--quiet",
+        ])
+    except SystemExit as exit_signal:
+        rc = int(getattr(exit_signal, "code", 0) or 0)
+    except Exception as exc:  # noqa: BLE001 — best-effort.
+        sr.ok = True
+        sr.detail = f"skipped: aggregator raised ({exc})"
+        return sr
+
+    if rc == 0:
+        sr.detail = "regenerated dashboard-data.js"
+    else:
+        sr.detail = f"aggregator exited rc={rc} (sidecar may be stale)"
+    return sr
 
 
 # ---------------------------------------------------------------------------
