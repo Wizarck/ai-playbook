@@ -702,6 +702,21 @@ def run(args: argparse.Namespace) -> int:
     # but skip env+drift to avoid false cascades when the yaml is unparseable.
     merged, provenance = merge_servers(base, project, personal)
 
+    # Honour per-consumer MCP enforcement state — disabled IDs are stripped so
+    # env-required + scope-leak + drift checks ignore servers the consumer
+    # explicitly opted out of. Lazy import so a missing helper never breaks
+    # validate; the helper is stdlib-only but stays optional defensively.
+    try:
+        from scripts._enforce_state import disabled_mcps as _disabled_mcps_state
+        _disabled_mcp_ids = _disabled_mcps_state(consumer_root)
+        if _disabled_mcp_ids:
+            for _sid in list(merged):
+                if _sid in _disabled_mcp_ids:
+                    del merged[_sid]
+                    provenance.pop(_sid, None)
+    except Exception:  # noqa: BLE001 — never fail validate on enforce-state issues
+        pass
+
     # Pre-commit auto-skips env-check: PRE_COMMIT=1 is set by pre-commit when
     # running hooks. Required env vars (ATLASSIAN_*, GOOGLE_*, etc.) live in
     # SOPS-encrypted dotenv files and aren't sourced before `git commit`,

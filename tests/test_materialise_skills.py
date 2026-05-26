@@ -372,3 +372,97 @@ def test_subprocess_invocation(tmp_path: Path) -> None:
     )
     for rel in ms.MIRROR_RELS:
         assert (consumer / rel / "hello-world" / "SKILL.md").is_file()
+
+
+# ---------------------------------------------------------------------------
+# Per-skill enforcement (skills-enforce/v1 state file)
+# ---------------------------------------------------------------------------
+
+
+def _write_skills_enforce(consumer: Path, disabled: list[str]) -> None:
+    """Write a consumer-side skills-enforce state file."""
+    import json
+    state_dir = consumer / ".ai-playbook-state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "skills-enforce.json").write_text(
+        json.dumps({"schema": "skills-enforce/v1", "disabled": disabled}),
+        encoding="utf-8",
+    )
+
+
+def test_enforce_disables_named_skills_from_mirrors(tmp_path: Path) -> None:
+    """A skill listed in skills-enforce.disabled MUST NOT appear in any mirror."""
+    consumer = _build_consumer(tmp_path, skills={
+        "hello-world": {},
+        "ping": {},
+        "skipme": {},
+    })
+    _write_skills_enforce(consumer, disabled=["skipme"])
+
+    result = ms.materialise_skills(consumer, quiet=True)
+    assert result.ok
+    assert result.skills_total == 2  # counts enforced only
+    for rel in ms.MIRROR_RELS:
+        assert (consumer / rel / "hello-world" / "SKILL.md").is_file()
+        assert (consumer / rel / "ping" / "SKILL.md").is_file()
+        assert not (consumer / rel / "skipme").exists()
+
+
+def test_enforce_idempotency_with_same_disabled_set(tmp_path: Path) -> None:
+    """Re-running with the same disabled set MUST be a no-op (zero rewrites)."""
+    consumer = _build_consumer(tmp_path, skills={
+        "alpha": {}, "beta": {}, "gamma": {},
+    })
+    _write_skills_enforce(consumer, disabled=["beta"])
+
+    first = ms.materialise_skills(consumer, quiet=True)
+    assert first.mirrors_rewritten == 3
+
+    second = ms.materialise_skills(consumer, quiet=True)
+    assert second.ok
+    assert second.mirrors_rewritten == 0
+    assert second.mirrors_in_sync == 3
+
+
+def test_enforce_empty_disabled_list_keeps_all_skills(tmp_path: Path) -> None:
+    """Explicit empty disabled list is equivalent to no state file at all."""
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}, "beta": {}})
+    _write_skills_enforce(consumer, disabled=[])
+
+    result = ms.materialise_skills(consumer, quiet=True)
+    assert result.ok
+    assert result.skills_total == 2
+    for rel in ms.MIRROR_RELS:
+        assert (consumer / rel / "alpha" / "SKILL.md").is_file()
+        assert (consumer / rel / "beta" / "SKILL.md").is_file()
+
+
+def test_enforce_removes_previously_materialised_skill_on_disable(tmp_path: Path) -> None:
+    """When a skill becomes newly-disabled, the next run must drop it."""
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}, "beta": {}})
+
+    # First run — both skills enforced (no state file).
+    result1 = ms.materialise_skills(consumer, quiet=True)
+    assert result1.ok
+    for rel in ms.MIRROR_RELS:
+        assert (consumer / rel / "beta" / "SKILL.md").is_file()
+
+    # Now disable `beta` and re-run.
+    _write_skills_enforce(consumer, disabled=["beta"])
+    result2 = ms.materialise_skills(consumer, quiet=True)
+    assert result2.ok
+    assert result2.mirrors_rewritten == 3
+    for rel in ms.MIRROR_RELS:
+        assert (consumer / rel / "alpha" / "SKILL.md").is_file()
+        assert not (consumer / rel / "beta").exists()
+
+
+def test_enforce_unknown_slug_in_disabled_is_tolerated(tmp_path: Path) -> None:
+    """Disabled slugs that don't match any real skill don't break the run."""
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}})
+    _write_skills_enforce(consumer, disabled=["nonexistent-slug-zzz"])
+
+    result = ms.materialise_skills(consumer, quiet=True)
+    assert result.ok
+    for rel in ms.MIRROR_RELS:
+        assert (consumer / rel / "alpha" / "SKILL.md").is_file()

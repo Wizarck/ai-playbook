@@ -91,6 +91,38 @@
       "type": "object",
       "additionalProperties": { "type": "boolean" },
       "description": "Binary env-driven toggles without their own state file. Keys come from tools/config-ui/global-flags-inventory.json. apply_config projects these into <consumer>/.ai-playbook/feature-flags.env via the inventory's env_var/value_on/value_off mapping. Consumer must source the file in their shell init (direnv .envrc, bashrc, etc.) for the flags to take effect."
+    },
+    "skills_enforce": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-skill enforcement choices. Negative-list (opt-out) shape: only `disabled` is persisted in the bundle. apply_config projects this section into <consumer>/.ai-playbook-state/skills-enforce.json (schema: skills-enforce/v1), and scripts/materialise_skills.py honours it on next materialise pass. Omitted ⇒ all skills enforced (default).",
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,80}$"
+          },
+          "description": "Skill slugs (directory names under skills/) that MUST NOT be materialised on this consumer."
+        }
+      }
+    },
+    "mcps_enforce": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-MCP-server enforcement choices. Negative-list (opt-out): only `disabled` is persisted. apply_config projects this section into <consumer>/.ai-playbook-state/mcps-enforce.json (schema: mcps-enforce/v1), and scripts/mcp/render.py + scripts/mcp/validate.py honour it on the next render/validate pass. Omitted ⇒ all servers enforced (default).",
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,60}$"
+          },
+          "description": "MCP server canonical IDs (the `id:` field in mcp-servers*.yaml) that MUST NOT be rendered into `.mcp.json` or `.gemini/settings.json` for this consumer."
+        }
+      }
     }
   }
 }

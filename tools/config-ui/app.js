@@ -11,11 +11,13 @@
   "use strict";
 
   // ------- State -------
-  let inv = { rules: [], features: {}, globalFlags: [] };
+  let inv = { rules: [], features: {}, globalFlags: [], skills: [], mcps: [] };
   let defaults = null;       // the full defaults bundle
   let state = null;          // current working state (cloned from defaults at init)
   let activeTab = "rules";
   let rulesFilter = { search: "", modified: false, hasAdvanced: false, hasBreakGlass: false };
+  let skillsFilter = { search: "", onlyDisabled: false };
+  let mcpsFilter = { search: "", onlyDisabled: false };
   let expandedSlugs = new Set();
 
   const $ = (sel) => document.querySelector(sel);
@@ -24,15 +26,19 @@
   // ------- Init -------
   async function init() {
     try {
-      const [rulesInv, featuresInv, globalFlagsInv, defaultsJson] = await Promise.all([
+      const [rulesInv, featuresInv, globalFlagsInv, skillsInv, mcpsInv, defaultsJson] = await Promise.all([
         fetch("rules-inventory.json").then(r => r.json()),
         fetch("features-inventory.json").then(r => r.json()),
         fetch("global-flags-inventory.json").then(r => r.json()),
+        fetch("skills-inventory.json").then(r => r.json()).catch(() => ({ skills: [] })),
+        fetch("mcps-inventory.json").then(r => r.json()).catch(() => ({ servers: [] })),
         fetch("defaults.json").then(r => r.json()),
       ]);
       inv.rules = rulesInv.rules || [];
       inv.features = featuresInv.features || {};
       inv.globalFlags = globalFlagsInv.flags || [];
+      inv.skills = skillsInv.skills || [];
+      inv.mcps = mcpsInv.servers || [];
       defaults = defaultsJson;
       // Initial state precedence:
       //   1) window.APPLIED_CONFIG injected by ../../applied-config.js (the
@@ -43,6 +49,9 @@
       // The two are merged: defaults provides the structural skeleton, and
       // APPLIED_CONFIG overlays any sparse modifications.
       const baseline = deepClone(defaults);
+      // Seed enforce-state containers in case defaults.json doesn't carry them.
+      baseline.skills_enforce = baseline.skills_enforce || { disabled: [] };
+      baseline.mcps_enforce = baseline.mcps_enforce || { disabled: [] };
       const appliedConfig = (typeof window !== "undefined" ? window.APPLIED_CONFIG : null);
       if (appliedConfig && appliedConfig.schema === "ai-playbook-config/v1") {
         if (appliedConfig.rules) baseline.rules = deepClone(appliedConfig.rules);
@@ -53,6 +62,12 @@
           });
         }
         if (appliedConfig.global_flags) baseline.global_flags = deepClone(appliedConfig.global_flags);
+        if (appliedConfig.skills_enforce && Array.isArray(appliedConfig.skills_enforce.disabled)) {
+          baseline.skills_enforce = { disabled: [...appliedConfig.skills_enforce.disabled] };
+        }
+        if (appliedConfig.mcps_enforce && Array.isArray(appliedConfig.mcps_enforce.disabled)) {
+          baseline.mcps_enforce = { disabled: [...appliedConfig.mcps_enforce.disabled] };
+        }
         banner("success", `Loaded applied state from ${appliedConfig.generated_at || "previous apply"} (generated_by: ${appliedConfig.generated_by || "unknown"}).`);
       } else if (window.APPLIED_CONFIG_MISSING) {
         // Sidecar absent → first-time use. No banner; defaults are fine.
@@ -82,6 +97,35 @@
     $("#filter-modified").addEventListener("change", (e) => { rulesFilter.modified = e.target.checked; renderRules(); });
     $("#filter-has-advanced").addEventListener("change", (e) => { rulesFilter.hasAdvanced = e.target.checked; renderRules(); });
     $("#filter-break-glass").addEventListener("change", (e) => { rulesFilter.hasBreakGlass = e.target.checked; renderRules(); });
+
+    // Skills tab
+    const skillsSearch = $("#skills-search");
+    if (skillsSearch) skillsSearch.addEventListener("input", (e) => { skillsFilter.search = e.target.value.toLowerCase(); renderSkillsEnforce(); });
+    const skillsFD = $("#skills-filter-disabled");
+    if (skillsFD) skillsFD.addEventListener("change", (e) => { skillsFilter.onlyDisabled = e.target.checked; renderSkillsEnforce(); });
+    const skillsEnAll = $("#skills-enable-all");
+    if (skillsEnAll) skillsEnAll.addEventListener("click", () => { state.skills_enforce.disabled = []; renderSkillsEnforce(); updateCounters(); });
+    const skillsDisAll = $("#skills-disable-all");
+    if (skillsDisAll) skillsDisAll.addEventListener("click", () => {
+      state.skills_enforce.disabled = inv.skills.map(s => s.slug);
+      renderSkillsEnforce();
+      updateCounters();
+    });
+
+    // MCPs tab
+    const mcpsSearch = $("#mcps-search");
+    if (mcpsSearch) mcpsSearch.addEventListener("input", (e) => { mcpsFilter.search = e.target.value.toLowerCase(); renderMcpsEnforce(); });
+    const mcpsFD = $("#mcps-filter-disabled");
+    if (mcpsFD) mcpsFD.addEventListener("change", (e) => { mcpsFilter.onlyDisabled = e.target.checked; renderMcpsEnforce(); });
+    const mcpsEnAll = $("#mcps-enable-all");
+    if (mcpsEnAll) mcpsEnAll.addEventListener("click", () => { state.mcps_enforce.disabled = []; renderMcpsEnforce(); updateCounters(); });
+    const mcpsDisAll = $("#mcps-disable-all");
+    if (mcpsDisAll) mcpsDisAll.addEventListener("click", () => {
+      state.mcps_enforce.disabled = inv.mcps.map(m => m.id);
+      renderMcpsEnforce();
+      updateCounters();
+    });
+
     wireNextSteps();
   }
 
@@ -141,6 +185,117 @@
     renderRules();
     renderFeatures();
     renderGlobalFlags();
+    renderSkillsEnforce();
+    renderMcpsEnforce();
+  }
+
+  function toggleSkillEnforced(slug, enforced) {
+    const set = new Set(state.skills_enforce.disabled || []);
+    if (enforced) set.delete(slug); else set.add(slug);
+    state.skills_enforce.disabled = [...set].sort();
+    updateCounters();
+  }
+
+  function renderSkillsEnforce() {
+    const list = $("#skills-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const disabledSet = new Set(state.skills_enforce.disabled || []);
+
+    const filtered = inv.skills.filter(s => {
+      const isDisabled = disabledSet.has(s.slug);
+      if (skillsFilter.onlyDisabled && !isDisabled) return false;
+      if (skillsFilter.search) {
+        const hay = (s.slug + " " + (s.description || "")).toLowerCase();
+        if (!hay.includes(skillsFilter.search)) return false;
+      }
+      return true;
+    });
+
+    filtered.forEach(s => {
+      const isDisabled = disabledSet.has(s.slug);
+      const li = document.createElement("li");
+      li.className = "enforce-row" + (isDisabled ? " disabled" : "");
+      li.innerHTML = `
+        <label class="enforce-cell">
+          <input type="checkbox" data-enforce-skill="${escapeHtml(s.slug)}" ${isDisabled ? "" : "checked"} />
+          <span class="enforce-name">${escapeHtml(s.slug)}</span>
+        </label>
+        <div class="enforce-desc">${escapeHtml(s.description || "")}</div>
+      `;
+      const cb = li.querySelector(`[data-enforce-skill="${cssEscape(s.slug)}"]`);
+      if (cb) cb.addEventListener("change", (e) => {
+        toggleSkillEnforced(s.slug, e.target.checked);
+        li.classList.toggle("disabled", !e.target.checked);
+        if (skillsFilter.onlyDisabled && e.target.checked) li.remove();
+      });
+      list.appendChild(li);
+    });
+
+    const summary = $("#skills-summary");
+    if (summary) {
+      summary.textContent = `${inv.skills.length - disabledSet.size}/${inv.skills.length} enforced (${disabledSet.size} disabled)`;
+    }
+  }
+
+  function toggleMcpEnforced(id, enforced) {
+    const set = new Set(state.mcps_enforce.disabled || []);
+    if (enforced) set.delete(id); else set.add(id);
+    state.mcps_enforce.disabled = [...set].sort();
+    updateCounters();
+  }
+
+  function renderMcpsEnforce() {
+    const list = $("#mcps-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const disabledSet = new Set(state.mcps_enforce.disabled || []);
+
+    const filtered = inv.mcps.filter(m => {
+      const isDisabled = disabledSet.has(m.id);
+      if (mcpsFilter.onlyDisabled && !isDisabled) return false;
+      if (mcpsFilter.search) {
+        const hay = [m.id, m.description, m.layer, m.transport, m.scope].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(mcpsFilter.search)) return false;
+      }
+      return true;
+    });
+
+    filtered.forEach(m => {
+      const isDisabled = disabledSet.has(m.id);
+      const li = document.createElement("li");
+      li.className = "enforce-row" + (isDisabled ? " disabled" : "");
+      const badges = [
+        m.layer ? `<span class="badge layer">${escapeHtml(m.layer)}</span>` : "",
+        m.transport ? `<span class="badge">${escapeHtml(m.transport)}</span>` : "",
+        m.scope ? `<span class="badge">${escapeHtml(m.scope)}</span>` : "",
+      ].filter(Boolean).join(" ");
+      li.innerHTML = `
+        <label class="enforce-cell">
+          <input type="checkbox" data-enforce-mcp="${escapeHtml(m.id)}" ${isDisabled ? "" : "checked"} />
+          <span class="enforce-name">${escapeHtml(m.id)}</span>
+          <span class="enforce-badges">${badges}</span>
+        </label>
+        <div class="enforce-desc">${escapeHtml(m.description || "")}</div>
+      `;
+      const cb = li.querySelector(`[data-enforce-mcp="${cssEscape(m.id)}"]`);
+      if (cb) cb.addEventListener("change", (e) => {
+        toggleMcpEnforced(m.id, e.target.checked);
+        li.classList.toggle("disabled", !e.target.checked);
+        if (mcpsFilter.onlyDisabled && e.target.checked) li.remove();
+      });
+      list.appendChild(li);
+    });
+
+    const summary = $("#mcps-summary");
+    if (summary) {
+      summary.textContent = `${inv.mcps.length - disabledSet.size}/${inv.mcps.length} enforced (${disabledSet.size} disabled)`;
+    }
+  }
+
+  function cssEscape(s) {
+    if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/[^a-zA-Z0-9_-]/g, c => "\\" + c);
   }
 
   function renderRules() {
@@ -448,6 +603,14 @@
     $("#tab-count-features").textContent = `${featuresModified}/${Object.keys(inv.features).length}`;
     const flagsModified = Object.values(state.global_flags || {}).filter(v => v === true).length;
     $("#tab-count-global").textContent = `${flagsModified}/${inv.globalFlags.length}`;
+
+    const skillsDisabled = (state.skills_enforce && state.skills_enforce.disabled) ? state.skills_enforce.disabled.length : 0;
+    const tabSkills = $("#tab-count-skills");
+    if (tabSkills) tabSkills.textContent = `${inv.skills.length - skillsDisabled}/${inv.skills.length}`;
+
+    const mcpsDisabled = (state.mcps_enforce && state.mcps_enforce.disabled) ? state.mcps_enforce.disabled.length : 0;
+    const tabMcps = $("#tab-count-mcps");
+    if (tabMcps) tabMcps.textContent = `${inv.mcps.length - mcpsDisabled}/${inv.mcps.length}`;
   }
 
   // ------- Export / Import / Reset -------
@@ -483,6 +646,15 @@
     }
     if (state.global_flags && Object.keys(state.global_flags).length > 0) {
       bundle.global_flags = deepClone(state.global_flags);
+    }
+    // Sparse: only emit `skills_enforce` / `mcps_enforce` if at least one
+    // entry is disabled. apply_config writes the state file in either case,
+    // but omitting them when empty keeps the exported bundle minimal.
+    if (state.skills_enforce && Array.isArray(state.skills_enforce.disabled) && state.skills_enforce.disabled.length > 0) {
+      bundle.skills_enforce = { disabled: [...state.skills_enforce.disabled].sort() };
+    }
+    if (state.mcps_enforce && Array.isArray(state.mcps_enforce.disabled) && state.mcps_enforce.disabled.length > 0) {
+      bundle.mcps_enforce = { disabled: [...state.mcps_enforce.disabled].sort() };
     }
     return bundle;
   }
@@ -670,12 +842,20 @@
         }
         // Merge into current state.
         state = deepClone(defaults);
+        state.skills_enforce = state.skills_enforce || { disabled: [] };
+        state.mcps_enforce = state.mcps_enforce || { disabled: [] };
         if (data.rules) state.rules = deepClone(data.rules);
         if (data.features) {
           state.features = state.features || {};
           Object.entries(data.features).forEach(([k, f]) => { state.features[k] = deepClone(f); });
         }
         if (data.global_flags) state.global_flags = deepClone(data.global_flags);
+        if (data.skills_enforce && Array.isArray(data.skills_enforce.disabled)) {
+          state.skills_enforce = { disabled: [...data.skills_enforce.disabled] };
+        }
+        if (data.mcps_enforce && Array.isArray(data.mcps_enforce.disabled)) {
+          state.mcps_enforce = { disabled: [...data.mcps_enforce.disabled] };
+        }
         renderAll();
         updateCounters();
         banner("success", `Imported ${file.name}. Review the tabs, then click Export to round-trip.`);
@@ -689,6 +869,8 @@
   function onReset() {
     if (!confirm("Reset all toggles to defaults? Unsaved changes will be lost.")) return;
     state = deepClone(defaults);
+    state.skills_enforce = { disabled: [] };
+    state.mcps_enforce = { disabled: [] };
     expandedSlugs.clear();
     renderAll();
     updateCounters();

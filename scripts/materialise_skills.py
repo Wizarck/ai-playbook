@@ -53,6 +53,8 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+from scripts._enforce_state import disabled_skills as _disabled_skills_state  # noqa: E402
+
 
 SCRIPT_BASENAME = "materialise_skills.py"
 SOURCE_REL = Path(".ai-playbook") / "skills"
@@ -99,18 +101,28 @@ def _emit_error(*, why: str, where: str, fix: str, override: str | None = None) 
 # ---------------------------------------------------------------------------
 
 
-def _dir_fingerprint(root: Path) -> str:
+def _dir_fingerprint(root: Path, *, exclude_top_dirs: frozenset[str] | set[str] | None = None) -> str:
     """Stable sha256 over (relative-path, file-bytes) pairs of a tree.
 
     Returns empty string for missing / non-directory roots. Sort order is
     forward-slash relative path, ensuring cross-platform stability.
+
+    If ``exclude_top_dirs`` is provided, files whose path starts with one of
+    those top-level directory names are skipped from the digest — used to
+    derive an "enforcement-aware" source fingerprint that matches what the
+    target will look like after disabled-skill filtering.
     """
     if not root.is_dir():
         return ""
+    excludes = exclude_top_dirs or frozenset()
     h = hashlib.sha256()
     for p in sorted(root.rglob("*"), key=lambda x: x.as_posix()):
         if p.is_file():
             rel = p.relative_to(root).as_posix()
+            if excludes:
+                top = rel.split("/", 1)[0]
+                if top in excludes:
+                    continue
             h.update(rel.encode("utf-8"))
             h.update(b"\0")
             h.update(p.read_bytes())
@@ -118,15 +130,45 @@ def _dir_fingerprint(root: Path) -> str:
     return h.hexdigest()
 
 
-def _count_skill_dirs(root: Path) -> int:
-    """Number of immediate children of root that contain a SKILL.md file."""
+def _count_skill_dirs(root: Path, *, exclude: frozenset[str] | set[str] | None = None) -> int:
+    """Number of immediate children of root that contain a SKILL.md file.
+
+    Optionally exclude top-level slugs (used to report the *enforced* skill
+    count after filtering out disabled entries).
+    """
     if not root.is_dir():
         return 0
+    excludes = exclude or frozenset()
     return sum(
         1
         for child in root.iterdir()
-        if child.is_dir() and (child / "SKILL.md").is_file()
+        if child.is_dir()
+        and child.name not in excludes
+        and (child / "SKILL.md").is_file()
     )
+
+
+def _make_ignore_filter(source: Path, disabled: set[str]):
+    """Return a ``shutil.copytree`` ``ignore=`` callable that skips disabled
+    skill directories at the SOURCE TOP LEVEL only.
+
+    Skipping only at the top level avoids accidentally excluding nested
+    files that happen to share a name with a disabled slug.
+    """
+    source_resolved = source.resolve()
+
+    def _ignore(dirpath: str, names: list[str]) -> list[str]:
+        if not disabled:
+            return []
+        try:
+            current = Path(dirpath).resolve()
+        except OSError:
+            return []
+        if current == source_resolved:
+            return [n for n in names if n in disabled]
+        return []
+
+    return _ignore
 
 
 # ---------------------------------------------------------------------------
@@ -140,23 +182,31 @@ def _sync_one(
     *,
     dry_run: bool,
     quiet: bool,
+    disabled: set[str] | None = None,
 ) -> tuple[bool, str | None]:
     """Sync source -> target. Returns (rewritten, error).
 
     rewritten=True when filesystem was mutated; False when fingerprint matched.
     error is None on success, a string on failure (caller appends to result).
+
+    If ``disabled`` is provided (non-empty), the listed top-level skill
+    directories are filtered out of the materialised target. The source
+    fingerprint is computed with the same exclusions so a no-op stays a
+    no-op when only the disabled set changes-and-changes-back.
     """
-    src_fp = _dir_fingerprint(source)
+    disabled = disabled or set()
+    src_fp = _dir_fingerprint(source, exclude_top_dirs=disabled)
     tgt_fp = _dir_fingerprint(target)
+    enforced_count = _count_skill_dirs(source, exclude=disabled)
     if src_fp and src_fp == tgt_fp:
         if not quiet:
-            print(f"  · {target}: in sync ({_count_skill_dirs(source)} skills)")
+            print(f"  · {target}: in sync ({enforced_count} skills)")
         return False, None
 
     if dry_run:
         action = "would rewrite" if tgt_fp else "would create"
         if not quiet:
-            print(f"  (dry-run) {target}: {action} ({_count_skill_dirs(source)} skills)")
+            print(f"  (dry-run) {target}: {action} ({enforced_count} skills)")
         return True, None
 
     try:
@@ -164,7 +214,10 @@ def _sync_one(
         if target.exists():
             # rmtree -> orphan removal; copytree -> fresh state.
             shutil.rmtree(target)
-        shutil.copytree(source, target)
+        if disabled:
+            shutil.copytree(source, target, ignore=_make_ignore_filter(source, disabled))
+        else:
+            shutil.copytree(source, target)
     except OSError as exc:
         return True, f"{target}: {exc}"
 
@@ -219,7 +272,8 @@ def materialise_skills(
         result.errors.append(f"source missing: {source}")
         return result
 
-    skills_total = _count_skill_dirs(source)
+    disabled = _disabled_skills_state(consumer_dir)
+    skills_total = _count_skill_dirs(source, exclude=disabled)
     result.skills_total = skills_total
 
     if not quiet:
@@ -229,15 +283,18 @@ def materialise_skills(
             else str(source)
         )
         action = "Would sync" if dry_run else "Syncing"
+        suffix = ""
+        if disabled:
+            suffix = f" ({len(disabled)} skill(s) disabled via .ai-playbook-state/skills-enforce.json)"
         print(
             f"{action} skills from {rel_source}/ "
-            f"({skills_total} skills) to {len(MIRROR_RELS)} mirror(s)"
+            f"({skills_total} skills) to {len(MIRROR_RELS)} mirror(s){suffix}"
         )
 
     for mirror_rel in MIRROR_RELS:
         target = consumer_dir / mirror_rel
         rewritten, err = _sync_one(
-            source, target, dry_run=dry_run, quiet=quiet,
+            source, target, dry_run=dry_run, quiet=quiet, disabled=disabled,
         )
         if err is not None:
             result.errors.append(err)

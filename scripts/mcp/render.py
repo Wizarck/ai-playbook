@@ -51,6 +51,7 @@ from scripts.mcp.validate import (  # noqa: E402
     resolve_personal_file,
     resolve_playbook_root,
 )
+from scripts._enforce_state import disabled_mcps as _disabled_mcps_state  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -298,6 +299,16 @@ def run(args: argparse.Namespace) -> int:
     # Personal layer is only applied if its file is present on this machine.
     # merge_servers already tolerates an absent (present=False) personal layer.
     merged, provenance = merge_servers(base, project, personal)
+
+    # Honour per-consumer MCP enforcement state — disabled IDs are stripped from
+    # the merged map BEFORE the scope:personal leak check so a disabled entry
+    # never blocks the render via an unrelated layer-mismatch error.
+    disabled_mcp_ids = _disabled_mcps_state(consumer_root)
+    if disabled_mcp_ids:
+        for sid in list(merged):
+            if sid in disabled_mcp_ids:
+                del merged[sid]
+                provenance.pop(sid, None)
 
     # Refuse to render if any server still carries `scope: personal` after merge
     # AND the personal layer was not loaded — means a base/project entry leaked.
