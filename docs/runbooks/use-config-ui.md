@@ -221,9 +221,49 @@ python -m scripts.caveman off                                # disables caveman
 | Env vars don't appear in shell | `feature-flags.env` not sourced. | Add the `set -a; source ...` line to your shell init (see step 5). |
 | `git status` shows `.ai-playbook/rules-toggle.json` as untracked | Bootstrap didn't patch `.gitignore` (or you predate the bootstrap version that did). | Add the three lines (toggle, audit, feature-flags.env) under `# ai-playbook integration` in the consumer's `.gitignore`. |
 
+## Dashboard tab
+
+The **Dashboard** tab is a per-consumer-repo telemetry surface inside this same HTML UI. It reads a pre-computed sidecar (`<consumer>/.ai-playbook/dashboard-data.js`) produced by `scripts/telemetry/build_dashboard_data.py` and renders hero + five panels. Same `file://` double-click entry as the rest of the UI; same SRI-pinned `<script>` tag for Chart.js; no install, no build, no server.
+
+### Panels
+
+- **Hero — Incidents prevented (7d).** Count of rule-event/v2 events with `verdict="block"` and no break-glass override. Warnings excluded. Sub-count below: **Prompt-injection blocks (OWASP LLM01)** — events where `escape_hatch` is set or `bash_pattern_kind` is set.
+- **Secondary stats.** Obey-rate %, Caveman cost saved $ (with pricing-version timestamp), health emoji (🟢 ≥95%, 🟡 ≥85%, 🔴 <85%).
+- **Obey-rate trend.** Per-day sparkline across the window.
+- **Rule × LLM agreement matrix.** Per-rule obey-rate per LLM (Claude, Gemini, Cursor). Cells highlight drift in two senses: cross-LLM disagreement above threshold or per-LLM time-over-time delta above threshold.
+- **Honesty meter.** Per-LLM agreement between the LLM's own `self_check` claim and the hook's `verdict`. Distinctive metric — SaaS observability tools cannot compute it because they do not run hooks.
+- **Top friction rules.** Rules with the most break-glass overrides in the window, with top override reasons.
+- **Caveman impact.** Activation rate, mode, components on/off, tokens delta, cost saved. Renders an explainer instead of charts when caveman is off or missing.
+
+### Refresh
+
+- **Automatic (default).** Every `python -m scripts.apply_config <bundle>` run regenerates the sidecar via a post-hook. The dashboard is at least as fresh as the last config change.
+- **Manual.** The **Refresh** button on the Dashboard tab copies the aggregator command to the clipboard:
+
+  ```text
+  python -m scripts.telemetry.build_dashboard_data
+  ```
+
+  Run it from the consumer root, then reload the tab. Browsers cannot shell out from `file://`; the button copies-not-runs by design.
+
+- **Opt-in cron.** Add the command to your operating system's scheduler if you want unattended refresh. Disabled by default.
+
+### Empty state
+
+First 100 events in this consumer show the pedagogical empty state instead of panels. The threshold is shipped in the sidecar (`empty_state_threshold`), tunable per consumer if needed.
+
+### Privacy
+
+The dashboard reads only the existing rule-event/v2 fields. Target paths render only in glob form (e.g., `*.env`); individual file paths never appear. Raw Bash commands are not in the source data at all. Session IDs in any per-developer breakdown are sha256-hashed. See [telemetry-design.md](../concepts/telemetry-design.md) for the full privacy contract.
+
+### When charts don't appear
+
+Chart.js loads from a SRI-pinned CDN (`cdn.jsdelivr.net`). If the CDN is unreachable, the integrity check fails, or your network blocks it (air-gapped, corporate proxy), the tab shows a `chart library failed to load` banner and renders the numeric values without charts. A native-SVG fallback rendering path is documented and ships in a later release.
+
 ## See also
 
 - [ai-playbook-config.md](../concepts/ai-playbook-config.md) — concept doc with the architecture diagrams.
 - [enforcement-layers.md](../concepts/enforcement-layers.md) — what L1 / L2 / L3 mean.
 - [caveman-toggle.md](caveman-toggle.md) — caveman-specific operator runbook.
 - [upgrade-to-bash-enforcement.md](upgrade-to-bash-enforcement.md) — v0.20.0 migration notes.
+- [telemetry-dashboard.md](../concepts/telemetry-dashboard.md) — full Dashboard tab concept doc.

@@ -130,6 +130,10 @@
       p.classList.toggle("active", id === name);
     });
     if (name === "preview") renderPreview();
+    if (name === "dashboard" && typeof window.DashboardRender === "object" && window.DashboardRender !== null) {
+      try { window.DashboardRender.mount("#dashboard-root"); }
+      catch (err) { console.error("dashboard mount failed:", err); }
+    }
   }
 
   // ------- Render -------
