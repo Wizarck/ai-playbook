@@ -341,3 +341,98 @@ def test_applied_bundle_section_in_report(tmp_path: Path) -> None:
     # Even with empty bundle, the sidecar is written so the UI can render it.
     assert (target / ".ai-playbook" / "applied-config.json").is_file()
     assert (target / ".ai-playbook" / "applied-config.js").is_file()
+
+
+# ---------------------------------------------------------------------------
+# skills_enforce + mcps_enforce sections
+# ---------------------------------------------------------------------------
+
+
+def test_apply_skills_enforce_writes_state_file(tmp_path: Path) -> None:
+    target = _fake_project(tmp_path)
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "skills_enforce": {"disabled": ["bmad-tea", "bmad-create-prd"]},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        report = apply_config.apply(bp, target=target)
+    assert report.ok
+    state_path = target / ".ai-playbook-state" / "skills-enforce.json"
+    assert state_path.is_file()
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == "skills-enforce/v1"
+    # Persisted sorted + deduped.
+    assert payload["disabled"] == ["bmad-create-prd", "bmad-tea"]
+    assert "applied_at" in payload
+
+
+def test_apply_mcps_enforce_writes_state_file(tmp_path: Path) -> None:
+    target = _fake_project(tmp_path)
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "mcps_enforce": {"disabled": ["guardrails-mcp"]},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        report = apply_config.apply(bp, target=target)
+    assert report.ok
+    state_path = target / ".ai-playbook-state" / "mcps-enforce.json"
+    assert state_path.is_file()
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == "mcps-enforce/v1"
+    assert payload["disabled"] == ["guardrails-mcp"]
+
+
+def test_apply_skills_enforce_empty_disabled_writes_explicit_state(tmp_path: Path) -> None:
+    """Empty `disabled` array still persists state file (explicit no-op intent)."""
+    target = _fake_project(tmp_path)
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "skills_enforce": {"disabled": []},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        report = apply_config.apply(bp, target=target)
+    assert report.ok
+    state_path = target / ".ai-playbook-state" / "skills-enforce.json"
+    assert state_path.is_file()
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    assert payload["disabled"] == []
+
+
+def test_apply_no_enforce_section_leaves_state_files_untouched(tmp_path: Path) -> None:
+    """Bundle without `skills_enforce`/`mcps_enforce` → no state files written."""
+    target = _fake_project(tmp_path)
+    bundle = {"schema": "ai-playbook-config/v1"}
+    bp = _write_bundle(tmp_path, bundle)
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        report = apply_config.apply(bp, target=target)
+    assert report.ok
+    assert not (target / ".ai-playbook-state" / "skills-enforce.json").exists()
+    assert not (target / ".ai-playbook-state" / "mcps-enforce.json").exists()
+
+
+def test_apply_enforce_sections_appear_in_report(tmp_path: Path) -> None:
+    target = _fake_project(tmp_path)
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "skills_enforce": {"disabled": ["bmad-tea"]},
+        "mcps_enforce": {"disabled": ["rag"]},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        report = apply_config.apply(bp, target=target)
+    section_names = [s.name for s in report.sections]
+    assert "skills_enforce" in section_names
+    assert "mcps_enforce" in section_names

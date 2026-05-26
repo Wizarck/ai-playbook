@@ -63,8 +63,10 @@ except ImportError:
     raise SystemExit(2) from None
 
 from scripts import rules_toggle  # noqa: E402
+from scripts import _enforce_state  # noqa: E402
 
 STATE_DIR_NAME = ".ai-playbook"
+ENFORCE_STATE_DIR_NAME = _enforce_state.STATE_DIR_NAME
 FEATURE_FLAGS_FILENAME = "feature-flags.env"
 AUDIT_FILENAME = rules_toggle.AUDIT_FILENAME
 APPLIED_BUNDLE_FILENAME = "applied-config.json"
@@ -388,6 +390,107 @@ def _write_env_block(target: Path, env_entries: dict[str, str]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _apply_enforce_section(
+    *,
+    target: Path,
+    bundle_section: dict[str, Any] | None,
+    state_path: Path,
+    schema_literal: str,
+    section_label: str,
+) -> SectionResult:
+    """Project a `*_enforce` bundle section to its state file under
+    `.ai-playbook-state/`.
+
+    Negative-list contract: only the ``disabled`` array is persisted plus the
+    schema literal + an ``applied_at`` timestamp. Empty ``disabled`` array is
+    a legitimate explicit "everything enforced" intent — still written to disk
+    so downstream readers see a deterministic file rather than a missing one.
+
+    No-op when ``bundle_section`` is ``None`` (the bundle did not include the
+    section at all). The existing state file is left untouched.
+    """
+    sr = SectionResult(name=section_label, ok=True)
+    if bundle_section is None:
+        sr.detail = f"no {section_label} intent in bundle — state file untouched"
+        return sr
+
+    disabled = bundle_section.get("disabled")
+    if disabled is None:
+        disabled = []
+    if not isinstance(disabled, list):
+        sr.ok = False
+        sr.detail = f"{section_label}.disabled must be a list of slugs"
+        return sr
+
+    payload: dict[str, Any] = {
+        "schema": schema_literal,
+        "disabled": sorted({str(s) for s in disabled if isinstance(s, str)}),
+        "applied_at": datetime.now(UTC).isoformat(),
+    }
+    actor = _actor()
+    if actor:
+        payload["applied_by"] = actor
+
+    try:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        sr.changes.append(
+            f"wrote {state_path} ({len(payload['disabled'])} disabled entr"
+            f"{'y' if len(payload['disabled']) == 1 else 'ies'})"
+        )
+    except OSError as e:
+        sr.ok = False
+        sr.detail = f"failed to write {state_path}: {e}"
+    return sr
+
+
+def apply_skills_enforce(
+    target: Path, bundle: dict[str, Any], *, dry_run: bool = False
+) -> SectionResult:
+    """Section: skills_enforce → <target>/.ai-playbook-state/skills-enforce.json."""
+    section = bundle.get("skills_enforce")
+    if dry_run:
+        sr = SectionResult(name="skills_enforce", ok=True)
+        sr.detail = (
+            f"DRY-RUN would write {len((section or {}).get('disabled') or [])} disabled skill(s) "
+            "to .ai-playbook-state/skills-enforce.json"
+            if section is not None else "DRY-RUN: no skills_enforce in bundle — no-op"
+        )
+        return sr
+    return _apply_enforce_section(
+        target=target,
+        bundle_section=section,
+        state_path=_enforce_state.skills_state_path(target),
+        schema_literal=_enforce_state.SKILLS_SCHEMA,
+        section_label="skills_enforce",
+    )
+
+
+def apply_mcps_enforce(
+    target: Path, bundle: dict[str, Any], *, dry_run: bool = False
+) -> SectionResult:
+    """Section: mcps_enforce → <target>/.ai-playbook-state/mcps-enforce.json."""
+    section = bundle.get("mcps_enforce")
+    if dry_run:
+        sr = SectionResult(name="mcps_enforce", ok=True)
+        sr.detail = (
+            f"DRY-RUN would write {len((section or {}).get('disabled') or [])} disabled MCP(s) "
+            "to .ai-playbook-state/mcps-enforce.json"
+            if section is not None else "DRY-RUN: no mcps_enforce in bundle — no-op"
+        )
+        return sr
+    return _apply_enforce_section(
+        target=target,
+        bundle_section=section,
+        state_path=_enforce_state.mcps_state_path(target),
+        schema_literal=_enforce_state.MCPS_SCHEMA,
+        section_label="mcps_enforce",
+    )
+
+
 def _write_applied_bundle(target: Path, bundle: dict[str, Any]) -> SectionResult:
     """Persist the just-applied bundle as the consumer's 'last applied' state.
 
@@ -466,6 +569,8 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         sr2 = SectionResult(name="global_flags", ok=True)
         sr2.detail = f"DRY-RUN would write {len(bundle.get('global_flags') or {})} global flag entries"
         report.sections.append(sr2)
+        report.sections.append(apply_skills_enforce(target, bundle, dry_run=True))
+        report.sections.append(apply_mcps_enforce(target, bundle, dry_run=True))
         sr3 = SectionResult(name="applied-bundle", ok=True)
         sr3.detail = "DRY-RUN would persist applied-config.json + applied-config.js"
         report.sections.append(sr3)
@@ -507,7 +612,31 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "bundle": bundle_path.as_posix(),
     })
 
-    # Section 4: persist the applied bundle as the new source of truth + UI
+    # Section 4: skills_enforce → .ai-playbook-state/skills-enforce.json
+    se_sr = apply_skills_enforce(target, bundle)
+    report.sections.append(se_sr)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:skills_enforce",
+        "ok": se_sr.ok,
+        "detail": se_sr.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
+    # Section 5: mcps_enforce → .ai-playbook-state/mcps-enforce.json
+    me_sr = apply_mcps_enforce(target, bundle)
+    report.sections.append(me_sr)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:mcps_enforce",
+        "ok": me_sr.ok,
+        "detail": me_sr.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
+    # Section 6: persist the applied bundle as the new source of truth + UI
     # sidecar. Runs LAST so the JS file always reflects the post-apply state
     # (i.e. what the UI should render on next open). Best-effort.
     ab_sr = _write_applied_bundle(target, bundle)

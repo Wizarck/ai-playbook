@@ -573,3 +573,80 @@ main { padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
   padding: 1px 5px;
   border-radius: 3px;
 }
+
+/* ---- Enforce tabs (Skills / MCPs) ----------------------------------- */
+/* Per-skill + per-MCP opt-out toggles. Negative-list contract:
+   checked = enforced (default); unchecked = disabled (lands in bundle). */
+
+.enforce-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.enforce-toolbar .search { flex: 1 1 220px; min-width: 180px; }
+.enforce-toolbar .filter { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+.enforce-toolbar .filter input { margin: 0; }
+.enforce-summary {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.enforce-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.enforce-row {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--bg-elev, var(--bg));
+  display: grid;
+  grid-template-columns: minmax(240px, auto) 1fr;
+  align-items: start;
+  gap: 12px;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+.enforce-row.disabled {
+  opacity: 0.55;
+  background: var(--bg, #1c1c1c);
+}
+.enforce-row .enforce-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+.enforce-row .enforce-cell input { margin: 0; }
+.enforce-row .enforce-name {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.enforce-row .enforce-badges {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.enforce-row .enforce-desc {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  align-self: center;
+}
+
+@media (max-width: 700px) {
+  .enforce-row { grid-template-columns: 1fr; gap: 4px; }
+}

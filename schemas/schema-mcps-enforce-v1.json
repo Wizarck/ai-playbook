@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-mcps-enforce-v1.json",
+  "title": "MCPs enforcement state (v1)",
+  "description": "Per-consumer choice of which MCP servers participate in the 3-layer render. Disabled server IDs are NOT included in the rendered `.mcp.json` or `.gemini/settings.json`, regardless of which layer (base, project, personal) defines them. Negative-list (opt-out): omitted IDs default to enforced. Lives at `<consumer>/.ai-playbook-state/mcps-enforce.json`. Written by `scripts/apply_config.py`, read by `scripts/mcp/render.py` + `scripts/mcp/validate.py`. Unknown IDs are tolerated.",
+  "type": "object",
+  "required": ["schema", "disabled"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "mcps-enforce/v1",
+      "description": "Schema identifier. Const for the v1 lifecycle."
+    },
+    "disabled": {
+      "type": "array",
+      "description": "MCP server canonical IDs (the `id:` field of the YAML entry) that MUST NOT be included in any rendered config. Order is not significant. Empty array = all servers enforced (default).",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,60}$",
+        "description": "MCP server canonical ID matching the `id:` field in `mcp-servers*.yaml`. Lowercase kebab-case."
+      },
+      "uniqueItems": true
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the last apply_config write. Informational."
+    },
+    "applied_by": {
+      "type": "string",
+      "description": "Optional human/CI identifier of the operator who applied the bundle."
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "schema": "mcps-enforce/v1",
+      "disabled": [],
+      "applied_at": "2026-05-26T15:00:00Z"
+    },
+    {
+      "schema": "mcps-enforce/v1",
+      "disabled": ["guardrails-mcp", "trello"],
+      "applied_at": "2026-05-26T15:00:00Z",
+      "applied_by": "config-ui"
+    }
+  ]
+}

@@ -261,3 +261,48 @@ def test_render_then_validate_drift_clean(tmp_path: Path,
         "--personal-file", str(personal) if personal else str(tmp_path / "nope.yaml"),
     ])
     assert rc_validate == 0
+
+
+# ---------------------------------------------------------------------------
+# Per-MCP enforcement (mcps-enforce/v1 state file)
+# ---------------------------------------------------------------------------
+
+
+def _write_mcps_enforce(consumer: Path, disabled: list[str]) -> None:
+    state_dir = consumer / ".ai-playbook-state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "mcps-enforce.json").write_text(
+        json.dumps({"schema": "mcps-enforce/v1", "disabled": disabled}),
+        encoding="utf-8",
+    )
+
+
+def test_render_excludes_disabled_mcp_servers(tmp_path: Path) -> None:
+    """Disabled MCP IDs MUST NOT appear in either rendered output."""
+    playbook, consumer, personal = _stack(tmp_path, project=PROJECT_MIN)
+    _write_mcps_enforce(consumer, disabled=["rag"])
+    rc = _run(playbook, consumer, personal)
+    assert rc == 0
+    claude_doc = json.loads((consumer / ".mcp.json").read_text(encoding="utf-8"))
+    gemini_doc = json.loads((consumer / ".gemini" / "settings.json").read_text(encoding="utf-8"))
+    assert set(claude_doc["mcpServers"].keys()) == {"hindsight"}
+    assert set(gemini_doc["mcpServers"].keys()) == {"hindsight"}
+
+
+def test_render_empty_disabled_list_keeps_all_servers(tmp_path: Path) -> None:
+    playbook, consumer, personal = _stack(tmp_path, project=PROJECT_MIN)
+    _write_mcps_enforce(consumer, disabled=[])
+    rc = _run(playbook, consumer, personal)
+    assert rc == 0
+    claude_doc = json.loads((consumer / ".mcp.json").read_text(encoding="utf-8"))
+    assert set(claude_doc["mcpServers"].keys()) == {"hindsight", "rag"}
+
+
+def test_render_unknown_disabled_id_is_tolerated(tmp_path: Path) -> None:
+    """An ID in disabled[] that doesn't exist in any layer must not break render."""
+    playbook, consumer, personal = _stack(tmp_path, project=PROJECT_MIN)
+    _write_mcps_enforce(consumer, disabled=["ghost-server", "rag"])
+    rc = _run(playbook, consumer, personal)
+    assert rc == 0
+    claude_doc = json.loads((consumer / ".mcp.json").read_text(encoding="utf-8"))
+    assert set(claude_doc["mcpServers"].keys()) == {"hindsight"}

@@ -11,7 +11,7 @@
     <div class="title">
       <span class="logo">⚙</span>
       <h1>ai-playbook config</h1>
-      <span class="subtitle">rules · features · global flags</span>
+      <span class="subtitle">rules · features · global flags · skills · mcps</span>
     </div>
     <div class="actions">
       <button id="btn-import" class="btn">Import…</button>
@@ -71,6 +71,8 @@
     <button class="tab active" data-tab="rules">Rules <span id="tab-count-rules" class="count">…</span></button>
     <button class="tab" data-tab="features">Features <span id="tab-count-features" class="count">…</span></button>
     <button class="tab" data-tab="global">Global flags <span id="tab-count-global" class="count">…</span></button>
+    <button class="tab" data-tab="skills">Skills <span id="tab-count-skills" class="count">…</span></button>
+    <button class="tab" data-tab="mcps">MCPs <span id="tab-count-mcps" class="count">…</span></button>
     <button class="tab" data-tab="preview">Preview JSON</button>
     <button class="tab" data-tab="dashboard">Dashboard</button>
   </nav>
@@ -92,6 +94,28 @@
 
     <section id="panel-global" class="panel" hidden>
       <div id="global-list"></div>
+    </section>
+
+    <section id="panel-skills" class="panel" hidden>
+      <div class="enforce-toolbar">
+        <input id="skills-search" class="search" placeholder="Filter by slug or description…" />
+        <label class="filter"><input type="checkbox" id="skills-filter-disabled" /> Only disabled</label>
+        <button id="skills-enable-all" class="btn small" type="button">Enable all</button>
+        <button id="skills-disable-all" class="btn small ghost" type="button">Disable all</button>
+        <span class="enforce-summary" id="skills-summary">…</span>
+      </div>
+      <ul id="skills-list" class="enforce-list"></ul>
+    </section>
+
+    <section id="panel-mcps" class="panel" hidden>
+      <div class="enforce-toolbar">
+        <input id="mcps-search" class="search" placeholder="Filter by id, layer, transport, description…" />
+        <label class="filter"><input type="checkbox" id="mcps-filter-disabled" /> Only disabled</label>
+        <button id="mcps-enable-all" class="btn small" type="button">Enable all</button>
+        <button id="mcps-disable-all" class="btn small ghost" type="button">Disable all</button>
+        <span class="enforce-summary" id="mcps-summary">…</span>
+      </div>
+      <ul id="mcps-list" class="enforce-list"></ul>
     </section>
 
     <section id="panel-preview" class="panel" hidden>

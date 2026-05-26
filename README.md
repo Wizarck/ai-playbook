@@ -102,7 +102,7 @@ flowchart TB
 | Claude Code | native PreToolUse | AGENTS.md + rule.md | Actions |
 | Cursor | none | `.cursor/rules/*.mdc` (materialised) | Actions |
 | Gemini CLI | none | `gemini_start.py` injection | Actions |
-| Copilot / Codex / Aider / Windsurf / Continue | — | — | out of scope for v0.20.0; community PRs welcome post-1.0 |
+| Copilot / Codex / Aider / Windsurf / Continue | — | — | community PRs welcome |
 
 ## What's in the box
 
@@ -259,7 +259,7 @@ The published site lives at <https://wizarck.github.io/ai-playbook/>.
 
 ## Versioning
 
-Semver on `main`. Consumers pin to a released tag, never `main`. Breaking changes require an RFC and a major bump. **Current version is in [`VERSION`](VERSION)** — every other file in this repo reads it lazily, so a release only ever touches `VERSION` + `CHANGELOG.md` + the git tag. The v0.20.0 milestone is reserved for the final public reference cut on explicit maintainer approval; intermediate versions (v0.19.x) absorb post-review fix iterations.
+Semver on `main`. Consumers pin to a released tag, never `main`. Breaking changes require an RFC and a major bump. **Current version is in [`VERSION`](VERSION)** — every other file in this repo reads it lazily, so a release only ever touches `VERSION` + `CHANGELOG.md` + the git tag.
 
 ## Status
 

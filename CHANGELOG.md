@@ -2,6 +2,36 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [Unreleased]
+
+### Added — per-Skill + per-MCP enforcement toggles in the config UI
+
+- **New schemas** — `schemas/schema-skills-enforce-v1.json` and `schemas/schema-mcps-enforce-v1.json`. Negative-list (opt-out) contract: only DISABLED entries are persisted. State files land at `<consumer>/.ai-playbook-state/{skills,mcps}-enforce.json`. Default = all enforced.
+- **`scripts/_enforce_state.py`** — stdlib-only helper module imported by hot paths (`materialise_skills`, `mcp/render`, `mcp/validate`). Reads disabled sets tolerantly: missing/malformed/wrong-schema all return empty set ⇒ default behaviour (everything enforced) so a corrupted state file never silently strips skills or MCPs.
+- **`scripts/materialise_skills.py`** — `_dir_fingerprint` + `_sync_one` now accept an optional `exclude_top_dirs` / `disabled` set. Disabled skill slugs are excluded from the source fingerprint (idempotency stays correct when the disabled set is stable) AND from the `shutil.copytree(ignore=...)` callable so they never reach `.claude/skills/`, `.gemini/skills/`, or `skills/`. Default-on (empty disabled set) is a byte-identical no-op vs prior behaviour.
+- **`scripts/mcp/render.py` + `scripts/mcp/validate.py`** — both call `_enforce_state.disabled_mcps` after `merge_servers` and strip disabled IDs from the merged map before the scope-leak / env-required / drift checks run. Disabled servers never appear in `.mcp.json` or `.gemini/settings.json`.
+- **`scripts/apply_config.py`** — two new orchestrator sections, `skills_enforce` + `mcps_enforce`. Each writes its state file with the schema literal + sorted-deduped disabled list + `applied_at` timestamp. Empty disabled array still produces a state file (explicit no-op intent); omitting the section leaves any existing state file untouched.
+- **`schemas/schema-ai-playbook-config-v1.json`** — extended the bundle schema with optional `skills_enforce` + `mcps_enforce` sections (each `{disabled: string[]}`). Backwards-compatible — bundles produced by the pre-feature UI still validate.
+- **`scripts/build_enforce_inventories.py`** — new helper that re-scans `skills/` + the MCP YAML layers to (re)generate `tools/config-ui/{skills,mcps}-inventory.json`. Run after adding/removing a skill or an MCP server to keep the UI in sync.
+- **`tools/config-ui/skills-inventory.json`** + **`mcps-inventory.json`** — generated artefacts consumed by the UI. Today: 78 skill entries + 8 MCP server entries (base layer + project-template).
+- **Config UI — two new tabs**:
+  - **Skills**: grid of every shipped skill with a default-checked checkbox (enforced). Toolbar: search by slug/description, "only disabled" filter, "Enable all" / "Disable all" bulk actions, live "X/Y enforced (Z disabled)" summary.
+  - **MCPs**: grid of every MCP server discovered in the base + project-template layers with id, layer-of-origin, transport, and scope badges. Same toolbar shape as Skills.
+- **`tools/config-ui/style.css`** — new `.enforce-toolbar`, `.enforce-list`, `.enforce-row`, `.enforce-cell`, `.enforce-name`, `.enforce-badges`, `.enforce-desc`, `.enforce-summary` styles for the two new tabs. Responsive break at 700 px.
+- **`tools/config-ui/app.js`** — state container gains `skills_enforce: {disabled: []}` + `mcps_enforce: {disabled: []}` containers, hydrated from `window.APPLIED_CONFIG` on load. Export bundle is sparse: only emits the section if `disabled` is non-empty. Import/Reset paths handle the new fields.
+- **`tools/config-ui/index.html`** — two new tabs (`data-tab="skills"` / `data-tab="mcps"`) and matching `<section>` panels. Header subtitle extended to mention the new categories.
+- **Tests** — 31 new tests across `tests/test_enforce_state.py` (10), `tests/test_materialise_skills.py` (+5), `tests/test_mcp_render.py` (+3), and `tests/test_apply_config.py` (+5 — write/read state files, sorted+deduped output, empty-disabled-array intent, no-section-no-file).
+
+### Consumer action
+
+- **None** for existing consumers — default state (no `skills-enforce.json` / `mcps-enforce.json` on disk) is "everything enforced", identical to pre-feature behaviour.
+- To disable specific skills or MCPs: open the config UI (Skills or MCPs tab), uncheck the entries, Export bundle, and run `python -m scripts.apply_config <bundle>` from the consumer root. The next `materialise_skills` / `mcp/render` invocation will honour the new state.
+- After adding a new skill or MCP server to the playbook, regenerate the inventories with `python -m scripts.build_enforce_inventories` and commit the updated `tools/config-ui/{skills,mcps}-inventory.json`.
+
+### Changed — README
+
+- **`README.md`** — dropped two forward-looking references to a hypothetical v0.20.0 milestone (one in the L1/L2/L3 LLM coverage table, one in the Versioning section). The repo lifecycle no longer name-checks unreleased versions.
+
 ## [0.19.6] — 2026-05-25 — config UI + L1 Bash enforcement + OTel tracing + script_emit + Mermaid docs + (post-tag) submodule hygiene + bootstrap-wired ai-playbook-check
 
 > **Note:** the v0.19.6 tag was force-moved on 2026-05-26 to include several post-tag bugfixes accumulated on `main`. Operators who pulled v0.19.6 before the move should re-fetch (`git fetch --tags --force`). The sections below cover BOTH the original 0.19.6 payload (committed up to commit `1d41ee4`) AND the post-tag fixes folded into the same tag.

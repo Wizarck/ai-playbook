@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-skills-enforce-v1.json",
+  "title": "Skills enforcement state (v1)",
+  "description": "Per-consumer choice of which playbook skills participate in materialise_skills. Disabled skills are NOT mirrored to `.claude/skills/`, `.gemini/skills/`, or `.cursor/rules/`. Negative-list (opt-out) by design: omitted skills default to enforced. Lives at `<consumer>/.ai-playbook-state/skills-enforce.json`. Written by `scripts/apply_config.py`, read by `scripts/materialise_skills.py`. Unknown slugs in `disabled` are tolerated and ignored (no validation against the live skills inventory) so a renamed-upstream skill never breaks a consumer's bundle.",
+  "type": "object",
+  "required": ["schema", "disabled"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "skills-enforce/v1",
+      "description": "Schema identifier. Const for the v1 lifecycle."
+    },
+    "disabled": {
+      "type": "array",
+      "description": "Skill slugs (directory names under `skills/`) that MUST NOT be materialised on this consumer. Order is not significant. Empty array = all skills enforced (the default).",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,80}$",
+        "description": "Skill slug matching the directory name. Lowercase kebab-case."
+      },
+      "uniqueItems": true
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the last apply_config write. Informational; readers do not act on it."
+    },
+    "applied_by": {
+      "type": "string",
+      "description": "Optional human/CI identifier of the operator who applied the bundle. Informational."
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "schema": "skills-enforce/v1",
+      "disabled": [],
+      "applied_at": "2026-05-26T15:00:00Z"
+    },
+    {
+      "schema": "skills-enforce/v1",
+      "disabled": ["bmad-cis-storytelling", "bmad-tea"],
+      "applied_at": "2026-05-26T15:00:00Z",
+      "applied_by": "config-ui"
+    }
+  ]
+}
