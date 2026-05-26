@@ -26,6 +26,12 @@ Backwards-compatible additions. No schema bumps to `rule-event/v2`; the dashboar
 - **None.** This change is additive: the sidecar appears for consumers on the next `apply_config` run; the Dashboard tab appears in the bundled UI; no rule-event schema bump.
 - Air-gapped / proxy-blocked consumers will see a `chart library failed to load` banner on the Dashboard tab until the native-SVG fallback ships in a later release. Numbers still render without charts.
 
+### Added — bootstrap wires `ai-playbook-check` validate-only
+
+- **`scripts/bootstrap.py`** — new step 7 in `main()` runs `python -m scripts.ai_playbook_check <target> --check` after `apply_from_config` and before the next-steps banner. Drift items (e.g. single-tree layout from `bare-layout`, missing dispatchers, gitignore-entries gaps) surface during bootstrap instead of staying invisible until the next manual `/ai-playbook-check`. New helper `run_playbook_check(target_dir, dry_run)`, new CLI flag `--no-check` (opt-out, mirrors `--no-caveman`), new `BootstrapArgs.no_check`. Closes the wiring gap left by commit `ee65e4b` (orchestrator added without touching bootstrap).
+- **Behaviour contract:** validate-only — `--check` passed so the orchestrator never offers `apply`. Exit 1 (drift detected) is the expected outcome on a fresh single-tree consumer and prints quietly; exit ≥2 prints a warning but never aborts bootstrap. Migrations stay operator-driven via `/ai-playbook-check` or the runbook against each failing rule.
+- **`tests/test_bootstrap.py`** — 6 new tests: invocation arguments, dry-run no-subprocess, drift-exit-no-warning, orchestrator-crash-warning, `--no-check` short-circuit, default surfacing.
+
 ## [0.19.6] — 2026-05-25 — config UI + L1 Bash enforcement + OTel tracing + script_emit + Mermaid docs
 
 VERSION file lagged at `0.19.4` while tag `v0.19.5` was cut (release-runbook drift); this release fixes the mismatch by jumping VERSION 0.19.4 → 0.19.6 and bundling everything accumulated on `main` since `v0.19.5` into a single tag.
