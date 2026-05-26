@@ -523,3 +523,111 @@ def test_enable_caveman_default_dry_run_message(
     assert "Would activate caveman default-on" in out
     for comp in bs.DEFAULT_CAVEMAN_COMPONENTS:
         assert comp in out
+
+
+# ---------------------------------------------------------------------------
+# Post-bootstrap ai-playbook-check (validate-only drift report)
+# ---------------------------------------------------------------------------
+
+
+def _check_call(calls: list[list[str]]) -> list[str] | None:
+    """Return the recorded ai_playbook_check invocation, or None."""
+    for c in calls:
+        if any("ai_playbook_check" in part for part in c):
+            return c
+    return None
+
+
+def test_run_playbook_check_invokes_orchestrator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(list(cmd))
+        return _FakeProc(returncode=0)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+
+    target = tmp_path / "alpha"
+    target.mkdir()
+    bs.run_playbook_check(target, dry_run=False)
+
+    cmd = _check_call(calls)
+    assert cmd is not None
+    assert "--check" in cmd, "must pass --check to suppress interactive apply"
+    assert str(target) in cmd
+
+
+def test_run_playbook_check_dry_run_no_subprocess(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    calls: list[list[str]] = []
+    _neuter_subprocess(monkeypatch, calls)
+
+    target = tmp_path / "alpha"
+    target.mkdir()
+    bs.run_playbook_check(target, dry_run=True)
+
+    assert _check_call(calls) is None
+    out = capsys.readouterr().out
+    assert "ai_playbook_check" in out
+    assert "--check" in out
+
+
+def test_run_playbook_check_drift_exit_does_not_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Exit 1 (drift detected) is the EXPECTED outcome — bootstrap must NOT warn."""
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return _FakeProc(returncode=1)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+
+    target = tmp_path / "alpha"
+    target.mkdir()
+    bs.run_playbook_check(target, dry_run=False)
+    out = capsys.readouterr().out
+    assert "exited" not in out
+
+
+def test_run_playbook_check_orchestrator_crash_warns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return _FakeProc(returncode=2)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+
+    target = tmp_path / "alpha"
+    target.mkdir()
+    bs.run_playbook_check(target, dry_run=False)
+    out = capsys.readouterr().out
+    assert "exited 2" in out
+
+
+def test_no_check_flag_skips_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End-to-end: --no-check must short-circuit run_playbook_check."""
+    calls: list[list[str]] = []
+    _neuter_subprocess(monkeypatch, calls)
+    _stub_prereqs(monkeypatch)
+    _clear_owner_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    rc = bs.main(["alpha", "--owner", "a@b.c", "--dry-run", "--no-check"])
+    assert rc == 0
+    assert _check_call(calls) is None
+
+
+def test_check_default_runs_in_dry_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Default bootstrap (no --no-check) MUST surface the validate step in dry-run."""
+    calls: list[list[str]] = []
+    _neuter_subprocess(monkeypatch, calls)
+    _stub_prereqs(monkeypatch)
+    _clear_owner_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    rc = bs.main(["alpha", "--owner", "a@b.c", "--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "ai_playbook_check" in out

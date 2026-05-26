@@ -107,6 +107,12 @@ class BootstrapArgs:
     from_config: Path | None = None   # If set, apply an ai-playbook-config/v1 bundle
                                       # after the base bootstrap flow completes.
                                       # See scripts/apply_config.py.
+    no_check: bool = False            # If True, skip the post-bootstrap
+                                      # ai-playbook-check validate pass (see
+                                      # run_playbook_check). Default behaviour
+                                      # surfaces rule drift (bare-layout,
+                                      # missing dispatchers, gitignore entries,
+                                      # …) right before the "Next steps" banner.
 
 
 # ---------------------------------------------------------------------------
@@ -480,6 +486,53 @@ def run_discover(target_dir: Path, dry_run: bool) -> None:
     )
 
 
+def run_playbook_check(target_dir: Path, dry_run: bool) -> None:
+    """Invoke `python -m scripts.ai_playbook_check <target> --check` post-bootstrap.
+
+    Validate-only by design: bootstrap surfaces rule drift (bare-layout,
+    missing dispatchers, gitignore entries, etc.) so the operator sees what
+    manual follow-up is needed, but never offers `apply` and never aborts
+    bootstrap. The orchestrator's ``--check`` flag suppresses the interactive
+    prompt; remediation stays operator-driven via ``/ai-playbook-check`` or
+    the runbook referenced by each failing rule.
+
+    Best-effort — any failure (missing python, orchestrator crash, exit≥2)
+    prints a warning and lets bootstrap continue. Non-zero exit 1 (drift
+    detected) is the EXPECTED outcome on a fresh single-tree consumer and
+    is also handled as "report and continue".
+    """
+    if dry_run:
+        print(
+            f"(dry-run) Would run `python -m scripts.ai_playbook_check "
+            f"{target_dir} --check`."
+        )
+        return
+    playbook_root = find_playbook_root()
+    cmd = [
+        sys.executable, "-m", "scripts.ai_playbook_check",
+        str(target_dir),
+        "--check",
+    ]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
+    env["PLAYBOOK_NO_PROMPT"] = "1"  # belt-and-suspenders against any prompt
+    print()
+    print("→ ai-playbook-check: post-bootstrap drift report (validate-only)")
+    try:
+        result = subprocess.run(cmd, text=True, encoding="utf-8", env=env)
+    except FileNotFoundError:
+        print(
+            "⚠️ python not found on PATH; skipping ai-playbook-check. "
+            "Run `python -m scripts.ai_playbook_check` manually once env is ready."
+        )
+        return
+    if result.returncode not in (0, 1):
+        print(
+            f"⚠️ ai-playbook-check exited {result.returncode}; bootstrap continues. "
+            "Re-run `python -m scripts.ai_playbook_check` from the consumer root for details."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Next-steps banner
 # ---------------------------------------------------------------------------
@@ -536,6 +589,13 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                              "bootstrap runs `caveman on --mode full --components <all>` "
                              "against the new project. Opt-out only; the "
                              "consumer can still flip it on later.")
+    parser.add_argument("--no-check", action="store_true",
+                        help="Skip the post-bootstrap ai-playbook-check drift "
+                             "report (validate-only). Without this flag, "
+                             "bootstrap runs `python -m scripts.ai_playbook_check "
+                             "<target> --check` at the end so the operator sees "
+                             "any rule drift (bare-layout, dispatchers, "
+                             "gitignore-entries, …). Never offers apply or aborts.")
     parser.add_argument("--from-config", dest="from_config", type=Path, default=None,
                         help="Apply an ai-playbook-config/v1 bundle JSON (exported from "
                              "tools/config-ui/) after the base bootstrap flow. Mutates "
@@ -561,6 +621,7 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         refresh_skills=ns.refresh_skills,
         no_caveman=ns.no_caveman,
         from_config=ns.from_config,
+        no_check=ns.no_check,
     )
 
 
@@ -724,6 +785,17 @@ def main(argv: list[str] | None = None) -> int:
     # is overridden by the bundle's declared intent.
     if args.from_config is not None:
         apply_from_config(target_dir, args.from_config, dry_run=args.dry_run)
+
+    # Step 7: post-bootstrap drift report (advisory). Runs ai-playbook-check
+    # in validate-only mode so the operator sees any rule drift (bare-layout,
+    # missing dispatchers, gitignore entries, etc.) before the "Next steps"
+    # banner. Never aborts bootstrap and never offers apply — those stay
+    # operator-driven via `/ai-playbook-check` or the runbook listed against
+    # the failing rule.
+    if args.no_check:
+        print("→ ai-playbook-check: skipped (--no-check).")
+    else:
+        run_playbook_check(target_dir, dry_run=args.dry_run)
 
     print_next_steps(target_dir, args.project_name)
     return 0
