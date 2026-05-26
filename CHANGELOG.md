@@ -2,6 +2,24 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.7] — 2026-05-26 — submodule-mount hygiene + bootstrap-wired ai-playbook-check + telemetry dashboard tab
+
+Patch release bundling four post-v0.19.6 fixes and the telemetry dashboard addition. All changes are additive or surgical bugfixes — no schema bumps, no breaking API. Safe to pull on any v0.19.x consumer.
+
+Highlights:
+
+- `1c45e65` fix(.gitignore): consumer-side state spillover at submodule root.
+- `b7f930e` fix(find_project_root): defense-in-depth against cwd-collision when running from inside the playbook submodule.
+- `09cebae` feat(bootstrap): wire `ai-playbook-check --check` at the end of bootstrap so rule drift surfaces immediately (closes the wiring gap that left every v0.19.6 consumer silently single-tree until the operator ran the orchestrator manually).
+- `f783006` fix: untrack the dogfood `caveman.json` so consumers no longer see the `<consumer>/.ai-playbook/.ai-playbook/` "inception" nested directory after mounting this repo as a submodule.
+- Telemetry dashboard tab (offline aggregator + Chart.js renderer + `dashboard-data/v1` sidecar contract). Full details in the [Unreleased] block below.
+
+### Consumer action
+
+- **Recommended:** `cd .ai-playbook && git fetch && git checkout v0.19.7 && cd .. && git add .ai-playbook && git commit -m "chore(playbook): bump to v0.19.7"`.
+- After the bump, the previously-nested `<consumer>/.ai-playbook/.ai-playbook/caveman.json` directory disappears. No script change needed on the consumer side — the consumer's own state at `<consumer>/.ai-playbook/caveman.json` is unaffected (and gitignored at the submodule root since 1c45e65).
+- Bootstrapping a fresh consumer with v0.19.7 now runs `ai-playbook-check --check` automatically; drift items (bare-layout, missing dispatchers, etc.) surface during bootstrap instead of staying invisible until the next manual `/ai-playbook-check`.
+
 ## [Unreleased] — telemetry dashboard tab
 
 Backwards-compatible additions. No schema bumps to `rule-event/v2`; the dashboard reads only existing fields.
