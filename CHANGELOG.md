@@ -2,9 +2,11 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased] — telemetry dashboard tab
+## [0.19.6] — 2026-05-25 — config UI + L1 Bash enforcement + OTel tracing + script_emit + Mermaid docs + (post-tag) submodule hygiene + bootstrap-wired ai-playbook-check
 
-Backwards-compatible additions. No schema bumps to `rule-event/v2`; the dashboard reads only existing fields.
+> **Note:** the v0.19.6 tag was force-moved on 2026-05-26 to include several post-tag bugfixes accumulated on `main`. Operators who pulled v0.19.6 before the move should re-fetch (`git fetch --tags --force`). The sections below cover BOTH the original 0.19.6 payload (committed up to commit `1d41ee4`) AND the post-tag fixes folded into the same tag.
+
+### Added — telemetry Dashboard tab in the config UI (post-tag)
 
 ### Added — telemetry Dashboard tab in the config UI
 
@@ -39,9 +41,19 @@ Backwards-compatible additions. No schema bumps to `rule-event/v2`; the dashboar
 - **Behaviour contract:** validate-only — `--check` passed so the orchestrator never offers `apply`. Exit 1 (drift detected) is the expected outcome on a fresh single-tree consumer and prints quietly; exit ≥2 prints a warning but never aborts bootstrap. Migrations stay operator-driven via `/ai-playbook-check` or the runbook against each failing rule.
 - **`tests/test_bootstrap.py`** — 6 new tests: invocation arguments, dry-run no-subprocess, drift-exit-no-warning, orchestrator-crash-warning, `--no-check` short-circuit, default surfacing.
 
-## [0.19.6] — 2026-05-25 — config UI + L1 Bash enforcement + OTel tracing + script_emit + Mermaid docs
+### Fixed — submodule-mount hygiene (post-tag)
 
-VERSION file lagged at `0.19.4` while tag `v0.19.5` was cut (release-runbook drift); this release fixes the mismatch by jumping VERSION 0.19.4 → 0.19.6 and bundling everything accumulated on `main` since `v0.19.5` into a single tag.
+- **`.gitignore`** (commit `1c45e65`) — anchored 7 patterns to the repo root (`/caveman.json`, `/backups/`, `/rules-toggle.json`, `/rules-toggle-audit.jsonl`, `/feature-flags.env`, `/events.jsonl`, `/.caveman-statusline-suffix`) so consumer-side state files don't pollute submodule `git status` when this repo is mounted at `<consumer>/.ai-playbook/`. Standalone playbook checkouts unaffected.
+- **`scripts/_project_root.py`** (commit `b7f930e`) — new shared helper centralising the "walk up to find AGENTS.md" project-root discovery. Skips candidates whose path segments include `.ai-playbook` or `.skills-sources` (playbook submodule mount points) so direct/manual caveman/rules-toggle invocations from inside the submodule no longer mis-resolve the project root and write nested `.ai-playbook/.ai-playbook/<state>.json` artefacts. Three call sites updated (`scripts/caveman/toggle.py`, `scripts/rules_toggle.py`, `scripts/rules/caveman-reinforce.rule.py`). Defense-in-depth — bootstrap already passes `--project` correctly so the trap fires only on manual invocations.
+
+### Fixed — orchestrator drift false-positives (post-tag)
+
+- **`scripts/rules/secrets-handling.rule.py`** — `validate` now invokes `scripts/secrets_scan.py --staged` by default (was previously no-arg, which triggered the scanner's "no inputs" usage banner and returned non-zero on every clean repo). Matches the rule's docstring claim ("no secrets detected in staged content"), makes the rule a no-op on a clean tree, and turns it into a real check during PR / commit hooks.
+- **`scripts/rules/update-documentation.rule.py`** — the HEAD-commit-message read for the `[no-doc-impact]` escape tag now passes `encoding="utf-8", errors="replace"` so commit messages containing non-ASCII characters (em-dashes, ←/→ arrows, accented chars) no longer crash the rule with a `UnicodeDecodeError` on Windows (cp1252 default codec).
+
+---
+
+> **Original v0.19.6 payload below** (committed up to `1d41ee4` on 2026-05-25). VERSION file lagged at `0.19.4` while tag `v0.19.5` was cut (release-runbook drift); the original 0.19.6 release fixed the mismatch by jumping VERSION 0.19.4 → 0.19.6 and bundling everything accumulated on `main` since `v0.19.5` into a single tag.
 
 Backwards-compatible aggregate: 20+ commits across 9 PRs, all additive (new scripts, new schemas, new docs, new tests). One consumer-facing knob change (`.claude/settings.json` matcher must include `Bash`) — see the **Consumer action** sections below.
 
