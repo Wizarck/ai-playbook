@@ -46,6 +46,8 @@ except ImportError:
     )
     raise SystemExit(2) from None
 
+from scripts._project_root import find_project_root as _find_project_root_shared
+
 
 SCHEMA_VERSION = "caveman-toggle/v1"
 STATE_DIR_NAME = ".ai-playbook"
@@ -75,23 +77,11 @@ def find_playbook_root(start: Path | None = None) -> Path | None:
 def find_project_root(start: Path | None = None) -> Path | None:
     """Find the consumer project root.
 
-    A "project root" is a directory that contains ``AGENTS.md``. Walks up
-    from ``start`` (defaults to cwd). First match wins.
-
-    Note: an ``.ai-playbook/`` directory alone is NOT sufficient — the
-    user's home contains ``~/.ai-playbook/projects.yaml`` (the personal
-    registry, not a project), and matching on that would cause every
-    directory under ``$HOME`` on a developer machine to resolve as the
-    home directory. Consumer projects per ``docs/concepts/projects-registry.md``
-    always carry an ``AGENTS.md``.
+    Delegates to ``scripts._project_root.find_project_root`` so the
+    "skip-playbook-submodule" discipline is shared with the rules-toggle
+    and reinforce-hook walkers.
     """
-    here = (start or Path.cwd()).resolve()
-    if here.is_file():
-        here = here.parent
-    for candidate in (here, *here.parents):
-        if (candidate / "AGENTS.md").is_file():
-            return candidate
-    return None
+    return _find_project_root_shared(start)
 
 
 def _load_schema() -> dict[str, Any]:

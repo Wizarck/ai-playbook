@@ -25,16 +25,28 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
+# Directory-name segments that mark a playbook checkout (kept in sync with
+# scripts/_project_root.py PLAYBOOK_CHECKOUT_SEGMENTS — inlined here to keep
+# this hook stdlib-only with no cross-module imports, per its ≤5 ms p50 budget).
+_PLAYBOOK_CHECKOUT_SEGMENTS = frozenset({".ai-playbook", ".skills-sources"})
+
+
 def _find_project_root(start: Path) -> Path | None:
     here = start.resolve()
     if here.is_file():
         here = here.parent
     for candidate in (here, *here.parents):
         try:
-            if (candidate / "AGENTS.md").is_file():
-                return candidate
+            if not (candidate / "AGENTS.md").is_file():
+                continue
         except OSError:
             continue
+        # Skip the playbook submodule's own AGENTS.md so consumers running
+        # `cd <consumer>/.ai-playbook && claude` resolve to <consumer>, not
+        # to the submodule directory.
+        if any(part in _PLAYBOOK_CHECKOUT_SEGMENTS for part in candidate.parts):
+            continue
+        return candidate
     return None
 
 

@@ -55,6 +55,38 @@ def test_find_project_root_returns_none_when_no_markers(tmp_path: Path) -> None:
     assert found is None
 
 
+def test_find_project_root_skips_playbook_submodule(tmp_path: Path) -> None:
+    """Regression for the ``.ai-playbook/.ai-playbook/`` nesting bug.
+
+    When cwd is inside a consumer's playbook submodule (which carries its
+    own ``AGENTS.md``), the walk MUST skip past the submodule and resolve
+    to the consumer root — otherwise caveman state is written nested
+    under ``<consumer>/.ai-playbook/.ai-playbook/caveman.json``.
+    """
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / "AGENTS.md").write_text("# consumer\n", encoding="utf-8")
+    submodule = consumer / ".ai-playbook"
+    (submodule / "scripts").mkdir(parents=True)
+    (submodule / "AGENTS.md").write_text("# playbook self\n", encoding="utf-8")
+
+    # cwd anywhere inside the submodule resolves to the consumer root.
+    assert toggle.find_project_root(submodule) == consumer
+    assert toggle.find_project_root(submodule / "scripts") == consumer
+
+
+def test_find_project_root_skips_skills_sources_mirror(tmp_path: Path) -> None:
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / "AGENTS.md").write_text("# consumer\n", encoding="utf-8")
+    mirror = consumer / ".skills-sources" / "ai-playbook"
+    (mirror / "scripts").mkdir(parents=True)
+    (mirror / "AGENTS.md").write_text("# playbook self mirror\n", encoding="utf-8")
+
+    assert toggle.find_project_root(mirror) == consumer
+    assert toggle.find_project_root(mirror / "scripts") == consumer
+
+
 # ---------------------------------------------------------------------------
 # Default state shape
 # ---------------------------------------------------------------------------
