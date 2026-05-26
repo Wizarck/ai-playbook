@@ -36,10 +36,12 @@ site/
 # Projects registry (per-dev, never committed)
 projects.yaml
 # Ignore the *contents* of .ai-playbook/ (notifications.jsonl, overrides.log,
-# backups/, etc.) but NOT the directory itself — the playbook dogfoods caveman
-# so its own toggle state (caveman.json) is committed below.
+# backups/, caveman.json, etc.). The playbook still dogfoods caveman locally
+# — the state file is just NOT committed anymore. Reason: when this repo is
+# mounted as a submodule, any tracked file under `.ai-playbook/` appears
+# nested as `<consumer>/.ai-playbook/.ai-playbook/<file>` in the consumer's
+# tree, which operators read as "inception" pollution. Untrack ⇒ no nesting.
 .ai-playbook/*
-!.ai-playbook/caveman.json
 .ai-playbook-state/
 overrides.log
 
