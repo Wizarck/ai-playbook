@@ -31,10 +31,16 @@ def validate() -> int:
         print(f"error: paired check script missing at {CHECK_SCRIPT}", file=sys.stderr)
         return 2
     # Honor [no-doc-impact] escape tag in HEAD commit message.
+    # encoding="utf-8" + errors="replace" make the read robust to non-ASCII
+    # commit messages (em-dashes, ←/→ arrows, etc.) on systems where the
+    # default codec is cp1252 / latin-1 (Windows).
     try:
         msg = subprocess.check_output(
             ["git", "log", "-1", "--pretty=%B"],
-            text=True, stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stderr=subprocess.STDOUT,
         )
         if "[no-doc-impact]" in msg.lower():
             return 0

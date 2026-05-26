@@ -26,7 +26,13 @@ def validate() -> int:
     if not SCANNER.is_file():
         print(f"error: secrets_scan.py missing at {SCANNER}", file=sys.stderr)
         return 2
-    rc = subprocess.call([sys.executable, str(SCANNER)])
+    # Default scope = `--staged` (matches the rule's docstring: "no secrets
+    # detected in staged content"). Without an explicit scope, scripts/
+    # secrets_scan.py prints CLI usage and exits non-zero, which the
+    # orchestrator (correctly) reads as drift even though there's nothing
+    # actually to scan. `--staged` makes the rule a no-op on a clean tree
+    # and a real check during PR review / commit hooks.
+    rc = subprocess.call([sys.executable, str(SCANNER), "--staged"])
     return 1 if rc != 0 else 0
 
 
