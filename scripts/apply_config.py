@@ -64,6 +64,7 @@ except ImportError:
 
 from scripts import rules_toggle  # noqa: E402
 from scripts import _enforce_state  # noqa: E402
+from scripts import _managed_files  # noqa: E402
 
 STATE_DIR_NAME = ".ai-playbook"
 ENFORCE_STATE_DIR_NAME = _enforce_state.STATE_DIR_NAME
@@ -571,6 +572,24 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         report.sections.append(sr2)
         report.sections.append(apply_skills_enforce(target, bundle, dry_run=True))
         report.sections.append(apply_mcps_enforce(target, bundle, dry_run=True))
+        # Dry-run managed files: count what would be touched.
+        try:
+            playbook_root_for_mf = rules_toggle.find_playbook_root()
+            mf_dry = _managed_files.apply_managed_files(
+                consumer_root=target,
+                playbook_root=playbook_root_for_mf or Path("."),
+                bundle=bundle,
+                dry_run=True,
+            )
+            mf_sr_dry = SectionResult(
+                name="managed_files", ok=True, detail=mf_dry.detail,
+            )
+            report.sections.append(mf_sr_dry)
+        except Exception as exc:  # noqa: BLE001
+            report.sections.append(SectionResult(
+                name="managed_files", ok=False,
+                detail=f"dry-run failed: {exc}",
+            ))
         sr3 = SectionResult(name="applied-bundle", ok=True)
         sr3.detail = "DRY-RUN would persist applied-config.json + applied-config.js"
         report.sections.append(sr3)
@@ -636,7 +655,49 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "bundle": bundle_path.as_posix(),
     })
 
-    # Section 6: persist the applied bundle as the new source of truth + UI
+    # Section 6: managed files (AGENTS.md / .gitignore / .pre-commit / etc.).
+    # Only renders files whose trigger section is present in the bundle so
+    # legacy bundles stay no-op for this section. Updates bundle.file_states
+    # in-memory; the applied-bundle persistence below picks up the new manifest.
+    mf_sr_section = SectionResult(name="managed_files", ok=True)
+    try:
+        playbook_root_for_mf = rules_toggle.find_playbook_root()
+        if playbook_root_for_mf is None:
+            mf_sr_section.detail = "playbook root not found — managed_files skipped"
+        else:
+            session_id = f"apply-{datetime.now(UTC).strftime('%Y-%m-%dT%H-%M-%SZ')}"
+            mf_result = _managed_files.apply_managed_files(
+                consumer_root=target,
+                playbook_root=playbook_root_for_mf,
+                bundle=bundle,
+                session_id=session_id,
+            )
+            mf_sr_section.ok = mf_result.ok
+            mf_sr_section.detail = mf_result.detail
+            mf_sr_section.changes.extend(mf_result.changes)
+            if mf_result.file_states:
+                existing_states = bundle.setdefault("file_states", {})
+                for rel_path, state in mf_result.file_states.items():
+                    existing_states[rel_path] = state
+            if mf_result.restart_session_needed:
+                mf_sr_section.changes.append(
+                    "⟳ Files read by LLM sessions were modified. "
+                    "Restart Claude Code / Gemini CLI for the changes to take effect."
+                )
+    except Exception as exc:  # noqa: BLE001
+        mf_sr_section.ok = False
+        mf_sr_section.detail = f"managed_files raised: {exc}"
+    report.sections.append(mf_sr_section)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:managed_files",
+        "ok": mf_sr_section.ok,
+        "detail": mf_sr_section.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
+    # Section 7: persist the applied bundle as the new source of truth + UI
     # sidecar. Runs LAST so the JS file always reflects the post-apply state
     # (i.e. what the UI should render on next open). Best-effort.
     ab_sr = _write_applied_bundle(target, bundle)
