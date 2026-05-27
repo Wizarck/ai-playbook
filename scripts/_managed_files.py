@@ -79,6 +79,7 @@ MANAGED_FILES: list[ManagedFile] = [
         renderer=render_agents_md,
         trigger_section="project_meta",
         style=CommentStyle.HTML,
+        use_current_text=True,  # for keep_mine curate intents
     ),
     ManagedFile(
         rel_path=".gitignore",

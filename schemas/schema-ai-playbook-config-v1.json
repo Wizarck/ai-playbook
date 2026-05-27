@@ -250,6 +250,29 @@
         "with_timestamp": { "type": "boolean", "description": "Append .YYYY-MM-DDTHH-MM-SSZ to .bak names. Default: true." },
         "keep_per_file": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
+    },
+    "file_curate_intents": {
+      "type": "object",
+      "description": "Per-file curate decisions captured by the config UI Files tab. apply_config reads these to decide whether to overwrite drifted blocks (default = take_playbook) or preserve the consumer's edited content (keep_mine). Keys are managed-file relative paths (e.g. \"AGENTS.md\").",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "default_action": {
+            "type": "string",
+            "enum": ["take_playbook", "keep_mine"],
+            "description": "Applies when a block's id is NOT present in `blocks` below. Default semantics: take_playbook (i.e. let the template content win). keep_mine preserves whatever is currently on disk for every block in the file."
+          },
+          "blocks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": ["take_playbook", "keep_mine"]
+            },
+            "description": "Per-block override. Block id (e.g. \"bootstrap-directive\") -> action. Overrides default_action for that specific block."
+          }
+        }
+      }
     }
   }
 }
