@@ -128,7 +128,17 @@ Per-rule × per-LLM obey-rate (once telemetry has signal): [`docs/concepts/rule-
 
 ### Configure from your browser — no localhost, no Node
 
-A self-contained HTML UI at `<your-repo>/.ai-playbook/tools/config-ui/index.html`. **Double-click it** — it opens in your default browser, reads current state from a JS sidecar, and exposes three tabs: **Rules** (toggle any of ~50 rules at L1 / L2 / L3 with a `break_glass` reason audit), **Features** (Caveman mode + modes + components), **Global flags** (live env-var projection). Export produces an `applied-config.json` bundle that `scripts/apply_config.py` materialises into `rules-toggle.json`, `caveman.json`, and `feature-flags.env`. Cross-platform (Windows / macOS / Linux), per-project (lives inside the repo), no localhost, no Node, no daemon, no auth, no telemetry. Walk-through: [`docs/runbooks/use-config-ui.md`](docs/runbooks/use-config-ui.md).
+A self-contained HTML UI at `<your-repo>/.ai-playbook/tools/config-ui/index.html`. **Double-click it** — it opens in your default browser, reads current state from JS sidecars, and exposes seven tabs:
+
+- **Rules** — toggle any of ~50 rules at L1 / L2 / L3 with a `break_glass` reason audit.
+- **Features** — Caveman mode + modes + components.
+- **Global flags** — live env-var projection.
+- **Skills** — per-skill enforcement opt-out (negative list).
+- **MCPs** — per-MCP-server enforcement opt-out.
+- **Files** *(v0.19.7+)* — read-only inspector of every managed file (AGENTS.md, .gitignore, .pre-commit-config.yaml, .coderabbit.yaml, .claude/settings.local.json, mcp-servers.project.yaml) with per-section provenance badges (canonical / drifted / custom), restore-from-`.bak` dropdown, and file-level + per-section curate controls (**Take playbook** / **Keep mine**).
+- **Preview JSON / Dashboard** — the exported bundle live + telemetry KPIs.
+
+Export produces an `applied-config.json` bundle that `scripts/apply_config.py` materialises into `rules-toggle.json`, `caveman.json`, `feature-flags.env`, `skills-enforce.json`, `mcps-enforce.json`, and (when triggered) re-renders the managed files with backup-once protection. Cross-platform (Windows / macOS / Linux), per-project (lives inside the repo), no localhost, no Node, no daemon, no auth, no telemetry. Walk-through: [`docs/runbooks/use-config-ui.md`](docs/runbooks/use-config-ui.md). Files-as-SSOT contract: [`docs/concepts/bundle-managed-files.md`](docs/concepts/bundle-managed-files.md).
 
 ### Caveman mode (~65 % output-token reduction)
 
@@ -202,7 +212,7 @@ flowchart LR
 
 *(There is no push pipeline drawing because there is no push pipeline — the `propagate-playbook-bump.yml` workflow was retired in v0.19.0.)*
 
-Manual one-shot bump:
+Manual one-shot bump (mechanical — no rendering, just the submodule pointer):
 
 ```bash
 cd <your-project>/.ai-playbook
@@ -213,6 +223,17 @@ git add .ai-playbook
 git commit -m "chore(playbook): bump .ai-playbook to vX.Y.Z"
 git push
 ```
+
+**Safe re-bootstrap for v0.19.7+** (when you want the new playbook's templates + markers actively applied to your `AGENTS.md`, `.gitignore`, etc., without clobbering your customisations):
+
+```bash
+# After the submodule bump above:
+python -m scripts.bootstrap --update --path .
+```
+
+This runs `apply_config` against your existing `.ai-playbook/applied-config.json` (or migrates the legacy state first via `scripts/migrate_to_bundle`), backs up each managed file before overwrite (default: `<file>.<ISO>.bak` alongside the original — configurable via `bundle.backup_preferences`), and surfaces a "restart Claude / Gemini session" banner when LLM-read files changed. **Never use `bootstrap <project>` (without `--update`) on an already-bootstrapped consumer** — that's the install path; it would clobber customisations.
+
+To uninstall the playbook cleanly: `python -m scripts.uninstall` (restores files from the oldest `.bak`, strips marker blocks for files without `.bak`, deinitialises the submodule). Pre-commit + workflow shims tolerate a missing submodule, so even a manual `rm -rf .ai-playbook/` does not turn CI red.
 
 Automate with Dependabot:
 

@@ -51,7 +51,7 @@ cd <consumer>/.ai-playbook/tools/config-ui && python -m http.server
 
 The applied-state sidecar always works because of the `<script src>` mechanism.
 
-## 2. Configure (three tabs)
+## 2. Configure (seven tabs)
 
 ### Tab `Rules` (~50 entries)
 
@@ -73,6 +73,26 @@ Caveman has:
 ### Tab `Global flags`
 
 Today's catalogue is a single flag (`llm_routing_strict`). Each row shows its env-var projection live (`AIPLAYBOOK_LLM_ROUTING_STRICT=1` when on, unset when off). Future flags land here as the inventory grows.
+
+### Tab `Skills`
+
+Per-skill enforcement opt-out (negative list). Each row is a skill discovered in `skills/`; default = enforced (materialised). Uncheck a row to add it to `.ai-playbook-state/skills-enforce.json` `disabled` array. Toolbar: search by slug/description, `Only disabled` filter, Enable-all / Disable-all bulk buttons, live `X/Y enforced (Z disabled)` summary.
+
+### Tab `MCPs`
+
+Same shape as Skills, scoped to MCP servers discovered in the base + project YAML layers. Uncheck a server to strip it from the rendered `.mcp.json` / `.gemini/settings.json`.
+
+### Tab `Files` *(v0.19.7+)*
+
+Read-only inspector of every managed file (AGENTS.md, .gitignore, .pre-commit-config.yaml, .coderabbit.yaml, .claude/settings.local.json, mcp-servers.project.yaml). The sidecar `<consumer>/.ai-playbook-state/files-state.js` (rebuilt automatically by `apply_config`; also regenerable manually with `python -m scripts.build_files_state`) feeds:
+
+- **Left rail** — one row per file with badges: `<N>C` canonical block count, `<N>X` custom segment count, and a `<N> drift` chip when any block content diverges from the SHA in `applied-config.json`'s manifest.
+- **Right inspector** — per-section preview with badges (canonical / drifted / custom), block id + SHA info, and (v2 / v3) curate controls:
+  - File-level **Take playbook** / **Keep mine** buttons (set the default action for every block in the file).
+  - Per-block radio buttons override the default for individual sections.
+- **Restore from `.bak` dropdown** — surfaces every backup recorded in `<consumer>/.ai-playbook-state/backups/index.json`. Restore itself is CLI-only (`mv <file>.<ts>.bak <file>`); the UI shows the timestamps only — belt-and-suspenders against accidental destructive UI actions.
+
+If the sidecar is missing (no apply has run yet on this consumer), the tab shows a "Regenerate state" hint with the exact command. The Files tab does NOT mutate disk by itself; everything is staged in the bundle until you click **Export bundle** and run `apply_config`. Concept doc: [`docs/concepts/bundle-managed-files.md`](../concepts/bundle-managed-files.md).
 
 ### Tab `Preview JSON`
 

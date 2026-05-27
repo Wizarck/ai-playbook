@@ -3,11 +3,13 @@ schema: concept/v1
 slug: ai-playbook-config
 title: ai-playbook config UI + bundle pipeline
 summary: |
-  Unified per-consumer configuration surface. A single HTML UI manages three
-  categories of toggleables — rules (~50), features (caveman + future), and
-  global flags (env-driven binaries) — and exports a sparse JSON bundle that
-  scripts/apply_config.py + scripts/bootstrap.py --from-config consume.
-last_validated: "2026-05-25"
+  Unified per-consumer configuration surface. A single HTML UI manages six
+  surfaces — rules (~50), features (caveman + future), global flags
+  (env-driven binaries), per-skill enforcement, per-MCP enforcement, and
+  (since v0.19.7) managed files (AGENTS.md / .gitignore / .pre-commit /
+  mcp-servers.project.yaml / etc.) — and exports a sparse JSON bundle that
+  scripts/apply_config.py + scripts/bootstrap.py --update consume.
+last_validated: "2026-05-27"
 ---
 
 # ai-playbook config UI + bundle pipeline
@@ -20,15 +22,18 @@ Before this surface existed, an operator wanting to turn off a single rule for a
 
 **The fix**: one HTML UI, one bundle JSON contract, one applier. No new CLI flags duplicate the UI — the UI **is** the declarative surface.
 
-## Three categories of toggleables
+## Six surfaces of toggleables
 
-| Category | What | Source of truth on consumer | Managed by |
+| Surface | What | Source of truth on consumer | Managed by |
 |---|---|---|---|
 | **Rules** | ~50 with paired L1/L2/L3 + optional per-rule advanced sub-toggles (e.g. `bash_inspection`). | `.ai-playbook/rules-toggle.json` (sparse — only modified entries; rules absent = ON). | `scripts/rules_toggle.py` (CLI) + `scripts/apply_config.py` (bundle applier). |
 | **Features** | Installed components with their own state file + side effects (AGENTS.md materialisation, MCP wrap, backups). Today: caveman. | `.ai-playbook/caveman.json` (managed by caveman's own CLI). | `scripts/caveman` CLI — `apply_config` **delegates** via subprocess; never writes the file directly (schema-enforced). |
 | **Global flags** | Binary env-driven toggles without their own state file (e.g. `AIPLAYBOOK_LLM_ROUTING_STRICT`). | `.ai-playbook/feature-flags.env` (marker-bracketed block). Consumer sources it in shell init (direnv `.envrc` or equivalent). | `scripts/apply_config.py` writes the file; per-rule `advanced` sub-toggles also project here via the inventory mapping. |
+| **Skills enforcement** | Per-skill opt-out of the materialise step (negative-list). | `.ai-playbook-state/skills-enforce.json`. Default = all enforced. | `scripts/_enforce_state.py` (reader) + `apply_config.py` (writer). Honoured by `scripts/materialise_skills.py`. |
+| **MCPs enforcement** | Per-server opt-out of MCP rendering (negative-list). | `.ai-playbook-state/mcps-enforce.json`. Default = all enforced. | Same as Skills. Honoured by `scripts/mcp/render.py` + `validate.py`. |
+| **Managed files** *(v0.19.7+)* | AGENTS.md, .gitignore, .pre-commit-config.yaml, .coderabbit.yaml, .claude/settings.local.json, mcp-servers.project.yaml. Marker blocks delimit playbook-canonical content; everything outside markers is consumer-owned. | The files themselves are SSOT. `applied-config.json` + `.ai-playbook-state/backups/index.json` are audit-trail / discovery only. | `scripts/_renderers/` (pure render fns) + `scripts/_managed_files.py` (orchestrator). Backup-once before each overwrite. Consumer can curate per-block ("Take playbook" / "Keep mine") via the UI Files tab. |
 
-All three on-disk files live under `<consumer>/.ai-playbook/` and are **gitignored**. The bootstrap template adds the entries automatically.
+The toggle state files live under `<consumer>/.ai-playbook/` and `<consumer>/.ai-playbook-state/` and are **gitignored**. The managed files themselves are committed by the consumer; bootstrap creates them, `apply_config` re-renders them (with backup-once protection).
 
 Additionally, `apply_config` persists the just-applied bundle as a **fourth artefact pair** that lets the HTML UI render the current live state on next open:
 
@@ -122,6 +127,8 @@ Reason: `cmd_on` executes **side effects before** writing the JSON — backup AG
 ## See also
 
 - [enforcement-layers.md](enforcement-layers.md) — L1/L2/L3 mental model (toggle is a meta-layer that short-circuits all three).
+- [bundle-managed-files.md](bundle-managed-files.md) — files-as-SSOT redesign (v0.19.7): marker blocks, renderers, `bootstrap --update`, `migrate_to_bundle`, uninstall.
+- [skills-mcps-enforcement.md](skills-mcps-enforcement.md) — per-Skill + per-MCP enforcement toggles.
 - [telemetry-design.md](telemetry-design.md) — rule-event/v2 fields + privacy model.
 - [caveman-mode.md](caveman-mode.md) — caveman feature internals.
 - [../runbooks/use-config-ui.md](../runbooks/use-config-ui.md) — operator walkthrough.
