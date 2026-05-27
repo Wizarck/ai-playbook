@@ -123,6 +123,133 @@
           "description": "MCP server canonical IDs (the `id:` field in mcp-servers*.yaml) that MUST NOT be rendered into `.mcp.json` or `.gemini/settings.json` for this consumer."
         }
       }
+    },
+    "project_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Free-form project content rendered into AGENTS.md outside marker blocks. Persisted in the consumer's AGENTS.md as custom sections; this bundle entry is the transfer format only. Free-form Unicode text, line-broken as the user wrote it.",
+      "properties": {
+        "project_identity": { "type": "string", "maxLength": 4000 },
+        "active_work": { "type": "string", "maxLength": 8000 },
+        "hard_rules": { "type": "string", "maxLength": 8000 },
+        "inherited_overrides": { "type": "string", "maxLength": 4000 },
+        "gotchas": { "type": "string", "maxLength": 16000 }
+      }
+    },
+    "gitignore_extras": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Consumer-added gitignore patterns. apply_config writes these to .gitignore OUTSIDE the playbook marker block. One pattern per line.",
+      "properties": {
+        "patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
+    },
+    "pre_commit_extras": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Consumer-added pre-commit hooks. apply_config appends these to .pre-commit-config.yaml after the playbook-managed block. Each hook is a raw YAML object (validated structurally, not by pre-commit's own schema).",
+      "properties": {
+        "hooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 64 }
+            }
+          }
+        }
+      }
+    },
+    "coderabbit_extras": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Consumer additions to .coderabbit.yaml — extra path_filters and path_instructions. apply_config merges these with the playbook-canonical baseline.",
+      "properties": {
+        "path_filters": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "path_instructions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "instructions"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "instructions": { "type": "string", "minLength": 1, "maxLength": 8000 }
+            }
+          }
+        }
+      }
+    },
+    "claude_settings_extras": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Consumer extras for .claude/settings.local.json (Claude Code natively merges this on top of settings.json). apply_config writes only this file; settings.json itself is canonical.",
+      "properties": {
+        "permissions_allow": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "additional_directories": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 400 }
+        }
+      }
+    },
+    "mcp_project_servers": {
+      "type": "object",
+      "description": "Project-layer MCP server declarations. apply_config writes these into mcp-servers.project.yaml's `servers:` mapping. Keys are server IDs, values are full server records (passed through verbatim — validated by scripts/mcp/validate.py downstream).",
+      "additionalProperties": { "type": "object" }
+    },
+    "file_states": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "manifest": {
+            "type": "object",
+            "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{12}$" },
+            "description": "block_id -> expected 12-hex SHA from _template_classifier.compute_sha. Updated by apply_config after each successful render."
+          },
+          "last_applied": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Per-file render manifest. Key is the relative path (e.g. \"AGENTS.md\"). Lets the UI classify content as canonical / drifted on next load without needing the original template."
+    },
+    "caveman_section_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Which free-form sections in project_meta caveman compresses on export. The AI-expert never-compress sections (§0/§2/§4/§5 in AGENTS.md, MCP server descriptions) are hardcoded in scripts/caveman/policy.py — this entry only controls the user-toggleable subset.",
+      "properties": {
+        "global_enabled": { "type": "boolean" },
+        "sections": {
+          "type": "object",
+          "additionalProperties": { "type": "boolean" },
+          "description": "section-name -> compress?. Defaults to all-off."
+        }
+      }
+    },
+    "backup_preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "UI-configurable backup behaviour. Read by apply_config and the migrate flow to decide where .bak files go and how many to keep.",
+      "properties": {
+        "location": {
+          "type": "string",
+          "enum": ["next", "central"],
+          "description": "next = alongside source file (user-visible). central = .ai-playbook-state/backups/. Default: next."
+        },
+        "with_timestamp": { "type": "boolean", "description": "Append .YYYY-MM-DDTHH-MM-SSZ to .bak names. Default: true." },
+        "keep_per_file": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
     }
   }
 }
