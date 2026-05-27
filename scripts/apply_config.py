@@ -703,6 +703,21 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
     ab_sr = _write_applied_bundle(target, bundle)
     report.sections.append(ab_sr)
 
+    # Section 8: regenerate files-state.js sidecar so the Files tab in the
+    # config UI reflects the post-apply marker/SHA state. Best-effort —
+    # failure here does NOT mark the overall apply as failed.
+    fs_sr = SectionResult(name="files-state-sidecar", ok=True)
+    try:
+        from scripts import build_files_state as _bfs
+        rc = _bfs.main(["--target", str(target), "--quiet"])
+        if rc == 0:
+            fs_sr.detail = "regenerated files-state.js"
+        else:
+            fs_sr.detail = f"build_files_state exited rc={rc}"
+    except Exception as exc:  # noqa: BLE001
+        fs_sr.detail = f"skipped: build_files_state raised ({exc})"
+    report.sections.append(fs_sr)
+
     # Section 5: regenerate the telemetry-dashboard sidecar (best-effort).
     # Failure here must never break apply_config — log only.
     ds_sr = _rebuild_dashboard_sidecar(target)
