@@ -185,8 +185,8 @@ def test_pre_commit_empty_extras_returns_canonical() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_coderabbit_appends_extras_as_comments() -> None:
-    template = "language: en-US\nreviews:\n  profile: chill\n"
+def test_coderabbit_merges_extras_into_yaml_structure() -> None:
+    template = "language: en-US\nreviews:\n  profile: chill\n  path_filters:\n    - '!playbook/**'\n"
     out = render_coderabbit(
         template=template,
         substitutions={},
@@ -195,10 +195,60 @@ def test_coderabbit_appends_extras_as_comments() -> None:
             "path_instructions": [{"path": "src/**", "instructions": "review carefully"}],
         }},
     )
+    # Re-parse to confirm structural merge.
+    import yaml
+    parsed = yaml.safe_load(out)
+    assert parsed["language"] == "en-US"
+    assert parsed["reviews"]["profile"] == "chill"
+    # path_filters merged: playbook entry preserved, consumer appended.
+    assert "!playbook/**" in parsed["reviews"]["path_filters"]
+    assert "!myproject/**" in parsed["reviews"]["path_filters"]
+    # path_instructions added.
+    assert any(
+        e.get("path") == "src/**" and "review carefully" in e.get("instructions", "")
+        for e in parsed["reviews"]["path_instructions"]
+    )
+
+
+def test_coderabbit_dedupes_path_filters() -> None:
+    template = "reviews:\n  path_filters:\n    - '!shared/**'\n"
+    out = render_coderabbit(
+        template=template,
+        substitutions={},
+        bundle={"coderabbit_extras": {"path_filters": ["!shared/**", "!new/**"]}},
+    )
+    import yaml
+    parsed = yaml.safe_load(out)
+    filters = parsed["reviews"]["path_filters"]
+    assert filters.count("!shared/**") == 1
+    assert "!new/**" in filters
+
+
+def test_coderabbit_consumer_overrides_playbook_path_instructions() -> None:
+    template = (
+        "reviews:\n"
+        "  path_instructions:\n"
+        "    - path: 'src/**'\n"
+        "      instructions: 'playbook default'\n"
+    )
+    out = render_coderabbit(
+        template=template,
+        substitutions={},
+        bundle={"coderabbit_extras": {
+            "path_instructions": [{"path": "src/**", "instructions": "consumer override"}],
+        }},
+    )
+    import yaml
+    parsed = yaml.safe_load(out)
+    entries = [e for e in parsed["reviews"]["path_instructions"] if e["path"] == "src/**"]
+    assert len(entries) == 1
+    assert entries[0]["instructions"] == "consumer override"
+
+
+def test_coderabbit_no_extras_returns_canonical() -> None:
+    template = "language: en-US\nreviews:\n  profile: chill\n"
+    out = render_coderabbit(template=template, substitutions={}, bundle={})
     assert "language: en-US" in out
-    assert "consumer extras" in out
-    assert "!myproject/**" in out
-    assert "review carefully" in out
 
 
 # ---------------------------------------------------------------------------
