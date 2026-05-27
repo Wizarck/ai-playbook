@@ -1,42 +1,80 @@
 """Render ``.coderabbit.yaml`` from template + bundle.
 
-The current template is large YAML with no marker blocks. We treat the
-template post-substitution as canonical and append consumer extras
-(``bundle.coderabbit_extras``) at the bottom as YAML comments + extra
-list entries. CodeRabbit tolerates extra top-level keys; injecting under
-``reviews.path_filters`` would require a YAML parser round-trip which we
-defer for simplicity.
+This renderer performs a structural YAML merge:
 
-Phase 4 ships a minimal renderer: full overwrite of the canonical
-template, with extras documented as appended comments. Future iteration
-may introduce a proper YAML merge.
+* The template's canonical YAML is loaded.
+* ``bundle.coderabbit_extras.path_filters`` extends the
+  ``reviews.path_filters`` list (de-duplicated, order preserved with
+  consumer entries appended after playbook ones).
+* ``bundle.coderabbit_extras.path_instructions`` extends
+  ``reviews.path_instructions`` (extra entries appended).
+* The merged structure is re-emitted as YAML.
+
+The output is valid YAML that CodeRabbit can consume directly — no more
+"consumer extras as comments" gap from the Phase-4 minimal version.
 """
 from __future__ import annotations
 
+from typing import Any
 
-def _format_extras(coderabbit_extras: dict | None) -> str:
-    coderabbit_extras = coderabbit_extras or {}
-    extra_filters = coderabbit_extras.get("path_filters") or []
-    extra_instructions = coderabbit_extras.get("path_instructions") or []
-    if not extra_filters and not extra_instructions:
-        return ""
-    lines: list[str] = []
-    lines.append("")
-    lines.append("# >>> consumer extras (managed by apply_config) >>>")
-    if extra_filters:
-        lines.append("# Extra path_filters to merge into the reviews section above:")
-        for pattern in extra_filters:
-            lines.append(f"#   - {pattern!r}")
-    if extra_instructions:
-        lines.append("# Extra path_instructions:")
-        for entry in extra_instructions:
-            path = entry.get("path", "")
-            inst = entry.get("instructions", "").replace("\n", "\n#       ")
-            lines.append(f"#   - path: {path!r}")
-            lines.append(f"#     instructions: |")
-            lines.append(f"#       {inst}")
-    lines.append("# <<< consumer extras <<<")
-    return "\n".join(lines) + "\n"
+import yaml
+
+
+def _apply_subs(text: str, substitutions: dict[str, str]) -> str:
+    out = text
+    for key, value in substitutions.items():
+        if value is not None:
+            out = out.replace("{{" + key + "}}", str(value))
+    return out
+
+
+def _merge_path_filters(
+    base: list[Any] | None, extras: list[str] | None,
+) -> list[str] | None:
+    if not extras and not base:
+        return base
+    base = list(base or [])
+    extras = list(extras or [])
+    out: list[str] = []
+    seen: set[str] = set()
+    for entry in (*base, *extras):
+        if not isinstance(entry, str):
+            continue
+        if entry in seen:
+            continue
+        seen.add(entry)
+        out.append(entry)
+    return out
+
+
+def _merge_path_instructions(
+    base: list[Any] | None, extras: list[dict] | None,
+) -> list[Any] | None:
+    if not extras and not base:
+        return base
+    base = list(base or [])
+    extras_list = list(extras or [])
+    out: list[Any] = list(base)
+    existing_paths = {
+        e["path"] for e in out
+        if isinstance(e, dict) and isinstance(e.get("path"), str)
+    }
+    for entry in extras_list:
+        if not isinstance(entry, dict):
+            continue
+        path = entry.get("path")
+        if not isinstance(path, str):
+            continue
+        if path in existing_paths:
+            # Consumer override: replace the playbook entry at the same path.
+            out = [
+                e if not (isinstance(e, dict) and e.get("path") == path) else entry
+                for e in out
+            ]
+        else:
+            out.append(entry)
+            existing_paths.add(path)
+    return out
 
 
 def render(
@@ -45,16 +83,45 @@ def render(
     substitutions: dict[str, str],
     bundle: dict,
 ) -> str:
-    body = template
-    for key, value in substitutions.items():
-        if value is not None:
-            body = body.replace("{{" + key + "}}", str(value))
-    extras = _format_extras(bundle.get("coderabbit_extras"))
-    if extras:
-        if not body.endswith("\n"):
-            body += "\n"
-        body += extras
-    return body
+    body = _apply_subs(template, substitutions)
+    extras = bundle.get("coderabbit_extras") or {}
+    extra_filters = extras.get("path_filters")
+    extra_instructions = extras.get("path_instructions")
+    if not extra_filters and not extra_instructions:
+        return body
+
+    try:
+        data: Any = yaml.safe_load(body)
+    except yaml.YAMLError:
+        # Fall back to plain template if YAML parse fails (defensive).
+        return body
+    if not isinstance(data, dict):
+        return body
+
+    reviews = data.setdefault("reviews", {})
+    if not isinstance(reviews, dict):
+        reviews = {}
+        data["reviews"] = reviews
+
+    if extra_filters:
+        merged_filters = _merge_path_filters(reviews.get("path_filters"), extra_filters)
+        if merged_filters is not None:
+            reviews["path_filters"] = merged_filters
+
+    if extra_instructions:
+        merged_instructions = _merge_path_instructions(
+            reviews.get("path_instructions"), extra_instructions,
+        )
+        if merged_instructions is not None:
+            reviews["path_instructions"] = merged_instructions
+
+    return yaml.safe_dump(
+        data,
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+        indent=2,
+    )
 
 
 __all__ = ["render"]
