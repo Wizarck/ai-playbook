@@ -174,6 +174,7 @@
       p.classList.toggle("active", id === name);
     });
     if (name === "preview") renderPreview();
+    if (name === "files") renderFiles();
     if (name === "dashboard" && typeof window.DashboardRender === "object" && window.DashboardRender !== null) {
       try { window.DashboardRender.mount("#dashboard-root"); }
       catch (err) { console.error("dashboard mount failed:", err); }
@@ -187,6 +188,137 @@
     renderGlobalFlags();
     renderSkillsEnforce();
     renderMcpsEnforce();
+    updateFilesCounter();
+  }
+
+  // ------- Files tab (read-only inspector v1) -------
+  let activeFilePath = null;
+
+  function updateFilesCounter() {
+    const el = document.getElementById("tab-count-files");
+    if (!el) return;
+    const fs = window.FILES_STATE;
+    if (!fs || !Array.isArray(fs.files)) { el.textContent = "—"; return; }
+    el.textContent = String(fs.files.length);
+  }
+
+  function renderFiles() {
+    const listEl = document.getElementById("files-list");
+    const inspectorEl = document.getElementById("files-inspector");
+    const summaryEl = document.getElementById("files-summary");
+    const hintBtn = document.getElementById("files-refresh-hint");
+    if (!listEl || !inspectorEl) return;
+
+    const fs = window.FILES_STATE;
+    if (!fs || !Array.isArray(fs.files)) {
+      listEl.innerHTML = "";
+      inspectorEl.innerHTML = `
+        <p class="files-inspector-empty">
+          <strong>No files-state sidecar found.</strong><br>
+          Generate it by running, from the consumer root:<br>
+          <code class="cmd">python -m scripts.build_files_state</code><br><br>
+          Or apply a bundle (which builds it automatically as part of apply_config).
+        </p>`;
+      if (summaryEl) summaryEl.textContent = "0 files tracked";
+      if (hintBtn) hintBtn.disabled = false;
+      return;
+    }
+
+    if (summaryEl) {
+      const totals = fs.files.reduce((acc, f) => {
+        acc.canonical += (f.counts && f.counts.canonical) || 0;
+        acc.drifted += (f.counts && f.counts.drifted) || 0;
+        acc.custom += (f.counts && f.counts.custom) || 0;
+        return acc;
+      }, { canonical: 0, drifted: 0, custom: 0 });
+      summaryEl.textContent =
+        `${fs.files.length} files · ${totals.canonical} canonical · ${totals.drifted} drifted · ${totals.custom} custom`;
+    }
+
+    // File rail
+    listEl.innerHTML = "";
+    fs.files.forEach(file => {
+      const li = document.createElement("li");
+      li.className = "files-list-item";
+      li.dataset.relPath = file.rel_path;
+      if (file.rel_path === activeFilePath) li.classList.add("active");
+      const counts = file.counts || { canonical: 0, drifted: 0, custom: 0 };
+      const driftBadge = counts.drifted > 0
+        ? `<span class="files-badge drifted">${counts.drifted} drift</span>`
+        : "";
+      li.innerHTML = `
+        <div class="files-list-name">${escapeHtml(file.rel_path)}</div>
+        <div class="files-list-meta">
+          <span class="files-badge canonical">${counts.canonical}C</span>
+          <span class="files-badge custom">${counts.custom}X</span>
+          ${driftBadge}
+        </div>`;
+      li.addEventListener("click", () => {
+        activeFilePath = file.rel_path;
+        renderFiles();
+      });
+      listEl.appendChild(li);
+    });
+
+    // Inspector
+    if (!activeFilePath) {
+      inspectorEl.innerHTML = `<p class="files-inspector-empty">Select a file on the left to inspect its sections.</p>`;
+      return;
+    }
+    const file = fs.files.find(f => f.rel_path === activeFilePath);
+    if (!file) {
+      inspectorEl.innerHTML = `<p class="files-inspector-empty">File not found in current state.</p>`;
+      return;
+    }
+    const backupsForFile = (fs.backups || []).filter(b => b.rel_path === file.rel_path);
+    const restoreSelect = backupsForFile.length > 0
+      ? `<select id="restore-bak-select">
+           ${backupsForFile.map(b => `<option value="${escapeHtml(b.backup_rel_path)}">${escapeHtml(b.timestamp)} (${escapeHtml(b.location)})</option>`).join("")}
+         </select>
+         <button class="btn small" type="button" id="restore-bak-btn" disabled title="Restore is a CLI action; see hint">Restore (CLI)</button>`
+      : `<span class="files-inspector-hint">No backups recorded for this file yet.</span>`;
+    const sectionsHtml = (file.sections || []).map(s => {
+      if (s.id === null || s.origin === "custom") {
+        return `
+          <div class="files-section custom">
+            <div class="files-section-header">
+              <span class="files-badge custom">custom</span>
+              <span class="files-section-id">(consumer)</span>
+            </div>
+            <pre class="files-section-preview">${escapeHtml(s.preview || "")}</pre>
+          </div>`;
+      }
+      const badgeClass = s.origin === "canonical" ? "canonical" : "drifted";
+      const badgeLabel = s.origin === "canonical" ? "canonical" : "drifted";
+      const shaInfo = s.actual_sha
+        ? `<span class="files-section-sha">sha=${escapeHtml(s.actual_sha)}${s.expected_sha && s.expected_sha !== s.actual_sha ? ` (expected ${escapeHtml(s.expected_sha)})` : ""}</span>`
+        : "";
+      return `
+        <div class="files-section ${badgeClass}">
+          <div class="files-section-header">
+            <span class="files-badge ${badgeClass}">${badgeLabel}</span>
+            <span class="files-section-id">${escapeHtml(s.id || "")}</span>
+            ${shaInfo}
+          </div>
+          <pre class="files-section-preview">${escapeHtml(s.preview || "")}</pre>
+        </div>`;
+    }).join("");
+    inspectorEl.innerHTML = `
+      <div class="files-inspector-header">
+        <h3>${escapeHtml(file.rel_path)}</h3>
+        <div class="files-inspector-actions">${restoreSelect}</div>
+      </div>
+      <div class="files-sections">
+        ${sectionsHtml || `<p class="files-inspector-empty">No sections detected.</p>`}
+      </div>
+    `;
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function toggleSkillEnforced(slug, enforced) {
