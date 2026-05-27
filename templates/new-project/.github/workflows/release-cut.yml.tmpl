@@ -43,7 +43,12 @@ jobs:
           AIPLAYBOOK_JIRA_DEFAULT_PROJECT: ${{ secrets.AIPLAYBOOK_JIRA_DEFAULT_PROJECT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: PYTHONPATH=.ai-playbook python -m scripts.release_cut --tag ${{ github.ref_name }}
+        run: |
+          if [ ! -d .ai-playbook ]; then
+            echo "::warning::.ai-playbook submodule absent; skipping release-cut. Run scripts/uninstall.py to clean up if intentional."
+            exit 0
+          fi
+          PYTHONPATH=.ai-playbook python -m scripts.release_cut --tag ${{ github.ref_name }}
 
       - name: Upload notifications log as artifact
         if: always()
