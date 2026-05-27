@@ -4,6 +4,8 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
+
 ### Added — bundle-driven managed-files redesign (`feat/bootstrap-dispatch`)
 
 Major redesign of how `bootstrap` and `apply_config` interact with consumer
