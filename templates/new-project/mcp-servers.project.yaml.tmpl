@@ -19,6 +19,7 @@ version: 0.1.0
 layer: project
 project: {{PROJECT_NAME}}
 
+# >>> ai-playbook:begin id=project-servers-baseline >>>
 servers:
   hindsight:
     id: hindsight
@@ -31,3 +32,7 @@ servers:
     auth: cf-access
     scope: project
     capabilities_hint: [recall, retain]
+# <<< ai-playbook:end project-servers-baseline <<<
+
+# Add project-specific MCP servers below (outside the marker block) — they will
+# be merged with the baseline above and preserved across `apply_config` runs.

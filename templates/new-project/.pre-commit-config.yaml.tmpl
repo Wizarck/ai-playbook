@@ -1,13 +1,14 @@
 # Pre-commit config for {{PROJECT_NAME}}. Inherits hooks from the ai-playbook submodule.
 # Bootstrap: `pip install pre-commit && pre-commit install` after cloning.
 #
-# Two hooks are OPTIONAL and commented out below. Enable them only if the
-# project meets the activation condition stated above each block. See
-# .ai-playbook/specs/fusion-integration-pattern.md §8 for guidance on
-# tailoring this template for projects with a pre-existing OpenSpec custom
-# workflow.
+# Hooks inside the `# >>> ai-playbook:begin id=playbook-hooks >>>` block below are
+# playbook-managed and overwritten on `apply_config` / `bootstrap --update`. Add
+# project-specific hooks OUTSIDE that block — they will be preserved across
+# re-renders. See .ai-playbook/specs/fusion-integration-pattern.md §8 for
+# guidance on tailoring this template.
 
 repos:
+# >>> ai-playbook:begin id=playbook-hooks >>>
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
@@ -27,21 +28,21 @@ repos:
     hooks:
       - id: schema-validate-agents
         name: Validate AGENTS.md against playbook schema
-        entry: python .ai-playbook/scripts/schema_validate.py AGENTS.md
+        entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/schema_validate.py AGENTS.md || exit 0'
         language: system
         pass_filenames: false
         files: ^AGENTS\.md$
 
       - id: mcp-validate
         name: Validate mcp-servers.yaml layering
-        entry: python .ai-playbook/scripts/mcp/validate.py
+        entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/mcp/validate.py || exit 0'
         language: system
         pass_filenames: false
         files: ^mcp-servers\.yaml$|^mcp-servers\.project\.yaml$
 
       - id: verdict-lint
         name: Lint review/verify verdict shape (verdict-contract.md)
-        entry: python .ai-playbook/scripts/verdict_lint.py --shape artifact
+        entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/verdict_lint.py --shape artifact || exit 0'
         language: system
         files: ^openspec/changes/.*/(review|verify)\.md$
 
@@ -51,7 +52,7 @@ repos:
       # consumer-a-team schema) should leave this disabled. See AGENTS.md §7.5.
       # - id: block-manual-spec-edit
       #   name: Block manual edits to openspec/specs/
-      #   entry: python .ai-playbook/scripts/block_manual_spec_edit.py
+      #   entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/block_manual_spec_edit.py || exit 0'
       #   language: system
       #   files: ^openspec/specs/.*\.md$
 
@@ -61,7 +62,7 @@ repos:
       # should leave this disabled. See AGENTS.md §7.5.
       # - id: verify-llm-routing
       #   name: Verify LLM routing (Change C drift detector — direct-SDK callers)
-      #   entry: python .ai-playbook/scripts/verify_llm_routing.py
+      #   entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/verify_llm_routing.py || exit 0'
       #   language: system
       #   pass_filenames: false
       #   # Warn-only initially per ai-playbook D3.5; promote to --strict after
@@ -69,3 +70,4 @@ repos:
       #   # `.ai-playbook.scripts._llm.call(task_class, ...)` — see
       #   # `.ai-playbook/specs/model-routing.md` §1 for the task-class taxonomy.
       #   always_run: true
+# <<< ai-playbook:end playbook-hooks <<<

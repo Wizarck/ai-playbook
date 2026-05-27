@@ -19,7 +19,14 @@ tracker_kind: github
 # {{PROJECT_NAME}} — AGENTS.md
 
 > Project dispatcher. Lean file. Universal norms inherit from `.ai-playbook/specs/*` (pinned via `inherits_from` above).
+>
+> **Sections wrapped in `<!-- ai-playbook:begin id=… -->` markers are playbook-managed.**
+> They are overwritten on `apply_config` / `bootstrap --update`. Edits made inside a
+> marker block are detected as drift and surfaced in the config UI (Files tab) for
+> review. Content OUTSIDE marker blocks (project identity, active work, hard rules,
+> overrides, gotchas) is consumer-owned and preserved across re-renders.
 
+<!-- ai-playbook:begin id=bootstrap-directive -->
 ## 0 Bootstrap directive
 
 Before responding to ANY task:
@@ -29,11 +36,13 @@ Before responding to ANY task:
 3. Consult `.claude/injected-context.md` — populated by the SessionStart hook from `hindsight.recall(query="{{PROJECT_NAME}} <topic>")` against bank `{{PROJECT_BANK}}`. If absent or showing `DEGRADED_CONTEXT`, announce + proceed without prior recall.
 4. Check `openspec/changes/*/` for active work on the topic. If a change is live, extend it — don't start parallel work.
 5. Only then respond.
+<!-- ai-playbook:end bootstrap-directive -->
 
 ## 1 Project identity
 
 {{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}
 
+<!-- ai-playbook:begin id=dispatcher-index -->
 ## 2 Dispatcher index
 
 | Topic | Pointer |
@@ -49,6 +58,7 @@ Before responding to ANY task:
 | Branch / PR / release lifecycle | [.ai-playbook/specs/release-management.md](.ai-playbook/specs/release-management.md) |
 | Merge style decision rules | [.ai-playbook/specs/merge-policy.md](.ai-playbook/specs/merge-policy.md) |
 | Conflict resolution between parallel PRs | [.ai-playbook/specs/conflict-resolution-policy.md](.ai-playbook/specs/conflict-resolution-policy.md) |
+<!-- ai-playbook:end dispatcher-index -->
 
 ## 3 Active work
 
@@ -58,6 +68,7 @@ Before responding to ANY task:
 
 {{PROJECT_SPECIFIC_RULES_NOT_DUPLICATING_PLAYBOOK}}
 
+<!-- ai-playbook:begin id=capability-map -->
 ## 5 Capability map
 
 | Need | Tool / skill | Where |
@@ -74,7 +85,9 @@ Before responding to ANY task:
 | Render MCP configs | `python .ai-playbook/scripts/mcp/render.py --project {{PROJECT_NAME}}` | playbook |
 | Secrets scan | `python .ai-playbook/scripts/secrets_scan.py` | playbook |
 | Check for legacy↔v1 mcp-servers drift | `python .ai-playbook/scripts/check_mcp_drift.py` | playbook |
+<!-- ai-playbook:end capability-map -->
 
+<!-- ai-playbook:begin id=mcp-sources -->
 ## 6 MCP sources (SSOT pointer)
 
 3-layer SSOT per [.ai-playbook/specs/mcp-servers-schema.md](.ai-playbook/specs/mcp-servers-schema.md):
@@ -84,6 +97,7 @@ Before responding to ANY task:
 3. **Personal** — `~/.config/mcp-servers.yaml` (per-dev tenant instances; never committed).
 
 Rendered to [`.mcp.json`](.mcp.json) + [`.gemini/settings.json`](.gemini/settings.json) via `scripts/mcp/render.py`. Regenerate after editing the project layer.
+<!-- ai-playbook:end mcp-sources -->
 
 ## 7 Overrides inherited from playbook
 
