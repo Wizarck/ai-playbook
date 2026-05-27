@@ -277,7 +277,18 @@
          </select>
          <button class="btn small" type="button" id="restore-bak-btn" disabled title="Restore is a CLI action; see hint">Restore (CLI)</button>`
       : `<span class="files-inspector-hint">No backups recorded for this file yet.</span>`;
-    const sectionsHtml = (file.sections || []).map(s => {
+
+    // ---- v2: file-level curate buttons + v3: per-section ----
+    const curate = getCurateIntent(file.rel_path);
+    const curateButtons = `
+      <div class="files-curate-bar">
+        <span class="files-curate-label">Curate (next apply):</span>
+        <button class="btn small ${curate.default === 'take_playbook' ? 'primary' : 'ghost'}" type="button" data-curate-default="take_playbook">Take playbook</button>
+        <button class="btn small ${curate.default === 'keep_mine' ? 'primary' : 'ghost'}" type="button" data-curate-default="keep_mine">Keep mine</button>
+        <span class="files-inspector-hint">Per-block overrides available below.</span>
+      </div>`;
+
+    const sectionsHtml = (file.sections || []).map((s, idx) => {
       if (s.id === null || s.origin === "custom") {
         return `
           <div class="files-section custom">
@@ -293,6 +304,12 @@
       const shaInfo = s.actual_sha
         ? `<span class="files-section-sha">sha=${escapeHtml(s.actual_sha)}${s.expected_sha && s.expected_sha !== s.actual_sha ? ` (expected ${escapeHtml(s.expected_sha)})` : ""}</span>`
         : "";
+      const blockAction = (curate.blocks && curate.blocks[s.id]) || curate.default || "take_playbook";
+      const perBlockControl = `
+        <div class="files-section-curate">
+          <label><input type="radio" name="curate-${escapeHtml(s.id)}-${idx}" value="take_playbook" data-curate-block="${escapeHtml(s.id)}" ${blockAction === 'take_playbook' ? 'checked' : ''}> Take playbook</label>
+          <label><input type="radio" name="curate-${escapeHtml(s.id)}-${idx}" value="keep_mine" data-curate-block="${escapeHtml(s.id)}" ${blockAction === 'keep_mine' ? 'checked' : ''}> Keep mine</label>
+        </div>`;
       return `
         <div class="files-section ${badgeClass}">
           <div class="files-section-header">
@@ -301,6 +318,7 @@
             ${shaInfo}
           </div>
           <pre class="files-section-preview">${escapeHtml(s.preview || "")}</pre>
+          ${perBlockControl}
         </div>`;
     }).join("");
     inspectorEl.innerHTML = `
@@ -308,10 +326,58 @@
         <h3>${escapeHtml(file.rel_path)}</h3>
         <div class="files-inspector-actions">${restoreSelect}</div>
       </div>
+      ${curateButtons}
       <div class="files-sections">
         ${sectionsHtml || `<p class="files-inspector-empty">No sections detected.</p>`}
       </div>
     `;
+    wireCurateControls(file.rel_path);
+  }
+
+  function getCurateIntent(relPath) {
+    if (!state) state = {};
+    if (!state.file_curate_intents) state.file_curate_intents = {};
+    if (!state.file_curate_intents[relPath]) {
+      state.file_curate_intents[relPath] = { default_action: "take_playbook", blocks: {} };
+    }
+    const entry = state.file_curate_intents[relPath];
+    return {
+      default: entry.default_action || "take_playbook",
+      blocks: entry.blocks || {},
+    };
+  }
+
+  function setCurateDefault(relPath, action) {
+    getCurateIntent(relPath); // ensure exists
+    state.file_curate_intents[relPath].default_action = action;
+    renderFiles();
+  }
+
+  function setCurateBlock(relPath, blockId, action) {
+    getCurateIntent(relPath);
+    const entry = state.file_curate_intents[relPath];
+    entry.blocks = entry.blocks || {};
+    if (action === entry.default_action) {
+      delete entry.blocks[blockId];
+    } else {
+      entry.blocks[blockId] = action;
+    }
+  }
+
+  function wireCurateControls(relPath) {
+    document.querySelectorAll("[data-curate-default]").forEach(btn => {
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        setCurateDefault(relPath, btn.dataset.curateDefault);
+      });
+    });
+    document.querySelectorAll("[data-curate-block]").forEach(radio => {
+      radio.addEventListener("change", () => {
+        if (radio.checked) {
+          setCurateBlock(relPath, radio.dataset.curateBlock, radio.value);
+        }
+      });
+    });
   }
 
   function escapeHtml(s) {
@@ -787,6 +853,27 @@
     }
     if (state.mcps_enforce && Array.isArray(state.mcps_enforce.disabled) && state.mcps_enforce.disabled.length > 0) {
       bundle.mcps_enforce = { disabled: [...state.mcps_enforce.disabled].sort() };
+    }
+    // Sparse: only emit file_curate_intents for files where the user actually
+    // changed something away from defaults (default_action != "take_playbook"
+    // OR per-block overrides exist).
+    if (state.file_curate_intents && typeof state.file_curate_intents === "object") {
+      const intentsOut = {};
+      Object.entries(state.file_curate_intents).forEach(([relPath, entry]) => {
+        if (!entry) return;
+        const defaultAction = entry.default_action || "take_playbook";
+        const blocks = entry.blocks || {};
+        const hasNonDefault = (
+          (defaultAction !== "take_playbook") ||
+          Object.keys(blocks).length > 0
+        );
+        if (!hasNonDefault) return;
+        const out = {};
+        if (defaultAction !== "take_playbook") out.default_action = defaultAction;
+        if (Object.keys(blocks).length > 0) out.blocks = { ...blocks };
+        intentsOut[relPath] = out;
+      });
+      if (Object.keys(intentsOut).length > 0) bundle.file_curate_intents = intentsOut;
     }
     return bundle;
   }

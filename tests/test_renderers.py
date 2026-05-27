@@ -62,6 +62,94 @@ def test_agents_md_injects_sha_into_markers() -> None:
     assert block.sha == compute_sha(block.content)
 
 
+def test_agents_md_keep_mine_overrides_block_content() -> None:
+    template = (
+        "<!-- ai-playbook:begin id=bootstrap-directive -->\n"
+        "Canonical from playbook\n"
+        "<!-- ai-playbook:end bootstrap-directive -->\n"
+    )
+    current = (
+        "<!-- ai-playbook:begin id=bootstrap-directive sha=abc -->\n"
+        "My personalised bootstrap\n"
+        "<!-- ai-playbook:end bootstrap-directive -->\n"
+    )
+    bundle = {
+        "file_curate_intents": {
+            "AGENTS.md": {"blocks": {"bootstrap-directive": "keep_mine"}}
+        }
+    }
+    out = render_agents_md(
+        template=template, substitutions={}, bundle=bundle, current_text=current,
+    )
+    assert "My personalised bootstrap" in out
+    assert "Canonical from playbook" not in out
+
+
+def test_agents_md_take_playbook_is_default() -> None:
+    template = (
+        "<!-- ai-playbook:begin id=bootstrap-directive -->\n"
+        "Canonical from playbook\n"
+        "<!-- ai-playbook:end bootstrap-directive -->\n"
+    )
+    current = (
+        "<!-- ai-playbook:begin id=bootstrap-directive -->\n"
+        "My personalised content\n"
+        "<!-- ai-playbook:end bootstrap-directive -->\n"
+    )
+    out = render_agents_md(
+        template=template, substitutions={}, bundle={}, current_text=current,
+    )
+    assert "Canonical from playbook" in out
+    assert "My personalised content" not in out
+
+
+def test_agents_md_default_action_keep_mine_applies_to_all_blocks() -> None:
+    template = (
+        "<!-- ai-playbook:begin id=block-a -->\nPLAYBOOK A\n<!-- ai-playbook:end block-a -->\n"
+        "<!-- ai-playbook:begin id=block-b -->\nPLAYBOOK B\n<!-- ai-playbook:end block-b -->\n"
+    )
+    current = (
+        "<!-- ai-playbook:begin id=block-a -->\nMINE A\n<!-- ai-playbook:end block-a -->\n"
+        "<!-- ai-playbook:begin id=block-b -->\nMINE B\n<!-- ai-playbook:end block-b -->\n"
+    )
+    bundle = {
+        "file_curate_intents": {
+            "AGENTS.md": {"default_action": "keep_mine"}
+        }
+    }
+    out = render_agents_md(
+        template=template, substitutions={}, bundle=bundle, current_text=current,
+    )
+    assert "MINE A" in out
+    assert "MINE B" in out
+    assert "PLAYBOOK" not in out
+
+
+def test_agents_md_per_block_override_beats_default() -> None:
+    template = (
+        "<!-- ai-playbook:begin id=block-a -->\nPLAYBOOK A\n<!-- ai-playbook:end block-a -->\n"
+        "<!-- ai-playbook:begin id=block-b -->\nPLAYBOOK B\n<!-- ai-playbook:end block-b -->\n"
+    )
+    current = (
+        "<!-- ai-playbook:begin id=block-a -->\nMINE A\n<!-- ai-playbook:end block-a -->\n"
+        "<!-- ai-playbook:begin id=block-b -->\nMINE B\n<!-- ai-playbook:end block-b -->\n"
+    )
+    bundle = {
+        "file_curate_intents": {
+            "AGENTS.md": {
+                "default_action": "keep_mine",
+                "blocks": {"block-b": "take_playbook"},
+            }
+        }
+    }
+    out = render_agents_md(
+        template=template, substitutions={}, bundle=bundle, current_text=current,
+    )
+    assert "MINE A" in out
+    assert "PLAYBOOK B" in out
+    assert "MINE B" not in out
+
+
 def test_agents_md_idempotent_when_bundle_unchanged() -> None:
     template = (
         "<!-- ai-playbook:begin id=core -->\n"
