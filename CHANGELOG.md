@@ -4,6 +4,93 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Added — bundle-driven managed-files redesign (`feat/bootstrap-dispatch`)
+
+Major redesign of how `bootstrap` and `apply_config` interact with consumer
+files. Solves the long-standing footgun: re-running bootstrap clobbered
+consumer customisations because `copy_templates` overwrote unconditionally.
+
+**Files are now SSOT** (each managed file is authoritative for its own
+content). **Bundle is an ephemeral transfer format** — the UI loads files,
+parses them, lets the user curate, and the apply pipeline regenerates each
+managed file from `(template, substitutions, bundle)`. Re-applying the same
+bundle is idempotent (byte-identical, no backup churn). Drift is detected
+via SHA-256[:12] of each marker block content against the saved manifest.
+
+**Marker blocks** delimit playbook-canonical content inside the files:
+`<!-- ai-playbook:begin id=... -->` (HTML/markdown), `# >>> ai-playbook:begin
+id=... >>>` (shell/yaml/gitignore), `// ai-playbook:begin id=...` (JSON5/JS).
+Content OUTSIDE markers is consumer-owned and preserved verbatim.
+
+#### Foundation primitives
+
+- **`scripts/_backup_helper.py`** — `backup_once(consumer, file, *, location, with_timestamp, session_id)` with two destinations (`NEXT_TO_FILE` default — alongside source, user-visible; `CENTRAL` — `.ai-playbook-state/backups/<rel-path>.bak`). Discovery via `<consumer>/.ai-playbook-state/backups/index.json` (schema `ai-playbook-backups/v1`). `latest_backup_for`, `list_backups_for`, `restore_backup`, `prune_backups`. Atomic writes via temp+rename. Windows-safe timestamp format (no colons). Stdlib-only.
+- **`scripts/_marker_blocks.py`** — `parse_blocks` / `write_blocks` for HTML, hash-comment, and slash-comment styles. Round-trip is byte-exact when nothing changes (idempotency invariant). Raises on unmatched / duplicate / mismatched markers. `style_for_filename` convenience guesser.
+- **`scripts/_template_classifier.py`** — `classify(text, style, expected_shas, rel_path)` returns a `FileClassification` whose `sections` list interleaves canonical/drifted/custom segments in document order. Two-state SHA semantics: match = canonical, mismatch (or absent from manifest) = drifted. `build_manifest` + `compute_sha` (SHA-256[:12]).
+
+#### Bundle schema extensions
+
+- **`schemas/schema-ai-playbook-config-v1.json`** — backwards-compatible additive sections: `project_meta` (free-form AGENTS.md content: project_identity, active_work, hard_rules, inherited_overrides, gotchas), `gitignore_extras.patterns`, `pre_commit_extras.hooks`, `coderabbit_extras.{path_filters, path_instructions}`, `claude_settings_extras.{permissions_allow, additional_directories}`, `mcp_project_servers`, `file_states` (per-file SHA manifest), `caveman_section_policy` (user-toggleable compression flags), `backup_preferences` (location + timestamp + retention).
+
+#### Templates with markers
+
+- **`templates/new-project/AGENTS.md.tmpl`** — wraps §0/§2/§5/§6 in marker blocks with semantic ids: `bootstrap-directive`, `dispatcher-index`, `capability-map`, `mcp-sources`. Free-form §1/§3/§4/§7/§8 stay as consumer placeholders.
+- **`templates/new-project/.gitignore.tmpl`** — single `id=playbook-patterns` block wrapping the existing + new entries (`.ai-playbook-state/`, `*.bak`, timestamped backups).
+- **`templates/new-project/.pre-commit-config.yaml.tmpl`** — `id=playbook-hooks` block. Each hook gets a graceful shim: `bash -c '[ -d .ai-playbook ] && python ... || exit 0'` so deleting the submodule does NOT block commits.
+- **`templates/new-project/mcp-servers.project.yaml.tmpl`** — `id=project-servers-baseline` wraps the hindsight bootstrap entry.
+- **NEW `templates/new-project/.claude/settings.local.json.tmpl`** — seed-only stub (Claude Code merges this natively on top of settings.json).
+
+#### Per-file renderers (`scripts/_renderers/`)
+
+Pure functions `(template, substitutions, bundle) -> str` — no filesystem access, caller handles backup + atomic write.
+
+- `agents_md.py` — placeholder substitution + project_meta projection + SHA injection into all marker blocks.
+- `gitignore.py` — marker block + `bundle.gitignore_extras.patterns` + `current_text` preservation with dedup.
+- `pre_commit.py` — marker block + `bundle.pre_commit_extras.hooks` rendered as a `local-extras` repo group.
+- `coderabbit.py` — appends extras as YAML comments (proper merge deferred).
+- `claude_settings.py` — `render_main` (canonical) + `render_local` (seed-only when no extras present).
+- `mcp_project.py` — marker block + `bundle.mcp_project_servers` as additional YAML entries.
+
+#### apply_config integration
+
+- **`scripts/_managed_files.py`** — catalog + `apply_managed_files(consumer_root, playbook_root, bundle, session_id, dry_run)` orchestrator. Per-file flow: read template → renderer → `backup_once` if file exists → atomic write. Returns `{file_states, restart_session_needed, changes}`. Seed-only behaviour for `.claude/settings.local.json` (created once, never overwritten on subsequent applies). LLM-read files (AGENTS.md, CLAUDE.md, GEMINI.md, .claude/*) flag `restart_session_needed` for the apply_config banner.
+- **`scripts/apply_config.py`** — wired as section 6 (before applied-bundle persistence). Legacy bundles without trigger sections (`project_meta`, etc.) skip this entirely — backwards compatible. Backup preferences honoured via `bundle.backup_preferences`. Section 8 also regenerates `files-state.js` for the UI Files tab.
+
+#### Migrate + bootstrap --update
+
+- **`scripts/migrate_to_bundle.py`** — extracts consumer customisations from an already-bootstrapped project. Parses `AGENTS.md` to lift §1/§3/§4/§7/§8 into `project_meta`; reads `.gitignore` lines outside marker blocks into `gitignore_extras`; reads `mcp-servers.project.yaml` (excluding the hindsight baseline) into `mcp_project_servers`; reads `.claude/settings.local.json` permissions into `claude_settings_extras`. CLI: `python -m scripts.migrate_to_bundle [--target PATH] [--out BUNDLE.json] [--apply]`.
+- **`scripts/bootstrap.py --update`** — safe inverse of fresh install. Skips submodule-add + copy_templates (those would clobber). Pipeline: (1) locate `.ai-playbook/applied-config.json` or invoke migrate, (2) `apply_config` on the resolved bundle, (3) re-materialise skills, (4) re-render MCP configs, (5) advisory drift check. `project_name` argument optional under `--update` (taken from AGENTS.md frontmatter).
+
+#### Graceful uninstall
+
+- **`scripts/uninstall.py`** — restores each managed file from the OLDEST `.bak` record (pre-playbook snapshot) when `--restore-from-bak` (default); for files without a `.bak`, strips marker blocks while keeping consumer custom segments verbatim. Removes `.ai-playbook/` submodule (deinit + git rm, falls back to rmtree). Removes `.ai-playbook-state/` unless `--keep-state-dir`. Interactive confirm (skippable with `--yes`).
+- Pre-commit shims in templates already make the uninstall non-disruptive: if a consumer simply deletes the submodule, hooks fall back to `exit 0` instead of blocking commits.
+
+#### UI Files tab (v1 read-only inspector)
+
+- **`scripts/build_files_state.py`** — generates `<consumer>/.ai-playbook-state/files-state.js` (window-scoped sidecar). Schema `files-state/v1`: per-file sections with previews + counts + orphan ids, plus the backup index from `_backup_helper`. Apply_config regenerates this on each apply.
+- **`tools/config-ui/index.html`** — new Files tab between MCPs and Preview. Left-rail file list (C/X/drift counts), right inspector with per-section badges. Sidecar loaded via `<script src>` so `file://` works.
+- **`tools/config-ui/app.js`** — `renderFiles()` paints the rail + inspector. Restore-from-`.bak` dropdown surfaces the index; restore is CLI-only (belt-and-suspenders against accidental destructive UI actions).
+- **`tools/config-ui/style.css`** — Files tab styling: badges (canonical green, drifted orange, custom blue), monospace previews with max-height, responsive single-column under 800px.
+
+Curate flow (v2 file-level "keep mine / take playbook / merge") and per-section granular curate (v3) are scoped for follow-up commits — see [roundtable summary](docs/concepts/bundle-managed-files.md) for the deferred work.
+
+#### Caveman policy
+
+- **`scripts/caveman/policy.py`** — codifies the AI/LLM-expert never-compress list. Marker block ids `bootstrap-directive`, `dispatcher-index`, `capability-map`, `mcp-sources` and project_meta key `hard_rules` are NEVER compressed regardless of the user's global toggle (LLMs rely on precise imperative grammar + negations like 'never', 'must not'). Safe-to-compress: `project_identity`, `inherited_overrides`, `gotchas`, `active_work`. MCP server descriptions default OFF, per-server opt-in only. Query helpers: `is_block_compressible`, `is_project_meta_key_compressible`, `is_mcp_description_compressible`.
+
+#### Tests + docs
+
+- **88 new tests** across `tests/test_backup_helper.py` (22), `tests/test_marker_blocks.py` (26), `tests/test_template_classifier.py` (12), `tests/test_renderers.py` (15), `tests/test_managed_files.py` (11), `tests/test_migrate_to_bundle.py` (13), `tests/test_uninstall.py` (8), `tests/test_build_files_state.py` (6), `tests/test_caveman_policy.py` (15).
+- **`docs/concepts/bundle-managed-files.md`** — design overview, mode tables, marker grammar, migration flow, uninstall, follow-up scope.
+
+### Consumer action
+
+- **Existing consumers**: re-running `bootstrap` is still safe with the legacy bundle (no `project_meta` / extras sections → managed-files section is a no-op). To opt into the bundle-driven flow, run `python -m scripts.migrate_to_bundle --apply --target .` from the consumer root — extracts current state into a bundle, then `apply_config` renders the managed files with markers + backs up originals.
+- **Fresh installs**: `bootstrap <project>` continues to copy templates as before. The marker blocks appear in the resulting files; subsequent `apply_config` invocations honour them.
+- **Future updates**: `python -m scripts.bootstrap --update --path .` is the new recommended way to bump playbook versions on an already-bootstrapped consumer (no more `copy_templates` clobber).
+- **Uninstall**: `python -m scripts.uninstall` (interactive). `.bak` files in `<consumer>/.ai-playbook-state/backups/index.json` (or alongside originals if `backup_preferences.location=next`) provide the rollback path.
+
 ### Added — per-Skill + per-MCP enforcement toggles in the config UI
 
 - **New schemas** — `schemas/schema-skills-enforce-v1.json` and `schemas/schema-mcps-enforce-v1.json`. Negative-list (opt-out) contract: only DISABLED entries are persisted. State files land at `<consumer>/.ai-playbook-state/{skills,mcps}-enforce.json`. Default = all enforced.
