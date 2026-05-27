@@ -113,6 +113,15 @@ class BootstrapArgs:
                                       # surfaces rule drift (bare-layout,
                                       # missing dispatchers, gitignore entries,
                                       # …) right before the "Next steps" banner.
+    update: bool = False              # If True, run the update flow against an
+                                      # already-bootstrapped consumer: skip
+                                      # submodule-add + copy_templates (those
+                                      # would clobber consumer customisations);
+                                      # instead invoke apply_config on the
+                                      # existing applied-config.json (or the
+                                      # one produced by migrate_to_bundle if
+                                      # absent), then re-materialise skills +
+                                      # re-render MCP configs + advisory check.
 
 
 # ---------------------------------------------------------------------------
@@ -596,6 +605,15 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                              "<target> --check` at the end so the operator sees "
                              "any rule drift (bare-layout, dispatchers, "
                              "gitignore-entries, …). Never offers apply or aborts.")
+    parser.add_argument("--update", action="store_true",
+                        help="Update an existing consumer: skip submodule-add + "
+                             "copy_templates (those would clobber consumer "
+                             "customisations). Instead invokes apply_config on "
+                             "<target>/.ai-playbook/applied-config.json (or "
+                             "produces one via migrate_to_bundle if absent), "
+                             "then re-runs skills materialisation + MCP render "
+                             "+ advisory drift check. project_name argument is "
+                             "optional under --update (taken from AGENTS.md).")
     parser.add_argument("--from-config", dest="from_config", type=Path, default=None,
                         help="Apply an ai-playbook-config/v1 bundle JSON (exported from "
                              "tools/config-ui/) after the base bootstrap flow. Mutates "
@@ -605,10 +623,12 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
     ns = parser.parse_args(argv)
     project_name = ns.project_name
     if not project_name:
-        if not ns.refresh_skills:
-            parser.error("project_name is required unless --refresh-skills is used")
-        # Use a placeholder; --refresh-skills path doesn't validate the slug.
-        project_name = "_refresh-skills"
+        if not ns.refresh_skills and not ns.update:
+            parser.error(
+                "project_name is required unless --refresh-skills or --update is used"
+            )
+        # Use a placeholder; --refresh-skills + --update don't validate the slug.
+        project_name = "_update" if ns.update else "_refresh-skills"
     return BootstrapArgs(
         project_name=project_name,
         path=ns.path,
@@ -622,11 +642,28 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         no_caveman=ns.no_caveman,
         from_config=ns.from_config,
         no_check=ns.no_check,
+        update=ns.update,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+
+    # --update short-circuit: skip submodule-add + copy_templates (which would
+    # clobber consumer customisations) and run the safe pipeline:
+    #   1. migrate_to_bundle if applied-config.json is absent
+    #   2. apply_config on the (existing or migrated) bundle
+    #   3. materialise_skills + render_mcp_configs (idempotent)
+    #   4. ai_playbook_check --check (advisory)
+    if args.update:
+        target_dir = (args.path or Path.cwd()).expanduser().resolve()
+        if not target_dir.is_dir():
+            print(
+                f"❌ --update target {target_dir} is not a directory",
+                file=sys.stderr,
+            )
+            return 1
+        return run_update(target_dir, args)
 
     # --refresh-skills short-circuit: skip the bootstrap flow entirely and
     # only re-run skills materialisation against the target dir.
@@ -798,6 +835,109 @@ def main(argv: list[str] | None = None) -> int:
         run_playbook_check(target_dir, dry_run=args.dry_run)
 
     print_next_steps(target_dir, args.project_name)
+    return 0
+
+
+def run_update(target_dir: Path, args: BootstrapArgs) -> int:
+    """Run the consumer-update pipeline (no submodule-add, no copy_templates).
+
+    The update flow is the safe inverse of fresh install: it presumes the
+    consumer already has a populated tree (AGENTS.md, .gitignore, etc.) and
+    is bumping the playbook submodule to a newer tag. It must NEVER clobber
+    consumer customisations.
+
+    Pipeline
+    --------
+    1. Locate or build the applied-config bundle. If
+       ``.ai-playbook/applied-config.json`` already exists, use it directly.
+       Otherwise, run the migrate flow to derive a bundle from the consumer's
+       current files.
+    2. Invoke ``apply_config`` on the resolved bundle. This re-renders the
+       managed files (AGENTS.md, .gitignore, .pre-commit, .coderabbit,
+       .claude/settings.local.json, mcp-servers.project.yaml) with current
+       playbook templates + consumer state. Each file is backed up first.
+    3. Re-materialise skills + re-render MCP configs (idempotent).
+    4. Advisory drift check via ``ai_playbook_check --check``.
+
+    Returns the bootstrap exit code (0 on success, 1 on apply failure).
+    """
+    print(f"→ ai-playbook update for {target_dir}")
+    print(f"   mode: {'dry-run' if args.dry_run else 'live'}")
+
+    applied_bundle_path = target_dir / ".ai-playbook" / "applied-config.json"
+    bundle_path_to_use: Path
+
+    if applied_bundle_path.is_file():
+        print(f"→ found existing bundle: {applied_bundle_path}")
+        bundle_path_to_use = applied_bundle_path
+    else:
+        print("→ no applied-config.json — invoking migrate_to_bundle to extract state")
+        if args.dry_run:
+            print("(dry-run) would invoke migrate_to_bundle + apply_config")
+        else:
+            playbook_root = find_playbook_root()
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
+            cmd = [
+                sys.executable, "-m", "scripts.migrate_to_bundle",
+                "--target", str(target_dir),
+            ]
+            try:
+                rc = subprocess.run(cmd, env=env, check=False).returncode
+            except FileNotFoundError:
+                print("⚠️ python not found on PATH; cannot run migrate_to_bundle")
+                return 2
+            if rc != 0:
+                print(f"⚠️ migrate_to_bundle exited {rc}; aborting update")
+                return rc
+        bundle_path_to_use = target_dir / ".ai-playbook-state" / "migrated-bundle.json"
+        if not bundle_path_to_use.is_file() and not args.dry_run:
+            print(f"❌ expected bundle not produced at {bundle_path_to_use}")
+            return 1
+
+    # Step 1: apply_config on the resolved bundle.
+    if args.dry_run:
+        print(f"(dry-run) would apply_config {bundle_path_to_use}")
+    else:
+        playbook_root = find_playbook_root()
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
+        cmd = [
+            sys.executable, "-m", "scripts.apply_config",
+            str(bundle_path_to_use), "--target", str(target_dir),
+        ]
+        print(f"→ {' '.join(cmd)}")
+        try:
+            rc = subprocess.run(cmd, env=env, check=False).returncode
+        except FileNotFoundError:
+            return 2
+        if rc not in (0,):
+            print(f"⚠️ apply_config exited {rc}; continuing with downstream steps")
+
+    # Step 2: skills materialisation (idempotent).
+    try:
+        skills_result = materialise_skills(target_dir, dry_run=args.dry_run)
+        if not skills_result.ok:
+            print(
+                f"⚠️ skills materialisation reported issues: "
+                f"{'; '.join(skills_result.errors)[:300]}",
+                file=sys.stderr,
+            )
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️ skills materialisation raised {type(exc).__name__}: {exc}", file=sys.stderr)
+
+    # Step 3: re-render MCP configs.
+    render_mcp_configs(target_dir, args.project_name, args.dry_run)
+
+    # Step 4: advisory drift check.
+    if not args.no_check:
+        run_playbook_check(target_dir, dry_run=args.dry_run)
+
+    print()
+    print("✅ Update complete.")
+    print("   - Managed files re-rendered from the bundle. Backups in .bak (configured location).")
+    print("   - Skills + MCP configs regenerated.")
+    print("   - Restart Claude Code / Gemini CLI sessions if AGENTS.md or .claude/* changed.")
     return 0
 
 
