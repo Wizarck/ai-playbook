@@ -25,14 +25,19 @@
 
   // ------- Init -------
   async function init() {
+    // Per-fetch fallbacks so a single failure (file:// CORS, missing file,
+    // malformed JSON) never collapses Promise.all and kills the entire UI.
+    // offlineCount drives a contextual "offline mode" banner after init.
+    let offlineCount = 0;
+    const onFail = (fallback) => () => { offlineCount++; return fallback; };
     try {
       const [rulesInv, featuresInv, globalFlagsInv, skillsInv, mcpsInv, defaultsJson] = await Promise.all([
-        fetch("rules-inventory.json").then(r => r.json()),
-        fetch("features-inventory.json").then(r => r.json()),
-        fetch("global-flags-inventory.json").then(r => r.json()),
-        fetch("skills-inventory.json").then(r => r.json()).catch(() => ({ skills: [] })),
-        fetch("mcps-inventory.json").then(r => r.json()).catch(() => ({ servers: [] })),
-        fetch("defaults.json").then(r => r.json()),
+        fetch("rules-inventory.json").then(r => r.json()).catch(onFail({ rules: [] })),
+        fetch("features-inventory.json").then(r => r.json()).catch(onFail({ features: {} })),
+        fetch("global-flags-inventory.json").then(r => r.json()).catch(onFail({ flags: [] })),
+        fetch("skills-inventory.json").then(r => r.json()).catch(onFail({ skills: [] })),
+        fetch("mcps-inventory.json").then(r => r.json()).catch(onFail({ servers: [] })),
+        fetch("defaults.json").then(r => r.json()).catch(onFail({ schema: "ai-playbook-config/v1" })),
       ]);
       inv.rules = rulesInv.rules || [];
       inv.features = featuresInv.features || {};
@@ -76,11 +81,21 @@
       wireEvents();
       renderAll();
       updateCounters();
+      if (offlineCount > 0) {
+        // Don't clobber the applied-state success banner if one is already up.
+        const bannerEl = $("#banner");
+        const hasSuccess = bannerEl && !bannerEl.hidden && bannerEl.classList.contains("success");
+        if (!hasSuccess) {
+          banner(
+            "info",
+            `Offline mode: ${offlineCount} inventory file(s) could not be loaded ` +
+            "(likely file:// CORS or missing JSON). The UI is running on reduced data. " +
+            "For full functionality, run `python -m http.server` from this directory."
+          );
+        }
+      }
     } catch (err) {
-      banner(
-        "error",
-        "Failed to load inventories (file:// CORS?). Run `python -m http.server` from this directory. Details: " + err.message
-      );
+      banner("error", "Unexpected init failure. Details: " + err.message);
     }
   }
 
@@ -387,11 +402,20 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  function updateSkillsSummary() {
+    const summary = $("#skills-summary");
+    if (!summary) return;
+    const disabledSize = (state.skills_enforce.disabled || []).length;
+    const total = inv.skills.length;
+    summary.textContent = `${total - disabledSize}/${total} enforced (${disabledSize} disabled)`;
+  }
+
   function toggleSkillEnforced(slug, enforced) {
     const set = new Set(state.skills_enforce.disabled || []);
     if (enforced) set.delete(slug); else set.add(slug);
     state.skills_enforce.disabled = [...set].sort();
     updateCounters();
+    updateSkillsSummary();
   }
 
   function renderSkillsEnforce() {
@@ -430,10 +454,15 @@
       list.appendChild(li);
     });
 
-    const summary = $("#skills-summary");
-    if (summary) {
-      summary.textContent = `${inv.skills.length - disabledSet.size}/${inv.skills.length} enforced (${disabledSet.size} disabled)`;
-    }
+    updateSkillsSummary();
+  }
+
+  function updateMcpsSummary() {
+    const summary = $("#mcps-summary");
+    if (!summary) return;
+    const disabledSize = (state.mcps_enforce.disabled || []).length;
+    const total = inv.mcps.length;
+    summary.textContent = `${total - disabledSize}/${total} enforced (${disabledSize} disabled)`;
   }
 
   function toggleMcpEnforced(id, enforced) {
@@ -441,6 +470,7 @@
     if (enforced) set.delete(id); else set.add(id);
     state.mcps_enforce.disabled = [...set].sort();
     updateCounters();
+    updateMcpsSummary();
   }
 
   function renderMcpsEnforce() {
@@ -485,10 +515,7 @@
       list.appendChild(li);
     });
 
-    const summary = $("#mcps-summary");
-    if (summary) {
-      summary.textContent = `${inv.mcps.length - disabledSet.size}/${inv.mcps.length} enforced (${disabledSet.size} disabled)`;
-    }
+    updateMcpsSummary();
   }
 
   function cssEscape(s) {
@@ -601,7 +628,12 @@
   function renderFeatures() {
     const wrap = $("#features-list");
     wrap.innerHTML = "";
-    Object.entries(inv.features).forEach(([key, def]) => {
+    const entries = Object.entries(inv.features);
+    if (entries.length === 0) {
+      wrap.innerHTML = `<div class="empty-state">No features inventory loaded. If you opened this UI via <code>file://</code>, check the banner above — most likely the inventory JSONs are blocked by browser CORS. Re-open under <code>python -m http.server</code> for full data.</div>`;
+      return;
+    }
+    entries.forEach(([key, def]) => {
       const stateF = (state.features && state.features[key]) || {};
       const enabled = !!stateF.enabled;
       const mode = stateF.mode || def.default_mode || "full";
@@ -649,6 +681,10 @@
   function renderGlobalFlags() {
     const wrap = $("#global-list");
     wrap.innerHTML = "";
+    if (inv.globalFlags.length === 0) {
+      wrap.innerHTML = `<div class="empty-state">No global-flags inventory loaded. If you opened this UI via <code>file://</code>, check the banner above — most likely the inventory JSONs are blocked by browser CORS. Re-open under <code>python -m http.server</code> for full data.</div>`;
+      return;
+    }
     inv.globalFlags.forEach(flag => {
       const val = (state.global_flags && state.global_flags[flag.key] !== undefined)
         ? state.global_flags[flag.key]

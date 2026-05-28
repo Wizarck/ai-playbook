@@ -50,6 +50,24 @@ def test_app_js_consumes_applied_config() -> None:
     assert "ai-playbook-config/v1" in text
 
 
+def test_app_js_init_degrades_gracefully() -> None:
+    """init() must not collapse on a single inventory fetch failure (file:// CORS,
+    missing JSON, network). Every fetch needs a .catch fallback so Promise.all
+    never rejects and wireEvents()/renderAll() always run."""
+    text = (UI_DIR / "app.js").read_text(encoding="utf-8")
+    assert "offlineCount" in text, "expected offlineCount tracking in init()"
+    assert "onFail" in text, "expected onFail() helper wrapping each fetch"
+
+
+def test_app_js_updates_enforce_summary_on_individual_toggle() -> None:
+    """toggleSkillEnforced/toggleMcpEnforced must refresh the #skills-summary /
+    #mcps-summary text — not only the tab badge — otherwise the summary stays
+    stale until a full re-render (search, filter, enable/disable-all)."""
+    text = (UI_DIR / "app.js").read_text(encoding="utf-8")
+    assert "updateSkillsSummary" in text
+    assert "updateMcpsSummary" in text
+
+
 def test_app_js_fetches_inventories() -> None:
     text = (UI_DIR / "app.js").read_text(encoding="utf-8")
     for name in ("rules-inventory.json", "features-inventory.json", "global-flags-inventory.json", "defaults.json"):
