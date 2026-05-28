@@ -78,3 +78,8 @@ openspec/
 # artefacts produced by BMAD skills (PRDs, ADRs, slicing) get promoted to
 # docs/. See docs/concepts/bmad-openspec-bridge.md §2 (path canon).
 _bmad-output/
+
+# Local scratch / research notes (per-dev, never committed). Conversation
+# analyses, exploratory write-ups, anything that's "thinking out loud" and
+# would otherwise rot in the repo or leak personal context if shipped.
+.temp/
