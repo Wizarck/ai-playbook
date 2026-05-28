@@ -128,7 +128,7 @@ Per-rule × per-LLM obey-rate (once telemetry has signal): [`docs/concepts/rule-
 
 ### Configure from your browser — no localhost, no Node
 
-A self-contained HTML UI at `<your-repo>/.ai-playbook/tools/config-ui/index.html`. **Double-click it** — it opens in your default browser, reads current state from JS sidecars, and exposes seven tabs:
+A self-contained HTML UI at `<your-repo>/.ai-playbook/config-ui/index.html`. **Double-click it** — it opens in your default browser, reads current state from JS sidecars, and exposes seven tabs:
 
 - **Rules** — toggle any of ~50 rules at L1 / L2 / L3 with a `break_glass` reason audit.
 - **Features** — Caveman mode + modes + components.

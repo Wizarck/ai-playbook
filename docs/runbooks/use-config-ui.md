@@ -33,7 +33,7 @@ Skip this runbook if you only need a one-shot override (use the rule's `break_gl
 
 ## 1. Open the UI (double-click works)
 
-The UI lives at `<consumer>/.ai-playbook/tools/config-ui/index.html` (delivered via the playbook git submodule). **Double-click the HTML file** from your file explorer — it opens in your default browser.
+The UI lives at `<consumer>/.ai-playbook/config-ui/index.html` (delivered via the playbook git submodule). **Double-click the HTML file** from your file explorer — it opens in your default browser.
 
 On open, the UI reads the consumer's current applied state:
 
@@ -45,7 +45,7 @@ There is no "open the file separately, then go to localhost" choreography. Plain
 **Fallback for the inventories**: the three inventory JSONs (`rules-inventory.json`, `features-inventory.json`, `global-flags-inventory.json`, `defaults.json`) ARE loaded via `fetch()`. Some browsers (newer Chrome, strict Firefox) block this from `file://`. If you see an error banner:
 
 ```
-cd <consumer>/.ai-playbook/tools/config-ui && python -m http.server
+cd <consumer>/.ai-playbook/config-ui && python -m http.server
 # then visit http://localhost:8000/
 ```
 
@@ -232,7 +232,7 @@ python -m scripts.caveman off                                # disables caveman
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| UI says "Failed to load inventories (file:// CORS?)" | Browser blocks `fetch()` from `file://`. | `cd tools/config-ui && python -m http.server` then visit http://localhost:8000/. |
+| UI says "Failed to load inventories (file:// CORS?)" | Browser blocks `fetch()` from `file://`. | `cd config-ui && python -m http.server` then visit http://localhost:8000/. |
 | `Export` is blocked with "Cannot export — fix these issues first" | You disabled a break-glass rule without a reason ≥10 chars. | Expand the rule's advanced panel and fill the reason field. |
 | Save dialog appears every time (Chromium) | You dismissed the dialog on the first export, so no handle was stored. Or you cleared site data / extended IndexedDB privacy mode is on. | Save normally on the next dialog; the handle persists from then on. |
 | Save dialog appears again after a few exports (Chromium) | The previously chosen file was moved/renamed/deleted, so the stored handle went stale. The UI clears it silently. | Save to the same path again; the new handle replaces the stale one. |

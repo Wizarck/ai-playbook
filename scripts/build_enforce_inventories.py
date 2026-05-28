@@ -1,7 +1,7 @@
 """Build the static JSON inventories consumed by the config UI's
 **Skills** + **MCPs** tabs.
 
-Outputs (relative to ``<playbook>/tools/config-ui/``):
+Outputs (relative to ``<playbook>/config-ui/``):
 
 - ``skills-inventory.json`` — one entry per directory under ``<playbook>/skills/``
   that contains a ``SKILL.md``. Each entry carries the slug, a short

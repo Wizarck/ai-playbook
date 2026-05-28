@@ -1,4 +1,4 @@
-"""Smoke tests for tools/config-ui/ — file presence, JSON validity, schema coherence."""
+"""Smoke tests for config-ui/ — file presence, JSON validity, schema coherence."""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,7 @@ import jsonschema
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-UI_DIR = REPO_ROOT / "tools" / "config-ui"
+UI_DIR = REPO_ROOT / "config-ui"
 SCHEMAS = REPO_ROOT / "schemas"
 
 
@@ -37,7 +37,7 @@ def test_index_html_loads_applied_config_sidecar() -> None:
     can render the current applied state on open over file:// (where fetch()
     is blocked)."""
     text = (UI_DIR / "index.html").read_text(encoding="utf-8")
-    assert 'src="../../applied-config.js"' in text
+    assert 'src="../applied-config.js"' in text
     # The onerror handler must set a flag so app.js can detect a missing sidecar
     # and fall back to defaults.json.
     assert "APPLIED_CONFIG_MISSING" in text

@@ -101,7 +101,7 @@ JSON5 / JS:
 
 ### Curating via the UI
 
-1. Open `tools/config-ui/index.html` (double-click — `file://` works).
+1. Open `config-ui/index.html` (double-click — `file://` works).
 2. The `files-state.js` sidecar (built by `apply_config` or
    `python -m scripts.build_files_state`) populates the Files tab.
 3. Each file's sections show with a badge: canonical (green), drifted
@@ -193,5 +193,5 @@ deleting the submodule does NOT block commits.
 | Bootstrap update flag | [scripts/bootstrap.py](../../scripts/bootstrap.py) `--update` |
 | Uninstall | [scripts/uninstall.py](../../scripts/uninstall.py) |
 | UI files-state sidecar builder | [scripts/build_files_state.py](../../scripts/build_files_state.py) |
-| UI Files tab | [tools/config-ui/index.html](../../tools/config-ui/index.html) + [app.js](../../tools/config-ui/app.js) |
+| UI Files tab | [config-ui/index.html](../../config-ui/index.html) + [app.js](../../config-ui/app.js) |
 | Caveman never-compress policy | [scripts/caveman/policy.py](../../scripts/caveman/policy.py) |

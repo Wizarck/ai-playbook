@@ -46,7 +46,7 @@ The "current applied state" loop: open UI → reads `applied-config.js` → rend
 
 ```mermaid
 flowchart LR
-    UI[HTML UI<br/>.ai-playbook/tools/config-ui/index.html]
+    UI[HTML UI<br/>.ai-playbook/config-ui/index.html]
     UI -->|on open: script src| SIDECAR_IN[(applied-config.js<br/>previous live state)]
     UI -->|click Export<br/>showSaveFilePicker + IndexedDB handle<br/>OR download fallback| BUNDLE[applied-config.json<br/>written into .ai-playbook/ directly<br/>or moved from Downloads]
     BUNDLE -->|Next Steps panel: run apply_config<br/>or bootstrap --from-config PATH| APPLY[scripts/apply_config.py]

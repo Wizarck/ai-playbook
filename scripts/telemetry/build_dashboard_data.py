@@ -7,7 +7,7 @@ Reads:
 
 Writes a single sidecar at ``<consumer>/.ai-playbook/dashboard-data.js`` of the
 form ``window.DASHBOARD_DATA = { ... };``. The browser loads it via
-``<script src>`` from ``tools/config-ui/index.html`` (``fetch()`` is blocked on
+``<script src>`` from ``config-ui/index.html`` (``fetch()`` is blocked on
 ``file://``). Writes are atomic (temp + rename); torn JSONL lines are skipped
 without crashing.
 

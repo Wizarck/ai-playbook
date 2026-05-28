@@ -363,7 +363,7 @@ main { padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
 
 /* ============================================================
  * Telemetry Dashboard tab
- * Owned by tools/config-ui/dashboard.js + scripts/telemetry/build_dashboard_data.py.
+ * Owned by config-ui/dashboard.js + scripts/telemetry/build_dashboard_data.py.
  * See docs/concepts/telemetry-dashboard.md for the panel design.
  * ============================================================ */
 

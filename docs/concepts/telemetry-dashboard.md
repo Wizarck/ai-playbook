@@ -33,7 +33,7 @@ Three groups of humans need that evidence:
 - **Engineering managers** asking "what does the playbook do for us?" Today: arm-waving.
 - **Internal auditors** asking "show me your guardrails are enforced (OWASP LLM01)." Today: nothing to point at.
 
-A markdown report would solve the data-on-disk problem but not the discovery problem — developers do not reliably run CLIs (Five Whys root cause; see the distillate §7). The dashboard's real job is *pull-to-passive conversion*: move the data from "fetch on demand" to "present at a surface the developer already uses". The cheapest such surface is the config UI that already exists at `<consumer>/.ai-playbook/tools/config-ui/index.html`: same double-click entry, same sidecar pattern, same chrome, same cross-platform reach, zero new dependencies beyond Chart.js.
+A markdown report would solve the data-on-disk problem but not the discovery problem — developers do not reliably run CLIs (Five Whys root cause; see the distillate §7). The dashboard's real job is *pull-to-passive conversion*: move the data from "fetch on demand" to "present at a surface the developer already uses". The cheapest such surface is the config UI that already exists at `<consumer>/.ai-playbook/config-ui/index.html`: same double-click entry, same sidecar pattern, same chrome, same cross-platform reach, zero new dependencies beyond Chart.js.
 
 ## What
 

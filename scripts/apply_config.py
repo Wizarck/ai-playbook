@@ -1,6 +1,6 @@
 """Apply an ``ai-playbook-config/v1`` bundle JSON to a consumer project.
 
-Bundle exported by ``tools/config-ui/index.html`` (HTML UI) lands here. The
+Bundle exported by ``config-ui/index.html`` (HTML UI) lands here. The
 script projects each section to its on-disk representation:
 
     rules{}            → <target>/.ai-playbook/rules-toggle.json (direct write)
@@ -136,11 +136,11 @@ def _load_bundle_schema() -> dict[str, Any]:
 
 
 def _load_inventory(name: str) -> dict[str, Any] | None:
-    """Load a tools/config-ui/<name>-inventory.json file. Returns None if missing."""
+    """Load a config-ui/<name>-inventory.json file. Returns None if missing."""
     root = rules_toggle.find_playbook_root()
     if root is None:
         return None
-    p = root / "tools" / "config-ui" / name
+    p = root / "config-ui" / name
     if not p.is_file():
         return None
     try:

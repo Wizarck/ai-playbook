@@ -56,7 +56,7 @@
           "advanced": {
             "type": "object",
             "additionalProperties": { "type": "boolean" },
-            "description": "Per-rule advanced sub-toggles (e.g. {bash_inspection: false} for apply-skill-enforcement). Keys come from the rule's `advanced[]` entry in tools/config-ui/rules-inventory.json; values project to env vars in .ai-playbook/feature-flags.env via the inventory mapping."
+            "description": "Per-rule advanced sub-toggles (e.g. {bash_inspection: false} for apply-skill-enforcement). Keys come from the rule's `advanced[]` entry in config-ui/rules-inventory.json; values project to env vars in .ai-playbook/feature-flags.env via the inventory mapping."
           },
           "reason": {
             "type": ["string", "null"],
