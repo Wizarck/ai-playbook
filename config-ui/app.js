@@ -41,7 +41,7 @@
       inv.mcps = mcpsInv.servers || [];
       defaults = defaultsJson;
       // Initial state precedence:
-      //   1) window.APPLIED_CONFIG injected by ../../applied-config.js (the
+      //   1) window.APPLIED_CONFIG injected by ../applied-config.js (the
       //      last bundle persisted by scripts/apply_config.py). This is the
       //      "current applied state" view that lets the UI render what's
       //      actually live in this consumer.
