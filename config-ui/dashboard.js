@@ -1,6 +1,6 @@
 /* ai-playbook telemetry dashboard renderer — vanilla JS, no build.
  *
- * Reads window.DASHBOARD_DATA (set by ../../dashboard-data.js, the sidecar
+ * Reads window.DASHBOARD_DATA (set by ../dashboard-data.js, the sidecar
  * produced by scripts/telemetry/build_dashboard_data.py) and renders the
  * Dashboard tab inside the existing config UI.
  *
@@ -16,7 +16,7 @@
 
   const SCHEMA_VERSION = "dashboard-data/v1";
   const REFRESH_COMMAND = "python -m scripts.telemetry.build_dashboard_data";
-  const TELEMETRY_DESIGN_DOC = "../../docs/concepts/telemetry-design.md";
+  const TELEMETRY_DESIGN_DOC = "../docs/concepts/telemetry-design.md";
 
   const EMOJI = { green: "🟢", yellow: "🟡", red: "🔴" };
 
