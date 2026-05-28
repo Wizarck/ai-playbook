@@ -268,7 +268,7 @@ def is_rule_disabled(
 
 
 # ---------------------------------------------------------------------------
-# Inventory generation (consumed by tools/config-ui/)
+# Inventory generation (consumed by config-ui/)
 # ---------------------------------------------------------------------------
 
 
@@ -728,7 +728,7 @@ def cmd_inventory(args: argparse.Namespace) -> int:
         return 2
     out_arg = getattr(args, "output", None)
     if out_arg is None:
-        # Default location: tools/config-ui/rules-inventory.json relative to playbook root.
+        # Default location: config-ui/rules-inventory.json relative to playbook root.
         root = find_playbook_root()
         if root is None:
             _emit_error(why="ai-playbook root not found", where="rules_toggle:inventory:output", fix="pass --output PATH.")
@@ -839,7 +839,7 @@ def main(argv: list[str] | None = None) -> int:
     p_off.set_defaults(func=cmd_off)
 
     p_inv = sub.add_parser("inventory", help="Re-scan rules and write rules-inventory.json.")
-    p_inv.add_argument("--output", default=None, help="Override default tools/config-ui/rules-inventory.json path.")
+    p_inv.add_argument("--output", default=None, help="Override default config-ui/rules-inventory.json path.")
     p_inv.add_argument("--json", action="store_true")
     p_inv.set_defaults(func=cmd_inventory)
 

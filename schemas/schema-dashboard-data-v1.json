@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-dashboard-data-v1.json",
   "title": "dashboard-data v1",
-  "description": "Sidecar payload assigned to window.DASHBOARD_DATA by tools/config-ui/dashboard-data.js. Produced offline by scripts/telemetry/build_dashboard_data.py from rule-event/v2 JSONL plus caveman stats plus pricing.yaml. Loaded by the Dashboard tab in tools/config-ui/index.html via <script src>; never via fetch() (browsers block fetch on file://). Forward-compatible additions land as v2.",
+  "description": "Sidecar payload assigned to window.DASHBOARD_DATA by config-ui/dashboard-data.js. Produced offline by scripts/telemetry/build_dashboard_data.py from rule-event/v2 JSONL plus caveman stats plus pricing.yaml. Loaded by the Dashboard tab in config-ui/index.html via <script src>; never via fetch() (browsers block fetch on file://). Forward-compatible additions land as v2.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -558,7 +558,7 @@ def print_next_steps(target_dir: Path, project_name: str) -> None:
     print("   5. If you applied a config bundle (--from-config), source the env file in your shell init: "
           "`set -a; source .ai-playbook/feature-flags.env; set +a` (or via direnv .envrc).")
     print("      Re-apply changes anytime with: `python -m scripts.apply_config <bundle.json>`. "
-          "Build a new bundle in the HTML UI at `.ai-playbook/tools/config-ui/index.html`.")
+          "Build a new bundle in the HTML UI at `.ai-playbook/config-ui/index.html`.")
     print("   6. Write your first OpenSpec change: `/opsx:propose <topic>`.")
     print(f"   7. Commit + push the consumer: "
           f"`git add . && git commit -m 'chore: bootstrap {project_name} via ai-playbook' && git push`.")
@@ -616,7 +616,7 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                              "optional under --update (taken from AGENTS.md).")
     parser.add_argument("--from-config", dest="from_config", type=Path, default=None,
                         help="Apply an ai-playbook-config/v1 bundle JSON (exported from "
-                             "tools/config-ui/) after the base bootstrap flow. Mutates "
+                             "config-ui/) after the base bootstrap flow. Mutates "
                              "rules-toggle.json + caveman.json (via its CLI) + "
                              "feature-flags.env. See scripts/apply_config.py.")
     add_break_glass_flag(parser)

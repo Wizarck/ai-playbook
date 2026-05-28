@@ -94,7 +94,7 @@ from the merged map BEFORE downstream checks run. This means:
 
 ### Config UI (recommended)
 
-Open `tools/config-ui/index.html` (file:// or `python -m http.server`
+Open `config-ui/index.html` (file:// or `python -m http.server`
 in that directory). The **Skills** and **MCPs** tabs show every shipped
 entry with a default-checked checkbox. Uncheck what you don't want,
 click **Export bundle**, and run:
@@ -139,14 +139,14 @@ playbook additions).
 
 ## Refreshing the inventories
 
-The config UI loads `tools/config-ui/skills-inventory.json` and
-`tools/config-ui/mcps-inventory.json` to decide what to render. When
+The config UI loads `config-ui/skills-inventory.json` and
+`config-ui/mcps-inventory.json` to decide what to render. When
 the playbook adds/removes a skill or MCP server, those files need a
 refresh:
 
 ```bash
 python -m scripts.build_enforce_inventories
-git add tools/config-ui/skills-inventory.json tools/config-ui/mcps-inventory.json
+git add config-ui/skills-inventory.json config-ui/mcps-inventory.json
 git commit -m "chore(ui): refresh skills + mcps inventories"
 ```
 
@@ -165,4 +165,4 @@ playbook tree yields byte-identical files (modulo the
 | [scripts/apply_config.py](../../scripts/apply_config.py) | Writes the state files from a bundle |
 | [scripts/materialise_skills.py](../../scripts/materialise_skills.py) | Honours the Skills opt-out list |
 | [scripts/mcp/render.py](../../scripts/mcp/render.py) | Honours the MCPs opt-out list |
-| [tools/config-ui/index.html](../../tools/config-ui/index.html) | Skills + MCPs tabs |
+| [config-ui/index.html](../../config-ui/index.html) | Skills + MCPs tabs |

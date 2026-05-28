@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-ai-playbook-config-v1.json",
   "title": "ai-playbook bundle config (v1)",
-  "description": "Declarative bundle produced by tools/config-ui (HTML) and consumed by scripts/apply_config.py + scripts/bootstrap.py --from-config. Tri-category surface: rules{} (per-rule toggles + layers + advanced), features{} (installed components with state files + side effects — today only caveman), global_flags{} (binary env-driven toggles, no state file). Sparse: only modified-from-default entries appear. Sub-shapes are declarative intent only — the canonical state lives in per-feature files (.ai-playbook/rules-toggle.json, .ai-playbook/caveman.json, .ai-playbook/feature-flags.env), each gitignored.",
+  "description": "Declarative bundle produced by config-ui (HTML) and consumed by scripts/apply_config.py + scripts/bootstrap.py --from-config. Tri-category surface: rules{} (per-rule toggles + layers + advanced), features{} (installed components with state files + side effects — today only caveman), global_flags{} (binary env-driven toggles, no state file). Sparse: only modified-from-default entries appear. Sub-shapes are declarative intent only — the canonical state lives in per-feature files (.ai-playbook/rules-toggle.json, .ai-playbook/caveman.json, .ai-playbook/feature-flags.env), each gitignored.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema"],
@@ -90,7 +90,7 @@
     "global_flags": {
       "type": "object",
       "additionalProperties": { "type": "boolean" },
-      "description": "Binary env-driven toggles without their own state file. Keys come from tools/config-ui/global-flags-inventory.json. apply_config projects these into <consumer>/.ai-playbook/feature-flags.env via the inventory's env_var/value_on/value_off mapping. Consumer must source the file in their shell init (direnv .envrc, bashrc, etc.) for the flags to take effect."
+      "description": "Binary env-driven toggles without their own state file. Keys come from config-ui/global-flags-inventory.json. apply_config projects these into <consumer>/.ai-playbook/feature-flags.env via the inventory's env_var/value_on/value_off mapping. Consumer must source the file in their shell init (direnv .envrc, bashrc, etc.) for the flags to take effect."
     },
     "skills_enforce": {
       "type": "object",

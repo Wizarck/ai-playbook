@@ -135,7 +135,7 @@ Flags:
 | `--default-branch master\|main` | Stored in AGENTS.md frontmatter; informational only. |
 | `--personal` | For personal repos only. Marks `personal: true`; loads the personal add-on if configured. |
 | `--dry-run` | Simulate without writing. Recommended on first pass. |
-| `--from-config PATH` | Apply a config bundle exported from `tools/config-ui/` after the base bootstrap. Mutates `rules-toggle.json` + `caveman.json` (via its CLI) + `feature-flags.env`. See [Concept: ai-playbook-config](../concepts/ai-playbook-config.md) and [Runbook: use-config-ui](use-config-ui.md). |
+| `--from-config PATH` | Apply a config bundle exported from `config-ui/` after the base bootstrap. Mutates `rules-toggle.json` + `caveman.json` (via its CLI) + `feature-flags.env`. See [Concept: ai-playbook-config](../concepts/ai-playbook-config.md) and [Runbook: use-config-ui](use-config-ui.md). |
 
 Expected output (the actual `vX.Y.Z` shown reflects the playbook's current
 `VERSION` file at the time you run bootstrap — bootstrap reads it dynamically):
