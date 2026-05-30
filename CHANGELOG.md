@@ -97,11 +97,34 @@ CHECK = `apply --dry-run`; REMEDY = `apply`. There is no second write path.
   leftover from the b37f744 move to repo root; deleting it only cleaned local
   cruft (no tracked content, no history rewrite).
 
+### Added — dispatcher curate (`feat/reconcile-single-door`)
+
+- **Structural drift engine** (`scripts/_dispatcher_shape.py`). Detects loose
+  prose (>10 substantive lines, principle #2) living OUTSIDE marker blocks in a
+  dispatcher (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.cursor`), with per-chunk
+  provenance + a suggested destination. Drift is defined STRUCTURALLY (D3) — once
+  prose is moved to a leaf doc (exempt), a re-run is a no-op, so curate converges.
+- **Wrap-not-rewrite adoption** (`scripts/_renderers/_wrap_legacy.py`).
+  `seed_markers` appends only the canonical blocks a legacy file is MISSING
+  (sealed sha), preserving its prose + existing blocks verbatim. Idempotent.
+- **BASE snapshot** (`scripts/_backup_helper.py`, D8). `backup_base` captures the
+  pre-playbook content of a file once (tag `base`, central, never pruned);
+  `restore_base` is the uninstall recovery path.
+- **`curate` — the LLM-assisted, human-gated, one-shot consolidator**
+  (`scripts/curate.py`, deliberately NOT importable from `apply`). detect →
+  announce → guardrail (`secrets_scan` + `prompt_injection_filter`, fails safe;
+  tainted prose never reaches the model) → LLM proposes a `curate-plan/v1` of
+  VERBATIM moves → `_curate_validate` (anti-fabrication substring check, no path
+  traversal, leaf-doc/AGENTS dest, pointer-shaped) → BASE snapshot → move prose +
+  leave thin pointers. `--dry-run` previews; `--yes` applies; default refuses
+  without consent. The LLM never writes; it only returns a plan.
+
 Deferred to follow-up changes: trimming `copy_templates` to a minimal seed, the
 formal idempotency / clone-repro / telemetry-emission tests, the config-UI
 Settings/Config-files tabs + aggregated `.md` drift view + Cursor "n/a" badge
-(needs in-browser verification; the drift view depends on dispatcher curate), and
-dispatcher curate itself (legacy wrap-not-rewrite + one-shot LLM consolidation).
+(needs in-browser verification), wiring `collect_drift` into `ai_playbook_check` /
+`apply --dry-run` as a `curate_candidate` surface, and `uninstall.py` preferring
+the base-tagged record via `restore_base`.
 
 ## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
 
