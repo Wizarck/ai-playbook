@@ -74,6 +74,7 @@
     <button class="tab" data-tab="skills">Skills <span id="tab-count-skills" class="count">…</span></button>
     <button class="tab" data-tab="mcps">MCPs <span id="tab-count-mcps" class="count">…</span></button>
     <button class="tab" data-tab="files">Files <span id="tab-count-files" class="count">…</span></button>
+    <button class="tab" data-tab="dispatchers">Dispatchers <span id="tab-count-dispatchers" class="count">…</span></button>
     <button class="tab" data-tab="preview">Preview JSON</button>
     <button class="tab" data-tab="dashboard">Dashboard</button>
   </nav>
@@ -132,6 +133,21 @@
           <p class="files-inspector-empty">Select a file on the left to inspect its sections.</p>
         </div>
       </div>
+    </section>
+
+    <section id="panel-dispatchers" class="panel" hidden>
+      <div class="files-toolbar">
+        <span class="enforce-summary" id="dispatchers-summary">…</span>
+        <button id="dispatchers-curate-copy" class="btn small" type="button"
+                title="Copy the curate dry-run command">Copy curate command</button>
+      </div>
+      <p class="dispatchers-intro">
+        Loose prose living outside marker blocks in your dispatcher files
+        (<code>AGENTS.md</code> / <code>CLAUDE.md</code> / <code>GEMINI.md</code> / <code>.cursor</code>).
+        Dispatchers should stay pointer-shaped; consolidate with the human-gated
+        <code>curate</code> one-shot — preview first, then apply with <code>--yes</code>.
+      </p>
+      <div id="dispatchers-list" class="dispatchers-list"></div>
     </section>
 
     <section id="panel-preview" class="panel" hidden>

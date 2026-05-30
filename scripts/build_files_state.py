@@ -56,9 +56,13 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 from scripts._backup_helper import read_index
+from scripts._dispatcher_shape import collect_drift, is_dispatcher_file
 from scripts._managed_files import MANAGED_FILES
 from scripts._marker_blocks import CommentStyle
 from scripts._template_classifier import classify, compute_file_sha
+
+# Dispatcher .md files the aggregated drift view scans (consumer-root relative).
+_DISPATCHER_CANDIDATES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".cursorrules")
 
 
 _PREVIEW_CHARS = 200
@@ -149,6 +153,8 @@ def build_files_state(consumer_root: Path) -> dict[str, Any]:
             "orphan_block_ids": fc.orphan_block_ids,
         })
 
+    dispatcher_drift = _collect_dispatcher_drift(consumer_root)
+
     backup_records = read_index(consumer_root)
     backups_payload = [
         {
@@ -166,7 +172,38 @@ def build_files_state(consumer_root: Path) -> dict[str, Any]:
         "generated_at": datetime.now(UTC).isoformat(),
         "files": files,
         "backups": backups_payload,
+        "dispatcher_drift": dispatcher_drift,
     }
+
+
+def _collect_dispatcher_drift(consumer_root: Path) -> list[dict[str, Any]]:
+    """Aggregate loose-prose curate drift across the consumer's dispatcher .md
+    files, so the config UI can render the drift view + a dispatch trigger
+    offline (file://). Read-only; advisory. Best-effort: any read error simply
+    omits that file."""
+    sources: dict[str, str] = {}
+    for rel in _DISPATCHER_CANDIDATES:
+        p = consumer_root / rel
+        if p.is_file() and is_dispatcher_file(rel):
+            try:
+                sources[rel] = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+    out: list[dict[str, Any]] = []
+    for drift in collect_drift(sources):
+        out.append({
+            "rel_path": drift.rel_path,
+            "chunks": [
+                {
+                    "heading": c.heading,
+                    "line_count": c.line_count,
+                    "preview": c.preview,
+                    "suggestion": c.suggestion,
+                }
+                for c in drift.chunks
+            ],
+        })
+    return out
 
 
 def write_files_state(state: dict[str, Any], out_path: Path) -> None:

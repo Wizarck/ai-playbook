@@ -818,3 +818,40 @@ main { padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
 .files-section-curate input[type="radio"] {
   margin: 0;
 }
+
+/* Dispatchers tab — aggregated .md drift view */
+.dispatchers-intro {
+  font-size: 13px;
+  color: var(--muted, #555);
+  margin: 8px 0 12px;
+  line-height: 1.5;
+}
+.dispatchers-list { display: flex; flex-direction: column; gap: 12px; }
+.dispatcher-card {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--card-bg, #fff);
+}
+.dispatcher-card-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 8px;
+}
+.dispatcher-file {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 600;
+}
+.dispatcher-chunk {
+  border-top: 1px dashed var(--border, #e3e3e3);
+  padding-top: 8px; margin-top: 8px;
+}
+.dispatcher-chunk:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+.dispatcher-chunk-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.dispatcher-chunk-heading { font-weight: 600; font-size: 13px; }
+.dispatcher-suggestion {
+  font-size: 12px; color: #e65100;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
