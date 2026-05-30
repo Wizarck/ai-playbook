@@ -54,7 +54,7 @@ from scripts._renderers import (
     render_pre_commit,
     render_settings_json,
 )
-from scripts._template_classifier import compute_sha
+from scripts._template_classifier import compute_file_sha, compute_sha
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +370,7 @@ def apply_managed_files(
     templates_root = playbook_root / "templates" / "new-project"
     timestamp_iso = datetime.now(UTC).isoformat()
     curate_intents = bundle.get("file_curate_intents") or {}
+    base_shas = bundle.get("base_shas") or {}  # compare-and-swap tokens from the UI
 
     # --- STAGE: render everything in memory; gate conflicts; decide writes. ---
     # Runs identically for dry-run (= CHECK) and commit; only the COMMIT phase
@@ -415,6 +416,34 @@ def apply_managed_files(
                 continue
             planned.append((dest, rendered, mf, existed))
             continue
+
+        # Compare-and-swap gate: if the UI stamped a base sha for this file and
+        # the on-disk content changed since (someone edited it after the UI
+        # loaded), refuse the write — the intended edit was computed against
+        # stale content. Per-file skip; the rest of the batch still applies.
+        base_sha = base_shas.get(mf.rel_path)
+        if existed and current_text is not None and base_sha is not None:
+            actual_file_sha = compute_file_sha(current_text)
+            if actual_file_sha != base_sha:
+                result.ok = False
+                conflicts.append(f"{mf.rel_path} (CAS)")
+                result.file_states[mf.rel_path] = {
+                    "cas_conflict": {"base": base_sha, "actual": actual_file_sha},
+                    "last_seen": timestamp_iso,
+                }
+                result.changes.append(
+                    f"✗ {mf.rel_path}: changed on disk since the UI loaded it "
+                    f"(compare-and-swap conflict) — not written"
+                )
+                trace_emit.add_event(
+                    "reconcile.managed_files.cas_conflict",
+                    {
+                        "ai_playbook.managed_files.file": mf.rel_path,
+                        "ai_playbook.managed_files.base_sha": base_sha,
+                        "ai_playbook.managed_files.actual_sha": actual_file_sha,
+                    },
+                )
+                continue
 
         try:
             if mf.use_current_text:

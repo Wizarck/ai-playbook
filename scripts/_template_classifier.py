@@ -115,6 +115,19 @@ def compute_sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:SHA_PREFIX_LEN]
 
 
+def compute_file_sha(text: str) -> str:
+    """Whole-file SHA for optimistic-concurrency (compare-and-swap).
+
+    Normalised to ``\\n`` line endings so the config UI (which reads file
+    content via the ``files-state.js`` sidecar) and ``apply_config`` agree on
+    the same value regardless of how the file was checked out on disk. Used as
+    the CAS token: the UI stamps the sha it saw into ``bundle.base_shas`` and
+    ``apply_config`` refuses to overwrite a file whose on-disk sha no longer
+    matches (the disk changed under the UI).
+    """
+    return compute_sha(text.replace("\r\n", "\n").replace("\r", "\n"))
+
+
 # ---------------------------------------------------------------------------
 # Classify
 # ---------------------------------------------------------------------------
