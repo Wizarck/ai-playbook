@@ -911,6 +911,20 @@
       });
       if (Object.keys(intentsOut).length > 0) bundle.file_curate_intents = intentsOut;
     }
+    // Optimistic concurrency (compare-and-swap): stamp the whole-file SHA the UI
+    // loaded for each managed file (from files-state.js) so apply_config refuses
+    // to overwrite a file that changed on disk since the UI opened. Sparse —
+    // emitted only when files-state.js is present with file_sha tokens.
+    const filesState = window.FILES_STATE;
+    if (filesState && Array.isArray(filesState.files)) {
+      const baseShas = {};
+      filesState.files.forEach(f => {
+        if (f && f.rel_path && typeof f.file_sha === "string") {
+          baseShas[f.rel_path] = f.file_sha;
+        }
+      });
+      if (Object.keys(baseShas).length > 0) bundle.base_shas = baseShas;
+    }
     return bundle;
   }
 

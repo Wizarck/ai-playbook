@@ -289,6 +289,69 @@ def test_settings_json_in_sync_is_byte_noop(
 
 
 # ---------------------------------------------------------------------------
+# apply_managed_files — compare-and-swap (optimistic concurrency)
+# ---------------------------------------------------------------------------
+
+
+def test_cas_conflict_skips_write_when_disk_changed(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A stale base_sha (disk changed since the UI loaded) blocks the write."""
+    _write_lf(fake_consumer / ".gitignore", "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": "deadbeefdead"},  # not the current sha
+    }
+    before = (fake_consumer / ".gitignore").read_text(encoding="utf-8")
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result.ok is False
+    assert any("compare-and-swap conflict" in c for c in result.changes)
+    assert (fake_consumer / ".gitignore").read_text(encoding="utf-8") == before
+    assert "cas_conflict" in result.file_states[".gitignore"]
+
+
+def test_cas_matching_sha_allows_write(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """When base_sha matches the on-disk content, the write proceeds."""
+    from scripts._template_classifier import compute_file_sha
+    _write_lf(fake_consumer / ".gitignore", "node_modules/\n")
+    current_sha = compute_file_sha((fake_consumer / ".gitignore").read_text(encoding="utf-8"))
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": current_sha},
+    }
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result.ok is True
+    text = (fake_consumer / ".gitignore").read_text(encoding="utf-8")
+    assert "dist/" in text
+    assert "node_modules/" in text  # consumer line preserved
+
+
+def test_cas_conflict_reported_in_dry_run(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    _write_lf(fake_consumer / ".gitignore", "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": "deadbeefdead"},
+    }
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+        dry_run=True,
+    )
+    assert result.ok is False
+    assert "conflict" in result.detail
+
+
+# ---------------------------------------------------------------------------
 # apply_managed_files — seed-only behaviour
 # ---------------------------------------------------------------------------
 

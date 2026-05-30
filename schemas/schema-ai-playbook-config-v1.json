@@ -289,6 +289,11 @@
         "keep_per_file": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
     },
+    "base_shas": {
+      "type": "object",
+      "description": "Optimistic-concurrency tokens (compare-and-swap). Key is a managed-file relative path; value is the whole-file SHA (12 hex, \\n-normalised) the config UI saw when it loaded files-state.js. apply_config recomputes the on-disk sha before writing each file and SKIPS it as a conflict when the value differs (the disk changed under the UI). Sparse/optional: files absent here are written without a CAS guard.",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{12}$" }
+    },
     "file_curate_intents": {
       "type": "object",
       "description": "Per-file curate decisions captured by the config UI Files tab. apply_config reads these to decide whether to overwrite drifted blocks (default = take_playbook) or preserve the consumer's edited content (keep_mine). Keys are managed-file relative paths (e.g. \"AGENTS.md\").",

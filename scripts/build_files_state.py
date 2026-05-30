@@ -58,7 +58,7 @@ for _stream in (sys.stdout, sys.stderr):
 from scripts._backup_helper import read_index
 from scripts._managed_files import MANAGED_FILES
 from scripts._marker_blocks import CommentStyle
-from scripts._template_classifier import classify
+from scripts._template_classifier import classify, compute_file_sha
 
 
 _PREVIEW_CHARS = 200
@@ -103,12 +103,16 @@ def build_files_state(consumer_root: Path) -> dict[str, Any]:
             continue
 
         expected_shas: dict[str, str] = (file_states.get(mf.rel_path) or {}).get("manifest") or {}
+        # Whole-file CAS token: the UI stamps this into bundle.base_shas and
+        # apply_config refuses to overwrite if the on-disk sha has since changed.
+        file_sha = compute_file_sha(text)
         style = mf.style
         if style is None:
             # File without marker block support — present as a single custom section.
             files.append({
                 "rel_path": mf.rel_path,
                 "style": _style_label(style),
+                "file_sha": file_sha,
                 "sections": [{
                     "id": None,
                     "origin": "custom",
@@ -135,6 +139,7 @@ def build_files_state(consumer_root: Path) -> dict[str, Any]:
         files.append({
             "rel_path": mf.rel_path,
             "style": _style_label(style),
+            "file_sha": file_sha,
             "sections": sections_payload,
             "counts": {
                 "canonical": fc.canonical_count,

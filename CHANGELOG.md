@@ -83,9 +83,25 @@ CHECK = `apply --dry-run`; REMEDY = `apply`. There is no second write path.
 - **Conflict telemetry.** `reconcile.managed_files.conflict` event (file +
   conflicting block ids); the staged event carries a `conflicts` count.
 
+### Changed — compare-and-swap round-trip + config-UI cleanup (`feat/reconcile-single-door`)
+
+- **Optimistic concurrency (compare-and-swap).** `build_files_state.py` now emits
+  a `\n`-normalised whole-file `file_sha` per managed file; the config UI stamps
+  those into `bundle.base_shas`; `apply_config` recomputes each file's on-disk sha
+  before writing and SKIPS it (per-file conflict, surfaced in `--check`) when it
+  diverged since the UI loaded — so a structured config edited out-of-band is
+  never silently clobbered. Complements the marker-block conflict gate.
+  `reconcile.managed_files.cas_conflict` telemetry event; optional `base_shas`
+  schema key.
+- **Removed the stale `tools/config-ui/`.** It was an untracked working-tree
+  leftover from the b37f744 move to repo root; deleting it only cleaned local
+  cruft (no tracked content, no history rewrite).
+
 Deferred to follow-up changes: trimming `copy_templates` to a minimal seed, the
-formal idempotency / clone-repro / telemetry-emission tests, the config-UI custom
-surface + Cursor "n/a" badge (Change 3), and dispatcher curate (Change 4).
+formal idempotency / clone-repro / telemetry-emission tests, the config-UI
+Settings/Config-files tabs + aggregated `.md` drift view + Cursor "n/a" badge
+(needs in-browser verification; the drift view depends on dispatcher curate), and
+dispatcher curate itself (legacy wrap-not-rewrite + one-shot LLM consolidation).
 
 ## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
 
