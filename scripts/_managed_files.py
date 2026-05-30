@@ -42,8 +42,9 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._backup_helper import BackupLocation, backup_once
+from scripts._backup_helper import BackupLocation, backup_once, restore_session
 from scripts._marker_blocks import CommentStyle, parse_blocks
+from scripts.tracing import trace_emit
 from scripts._renderers import (
     render_agents_md,
     render_claude_settings,
@@ -268,6 +269,9 @@ def apply_managed_files(
     templates_root = playbook_root / "templates" / "new-project"
     timestamp_iso = datetime.now(UTC).isoformat()
 
+    # --- STAGE: render everything in memory; decide writes; detect failures. ---
+    # A planned write is (dest, rendered_text, ManagedFile, existed_before).
+    planned: list[tuple[Path, str, ManagedFile, bool]] = []
     for mf in MANAGED_FILES:
         if mf.trigger_section not in bundle:
             continue
@@ -283,33 +287,27 @@ def apply_managed_files(
             continue
 
         dest = consumer_root / mf.rel_path
+        existed = dest.is_file()
         current_text: str | None = None
-        if dest.is_file():
+        if existed:
             try:
                 current_text = dest.read_text(encoding="utf-8")
             except OSError:
                 current_text = None
-        elif mf.seed_only:
-            # Fresh consumer + seed-only file: create from template once, no extras parsing.
+
+        if mf.seed_only:
+            if existed:
+                result.changes.append(f"· {mf.rel_path}: seed-only, kept as-is")
+                continue
             try:
                 rendered = mf.renderer(
                     template=template, substitutions=substitutions, bundle=bundle,
                 )
-                _atomic_write_text(dest, rendered)
-                result.changes.append(f"✓ {mf.rel_path}: seeded (new file)")
-                manifest = _build_manifest_for_file(rendered, mf.style)
-                result.file_states[mf.rel_path] = {
-                    "manifest": manifest, "last_applied": timestamp_iso,
-                }
-                if mf.rel_path in _LLM_READ_FILES:
-                    result.restart_session_needed = True
             except Exception as exc:  # noqa: BLE001
                 result.ok = False
-                result.changes.append(f"✗ {mf.rel_path}: render/write failed ({exc})")
-            continue
-
-        if mf.seed_only and dest.is_file():
-            result.changes.append(f"· {mf.rel_path}: seed-only, kept as-is")
+                result.changes.append(f"✗ {mf.rel_path}: render failed ({exc})")
+                continue
+            planned.append((dest, rendered, mf, existed))
             continue
 
         try:
@@ -327,44 +325,93 @@ def apply_managed_files(
             result.changes.append(f"✗ {mf.rel_path}: render failed ({exc})")
             continue
 
-        # Skip no-op writes — saves a backup churn.
+        # Skip no-op writes — saves backup churn but still records the manifest.
         if current_text is not None and rendered == current_text:
-            manifest = _build_manifest_for_file(rendered, mf.style)
             result.file_states[mf.rel_path] = {
-                "manifest": manifest, "last_applied": timestamp_iso,
+                "manifest": _build_manifest_for_file(rendered, mf.style),
+                "last_applied": timestamp_iso,
             }
             result.changes.append(f"· {mf.rel_path}: identical, no write")
             continue
 
-        # Backup current contents if any, then write.
-        if dest.is_file():
-            try:
+        planned.append((dest, rendered, mf, existed))
+
+    # Staging failure (a render/template error) ⇒ abort before any write so the
+    # disk is left untouched (the transaction never enters the commit phase).
+    if not result.ok:
+        result.changes.append("⚠ staging failed; no files written (transaction aborted)")
+        trace_emit.add_event(
+            "reconcile.managed_files.stage_failed",
+            {"ai_playbook.managed_files.planned": len(planned)},
+        )
+        return result
+
+    trace_emit.add_event(
+        "reconcile.managed_files.staged",
+        {"ai_playbook.managed_files.planned": len(planned)},
+    )
+
+    # --- COMMIT: backup + atomic-write the planned set under one session_id. ---
+    created_fresh: list[Path] = []
+    for dest, rendered, mf, existed in planned:
+        try:
+            if existed:
                 backup_once(
                     consumer_root, dest,
                     location=location, with_timestamp=with_ts,
                     session_id=session_id,
                 )
-            except (OSError, ValueError) as exc:
-                result.ok = False
-                result.changes.append(f"✗ {mf.rel_path}: backup failed ({exc})")
-                continue
-
-        try:
             _atomic_write_text(dest, rendered)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
+            # Roll the whole batch back: restore overwritten files from the
+            # session backups and delete files this batch newly created.
             result.ok = False
-            result.changes.append(f"✗ {mf.rel_path}: write failed ({exc})")
-            continue
+            result.changes.append(f"✗ {mf.rel_path}: commit failed ({exc})")
+            if session_id:
+                restored, warnings = restore_session(consumer_root, session_id)
+                result.changes.append(
+                    f"↩ rolled back {len(restored)} overwritten file(s) "
+                    f"from session {session_id}"
+                )
+                result.changes.extend(f"⚠ rollback: {w}" for w in warnings)
+            for fresh in created_fresh:
+                try:
+                    fresh.unlink()
+                except OSError:
+                    pass
+            if created_fresh:
+                result.changes.append(
+                    f"↩ removed {len(created_fresh)} newly-created file(s)"
+                )
+            trace_emit.add_event(
+                "reconcile.managed_files.rolled_back",
+                {
+                    "ai_playbook.managed_files.session_id": session_id or "",
+                    "ai_playbook.managed_files.failed_file": mf.rel_path,
+                    "ai_playbook.managed_files.removed": len(created_fresh),
+                },
+            )
+            return result
 
+        if not existed:
+            created_fresh.append(dest)
         manifest = _build_manifest_for_file(rendered, mf.style)
         result.file_states[mf.rel_path] = {
             "manifest": manifest, "last_applied": timestamp_iso,
         }
-        result.changes.append(
-            f"✓ {mf.rel_path}: rendered ({len(manifest)} canonical block(s))"
-        )
+        if mf.seed_only and not existed:
+            result.changes.append(f"✓ {mf.rel_path}: seeded (new file)")
+        else:
+            result.changes.append(
+                f"✓ {mf.rel_path}: rendered ({len(manifest)} canonical block(s))"
+            )
         if mf.rel_path in _LLM_READ_FILES:
             result.restart_session_needed = True
+
+    trace_emit.add_event(
+        "reconcile.managed_files.committed",
+        {"ai_playbook.managed_files.written": len(planned)},
+    )
 
     if not result.changes:
         result.detail = "no managed-file trigger sections in bundle — no-op"

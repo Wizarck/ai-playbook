@@ -286,3 +286,79 @@ def test_backup_central_location_respected(
     assert next_to_file == []
     central = list((fake_consumer / ".ai-playbook-state" / "backups").rglob("AGENTS.md.*.bak"))
     assert len(central) == 1
+
+
+# ---------------------------------------------------------------------------
+# Transactional stage-then-commit (reconcile-foundation slice B)
+# ---------------------------------------------------------------------------
+
+
+def test_commit_failure_rolls_back_the_batch(
+    fake_playbook: Path, fake_consumer: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A write failure mid-commit restores every already-written file from the
+    session backups, leaving the batch atomic (all-or-nothing)."""
+    original_gitignore = "node_modules/\n"
+    _write_lf(fake_consumer / ".gitignore", original_gitignore)
+    original_agents = (fake_consumer / "AGENTS.md").read_text(encoding="utf-8")
+
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "project_meta": {"project_identity": "Widgets Inc."},
+        "gitignore_extras": {"patterns": ["dist/"]},
+    }
+
+    real_write = _managed_files._atomic_write_text
+
+    def flaky_write(path: Path, content: str) -> None:
+        if path.name == ".gitignore":
+            raise OSError("simulated disk-full on .gitignore")
+        return real_write(path, content)
+
+    monkeypatch.setattr(_managed_files, "_atomic_write_text", flaky_write)
+
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer,
+        playbook_root=fake_playbook,
+        bundle=bundle,
+        session_id="tx-rollback",
+    )
+
+    assert result.ok is False
+    assert any("rolled back" in c for c in result.changes)
+    # AGENTS.md was written, then rolled back to its pre-commit content.
+    assert (fake_consumer / "AGENTS.md").read_text(encoding="utf-8") == original_agents
+    # .gitignore (the failing write) is untouched — atomic write never replaced it.
+    assert (fake_consumer / ".gitignore").read_text(encoding="utf-8") == original_gitignore
+
+
+def test_staging_render_failure_leaves_disk_untouched(
+    fake_playbook: Path, fake_consumer: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A render failure during staging aborts before any write — no file
+    mutated, no .bak created."""
+    original_agents = (fake_consumer / "AGENTS.md").read_text(encoding="utf-8")
+
+    def boom_renderer(**_kwargs: object) -> str:
+        raise RuntimeError("render exploded")
+
+    boom_mf = _managed_files.ManagedFile(
+        rel_path="AGENTS.md",
+        template_rel="AGENTS.md.tmpl",
+        renderer=boom_renderer,
+        trigger_section="project_meta",
+        style=_managed_files.CommentStyle.HTML,
+        use_current_text=True,
+    )
+    monkeypatch.setattr(_managed_files, "MANAGED_FILES", [boom_mf])
+
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer,
+        playbook_root=fake_playbook,
+        bundle={"schema": "ai-playbook-config/v1", "project_meta": {"project_identity": "X"}},
+        session_id="tx-stage",
+    )
+
+    assert result.ok is False
+    assert (fake_consumer / "AGENTS.md").read_text(encoding="utf-8") == original_agents
+    assert list(fake_consumer.glob("AGENTS.md.*.bak")) == []

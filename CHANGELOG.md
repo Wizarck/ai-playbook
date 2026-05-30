@@ -4,6 +4,55 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Changed — reconcile foundation: one door for all writes (`feat/reconcile-single-door`)
+
+Collapses the parallel file-writing paths into a single idempotent operation.
+`apply_config.apply` is now THE door: bootstrap (the *first reconcile*),
+`--update`, and the new `--check` (drift-CI gate) all funnel through it.
+CHECK = `apply --dry-run`; REMEDY = `apply`. There is no second write path.
+(openspec change: `reconcile-foundation`.)
+
+- **Single entrypoint.** `scripts/bootstrap.py` no longer calls
+  `materialise_skills` / `render_mcp_configs` / `enable_caveman_default` inline
+  (all three deleted). A fresh install synthesises an "everything ON" defaults
+  bundle (caveman omitted iff `--no-caveman`) and runs it through the door;
+  `--update` resolves the consumer's bundle (`applied-config.json` or
+  `migrate_to_bundle`) and reconciles the same way. New `bootstrap --check`
+  runs a read-only reconcile and exits non-zero on drift.
+- **`*_enforce` executes its consequence as a door section.** `skills_enforce`
+  → `apply_skills_materialise`; `mcps_enforce` → `apply_mcp_render`. The
+  state file is the input; the consequence runs right after it commits. Fixes
+  the fresh-clone bug where `.claude/skills/` was never regenerated (the mirror
+  is now a section of the door, materialised on every reconcile).
+- **Additive, provenance-aware skills materialisation.** `materialise_skills`
+  no longer `rmtree`s the whole mirror. A new `scripts/_skills_manifest.py`
+  (`ai-playbook-skills-manifest/v1`, at `.ai-playbook-state/skills-manifest.json`)
+  records playbook-owned dirs per mirror; only stale owned dirs are removed,
+  user-added skills are preserved, and an absent manifest seeds
+  `present ∩ desired` (deletes nothing). `SkillsMaterialisationResult` gains
+  `user_dirs_preserved` + `stale_removed`.
+- **Transactional managed-files write.** `apply_managed_files` now stages all
+  renders in memory (a staging error aborts before any write) then commits the
+  batch under one `session_id`; a commit failure rolls the batch back via the
+  new `_backup_helper.restore_session` (restores pre-session content + deletes
+  newly-created files). `applied-config.json` does NOT advance when the batch
+  rolls back, so on-disk state and the persisted bundle never diverge.
+- **Section registry.** `apply_config.SECTION_ORDER` + `SectionResult.section_id`
+  replace the hand-numbered headers (and the duplicate `# Section 5`).
+- **Telemetry.** The door (`apply_config`) is entry-wrapped with
+  `script_emit("apply_config", main)` so a standalone invocation is observable;
+  in-process it nests under the caller's span. A child `reconcile` span carries
+  `ai_playbook.reconcile.mode` (`first_run` / `update` / `check`) — modes are
+  distinguished by attribute, not by a separate slug, preserving metric
+  continuity. The managed-files transaction emits
+  `reconcile.managed_files.{staged,stage_failed,committed,rolled_back}` events
+  with canonical `ai_playbook.managed_files.*` attributes.
+
+Deferred to follow-up changes: caveman transaction-safety (pre-flight + run-last
++ manual rollback instruction), trimming `copy_templates` to a minimal seed,
+per-section child spans + conflict events (land with the conflict detector), and
+the formal idempotency / clone-repro / telemetry-emission tests.
+
 ## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
 
 ### Added — bundle-driven managed-files redesign (`feat/bootstrap-dispatch`)
