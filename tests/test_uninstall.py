@@ -137,3 +137,22 @@ def test_uninstall_idempotent(installed_consumer: Path) -> None:
     # Second run: markers already gone, nothing to do
     report2 = un.uninstall(installed_consumer, restore_from_bak=False)
     assert report2.stripped == []
+
+
+def test_restore_prefers_base_tagged_record_over_later_oldest(tmp_path: Path) -> None:
+    """When a base snapshot exists, restore uses IT — even if other (older-index)
+    backups also exist — because `base` is the authoritative pre-playbook anchor."""
+    consumer = tmp_path / "consumer-base"
+    consumer.mkdir()
+    pre_text = "# the true pre-playbook AGENTS.md\n"
+    _write_lf(consumer / "AGENTS.md", pre_text)
+    # Capture BASE (the pre-playbook anchor).
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    # Then ordinary apply churn produces more backups of mutated content.
+    _write_lf(consumer / "AGENTS.md", "# mutated v1\n")
+    bh.backup_once(consumer, consumer / "AGENTS.md", with_timestamp=True)
+    _write_lf(consumer / "AGENTS.md", "# mutated v2 with markers\n")
+
+    report = un.UninstallReport(target=consumer)
+    un.restore_originals(consumer, report)
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == pre_text

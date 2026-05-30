@@ -267,3 +267,34 @@ def test_e2e_dogfood_playbook_smoke(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert "rules" in payload
     assert "playbook_root" in payload
     assert isinstance(payload["rules"], list)
+
+
+# --- curate candidate surface (advisory; never affects has_drift) -------------
+
+def test_collect_curate_candidates_detects_dispatcher_prose(tmp_path: Path) -> None:
+    prose = "\n".join(f"Substantive dispatcher line {i} over the threshold." for i in range(15))
+    (tmp_path / "CLAUDE.md").write_text("# CLAUDE\n\n## Notes\n" + prose + "\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("# A\n\nSee [docs](docs/x.md).\n", encoding="utf-8")
+    cands = orch._collect_curate_candidates(tmp_path)
+    paths = {c["rel_path"] for c in cands}
+    assert "CLAUDE.md" in paths
+    assert "AGENTS.md" not in paths  # pointer-shaped ⇒ no drift
+    claude = next(c for c in cands if c["rel_path"] == "CLAUDE.md")
+    assert claude["chunks"] >= 1
+    assert claude["suggestions"]  # carries a destination suggestion
+
+
+def test_curate_candidates_do_not_affect_has_drift(tmp_path: Path) -> None:
+    report = orch.CheckReport(target=tmp_path, playbook_root=REPO_ROOT)
+    report.curate_candidates = [{"rel_path": "CLAUDE.md", "chunks": 3, "suggestions": ["absorb_into_agents_md"]}]
+    assert report.has_drift() is False  # curate is human-gated, never CI drift
+
+
+def test_render_surfaces_curate_candidates(tmp_path: Path) -> None:
+    report = orch.CheckReport(target=tmp_path, playbook_root=REPO_ROOT)
+    report.curate_candidates = [{"rel_path": "CLAUDE.md", "chunks": 2, "suggestions": ["absorb_into_agents_md"]}]
+    text = orch.render_text(report)
+    assert "scripts.curate" in text
+    assert "CLAUDE.md" in text
+    payload = json.loads(orch.render_json(report))
+    assert payload["curate_candidates"][0]["rel_path"] == "CLAUDE.md"
