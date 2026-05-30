@@ -57,6 +57,7 @@
       // Seed enforce-state containers in case defaults.json doesn't carry them.
       baseline.skills_enforce = baseline.skills_enforce || { disabled: [] };
       baseline.mcps_enforce = baseline.mcps_enforce || { disabled: [] };
+      baseline.settings = _normalizeSettings(baseline.settings);
       const appliedConfig = (typeof window !== "undefined" ? window.APPLIED_CONFIG : null);
       if (appliedConfig && appliedConfig.schema === "ai-playbook-config/v1") {
         if (appliedConfig.rules) baseline.rules = deepClone(appliedConfig.rules);
@@ -72,6 +73,9 @@
         }
         if (appliedConfig.mcps_enforce && Array.isArray(appliedConfig.mcps_enforce.disabled)) {
           baseline.mcps_enforce = { disabled: [...appliedConfig.mcps_enforce.disabled] };
+        }
+        if (appliedConfig.settings) {
+          baseline.settings = _normalizeSettings(appliedConfig.settings);
         }
         banner("success", `Loaded applied state from ${appliedConfig.generated_at || "previous apply"} (generated_by: ${appliedConfig.generated_by || "unknown"}).`);
       } else if (window.APPLIED_CONFIG_MISSING) {
@@ -145,6 +149,17 @@
     const curateCopy = $("#dispatchers-curate-copy");
     if (curateCopy) curateCopy.addEventListener("click", () => copyPlainText("python -m scripts.curate --dry-run", curateCopy));
 
+    // Settings tab — add hook / permission / directory.
+    const addHook = $("#settings-add-hook");
+    if (addHook) addHook.addEventListener("click", () => {
+      _ensureSettings().hooks.push({ event: "", matcher: "", command: "", timeout: "", targets: [..._SETTINGS_TARGETS] });
+      renderSettings();
+    });
+    const addPerm = $("#settings-add-perm");
+    if (addPerm) addPerm.addEventListener("click", () => { _ensureSettings().permissions_allow.push(""); renderSettings(); });
+    const addDir = $("#settings-add-dir");
+    if (addDir) addDir.addEventListener("click", () => { _ensureSettings().additional_directories.push(""); renderSettings(); });
+
     wireNextSteps();
   }
 
@@ -195,6 +210,7 @@
     if (name === "preview") renderPreview();
     if (name === "files") renderFiles();
     if (name === "dispatchers") renderDispatchers();
+    if (name === "settings") renderSettings();
     if (name === "dashboard" && typeof window.DashboardRender === "object" && window.DashboardRender !== null) {
       try { window.DashboardRender.mount("#dashboard-root"); }
       catch (err) { console.error("dashboard mount failed:", err); }
@@ -210,6 +226,7 @@
     renderMcpsEnforce();
     updateFilesCounter();
     updateDispatchersCounter();
+    updateSettingsCounter();
   }
 
   // ------- Files tab (read-only inspector v1) -------
@@ -484,6 +501,140 @@
     } catch (_) {
       banner("info", "Copy this command manually: " + text);
     }
+  }
+
+  // ------- Settings tab (model-agnostic surface) -------
+  const _SETTINGS_TARGETS = ["claude", "gemini", "cursor"];
+
+  function _normalizeSettings(s) {
+    s = s || {};
+    return {
+      hooks: Array.isArray(s.hooks) ? s.hooks.map(h => ({
+        event: h.event || "",
+        matcher: h.matcher || "",
+        command: h.command || "",
+        timeout: (typeof h.timeout === "number") ? h.timeout : "",
+        // Absent targets ⇒ all models (represented as the full set in the UI).
+        targets: Array.isArray(h.targets) && h.targets.length ? [...h.targets] : [..._SETTINGS_TARGETS],
+      })) : [],
+      permissions_allow: Array.isArray(s.permissions_allow) ? [...s.permissions_allow] : [],
+      additional_directories: Array.isArray(s.additional_directories) ? [...s.additional_directories] : [],
+    };
+  }
+
+  function _ensureSettings() {
+    if (!state.settings) state.settings = _normalizeSettings(null);
+    return state.settings;
+  }
+
+  function updateSettingsCounter() {
+    const el = document.getElementById("tab-count-settings");
+    if (!el) return;
+    const s = _ensureSettings();
+    const n = s.hooks.length + s.permissions_allow.length + s.additional_directories.length;
+    el.textContent = String(n);
+  }
+
+  function renderSettings() {
+    const s = _ensureSettings();
+    const hooksEl = document.getElementById("settings-hooks-list");
+    const permsEl = document.getElementById("settings-perms-list");
+    const dirsEl = document.getElementById("settings-dirs-list");
+    if (!hooksEl || !permsEl || !dirsEl) return;
+
+    // Hooks
+    hooksEl.innerHTML = "";
+    s.hooks.forEach((h, i) => {
+      const row = document.createElement("div");
+      row.className = "settings-hook";
+      const chips = _SETTINGS_TARGETS.map(t => `
+        <button type="button" class="target-chip ${h.targets.includes(t) ? "on" : ""}"
+                data-hook-target="${i}:${t}">${t}</button>`).join("");
+      row.innerHTML = `
+        <div class="settings-hook-fields">
+          <input class="settings-input" data-hook="${i}:event" placeholder="event (e.g. PreToolUse)" value="${escapeHtml(h.event)}" />
+          <input class="settings-input" data-hook="${i}:matcher" placeholder="matcher (optional)" value="${escapeHtml(h.matcher)}" />
+          <input class="settings-input wide" data-hook="${i}:command" placeholder="command" value="${escapeHtml(h.command)}" />
+          <input class="settings-input narrow" data-hook="${i}:timeout" type="number" min="1" placeholder="timeout" value="${escapeHtml(h.timeout === "" ? "" : String(h.timeout))}" />
+          <button type="button" class="btn small ghost" data-hook-remove="${i}">✕</button>
+        </div>
+        <div class="settings-targets"><span class="settings-targets-label">applies to:</span>${chips}</div>`;
+      hooksEl.appendChild(row);
+    });
+    if (!s.hooks.length) hooksEl.innerHTML = `<p class="files-inspector-hint">No hooks. The enforce-hook invariant is still ensured by apply_config.</p>`;
+
+    // Permissions + directories share the simple string-list row.
+    const renderStrList = (container, arr, kind) => {
+      container.innerHTML = "";
+      arr.forEach((v, i) => {
+        const row = document.createElement("div");
+        row.className = "settings-strrow";
+        row.innerHTML = `
+          <input class="settings-input wide" data-str="${kind}:${i}" value="${escapeHtml(v)}" />
+          <button type="button" class="btn small ghost" data-str-remove="${kind}:${i}">✕</button>`;
+        container.appendChild(row);
+      });
+      if (!arr.length) container.innerHTML = `<p class="files-inspector-hint">None.</p>`;
+    };
+    renderStrList(permsEl, s.permissions_allow, "perm");
+    renderStrList(dirsEl, s.additional_directories, "dir");
+
+    _wireSettingsControls();
+    updateSettingsCounter();
+  }
+
+  function _wireSettingsControls() {
+    const s = _ensureSettings();
+    // Hook field edits (live, no re-render so focus is kept).
+    document.querySelectorAll("[data-hook]").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const [iStr, field] = inp.dataset.hook.split(":");
+        const i = Number(iStr);
+        if (!s.hooks[i]) return;
+        if (field === "timeout") {
+          const n = parseInt(inp.value, 10);
+          s.hooks[i].timeout = Number.isFinite(n) ? n : "";
+        } else {
+          s.hooks[i][field] = inp.value;
+        }
+        updateSettingsCounter();
+      });
+    });
+    document.querySelectorAll("[data-hook-target]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const [iStr, t] = btn.dataset.hookTarget.split(":");
+        const i = Number(iStr);
+        if (!s.hooks[i]) return;
+        const set = new Set(s.hooks[i].targets);
+        if (set.has(t)) set.delete(t); else set.add(t);
+        // Never allow zero targets (zero would mean "no model" — meaningless);
+        // empty resets to all.
+        s.hooks[i].targets = set.size ? _SETTINGS_TARGETS.filter(x => set.has(x)) : [..._SETTINGS_TARGETS];
+        renderSettings();
+      });
+    });
+    document.querySelectorAll("[data-hook-remove]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        s.hooks.splice(Number(btn.dataset.hookRemove), 1);
+        renderSettings();
+      });
+    });
+    // String-list edits.
+    document.querySelectorAll("[data-str]").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const [kind, iStr] = inp.dataset.str.split(":");
+        const arr = kind === "perm" ? s.permissions_allow : s.additional_directories;
+        arr[Number(iStr)] = inp.value;
+      });
+    });
+    document.querySelectorAll("[data-str-remove]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const [kind, iStr] = btn.dataset.strRemove.split(":");
+        const arr = kind === "perm" ? s.permissions_allow : s.additional_directories;
+        arr.splice(Number(iStr), 1);
+        renderSettings();
+      });
+    });
   }
 
   function updateSkillsSummary() {
@@ -995,6 +1146,30 @@
       });
       if (Object.keys(intentsOut).length > 0) bundle.file_curate_intents = intentsOut;
     }
+    // Model-agnostic settings surface — sparse. Only emit non-empty entries; a
+    // hook targeting every model omits `targets` (the schema default). Hooks
+    // missing event or command are dropped (incomplete rows).
+    if (state.settings) {
+      const s = state.settings;
+      const hooks = (s.hooks || [])
+        .filter(h => (h.event || "").trim() && (h.command || "").trim())
+        .map(h => {
+          const out = { event: h.event.trim(), command: h.command.trim() };
+          if ((h.matcher || "").trim()) out.matcher = h.matcher.trim();
+          if (typeof h.timeout === "number" && Number.isFinite(h.timeout)) out.timeout = h.timeout;
+          const targets = Array.isArray(h.targets) ? h.targets : [];
+          const all = _SETTINGS_TARGETS.every(t => targets.includes(t));
+          if (targets.length && !all) out.targets = _SETTINGS_TARGETS.filter(t => targets.includes(t));
+          return out;
+        });
+      const perms = (s.permissions_allow || []).map(v => (v || "").trim()).filter(Boolean);
+      const dirs = (s.additional_directories || []).map(v => (v || "").trim()).filter(Boolean);
+      const settingsOut = {};
+      if (hooks.length) settingsOut.hooks = hooks;
+      if (perms.length) settingsOut.permissions_allow = [...new Set(perms)];
+      if (dirs.length) settingsOut.additional_directories = [...new Set(dirs)];
+      if (Object.keys(settingsOut).length) bundle.settings = settingsOut;
+    }
     // Optimistic concurrency (compare-and-swap): stamp the whole-file SHA the UI
     // loaded for each managed file (from files-state.js) so apply_config refuses
     // to overwrite a file that changed on disk since the UI opened. Sparse —
@@ -1209,6 +1384,7 @@
         if (data.mcps_enforce && Array.isArray(data.mcps_enforce.disabled)) {
           state.mcps_enforce = { disabled: [...data.mcps_enforce.disabled] };
         }
+        state.settings = _normalizeSettings(data.settings);
         renderAll();
         updateCounters();
         banner("success", `Imported ${file.name}. Review the tabs, then click Export to round-trip.`);
@@ -1224,6 +1400,7 @@
     state = deepClone(defaults);
     state.skills_enforce = { disabled: [] };
     state.mcps_enforce = { disabled: [] };
+    state.settings = _normalizeSettings(defaults && defaults.settings);
     expandedSlugs.clear();
     renderAll();
     updateCounters();

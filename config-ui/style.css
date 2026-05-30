@@ -855,3 +855,30 @@ main { padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
   font-size: 12px; color: #e65100;
   font-family: ui-monospace, Menlo, Consolas, monospace;
 }
+
+/* Settings tab — model-agnostic surface */
+.settings-block { margin-bottom: 20px; }
+.settings-block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.settings-block-head h3 { margin: 0; font-size: 15px; }
+.settings-list { display: flex; flex-direction: column; gap: 8px; }
+.settings-hook {
+  border: 1px solid var(--border, #ddd); border-radius: 6px;
+  padding: 8px 10px; background: var(--card-bg, #fff);
+}
+.settings-hook-fields { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.settings-strrow { display: flex; gap: 6px; align-items: center; }
+.settings-input {
+  flex: 1 1 120px; min-width: 100px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+  padding: 4px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
+}
+.settings-input.wide { flex: 3 1 220px; }
+.settings-input.narrow { flex: 0 0 80px; min-width: 64px; }
+.settings-targets { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.settings-targets-label { font-size: 11px; color: var(--muted, #666); }
+.target-chip {
+  font-size: 11px; padding: 1px 8px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border, #ccc); background: #f0f0f0; color: #777;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.target-chip.on { background: #c8e6c9; color: #1b5e20; border-color: #1b5e20; }

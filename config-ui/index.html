@@ -73,6 +73,7 @@
     <button class="tab" data-tab="global">Global flags <span id="tab-count-global" class="count">…</span></button>
     <button class="tab" data-tab="skills">Skills <span id="tab-count-skills" class="count">…</span></button>
     <button class="tab" data-tab="mcps">MCPs <span id="tab-count-mcps" class="count">…</span></button>
+    <button class="tab" data-tab="settings">Settings <span id="tab-count-settings" class="count">…</span></button>
     <button class="tab" data-tab="files">Files <span id="tab-count-files" class="count">…</span></button>
     <button class="tab" data-tab="dispatchers">Dispatchers <span id="tab-count-dispatchers" class="count">…</span></button>
     <button class="tab" data-tab="preview">Preview JSON</button>
@@ -118,6 +119,37 @@
         <span class="enforce-summary" id="mcps-summary">…</span>
       </div>
       <ul id="mcps-list" class="enforce-list"></ul>
+    </section>
+
+    <section id="panel-settings" class="panel" hidden>
+      <p class="dispatchers-intro">
+        Model-agnostic agent-runtime settings — one logical surface projected to
+        <code>.claude/settings.json</code> (identity deep-merge, preserving your keys) and,
+        where supported, Gemini / Cursor. Use the per-hook badges to scope a hook to
+        specific models; all-on means "every model". The <code>openspec-apply-enforce</code>
+        PreToolUse invariant is always ensured by <code>apply_config</code> regardless of this tab.
+      </p>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>Hooks</h3>
+          <button id="settings-add-hook" class="btn small" type="button">+ Add hook</button>
+        </div>
+        <div id="settings-hooks-list" class="settings-list"></div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>Permissions — allow</h3>
+          <button id="settings-add-perm" class="btn small" type="button">+ Add</button>
+        </div>
+        <div id="settings-perms-list" class="settings-list"></div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>Additional directories</h3>
+          <button id="settings-add-dir" class="btn small" type="button">+ Add</button>
+        </div>
+        <div id="settings-dirs-list" class="settings-list"></div>
+      </div>
     </section>
 
     <section id="panel-files" class="panel" hidden>
