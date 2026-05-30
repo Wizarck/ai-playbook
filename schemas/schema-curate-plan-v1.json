@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-curate-plan-v1.json",
+  "title": "ai-playbook curate move-plan (v1)",
+  "description": "The LLM-produced plan consumed by scripts/curate.py. It describes MOVES of existing prose from a dispatcher (.md) file to a destination (a leaf doc, or the canonical AGENTS.md), each leaving a thin pointer behind. The plan never carries NEW prose: scripts/_curate_validate.py rejects any move whose source_excerpt is not a verbatim substring of the named source file. The LLM never writes to disk — curate.py validates the plan structurally, snapshots BASE, then performs the moves itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "moves"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "curate-plan/v1"
+    },
+    "moves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_rel_path", "source_excerpt", "dest_rel_path", "pointer"],
+        "properties": {
+          "source_rel_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "Dispatcher file the prose currently lives in (e.g. CLAUDE.md). Must be one of the files curate detected drift in."
+          },
+          "source_excerpt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "VERBATIM substring of the source file to relocate. Validation rejects anything that is not byte-for-byte present in the source — the LLM may only move existing content, never invent it."
+          },
+          "dest_rel_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "Where the prose goes: a leaf doc under docs/ (created/appended) or the canonical AGENTS.md. No absolute paths, no `..` traversal; must end with .md."
+          },
+          "pointer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "The thin pointer left in the dispatcher in place of the excerpt — a short line containing a markdown link to dest_rel_path. Keeps the dispatcher pointer-shaped (principle #2)."
+          }
+        }
+      }
+    }
+  }
+}
