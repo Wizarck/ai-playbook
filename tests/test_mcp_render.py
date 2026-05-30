@@ -306,3 +306,26 @@ def test_render_unknown_disabled_id_is_tolerated(tmp_path: Path) -> None:
     assert rc == 0
     claude_doc = json.loads((consumer / ".mcp.json").read_text(encoding="utf-8"))
     assert set(claude_doc["mcpServers"].keys()) == {"hindsight"}
+
+
+def test_render_gemini_preserves_user_settings_keys(tmp_path: Path) -> None:
+    """Re-rendering replaces only mcpServers in .gemini/settings.json — user
+    keys (theme, hooks, custom config) survive (merge-preserve, not clobber)."""
+    playbook, consumer, personal = _stack(tmp_path, project=PROJECT_MIN)
+    gemini_path = consumer / ".gemini" / "settings.json"
+    gemini_path.parent.mkdir(parents=True, exist_ok=True)
+    gemini_path.write_text(json.dumps({
+        "theme": "GitHub Dark",
+        "telemetry": {"enabled": False},
+        "mcpServers": {"stale-server": {"command": "old"}},
+    }, indent=2) + "\n", encoding="utf-8")
+
+    rc = _run(playbook, consumer, personal)
+    assert rc == 0
+    doc = json.loads(gemini_path.read_text(encoding="utf-8"))
+    # User keys preserved.
+    assert doc["theme"] == "GitHub Dark"
+    assert doc["telemetry"] == {"enabled": False}
+    # mcpServers fully replaced by the render (stale entry gone).
+    assert set(doc["mcpServers"].keys()) == {"hindsight", "rag"}
+    assert "stale-server" not in doc["mcpServers"]

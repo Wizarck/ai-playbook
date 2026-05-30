@@ -833,15 +833,20 @@ def _synthesize_defaults_bundle(args: BootstrapArgs) -> dict[str, Any]:
     which omits the caveman section entirely (so the door's apply_caveman
     no-ops rather than running `caveman off` against a never-activated tree).
 
-    Carries NO managed-file trigger sections (gitignore_extras, project_meta,
-    …) so the managed_files section stays a no-op and the freshly-copied
-    templates are left exactly as bootstrap wrote them.
+    Carries NO content-bearing managed-file trigger sections (gitignore_extras,
+    project_meta, …) so those stay no-ops and the freshly-copied templates are
+    left exactly as bootstrap wrote them. The ONE exception is ``settings: {}``,
+    which makes the door own ``.claude/settings.json`` from the first reconcile:
+    its renderer only re-serialises on a real merge, so against the just-copied
+    template (which already carries the PreToolUse invariant) it is a byte-level
+    no-op — but it guarantees the enforce hook on every subsequent reconcile.
     """
     bundle: dict[str, Any] = {
         "schema": "ai-playbook-config/v1",
         "generated_by": "bootstrap-reconcile",
         "skills_enforce": {"disabled": []},
         "mcps_enforce": {"disabled": []},
+        "settings": {},
     }
     if not args.no_caveman:
         bundle["features"] = {

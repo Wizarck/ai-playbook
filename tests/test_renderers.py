@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from scripts._marker_blocks import CommentStyle, parse_blocks
+import json
+
 from scripts._renderers import (
     render_agents_md,
     render_claude_settings,
@@ -10,6 +12,7 @@ from scripts._renderers import (
     render_gitignore,
     render_mcp_project,
     render_pre_commit,
+    render_settings_json,
 )
 from scripts._template_classifier import compute_sha
 
@@ -418,3 +421,140 @@ def test_mcp_project_empty_extras() -> None:
     out = render_mcp_project(template=template, substitutions={}, bundle={})
     assert "Consumer-added" not in out
     assert "hindsight:" in out
+
+
+# ---------------------------------------------------------------------------
+# .claude/settings.json — agnostic identity-merge renderer
+# ---------------------------------------------------------------------------
+
+
+_SETTINGS_TMPL_WITH_BASH = json.dumps({
+    "_comment": "canonical",
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Edit|Write|MultiEdit|Bash",
+                "hooks": [
+                    {"type": "command",
+                     "command": "python .claude/hooks/openspec-apply-enforce.py",
+                     "timeout": 10},
+                ],
+            }
+        ]
+    },
+    "permissions": {"allow": [], "additionalDirectories": []},
+}, indent=2) + "\n"
+
+
+def test_settings_json_seeds_invariant_when_missing() -> None:
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH,
+        substitutions={"PROJECT_BANK": "x"},
+        bundle={"settings": {}},
+        current_text=None,
+    )
+    parsed = json.loads(out)
+    cmds = [
+        h.get("command", "")
+        for e in parsed["hooks"]["PreToolUse"] for h in e["hooks"]
+    ]
+    assert any("openspec-apply-enforce.py" in c for c in cmds)
+
+
+def test_settings_json_no_duplicate_when_bash_matcher_present() -> None:
+    """The template's `...|Bash` matcher already satisfies the invariant — the
+    renderer must NOT append a second PreToolUse entry."""
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH,
+        substitutions={},
+        bundle={"settings": {}},
+        current_text=_SETTINGS_TMPL_WITH_BASH,
+    )
+    # No semantic change ⇒ verbatim passthrough (byte-identical).
+    assert out == _SETTINGS_TMPL_WITH_BASH
+    parsed = json.loads(out)
+    assert len(parsed["hooks"]["PreToolUse"]) == 1
+
+
+def test_settings_json_preserves_user_keys() -> None:
+    current = json.dumps({
+        "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]},
+        "permissions": {"allow": ["Bash"]},
+        "myCustomKey": {"deep": [1, 2, 3]},
+    }) + "\n"
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH,
+        substitutions={},
+        bundle={"settings": {}},
+        current_text=current,
+    )
+    parsed = json.loads(out)
+    # Invariant added,
+    assert any(
+        "openspec-apply-enforce.py" in h.get("command", "")
+        for e in parsed["hooks"]["PreToolUse"] for h in e["hooks"]
+    )
+    # user content preserved.
+    assert parsed["myCustomKey"] == {"deep": [1, 2, 3]}
+    assert parsed["hooks"]["SessionStart"][0]["hooks"][0]["command"] == "echo hi"
+    assert "Bash" in parsed["permissions"]["allow"]
+
+
+def test_settings_json_projects_agnostic_hooks_claude_only() -> None:
+    current = json.dumps({
+        "hooks": {"PreToolUse": [
+            {"matcher": "Edit|Write|MultiEdit|Bash",
+             "hooks": [{"type": "command",
+                        "command": "python .claude/hooks/openspec-apply-enforce.py",
+                        "timeout": 10}]}
+        ]},
+    }) + "\n"
+    bundle = {"settings": {"hooks": [
+        {"event": "SessionStart", "command": "python claude-only.py", "targets": ["claude"]},
+        {"event": "SessionStart", "command": "python gemini-only.py", "targets": ["gemini"]},
+        {"event": "Stop", "command": "python all-models.py"},
+    ]}}
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH, substitutions={}, bundle=bundle,
+        current_text=current,
+    )
+    parsed = json.loads(out)
+    all_cmds = [
+        h.get("command", "")
+        for entries in parsed["hooks"].values() for e in entries for h in e["hooks"]
+    ]
+    assert any("claude-only.py" in c for c in all_cmds)
+    assert any("all-models.py" in c for c in all_cmds)        # no targets ⇒ applies
+    assert not any("gemini-only.py" in c for c in all_cmds)   # gemini-only ⇒ skipped
+
+
+def test_settings_json_unions_permissions_and_legacy_extras() -> None:
+    current = json.dumps({
+        "hooks": {"PreToolUse": [
+            {"matcher": "Edit|Write|MultiEdit",
+             "hooks": [{"type": "command",
+                        "command": "python .claude/hooks/openspec-apply-enforce.py"}]}
+        ]},
+        "permissions": {"allow": ["Read"]},
+    }) + "\n"
+    bundle = {
+        "settings": {"permissions_allow": ["WebSearch"]},
+        "claude_settings_extras": {"permissions_allow": ["Bash"],
+                                   "additional_directories": ["../shared"]},
+    }
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH, substitutions={}, bundle=bundle,
+        current_text=current,
+    )
+    perms = json.loads(out)["permissions"]
+    assert set(perms["allow"]) == {"Read", "WebSearch", "Bash"}
+    assert perms["additionalDirectories"] == ["../shared"]
+
+
+def test_settings_json_malformed_current_returned_verbatim() -> None:
+    bad = "{ this is not json"
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH, substitutions={}, bundle={"settings": {}},
+        current_text=bad,
+    )
+    assert out == bad  # never clobber a malformed file; L1 validate flags it

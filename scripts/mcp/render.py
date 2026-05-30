@@ -83,6 +83,32 @@ def _write_json(path: Path, data: Any) -> None:
     path.write_text(body + "\n", encoding="utf-8")
 
 
+def _merge_gemini_settings(path: Path, rendered: dict[str, Any]) -> dict[str, Any]:
+    """Merge the rendered ``mcpServers`` into an existing ``.gemini/settings.json``.
+
+    Unlike Claude Code's ``.mcp.json`` (which is MCP-only and may be clobbered),
+    ``.gemini/settings.json`` is a SHARED Gemini CLI settings file that can hold
+    user-authored keys (theme, hooks, telemetry, …). We therefore replace ONLY
+    the ``mcpServers`` key and preserve everything else. Per D10, Gemini hooks
+    are not yet projected — only ``mcpServers`` is owned by the playbook here.
+
+    A present-but-malformed file is reported by the caller's drift detector; to
+    avoid losing user content we still merge onto an empty base (the broken file
+    is replaced, but that is the only safe move once it cannot be parsed).
+    """
+    base: dict[str, Any] = {}
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                base = loaded
+        except (OSError, json.JSONDecodeError):
+            base = {}
+    out = dict(base)
+    out["mcpServers"] = rendered.get("mcpServers", {})
+    return out
+
+
 def find_secrets_env(consumer_root: Path) -> Path | None:
     # Try sibling of the repo parent: C:\Projects\eligia-core\secrets\secrets.env
     path1 = consumer_root.parent.parent / "eligia-core" / "secrets" / "secrets.env"
@@ -350,7 +376,8 @@ def run(args: argparse.Namespace) -> int:
     gemini_path = consumer_root / ".gemini" / "settings.json"
 
     claude_doc = render_claude_code(merged)
-    gemini_doc = render_gemini(merged)
+    # Gemini: replace only mcpServers, preserving any user-authored settings keys.
+    gemini_doc = _merge_gemini_settings(gemini_path, render_gemini(merged))
 
     if args.dry_run:
         if args.only != "gemini":
@@ -358,7 +385,7 @@ def run(args: argparse.Namespace) -> int:
             print(json.dumps(claude_doc, indent=2, sort_keys=True, ensure_ascii=False))
             print()
         if args.only != "claude":
-            print(f"# --- {_path_str(gemini_path)} ---")
+            print(f"# --- {_path_str(gemini_path)} (mcpServers merged, other keys preserved) ---")
             print(json.dumps(gemini_doc, indent=2, sort_keys=True, ensure_ascii=False))
             print()
     else:

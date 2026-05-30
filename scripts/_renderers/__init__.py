@@ -31,6 +31,7 @@ from scripts._renderers.coderabbit import render as render_coderabbit
 from scripts._renderers.gitignore import render as render_gitignore
 from scripts._renderers.mcp_project import render as render_mcp_project
 from scripts._renderers.pre_commit import render as render_pre_commit
+from scripts._renderers.settings import render as render_settings_json
 
 __all__ = [
     "render_agents_md",
@@ -40,4 +41,5 @@ __all__ = [
     "render_gitignore",
     "render_mcp_project",
     "render_pre_commit",
+    "render_settings_json",
 ]

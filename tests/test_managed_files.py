@@ -53,6 +53,23 @@ def fake_playbook(tmp_path: Path) -> Path:
     _write_lf(tdir / ".coderabbit.yaml.tmpl", "language: en-US\n")
     (tdir / ".claude").mkdir()
     _write_lf(tdir / ".claude" / "settings.local.json.tmpl", '{"seed": true}\n')
+    _write_lf(tdir / ".claude" / "settings.json.tmpl", (
+        '{\n'
+        '  "hooks": {\n'
+        '    "PreToolUse": [\n'
+        '      {\n'
+        '        "matcher": "Edit|Write|MultiEdit|Bash",\n'
+        '        "hooks": [\n'
+        '          {"type": "command",'
+        ' "command": "python .claude/hooks/openspec-apply-enforce.py",'
+        ' "timeout": 10}\n'
+        '        ]\n'
+        '      }\n'
+        '    ]\n'
+        '  },\n'
+        '  "permissions": {"allow": [], "additionalDirectories": []}\n'
+        '}\n'
+    ))
     _write_lf(tdir / "mcp-servers.project.yaml.tmpl", (
         "schema: mcp-servers/v1\n"
         "# >>> ai-playbook:begin id=project-servers-baseline >>>\n"
@@ -204,6 +221,71 @@ def test_gitignore_preserves_consumer_lines(
     assert "logs/" in rendered
     assert "*.swp" in rendered
     assert ".ai-playbook/overrides.log" in rendered
+
+
+# ---------------------------------------------------------------------------
+# apply_managed_files — .claude/settings.json folded into the door
+# ---------------------------------------------------------------------------
+
+
+def test_settings_json_seeded_and_ensures_invariant(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    bundle = {"schema": "ai-playbook-config/v1", "settings": {}}
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result.ok
+    settings = json.loads(
+        (fake_consumer / ".claude" / "settings.json").read_text(encoding="utf-8")
+    )
+    cmds = [h.get("command", "")
+            for e in settings["hooks"]["PreToolUse"] for h in e["hooks"]]
+    assert any("openspec-apply-enforce.py" in c for c in cmds)
+    assert result.restart_session_needed  # settings.json is LLM-read
+
+
+def test_settings_json_preserves_user_keys_through_door(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    dest = fake_consumer / ".claude" / "settings.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(dest, json.dumps({
+        "hooks": {"SessionStart": [{"hooks": [
+            {"type": "command", "command": "echo keep-me"}]}]},
+        "permissions": {"allow": ["Bash"]},
+        "userland": 42,
+    }) + "\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "settings": {"permissions_allow": ["WebSearch"]},
+    }
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result.ok
+    merged = json.loads(dest.read_text(encoding="utf-8"))
+    assert merged["userland"] == 42
+    assert merged["hooks"]["SessionStart"][0]["hooks"][0]["command"] == "echo keep-me"
+    assert set(merged["permissions"]["allow"]) == {"Bash", "WebSearch"}
+    assert any("openspec-apply-enforce.py" in h.get("command", "")
+               for e in merged["hooks"]["PreToolUse"] for h in e["hooks"])
+
+
+def test_settings_json_in_sync_is_byte_noop(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    bundle = {"schema": "ai-playbook-config/v1", "settings": {}}
+    _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    before = (fake_consumer / ".claude" / "settings.json").read_text(encoding="utf-8")
+    result2 = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    after = (fake_consumer / ".claude" / "settings.json").read_text(encoding="utf-8")
+    assert before == after
+    assert any("identical, no write" in c for c in result2.changes)
 
 
 # ---------------------------------------------------------------------------
@@ -362,3 +444,179 @@ def test_staging_render_failure_leaves_disk_untouched(
     assert result.ok is False
     assert (fake_consumer / "AGENTS.md").read_text(encoding="utf-8") == original_agents
     assert list(fake_consumer.glob("AGENTS.md.*.bak")) == []
+
+
+# ---------------------------------------------------------------------------
+# Conflict gate — two-state SHA enforcement (never overwrite silently)
+# ---------------------------------------------------------------------------
+
+
+def _seal_agents_md(fake_playbook: Path, fake_consumer: Path) -> None:
+    """First apply: render AGENTS.md so the bootstrap-directive block gets a
+    sealed sha= matching its content."""
+    _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook,
+        bundle={"schema": "ai-playbook-config/v1",
+                "project_meta": {"project_identity": "seed"}},
+    )
+
+
+def test_drifted_block_without_decision_is_a_conflict(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A consumer edit inside a sealed canonical block, with no curate
+    decision, blocks the write and marks the section failed."""
+    _seal_agents_md(fake_playbook, fake_consumer)
+    agents = fake_consumer / "AGENTS.md"
+    edited = agents.read_text(encoding="utf-8").replace(
+        "Canonical bootstrap.", "I edited this canonical block by hand."
+    )
+    agents.write_text(edited, encoding="utf-8")
+
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook,
+        bundle={"schema": "ai-playbook-config/v1",
+                "project_meta": {"project_identity": "seed"}},
+    )
+
+    assert result.ok is False
+    assert any("conflict" in c for c in result.changes)
+    # The consumer's hand edit is preserved (not overwritten).
+    assert "I edited this canonical block by hand." in agents.read_text(encoding="utf-8")
+    assert result.file_states["AGENTS.md"]["conflict"] == ["bootstrap-directive"]
+
+
+def test_drifted_block_keep_mine_preserves_and_reseals(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """keep_mine restores the consumer's content and re-seals the sha so the
+    next apply is a clean no-op (idempotent)."""
+    _seal_agents_md(fake_playbook, fake_consumer)
+    agents = fake_consumer / "AGENTS.md"
+    edited = agents.read_text(encoding="utf-8").replace(
+        "Canonical bootstrap.", "Keep my version."
+    )
+    agents.write_text(edited, encoding="utf-8")
+
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "project_meta": {"project_identity": "seed"},
+        "file_curate_intents": {
+            "AGENTS.md": {"blocks": {"bootstrap-directive": "keep_mine"}}
+        },
+    }
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result.ok is True
+    assert "Keep my version." in agents.read_text(encoding="utf-8")
+
+    # Second apply is now clean (the sha was re-sealed to the kept content).
+    result2 = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result2.ok is True
+    assert any("identical, no write" in c for c in result2.changes)
+
+
+def test_drifted_block_take_playbook_overwrites_with_backup(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """take_playbook lets the template content win and backs up the prior file."""
+    _seal_agents_md(fake_playbook, fake_consumer)
+    agents = fake_consumer / "AGENTS.md"
+    edited = agents.read_text(encoding="utf-8").replace(
+        "Canonical bootstrap.", "throwaway local edit"
+    )
+    agents.write_text(edited, encoding="utf-8")
+
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "project_meta": {"project_identity": "seed"},
+        "file_curate_intents": {
+            "AGENTS.md": {"default_action": "take_playbook"}
+        },
+    }
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result.ok is True
+    text = agents.read_text(encoding="utf-8")
+    assert "Canonical bootstrap." in text
+    assert "throwaway local edit" not in text
+    assert len(list(fake_consumer.glob("AGENTS.md.*.bak"))) >= 1
+
+
+def test_dry_run_reports_conflict_as_failure(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """`--check` (dry-run) surfaces an unresolved conflict as ok=False, untouched disk."""
+    _seal_agents_md(fake_playbook, fake_consumer)
+    agents = fake_consumer / "AGENTS.md"
+    before = agents.read_text(encoding="utf-8").replace(
+        "Canonical bootstrap.", "drifted in check mode"
+    )
+    agents.write_text(before, encoding="utf-8")
+
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook,
+        bundle={"schema": "ai-playbook-config/v1",
+                "project_meta": {"project_identity": "seed"}},
+        dry_run=True,
+    )
+    assert result.ok is False
+    assert "conflict" in result.detail
+    assert agents.read_text(encoding="utf-8") == before  # nothing written
+
+
+def test_legacy_block_without_sha_is_not_a_conflict(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A canonical block whose on-disk marker carries no sha= (legacy / first
+    touch) is a clean seed, never a conflict — the playbook re-seals it."""
+    # Consumer AGENTS.md with a sha-less canonical block whose content differs
+    # from the template (would be 'drift' if a sha were present).
+    _write_lf(fake_consumer / "AGENTS.md", (
+        "---\nschema: agents-md/v1\nproject: myproj\nowner: dev@example.com\n---\n\n"
+        "# myproj\n\n"
+        "<!-- ai-playbook:begin id=bootstrap-directive -->\n"
+        "legacy hand-written content, no sha marker\n"
+        "<!-- ai-playbook:end bootstrap-directive -->\n"
+    ))
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook,
+        bundle={"schema": "ai-playbook-config/v1",
+                "project_meta": {"project_identity": "seed"}},
+    )
+    assert result.ok is True
+    text = (fake_consumer / "AGENTS.md").read_text(encoding="utf-8")
+    # Re-sealed to the template's canonical content with a fresh sha.
+    assert "Canonical bootstrap." in text
+    assert "sha=" in text
+
+
+def test_conflict_in_one_file_does_not_block_others(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """Per-file skip: a conflict on AGENTS.md still lets .gitignore commit."""
+    _seal_agents_md(fake_playbook, fake_consumer)
+    agents = fake_consumer / "AGENTS.md"
+    agents.write_text(
+        agents.read_text(encoding="utf-8").replace(
+            "Canonical bootstrap.", "edited, undecided"),
+        encoding="utf-8",
+    )
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "project_meta": {"project_identity": "seed"},
+        "gitignore_extras": {"patterns": ["*.tmp"]},
+    }
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert result.ok is False  # overall: unresolved conflict
+    # .gitignore still got written (per-file skip, not full-batch abort).
+    gitignore = (fake_consumer / ".gitignore").read_text(encoding="utf-8")
+    assert "*.tmp" in gitignore
+    # AGENTS.md kept the consumer edit.
+    assert "edited, undecided" in agents.read_text(encoding="utf-8")
