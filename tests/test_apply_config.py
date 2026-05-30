@@ -436,3 +436,49 @@ def test_apply_enforce_sections_appear_in_report(tmp_path: Path) -> None:
     section_names = [s.name for s in report.sections]
     assert "skills_enforce" in section_names
     assert "mcps_enforce" in section_names
+
+
+# ---------------------------------------------------------------------------
+# Enforce sections execute their consequence (reconcile-foundation slice A)
+# ---------------------------------------------------------------------------
+
+
+def test_skills_enforce_drives_the_mirror(tmp_path: Path) -> None:
+    """skills_enforce must run materialisation: a disabled skill is absent from
+    the mirror, the enabled one is present, and a 'skills_enforce.materialise'
+    section is reported."""
+    target = _fake_project(tmp_path)
+    src = target / ".ai-playbook" / "skills"
+    for name in ("alpha", "skipme"):
+        d = src / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "skills_enforce": {"disabled": ["skipme"]},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+
+    from scripts.apply_config import SectionResult
+    with patch.object(apply_config, "apply_caveman") as mock_cv, \
+         patch.object(apply_config, "apply_mcp_render") as mock_render:
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        mock_render.return_value = SectionResult(
+            name="mcps_enforce.render", section_id="mcps_enforce.render", ok=True,
+        )
+        report = apply_config.apply(bp, target=target)
+
+    section_ids = [s.section_id or s.name for s in report.sections]
+    assert "skills_enforce.materialise" in section_ids
+    for mirror in ("skills", ".claude/skills", ".gemini/skills"):
+        assert (target / mirror / "alpha" / "SKILL.md").is_file()
+        assert not (target / mirror / "skipme").exists()
+
+
+def test_section_order_has_no_duplicates(tmp_path: Path) -> None:
+    """Regression for the duplicate 'Section 5' comment: the ordered section
+    registry must have unique ids."""
+    assert len(apply_config.SECTION_ORDER) == len(set(apply_config.SECTION_ORDER))
+    assert "skills_enforce.materialise" in apply_config.SECTION_ORDER
+    assert "mcps_enforce.render" in apply_config.SECTION_ORDER

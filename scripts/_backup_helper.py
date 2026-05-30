@@ -324,6 +324,44 @@ def restore_backup(
     return dest
 
 
+def restore_session(
+    consumer_root: Path,
+    session_id: str,
+) -> tuple[list[Path], list[str]]:
+    """Restore every file backed up under ``session_id`` to its pre-session content.
+
+    For each source file with one or more backups in the session, the EARLIEST
+    backup (the pre-session snapshot) is restored, so the file returns to the
+    state it had before the session began. This is the set-level rollback unit
+    for a failed transactional ``apply``.
+
+    Returns ``(restored, warnings)`` where ``restored`` lists the destination
+    paths rewritten and ``warnings`` lists records whose backup file was missing
+    on disk (skipped rather than raised).
+
+    NOTE: files that the session CREATED (no prior content, hence no backup
+    record) are NOT affected here — the caller is responsible for removing
+    newly-created files when rolling a batch back.
+    """
+    consumer_root = consumer_root.resolve()
+    session_records = [
+        r for r in read_index(consumer_root) if r.session_id == session_id
+    ]
+    # Earliest backup per source file = the pre-session snapshot.
+    earliest: dict[str, BackupRecord] = {}
+    for r in sorted(session_records, key=lambda rec: rec.timestamp):
+        earliest.setdefault(r.rel_path, r)
+
+    restored: list[Path] = []
+    warnings: list[str] = []
+    for record in earliest.values():
+        try:
+            restored.append(restore_backup(consumer_root, record))
+        except FileNotFoundError as exc:
+            warnings.append(str(exc))
+    return restored, warnings
+
+
 def prune_backups(
     consumer_root: Path,
     *,

@@ -87,6 +87,9 @@ class SectionResult:
     ok: bool
     detail: str = ""
     changes: list[str] = field(default_factory=list)
+    # Stable identity for the ordered section registry. Defaults to ``name``
+    # when not set explicitly (see SECTION_ORDER).
+    section_id: str = ""
 
 
 @dataclass
@@ -105,7 +108,13 @@ class ApplyReport:
             "target": self.target.as_posix(),
             "bundle_path": self.bundle_path.as_posix(),
             "sections": [
-                {"name": s.name, "ok": s.ok, "detail": s.detail, "changes": s.changes}
+                {
+                    "name": s.name,
+                    "section_id": s.section_id or s.name,
+                    "ok": s.ok,
+                    "detail": s.detail,
+                    "changes": s.changes,
+                }
                 for s in self.sections
             ],
         }
@@ -492,6 +501,95 @@ def apply_mcps_enforce(
     )
 
 
+# ---------------------------------------------------------------------------
+# Section ordering + enforce consequences
+# ---------------------------------------------------------------------------
+
+
+# Ordered identity of the sections apply() emits. Child consequences
+# (materialise / render) follow their parent enforce section. This replaces the
+# hand-typed "Section N" comments (which had a duplicate "Section 5").
+SECTION_ORDER = (
+    "rules",
+    "features.caveman",
+    "global_flags",
+    "skills_enforce",
+    "skills_enforce.materialise",
+    "mcps_enforce",
+    "mcps_enforce.render",
+    "managed_files",
+    "applied-bundle",
+    "files-state-sidecar",
+    "dashboard-sidecar",
+)
+
+
+def apply_skills_materialise(target: Path, *, dry_run: bool = False) -> SectionResult:
+    """Consequence of ``skills_enforce``: mirror the enforcement-filtered skills.
+
+    Best-effort: a source-missing consumer (submodule not yet initialised) or a
+    write failure is reported in the section detail but does NOT flip the overall
+    apply verdict — matching the established bootstrap discipline of warning and
+    continuing on skills errors.
+    """
+    sr = SectionResult(
+        name="skills_enforce.materialise",
+        section_id="skills_enforce.materialise",
+        ok=True,
+    )
+    try:
+        from scripts.materialise_skills import materialise_skills
+
+        res = materialise_skills(target, dry_run=dry_run, quiet=True)
+        sr.detail = res.summary or ("dry-run" if dry_run else "materialised")
+        if res.user_dirs_preserved:
+            sr.changes.append(
+                f"preserved {len(res.user_dirs_preserved)} user-added skill dir(s)"
+            )
+        if res.stale_removed:
+            sr.changes.append(
+                f"removed {len(res.stale_removed)} stale playbook skill dir(s)"
+            )
+        if res.errors:
+            sr.changes.append("⚠ " + "; ".join(res.errors)[:300])
+    except Exception as exc:  # noqa: BLE001 — never abort apply on materialise
+        sr.detail = f"skipped: materialise raised {type(exc).__name__}: {exc}"
+    return sr
+
+
+def apply_mcp_render(target: Path, *, dry_run: bool = False) -> SectionResult:
+    """Consequence of ``mcps_enforce``: render .mcp.json + .gemini/settings.json.
+
+    Best-effort: a render failure (e.g. playbook root not resolvable) is reported
+    but does not flip the overall apply verdict.
+    """
+    sr = SectionResult(
+        name="mcps_enforce.render",
+        section_id="mcps_enforce.render",
+        ok=True,
+    )
+    argv = ["--consumer-root", str(target)]
+    if dry_run:
+        argv.append("--dry-run")
+    try:
+        from scripts.mcp import render as _mcp_render
+
+        rc = _mcp_render.main(argv)
+        if rc == 0:
+            sr.detail = (
+                "would render .mcp.json + .gemini/settings.json"
+                if dry_run else "rendered .mcp.json + .gemini/settings.json"
+            )
+        else:
+            sr.detail = f"mcp render exited rc={rc}"
+            sr.changes.append("⚠ MCP configs may be stale")
+    except SystemExit as exc:  # render may sys.exit on a fatal gate
+        sr.detail = f"skipped: mcp render exited ({getattr(exc, 'code', '?')})"
+    except Exception as exc:  # noqa: BLE001 — never abort apply on render
+        sr.detail = f"skipped: mcp render raised {type(exc).__name__}: {exc}"
+    return sr
+
+
 def _write_applied_bundle(target: Path, bundle: dict[str, Any]) -> SectionResult:
     """Persist the just-applied bundle as the consumer's 'last applied' state.
 
@@ -571,7 +669,9 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         sr2.detail = f"DRY-RUN would write {len(bundle.get('global_flags') or {})} global flag entries"
         report.sections.append(sr2)
         report.sections.append(apply_skills_enforce(target, bundle, dry_run=True))
+        report.sections.append(apply_skills_materialise(target, dry_run=True))
         report.sections.append(apply_mcps_enforce(target, bundle, dry_run=True))
+        report.sections.append(apply_mcp_render(target, dry_run=True))
         # Dry-run managed files: count what would be touched.
         try:
             playbook_root_for_mf = rules_toggle.find_playbook_root()
@@ -643,6 +743,19 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "bundle": bundle_path.as_posix(),
     })
 
+    # Section 4b: skills materialisation — the consequence of skills_enforce.
+    # The enforce state file (written above) is the INPUT to the mirror.
+    sm_sr = apply_skills_materialise(target)
+    report.sections.append(sm_sr)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:skills_materialise",
+        "ok": sm_sr.ok,
+        "detail": sm_sr.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
     # Section 5: mcps_enforce → .ai-playbook-state/mcps-enforce.json
     me_sr = apply_mcps_enforce(target, bundle)
     report.sections.append(me_sr)
@@ -652,6 +765,19 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "action": "apply-config:mcps_enforce",
         "ok": me_sr.ok,
         "detail": me_sr.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
+    # Section 5b: MCP render — the consequence of mcps_enforce. Reads the
+    # disabled-MCP state file (written above) and renders the per-model configs.
+    mr_sr = apply_mcp_render(target)
+    report.sections.append(mr_sr)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:mcp_render",
+        "ok": mr_sr.ok,
+        "detail": mr_sr.detail,
         "bundle": bundle_path.as_posix(),
     })
 
@@ -698,9 +824,18 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
     })
 
     # Section 7: persist the applied bundle as the new source of truth + UI
-    # sidecar. Runs LAST so the JS file always reflects the post-apply state
-    # (i.e. what the UI should render on next open). Best-effort.
-    ab_sr = _write_applied_bundle(target, bundle)
+    # sidecar. Gated on the managed-files transaction: if managed_files failed
+    # (and rolled its batch back), applied-config.json MUST NOT advance, so it
+    # keeps matching the on-disk state.
+    if mf_sr_section.ok:
+        ab_sr = _write_applied_bundle(target, bundle)
+    else:
+        ab_sr = SectionResult(
+            name="applied-bundle",
+            section_id="applied-bundle",
+            ok=False,
+            detail="skipped: managed_files transaction failed — applied-config not advanced",
+        )
     report.sections.append(ab_sr)
 
     # Section 8: regenerate files-state.js sidecar so the Files tab in the
@@ -718,7 +853,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         fs_sr.detail = f"skipped: build_files_state raised ({exc})"
     report.sections.append(fs_sr)
 
-    # Section 5: regenerate the telemetry-dashboard sidecar (best-effort).
+    # Section 9: regenerate the telemetry-dashboard sidecar (best-effort).
     # Failure here must never break apply_config — log only.
     ds_sr = _rebuild_dashboard_sidecar(target)
     report.sections.append(ds_sr)
@@ -801,4 +936,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # The door is the single reconcile operation; instrument it at the entry
+    # boundary so a standalone `python -m scripts.apply_config` emits the same
+    # OTel span + rule-event/v2 row as any other CLI. When apply() runs
+    # in-process (e.g. from bootstrap's reconcile), it nests under the caller's
+    # span instead. Slug "apply_config" keeps metric continuity for the door.
+    from scripts.rules._telemetry import script_emit
+    sys.exit(script_emit("apply_config", main))
