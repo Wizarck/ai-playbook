@@ -1,0 +1,56 @@
+{
+  "schema": "config-files-inventory/v1",
+  "description": "Data-driven catalog of the structured, model-agnostic config files the config-UI surfaces. `editable_in_ui` marks the surfaces the Config files / Settings tabs render today; the rest round-trip through Import… of a JSON bundle until a dedicated editor lands. apply_config writes each via its managed-file renderer (consumer lines outside the playbook marker blocks are preserved).",
+  "files": [
+    {
+      "rel_path": ".gitignore",
+      "bundle_key": "gitignore_extras",
+      "field": "patterns",
+      "kind": "string_list",
+      "editable_in_ui": true,
+      "tab": "configfiles",
+      "agnostic": true,
+      "note": "Extra ignore patterns appended outside the playbook marker block."
+    },
+    {
+      "rel_path": ".coderabbit.yaml",
+      "bundle_key": "coderabbit_extras",
+      "field": "path_filters",
+      "kind": "string_list",
+      "editable_in_ui": true,
+      "tab": "configfiles",
+      "agnostic": true,
+      "note": "Extra CodeRabbit path filters. path_instructions (objects) round-trip via JSON import."
+    },
+    {
+      "rel_path": ".claude/settings.json",
+      "bundle_key": "settings",
+      "field": "hooks|permissions_allow|additional_directories",
+      "kind": "agnostic_settings",
+      "editable_in_ui": true,
+      "tab": "settings",
+      "agnostic": true,
+      "note": "Model-agnostic surface; projected to Claude today, Gemini/Cursor per hook targets (capability-gated)."
+    },
+    {
+      "rel_path": ".pre-commit-config.yaml",
+      "bundle_key": "pre_commit_extras",
+      "field": "hooks",
+      "kind": "object_list",
+      "editable_in_ui": false,
+      "tab": null,
+      "agnostic": true,
+      "note": "Nested hook objects — JSON import only for now."
+    },
+    {
+      "rel_path": "mcp-servers.project.yaml",
+      "bundle_key": "mcp_project_servers",
+      "field": "*",
+      "kind": "object_map",
+      "editable_in_ui": false,
+      "tab": null,
+      "agnostic": true,
+      "note": "Full server records (validated downstream by scripts/mcp/validate.py) — JSON import only for now."
+    }
+  ]
+}
