@@ -52,6 +52,52 @@ def _stage_consumer(tmp_path: Path, *, jsonl_src: Path | None, caveman_json: dic
     return consumer
 
 
+def _restamp_recent(src: Path, dst: Path) -> None:
+    """Copy a static rule-events fixture, shifting every ``timestamp`` so the
+    newest event lands ~1 day before now. Decouples wall-clock-windowed golden
+    assertions from the date the suite runs (the aggregator only accepts 7d/30d
+    windows, so the fixture era is normalised rather than the window widened).
+    Relative spacing between events is preserved; unparseable lines pass through.
+    """
+    import datetime as _dt
+
+    records: list[tuple[_dt.datetime | None, dict | str]] = []
+    newest: _dt.datetime | None = None
+    for line in src.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            records.append((None, line))
+            continue
+        ts = ev.get("timestamp")
+        parsed: _dt.datetime | None = None
+        if isinstance(ts, str):
+            try:
+                parsed = _dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except ValueError:
+                parsed = None
+        if parsed is not None and (newest is None or parsed > newest):
+            newest = parsed
+        records.append((parsed, ev))
+
+    assert newest is not None, "fixture has no parseable timestamps"
+    target = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0) - _dt.timedelta(days=1)
+    delta = target - newest
+
+    out: list[str] = []
+    for parsed, ev in records:
+        if isinstance(ev, str):
+            out.append(ev)
+            continue
+        if parsed is not None:
+            ev["timestamp"] = (parsed + delta).isoformat().replace("+00:00", "Z")
+        out.append(json.dumps(ev, ensure_ascii=False))
+    dst.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
 def _read_sidecar(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     m = re.search(r"window\.DASHBOARD_DATA\s*=\s*(.*);\s*\Z", text, re.DOTALL)
@@ -90,16 +136,24 @@ def test_aggregator_against_5k_fixture(tmp_path: Path):
     refactor of the generator. Exact-snapshot comparison would land under
     tests/integration/ with an --update-snapshot flag.
     """
+    # The fixture timestamps are STATIC (≈2026-04-26 … 2026-05-26, a 30-day span).
+    # The aggregator windows against the real wall-clock (now − window) and only
+    # accepts 7d/30d windows, so a stale fixture silently ages events out of a 30d
+    # window as the suite ages — a date-coupled flake. Normalise the fixture's era
+    # instead: shift every timestamp so the newest lands ~1 day before now. A 30d
+    # window then captures ~29 of the 30 fixture days deterministically, forever.
+    recent = tmp_path / "rule-events-5k-recent.jsonl"
+    _restamp_recent(FIXTURES_DIR / "rule-events-5k.jsonl", recent)
     consumer = _stage_consumer(
         tmp_path,
-        jsonl_src=FIXTURES_DIR / "rule-events-5k.jsonl",
+        jsonl_src=recent,
         caveman_json={"enabled": True, "mode": "full", "components": {"response_style": True}},
     )
     payload = _build(tmp_path, consumer, window_days=30, threshold=100)
 
     assert payload["schema_version"] == "dashboard-data/v1"
     assert payload["caveman_state"] in {"on", "missing"}  # missing if subprocess fallback fails
-    assert payload["window"]["events_seen"] > 4500  # window cuts off some boundary events
+    assert payload["window"]["events_seen"] > 4500  # ~29/30 fixture days inside the window
     assert payload["window"]["events_skipped"] == 0
     assert len(payload["pricing_version"]) == 64
 
