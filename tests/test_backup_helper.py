@@ -346,3 +346,54 @@ def test_restore_session_warns_on_missing_backup_file(consumer: Path) -> None:
     assert restored == []
     assert len(warnings) == 1
     assert "backup file missing" in warnings[0]
+
+
+# ---------------------------------------------------------------------------
+# BASE snapshot (pre-playbook anchor for uninstall)
+# ---------------------------------------------------------------------------
+
+
+def test_backup_base_captures_once_and_is_idempotent(consumer: Path) -> None:
+    rec1 = bh.backup_base(consumer, consumer / "AGENTS.md")
+    assert rec1 is not None
+    assert rec1.session_id == bh.BASE_SESSION_ID
+    # Second call is a no-op: the base is the very first state, never overwritten.
+    # Even after the file changes, the base record stays the original.
+    _write_lf(consumer / "AGENTS.md", "# mutated by playbook\n")
+    rec2 = bh.backup_base(consumer, consumer / "AGENTS.md")
+    assert rec2 is None
+    base = bh.base_record_for(consumer, "AGENTS.md")
+    assert base is not None and base.sha256 == rec1.sha256
+
+
+def test_restore_base_returns_preplaybook_content(consumer: Path) -> None:
+    original = (consumer / "AGENTS.md").read_text(encoding="utf-8")
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    _write_lf(consumer / "AGENTS.md", "# heavily rewritten\n")
+    restored, warnings = bh.restore_base(consumer, "AGENTS.md")
+    assert warnings == []
+    assert len(restored) == 1
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == original
+
+
+def test_restore_base_all_files(consumer: Path) -> None:
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    bh.backup_base(consumer, consumer / ".gitignore")
+    _write_lf(consumer / "AGENTS.md", "x\n")
+    _write_lf(consumer / ".gitignore", "y\n")
+    restored, warnings = bh.restore_base(consumer)
+    assert warnings == []
+    assert len(restored) == 2
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# project agents\n"
+    assert (consumer / ".gitignore").read_text(encoding="utf-8") == "node_modules/\n"
+
+
+def test_prune_never_removes_base(consumer: Path) -> None:
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    # Pile up ordinary backups for the same file.
+    for _ in range(5):
+        time.sleep(0.01)
+        bh.backup_once(consumer, consumer / "AGENTS.md", with_timestamp=True)
+    bh.prune_backups(consumer, keep_per_file=1)
+    # The base survives pruning regardless of keep_per_file.
+    assert bh.base_record_for(consumer, "AGENTS.md") is not None
