@@ -482,3 +482,48 @@ def test_section_order_has_no_duplicates(tmp_path: Path) -> None:
     assert len(apply_config.SECTION_ORDER) == len(set(apply_config.SECTION_ORDER))
     assert "skills_enforce.materialise" in apply_config.SECTION_ORDER
     assert "mcps_enforce.render" in apply_config.SECTION_ORDER
+
+
+# ---------------------------------------------------------------------------
+# caveman transaction-safety (deferred 4.4): manual reconcile instruction
+# ---------------------------------------------------------------------------
+
+
+def test_caveman_reconcile_instruction_on_managed_files_rollback(tmp_path: Path) -> None:
+    """When caveman mutated state AND the managed-files batch rolled back, the
+    report surfaces a precise manual reconcile step (caveman is not
+    transactional)."""
+    from scripts import _managed_files as mf_mod
+    target = _fake_project(tmp_path)
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "features": {"caveman": {"enabled": True, "mode": "full"}},
+        "project_meta": {"project_identity": "x"},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+
+    cv = apply_config.SectionResult(
+        name="features.caveman", ok=True,
+        changes=["invoked: python -m scripts.caveman on --mode full"],
+    )
+    rolled = mf_mod.ManagedFilesResult(
+        ok=False,
+        changes=[
+            "✗ .gitignore: commit failed (disk full)",
+            "↩ rolled back 1 overwritten file(s) from session apply-X",
+        ],
+    )
+    with patch.object(apply_config, "apply_caveman", return_value=cv), \
+         patch.object(apply_config, "_caveman_preflight", return_value={"enabled": False}), \
+         patch.object(apply_config._managed_files, "apply_managed_files", return_value=rolled):
+        report = apply_config.apply(bp, target=target)
+
+    mf_section = next(s for s in report.sections if s.name == "managed_files")
+    assert mf_section.ok is False
+    instruction = " ".join(mf_section.changes)
+    assert "caveman is not transactional" in instruction
+    # pre-apply state was OFF ⇒ instruction restores with `caveman off`.
+    assert "scripts.caveman off" in instruction
+    # applied-config must NOT advance past the failed transaction.
+    ab = next(s for s in report.sections if s.name == "applied-bundle")
+    assert ab.ok is False

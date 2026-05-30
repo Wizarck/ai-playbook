@@ -77,7 +77,15 @@ def _load_settings(path: Path) -> dict[str, Any] | None:
 
 
 def _has_required_pretooluse(settings: dict[str, Any]) -> bool:
-    """Check the parsed settings for the required PreToolUse declaration."""
+    """Check the parsed settings for the required PreToolUse declaration.
+
+    Matches by COMMAND identity (the enforce script's basename) under ANY
+    PreToolUse matcher, not by an exact matcher string. The canonical template
+    ships ``Edit|Write|MultiEdit|Bash`` (v0.20.0+); requiring an exact
+    ``Edit|Write|MultiEdit`` matcher would false-flag that as drift and would
+    push apply_config's settings renderer to append a duplicate entry. The
+    invariant is satisfied as long as the script is wired under PreToolUse.
+    """
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return False
@@ -86,8 +94,6 @@ def _has_required_pretooluse(settings: dict[str, Any]) -> bool:
         return False
     for entry in pre:
         if not isinstance(entry, dict):
-            continue
-        if entry.get("matcher") != REQUIRED_PRE_TOOL_USE_MATCHER:
             continue
         sub_hooks = entry.get("hooks")
         if not isinstance(sub_hooks, list):
@@ -156,6 +162,12 @@ def _merge_required_pretooluse(settings: dict[str, Any]) -> dict[str, Any]:
     Idempotent: if the required matcher+command already exists, the input is returned
     structurally unchanged. Preserves all other top-level keys and other matchers.
     """
+    # If the enforce script is already wired under PreToolUse by ANY matcher
+    # (e.g. the template's `Edit|Write|MultiEdit|Bash`), do not append a second
+    # entry — return a structural copy unchanged.
+    if _has_required_pretooluse(settings):
+        return dict(settings)
+
     # Shallow copy at each layer that we mutate.
     out = dict(settings)
     hooks = dict(out.get("hooks", {})) if isinstance(out.get("hooks"), dict) else {}

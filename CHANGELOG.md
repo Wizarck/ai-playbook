@@ -48,10 +48,44 @@ CHECK = `apply --dry-run`; REMEDY = `apply`. There is no second write path.
   `reconcile.managed_files.{staged,stage_failed,committed,rolled_back}` events
   with canonical `ai_playbook.managed_files.*` attributes.
 
-Deferred to follow-up changes: caveman transaction-safety (pre-flight + run-last
-+ manual rollback instruction), trimming `copy_templates` to a minimal seed,
-per-section child spans + conflict events (land with the conflict detector), and
-the formal idempotency / clone-repro / telemetry-emission tests.
+### Changed — provenance conflict detection + agnostic settings (`feat/reconcile-single-door`)
+
+- **Never overwrite silently.** The door now detects when a consumer edited a
+  sealed canonical block (two-state: the `sha=` in the block's own on-disk marker
+  vs the SHA of its current content — no external manifest). A drifted block with
+  no curate decision is a CONFLICT: the file is skipped, the section reports
+  failure, and `apply --dry-run` (= `bootstrap --check`, the drift-CI gate) fails
+  on it. `keep_mine` restores + re-seals the consumer's content; `take_playbook`
+  overwrites with a backup. Conflicts are per-file skips, not a full-batch abort,
+  but still block `applied-config.json` from advancing past unresolved drift.
+- **`.claude/settings.json` folded into the door.** New `_renderers/settings.py`
+  does an identity deep-merge: it guarantees the openspec-apply-enforce PreToolUse
+  invariant and projects the agnostic `settings` surface while preserving every
+  consumer-authored key. Byte-level no-op when nothing changes (formatting kept).
+  The legacy `claude-settings.rule.py apply` is superseded; its `validate` stays
+  the L1 gate and now matches the enforce hook by command identity under any
+  matcher (fixing the `Edit|Write|MultiEdit|Bash` template vs exact-matcher rule
+  mismatch — no more false drift / duplicate entries).
+- **Model-agnostic `settings` bundle key** (`hooks[]` with optional per-item
+  `targets`, `permissions_allow`, `additional_directories`). One logical surface,
+  projected per model. `claude_settings_extras` kept for backwards-compat
+  (union-merged into settings.json permissions). Bootstrap's synth defaults carry
+  `settings: {}` so the door owns `.claude/settings.json` from the first reconcile.
+- **Gemini merge-preserve.** `mcp/render.py` now replaces ONLY `mcpServers` in an
+  existing `.gemini/settings.json`, preserving user keys (theme/telemetry/hooks);
+  Gemini hooks are not yet projected (capability-gated). Cursor degrades (no
+  settings/MCP target — the door never invents `.cursor/mcp.json`).
+- **caveman transaction-safety.** A pre-flight snapshots caveman's enabled-state
+  before any mutation; when a managed-files batch rolls back after caveman ran,
+  the report surfaces the exact manual reconcile step. caveman is NOT reordered to
+  run last (that would break the locked caveman→MCP-render ordering the
+  `mcp_shrink` post-hook depends on).
+- **Conflict telemetry.** `reconcile.managed_files.conflict` event (file +
+  conflicting block ids); the staged event carries a `conflicts` count.
+
+Deferred to follow-up changes: trimming `copy_templates` to a minimal seed, the
+formal idempotency / clone-repro / telemetry-emission tests, the config-UI custom
+surface + Cursor "n/a" badge (Change 3), and dispatcher curate (Change 4).
 
 ## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
 

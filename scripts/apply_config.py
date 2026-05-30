@@ -172,6 +172,25 @@ def _actor() -> str:
     return os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 
 
+def _caveman_preflight(target: Path) -> dict[str, Any] | None:
+    """Snapshot caveman's enabled-state BEFORE any mutation this reconcile.
+
+    caveman is a non-transactional subprocess: it mutates AGENTS.md + its state
+    file at section 2 (it must run before MCP render so the ``mcp_shrink``
+    post-hook sees the rendered ``.mcp.json``). If a LATER section (managed
+    files) fails and rolls its batch back, caveman's changes are NOT covered by
+    that session backup. This snapshot lets the report tell the operator exactly
+    what state to restore caveman to. Best-effort: ``None`` when caveman is not
+    installed or its state is unreadable.
+    """
+    try:
+        from scripts.caveman import toggle as _caveman_toggle
+
+        return _caveman_toggle.read_state(target)
+    except Exception:  # noqa: BLE001 — pre-flight is advisory only
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Section 1: rules
 # ---------------------------------------------------------------------------
@@ -656,6 +675,11 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
 
     report = ApplyReport(target=target, bundle_path=bundle_path)
 
+    # Pre-flight: caveman's enabled-state before any mutation, so a rolled-back
+    # managed-files transaction can surface a precise manual reconcile step
+    # (caveman is a subprocess and is not covered by the session rollback).
+    caveman_preflight = _caveman_preflight(target)
+
     rules_inv = _load_inventory("rules-inventory.json")
     global_flags_inv = _load_inventory("global-flags-inventory.json")
 
@@ -682,8 +706,9 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
                 dry_run=True,
             )
             mf_sr_dry = SectionResult(
-                name="managed_files", ok=True, detail=mf_dry.detail,
+                name="managed_files", ok=mf_dry.ok, detail=mf_dry.detail,
             )
+            mf_sr_dry.changes.extend(mf_dry.changes)
             report.sections.append(mf_sr_dry)
         except Exception as exc:  # noqa: BLE001
             report.sections.append(SectionResult(
@@ -707,8 +732,12 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "bundle": bundle_path.as_posix(),
     })
 
-    # Section 2: features.caveman
+    # Section 2: features.caveman. Runs before MCP render (section 5b) so the
+    # mcp_shrink post-hook sees the rendered .mcp.json (locked ordering). caveman
+    # is a non-transactional subprocess — track whether it actually mutated so a
+    # later rollback can surface the manual reconcile step.
     cv_sr = apply_caveman(target, (bundle.get("features") or {}).get("caveman"))
+    caveman_mutated = any(c.startswith("invoked:") for c in cv_sr.changes)
     report.sections.append(cv_sr)
     _audit_append(target, {
         "ts": datetime.now(UTC).isoformat(),
@@ -801,6 +830,18 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
             mf_sr_section.ok = mf_result.ok
             mf_sr_section.detail = mf_result.detail
             mf_sr_section.changes.extend(mf_result.changes)
+            # caveman ran (and possibly mutated AGENTS.md) before this batch; if
+            # the batch rolled back, caveman's non-transactional changes are now
+            # ahead of the reverted files — surface the manual reconcile step.
+            if caveman_mutated and any("rolled back" in c for c in mf_result.changes):
+                pre_enabled = bool((caveman_preflight or {}).get("enabled"))
+                mf_sr_section.changes.append(
+                    "⚠ caveman mutated AGENTS.md/state earlier this reconcile but the "
+                    "managed-files batch rolled back; caveman is not transactional. "
+                    f"Restore its pre-apply state with `python -m scripts.caveman "
+                    f"{'on' if pre_enabled else 'off'}`, then re-run reconcile "
+                    "(or `python -m scripts.caveman rollback --yes`)."
+                )
             if mf_result.file_states:
                 existing_states = bundle.setdefault("file_states", {})
                 for rel_path, state in mf_result.file_states.items():
