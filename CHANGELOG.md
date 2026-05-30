@@ -119,12 +119,28 @@ CHECK = `apply --dry-run`; REMEDY = `apply`. There is no second write path.
   leave thin pointers. `--dry-run` previews; `--yes` applies; default refuses
   without consent. The LLM never writes; it only returns a plan.
 
+### Added — config-UI custom surface (`feat/config-ui-custom-surface`)
+
+- **Dispatchers tab** — aggregated `.md` drift view (D14). `build_files_state`
+  emits `dispatcher_drift` in the sidecar (via `_dispatcher_shape.collect_drift`);
+  the tab renders each loose-prose chunk with provenance + a suggested
+  destination, plus a "Copy curate command" trigger.
+- **Settings tab** — the model-agnostic surface (D5): hooks (event/matcher/
+  command/timeout) with per-model target chips (claude/gemini/cursor), plus
+  permissions-allow + additional-directories. Emits `settings` sparse (omits
+  `targets` when a hook applies to all models).
+- **Config files tab** — `.gitignore` extra patterns + `.coderabbit` path
+  filters (string lists). `config-files-inventory.json` documents the full
+  editable surface; nested structures (pre-commit hooks, project MCP servers)
+  round-trip via JSON import for now.
+- Verified with the Playwright sweep (every tab driven, A=0/B=0) + a schema
+  round-trip test on the emitted `settings` shape.
+
 Deferred to follow-up changes: trimming `copy_templates` to a minimal seed, the
-formal idempotency / clone-repro / telemetry-emission tests, the config-UI
-Settings/Config-files tabs + aggregated `.md` drift view + Cursor "n/a" badge
-(needs in-browser verification), wiring `collect_drift` into `ai_playbook_check` /
-`apply --dry-run` as a `curate_candidate` surface, and `uninstall.py` preferring
-the base-tagged record via `restore_base`.
+formal idempotency / clone-repro / telemetry-emission tests, dedicated editors
+for the nested config-files surfaces (pre-commit / project MCP servers) + the
+Cursor "n/a" badge + Restore button wiring, and a per-file `dispatch` trigger in
+the drift view (beyond copy-the-command).
 
 ## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
 

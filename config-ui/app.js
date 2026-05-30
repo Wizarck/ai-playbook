@@ -160,6 +160,12 @@
     const addDir = $("#settings-add-dir");
     if (addDir) addDir.addEventListener("click", () => { _ensureSettings().additional_directories.push(""); renderSettings(); });
 
+    // Config files tab — add gitignore pattern / coderabbit filter.
+    const addGi = $("#cf-add-gitignore");
+    if (addGi) addGi.addEventListener("click", () => { _ensureConfigFiles().gitignore_extras.patterns.push(""); renderConfigFiles(); });
+    const addCr = $("#cf-add-coderabbit");
+    if (addCr) addCr.addEventListener("click", () => { _ensureConfigFiles().coderabbit_extras.path_filters.push(""); renderConfigFiles(); });
+
     wireNextSteps();
   }
 
@@ -211,6 +217,7 @@
     if (name === "files") renderFiles();
     if (name === "dispatchers") renderDispatchers();
     if (name === "settings") renderSettings();
+    if (name === "configfiles") renderConfigFiles();
     if (name === "dashboard" && typeof window.DashboardRender === "object" && window.DashboardRender !== null) {
       try { window.DashboardRender.mount("#dashboard-root"); }
       catch (err) { console.error("dashboard mount failed:", err); }
@@ -227,6 +234,7 @@
     updateFilesCounter();
     updateDispatchersCounter();
     updateSettingsCounter();
+    updateConfigFilesCounter();
   }
 
   // ------- Files tab (read-only inspector v1) -------
@@ -635,6 +643,66 @@
         renderSettings();
       });
     });
+  }
+
+  // ------- Config files tab (structured agnostic config) -------
+  function _ensureConfigFiles() {
+    if (!state.gitignore_extras || !Array.isArray(state.gitignore_extras.patterns)) {
+      state.gitignore_extras = { patterns: Array.isArray((state.gitignore_extras || {}).patterns) ? state.gitignore_extras.patterns : [] };
+    }
+    if (!state.coderabbit_extras || typeof state.coderabbit_extras !== "object") {
+      state.coderabbit_extras = {};
+    }
+    if (!Array.isArray(state.coderabbit_extras.path_filters)) state.coderabbit_extras.path_filters = [];
+    return state;
+  }
+
+  function updateConfigFilesCounter() {
+    const el = document.getElementById("tab-count-configfiles");
+    if (!el) return;
+    _ensureConfigFiles();
+    const n = state.gitignore_extras.patterns.length + state.coderabbit_extras.path_filters.length;
+    el.textContent = String(n);
+  }
+
+  function _renderStrList(container, arr, kind, onChange) {
+    if (!container) return;
+    container.innerHTML = "";
+    arr.forEach((v, i) => {
+      const row = document.createElement("div");
+      row.className = "settings-strrow";
+      row.innerHTML = `
+        <input class="settings-input wide" data-cf="${kind}:${i}" value="${escapeHtml(v)}" />
+        <button type="button" class="btn small ghost" data-cf-remove="${kind}:${i}">✕</button>`;
+      container.appendChild(row);
+    });
+    if (!arr.length) container.innerHTML = `<p class="files-inspector-hint">None.</p>`;
+    container.querySelectorAll("[data-cf]").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const i = Number(inp.dataset.cf.split(":")[1]);
+        arr[i] = inp.value;
+        updateConfigFilesCounter();
+      });
+    });
+    container.querySelectorAll("[data-cf-remove]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        arr.splice(Number(btn.dataset.cfRemove.split(":")[1]), 1);
+        onChange();
+      });
+    });
+  }
+
+  function renderConfigFiles() {
+    _ensureConfigFiles();
+    _renderStrList(
+      document.getElementById("cf-gitignore-list"),
+      state.gitignore_extras.patterns, "gi", renderConfigFiles,
+    );
+    _renderStrList(
+      document.getElementById("cf-coderabbit-list"),
+      state.coderabbit_extras.path_filters, "cr", renderConfigFiles,
+    );
+    updateConfigFilesCounter();
   }
 
   function updateSkillsSummary() {
@@ -1146,6 +1214,20 @@
       });
       if (Object.keys(intentsOut).length > 0) bundle.file_curate_intents = intentsOut;
     }
+    // Config-files surfaces — sparse string lists.
+    if (state.gitignore_extras && Array.isArray(state.gitignore_extras.patterns)) {
+      const pats = state.gitignore_extras.patterns.map(v => (v || "").trim()).filter(Boolean);
+      if (pats.length) bundle.gitignore_extras = { patterns: [...new Set(pats)] };
+    }
+    if (state.coderabbit_extras && Array.isArray(state.coderabbit_extras.path_filters)) {
+      const filters = state.coderabbit_extras.path_filters.map(v => (v || "").trim()).filter(Boolean);
+      // Preserve any path_instructions imported via JSON (not edited in this tab).
+      const out = {};
+      if (filters.length) out.path_filters = [...new Set(filters)];
+      const instrs = state.coderabbit_extras.path_instructions;
+      if (Array.isArray(instrs) && instrs.length) out.path_instructions = instrs;
+      if (Object.keys(out).length) bundle.coderabbit_extras = out;
+    }
     // Model-agnostic settings surface — sparse. Only emit non-empty entries; a
     // hook targeting every model omits `targets` (the schema default). Hooks
     // missing event or command are dropped (incomplete rows).
@@ -1385,6 +1467,12 @@
           state.mcps_enforce = { disabled: [...data.mcps_enforce.disabled] };
         }
         state.settings = _normalizeSettings(data.settings);
+        if (data.gitignore_extras && Array.isArray(data.gitignore_extras.patterns)) {
+          state.gitignore_extras = { patterns: [...data.gitignore_extras.patterns] };
+        }
+        if (data.coderabbit_extras && typeof data.coderabbit_extras === "object") {
+          state.coderabbit_extras = deepClone(data.coderabbit_extras);
+        }
         renderAll();
         updateCounters();
         banner("success", `Imported ${file.name}. Review the tabs, then click Export to round-trip.`);
@@ -1401,6 +1489,8 @@
     state.skills_enforce = { disabled: [] };
     state.mcps_enforce = { disabled: [] };
     state.settings = _normalizeSettings(defaults && defaults.settings);
+    delete state.gitignore_extras;
+    delete state.coderabbit_extras;
     expandedSlugs.clear();
     renderAll();
     updateCounters();
