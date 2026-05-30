@@ -113,3 +113,25 @@ def test_file_sha_emitted_for_cas(consumer: Path) -> None:
         assert "file_sha" in f
         text = (consumer / f["rel_path"]).read_text(encoding="utf-8")
         assert f["file_sha"] == compute_file_sha(text)
+
+
+def test_dispatcher_drift_emitted_for_loose_prose(consumer: Path) -> None:
+    """The sidecar carries aggregated dispatcher drift so the UI can render the
+    .md drift view offline."""
+    prose = "\n".join(f"Substantive dispatcher line {i} over the pointer threshold." for i in range(15))
+    _write_lf(consumer / "CLAUDE.md", "# CLAUDE\n\n## Notes\n" + prose + "\n")
+    state = bfs.build_files_state(consumer)
+    drift = state["dispatcher_drift"]
+    paths = {d["rel_path"] for d in drift}
+    assert "CLAUDE.md" in paths
+    claude = next(d for d in drift if d["rel_path"] == "CLAUDE.md")
+    assert claude["chunks"]
+    assert claude["chunks"][0]["line_count"] >= 15
+    assert claude["chunks"][0]["suggestion"]
+
+
+def test_dispatcher_drift_empty_when_pointer_shaped(consumer: Path) -> None:
+    _write_lf(consumer / "AGENTS.md", "# A\n\n## Arch\nSee [arch](docs/arch.md).\n")
+    state = bfs.build_files_state(consumer)
+    paths = {d["rel_path"] for d in state["dispatcher_drift"]}
+    assert "AGENTS.md" not in paths

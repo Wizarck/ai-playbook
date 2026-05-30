@@ -141,6 +141,10 @@
       updateCounters();
     });
 
+    // Dispatchers tab — copy the curate dry-run command.
+    const curateCopy = $("#dispatchers-curate-copy");
+    if (curateCopy) curateCopy.addEventListener("click", () => copyPlainText("python -m scripts.curate --dry-run", curateCopy));
+
     wireNextSteps();
   }
 
@@ -190,6 +194,7 @@
     });
     if (name === "preview") renderPreview();
     if (name === "files") renderFiles();
+    if (name === "dispatchers") renderDispatchers();
     if (name === "dashboard" && typeof window.DashboardRender === "object" && window.DashboardRender !== null) {
       try { window.DashboardRender.mount("#dashboard-root"); }
       catch (err) { console.error("dashboard mount failed:", err); }
@@ -204,6 +209,7 @@
     renderSkillsEnforce();
     renderMcpsEnforce();
     updateFilesCounter();
+    updateDispatchersCounter();
   }
 
   // ------- Files tab (read-only inspector v1) -------
@@ -400,6 +406,84 @@
     return String(s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  // ------- Dispatchers tab (aggregated .md drift view — read + trigger) -------
+  const _SUGGEST_LABEL = {
+    absorb_into_agents_md: "→ absorb into AGENTS.md",
+    dispatch_to_leaf_doc: "→ dispatch to a leaf doc + pointer",
+    move_to_other_dispatch: "→ move to another dispatcher",
+  };
+
+  function updateDispatchersCounter() {
+    const el = document.getElementById("tab-count-dispatchers");
+    if (!el) return;
+    const fs = window.FILES_STATE;
+    if (!fs || !Array.isArray(fs.dispatcher_drift)) { el.textContent = "—"; return; }
+    el.textContent = String(fs.dispatcher_drift.length);
+  }
+
+  function renderDispatchers() {
+    const listEl = document.getElementById("dispatchers-list");
+    const summaryEl = document.getElementById("dispatchers-summary");
+    if (!listEl) return;
+    const fs = window.FILES_STATE;
+    const drift = (fs && Array.isArray(fs.dispatcher_drift)) ? fs.dispatcher_drift : null;
+    if (drift === null) {
+      listEl.innerHTML = `
+        <p class="files-inspector-empty">
+          <strong>No files-state sidecar found.</strong><br>
+          Generate it from the consumer root:<br>
+          <code class="cmd">python -m scripts.build_files_state</code><br>
+          (or apply a bundle, which builds it automatically).
+        </p>`;
+      if (summaryEl) summaryEl.textContent = "—";
+      return;
+    }
+    const totalChunks = drift.reduce((n, d) => n + ((d.chunks && d.chunks.length) || 0), 0);
+    if (summaryEl) {
+      summaryEl.textContent = drift.length === 0
+        ? "All dispatchers pointer-shaped — no curate drift"
+        : `${totalChunks} loose-prose chunk(s) across ${drift.length} dispatcher(s)`;
+    }
+    if (drift.length === 0) {
+      listEl.innerHTML = `<p class="files-inspector-empty">✓ No loose prose detected in any dispatcher. Nothing to curate.</p>`;
+      return;
+    }
+    listEl.innerHTML = drift.map(d => {
+      const chunks = (d.chunks || []).map(c => `
+        <div class="dispatcher-chunk">
+          <div class="dispatcher-chunk-head">
+            <span class="files-badge drifted">${(c.line_count || 0)} lines</span>
+            ${c.heading ? `<span class="dispatcher-chunk-heading">${escapeHtml(c.heading)}</span>` : ""}
+            <span class="dispatcher-suggestion">${escapeHtml(_SUGGEST_LABEL[c.suggestion] || c.suggestion || "")}</span>
+          </div>
+          <pre class="files-section-preview">${escapeHtml(c.preview || "")}</pre>
+        </div>`).join("");
+      return `
+        <div class="dispatcher-card">
+          <div class="dispatcher-card-head">
+            <span class="dispatcher-file">${escapeHtml(d.rel_path)}</span>
+            <span class="files-badge drifted">${(d.chunks || []).length} chunk(s)</span>
+          </div>
+          ${chunks}
+        </div>`;
+    }).join("");
+  }
+
+  async function copyPlainText(text, btn) {
+    const restore = () => { if (btn) btn.textContent = btn.dataset.label || "Copy"; };
+    const done = () => { if (btn) { btn.dataset.label = btn.dataset.label || btn.textContent; btn.textContent = "Copied ✓"; setTimeout(restore, 1500); } };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        done();
+        return;
+      }
+      throw new Error("clipboard API unavailable");
+    } catch (_) {
+      banner("info", "Copy this command manually: " + text);
+    }
   }
 
   function updateSkillsSummary() {
