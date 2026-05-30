@@ -362,6 +362,79 @@ def restore_session(
     return restored, warnings
 
 
+# ---------------------------------------------------------------------------
+# BASE snapshot — the pre-playbook state, captured once, kept for uninstall
+# ---------------------------------------------------------------------------
+
+# Per D8: only the BASE (pre-playbook) snapshot is durably kept and explicitly
+# tagged so an uninstall / recovery can return a file to the state it had before
+# the playbook ever touched it. All other backups are ordinary versioned history.
+BASE_SESSION_ID = "base"
+
+
+def base_record_for(consumer_root: Path, rel_path: str) -> BackupRecord | None:
+    """Return the BASE (earliest, pre-playbook) record for ``rel_path``, or None."""
+    rel_norm = rel_path.replace(os.sep, "/")
+    matches = [
+        r for r in read_index(consumer_root)
+        if r.session_id == BASE_SESSION_ID and r.rel_path == rel_norm
+    ]
+    matches.sort(key=lambda r: r.timestamp)
+    return matches[0] if matches else None
+
+
+def backup_base(consumer_root: Path, source_file: Path) -> BackupRecord | None:
+    """Capture the pre-playbook content of ``source_file`` ONCE (tag ``base``).
+
+    The BASE snapshot is the very first state the playbook saw; it is never
+    overwritten. No-op (returns ``None``) when the file does not exist or a base
+    record already exists for it. Stored CENTRAL so it survives next-to-file
+    backup pruning and stays out of the working tree.
+    """
+    consumer_root = consumer_root.resolve()
+    source_file = source_file.resolve()
+    if not source_file.is_file():
+        return None
+    rel = str(source_file.relative_to(consumer_root)).replace(os.sep, "/")
+    if base_record_for(consumer_root, rel) is not None:
+        return None  # base already captured — keep the earliest forever
+    return backup_once(
+        consumer_root, source_file,
+        location=BackupLocation.CENTRAL, with_timestamp=True,
+        session_id=BASE_SESSION_ID,
+    )
+
+
+def restore_base(
+    consumer_root: Path,
+    rel_path: str | None = None,
+) -> tuple[list[Path], list[str]]:
+    """Restore BASE (pre-playbook) snapshots — one file if ``rel_path`` is given,
+    else every file that has a base record. The uninstall recovery path.
+
+    Returns ``(restored, warnings)`` mirroring ``restore_session``. The earliest
+    base record per file is used (the true pre-playbook content).
+    """
+    consumer_root = consumer_root.resolve()
+    base_records = [r for r in read_index(consumer_root) if r.session_id == BASE_SESSION_ID]
+    if rel_path is not None:
+        rel_norm = rel_path.replace(os.sep, "/")
+        base_records = [r for r in base_records if r.rel_path == rel_norm]
+
+    earliest: dict[str, BackupRecord] = {}
+    for r in sorted(base_records, key=lambda rec: rec.timestamp):
+        earliest.setdefault(r.rel_path, r)
+
+    restored: list[Path] = []
+    warnings: list[str] = []
+    for record in earliest.values():
+        try:
+            restored.append(restore_backup(consumer_root, record))
+        except FileNotFoundError as exc:
+            warnings.append(str(exc))
+    return restored, warnings
+
+
 def prune_backups(
     consumer_root: Path,
     *,
@@ -376,11 +449,15 @@ def prune_backups(
         raise ValueError("keep_per_file must be >= 1")
     consumer_root = consumer_root.resolve()
     records = read_index(consumer_root)
+    # BASE snapshots are kept forever (the uninstall anchor) — never pruned.
+    base_keep = [r for r in records if r.session_id == BASE_SESSION_ID]
     by_rel: dict[str, list[BackupRecord]] = {}
     for r in records:
+        if r.session_id == BASE_SESSION_ID:
+            continue
         by_rel.setdefault(r.rel_path, []).append(r)
 
-    keep: list[BackupRecord] = []
+    keep: list[BackupRecord] = list(base_keep)
     removed_files = 0
     for rel_path, group in by_rel.items():
         group_sorted = sorted(group, key=lambda r: r.timestamp)
@@ -404,6 +481,7 @@ def prune_backups(
 
 __all__ = [
     "BACKUP_DIR_NAME",
+    "BASE_SESSION_ID",
     "BackupLocation",
     "BackupRecord",
     "INDEX_FILENAME",
@@ -411,13 +489,17 @@ __all__ = [
     "STATE_DIR_NAME",
     "TIMESTAMP_FMT",
     "append_index",
+    "backup_base",
     "backup_once",
     "backups_dir",
+    "base_record_for",
     "index_path",
     "latest_backup_for",
     "list_backups_for",
     "prune_backups",
     "read_index",
     "restore_backup",
+    "restore_base",
+    "restore_session",
     "state_dir",
 ]
