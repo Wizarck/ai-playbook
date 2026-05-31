@@ -527,3 +527,42 @@ def test_caveman_reconcile_instruction_on_managed_files_rollback(tmp_path: Path)
     # applied-config must NOT advance past the failed transaction.
     ab = next(s for s in report.sections if s.name == "applied-bundle")
     assert ab.ok is False
+
+
+# ---------------------------------------------------------------------------
+# Config-UI `settings` surface — emitted shape validates against the schema
+# ---------------------------------------------------------------------------
+
+
+def test_settings_bundle_shape_validates_against_schema() -> None:
+    """The exact shape the config-UI Settings tab emits (hooks w/ targets,
+    permissions, dirs) must satisfy schema-ai-playbook-config-v1."""
+    import jsonschema
+    schema = apply_config._load_bundle_schema()
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "settings": {
+            "hooks": [
+                {"event": "SessionStart", "command": "python hook.py", "timeout": 15,
+                 "targets": ["claude", "cursor"]},
+                {"event": "PreToolUse", "matcher": "Edit|Write", "command": "python x.py"},
+            ],
+            "permissions_allow": ["WebSearch", "Bash"],
+            "additional_directories": ["../shared"],
+        },
+    }
+    jsonschema.validate(bundle, schema)  # raises on mismatch
+
+
+def test_settings_rejects_unknown_hook_key() -> None:
+    """additionalProperties:false on a hook — a stray key is rejected (guards the
+    emitter against drift)."""
+    import jsonschema
+    import pytest as _pytest
+    schema = apply_config._load_bundle_schema()
+    bad = {
+        "schema": "ai-playbook-config/v1",
+        "settings": {"hooks": [{"event": "X", "command": "c", "bogus": 1}]},
+    }
+    with _pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(bad, schema)

@@ -73,7 +73,10 @@
     <button class="tab" data-tab="global">Global flags <span id="tab-count-global" class="count">…</span></button>
     <button class="tab" data-tab="skills">Skills <span id="tab-count-skills" class="count">…</span></button>
     <button class="tab" data-tab="mcps">MCPs <span id="tab-count-mcps" class="count">…</span></button>
+    <button class="tab" data-tab="settings">Settings <span id="tab-count-settings" class="count">…</span></button>
+    <button class="tab" data-tab="configfiles">Config files <span id="tab-count-configfiles" class="count">…</span></button>
     <button class="tab" data-tab="files">Files <span id="tab-count-files" class="count">…</span></button>
+    <button class="tab" data-tab="dispatchers">Dispatchers <span id="tab-count-dispatchers" class="count">…</span></button>
     <button class="tab" data-tab="preview">Preview JSON</button>
     <button class="tab" data-tab="dashboard">Dashboard</button>
   </nav>
@@ -119,6 +122,87 @@
       <ul id="mcps-list" class="enforce-list"></ul>
     </section>
 
+    <section id="panel-configfiles" class="panel" hidden>
+      <p class="dispatchers-intro">
+        Structured, model-agnostic config files. Edited here, written by
+        <code>apply_config</code> outside the playbook marker blocks (your lines are
+        preserved). CodeRabbit <code>path_instructions</code> (free-form prose per glob)
+        still round-trip via <strong>Import…</strong> of a JSON bundle.
+      </p>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3><code>.gitignore</code> — extra patterns</h3>
+          <button id="cf-add-gitignore" class="btn small" type="button">+ Add pattern</button>
+        </div>
+        <div id="cf-gitignore-list" class="settings-list"></div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3><code>.coderabbit.yaml</code> — extra path filters</h3>
+          <button id="cf-add-coderabbit" class="btn small" type="button">+ Add filter</button>
+        </div>
+        <div id="cf-coderabbit-list" class="settings-list"></div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3><code>.pre-commit-config.yaml</code> — extra hooks</h3>
+          <button id="cf-add-precommit" class="btn small" type="button">+ Add hook</button>
+        </div>
+        <p class="files-inspector-hint">
+          Appended under a <code>local-extras</code> repo after the playbook block.
+          <code>id</code> is required; blank fields are omitted. Unknown keys from an
+          imported bundle are preserved.
+        </p>
+        <div id="cf-precommit-list" class="nested-list"></div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3><code>mcp-servers.project.yaml</code> — project servers</h3>
+          <button id="cf-add-mcpserver" class="btn small" type="button">+ Add server</button>
+        </div>
+        <p class="files-inspector-hint">
+          Project-layer MCP servers, validated downstream by
+          <code>scripts/mcp/validate.py</code>. <code>scope: personal</code> is not allowed
+          at the project layer. <code>id</code> is required.
+        </p>
+        <div id="cf-mcpserver-list" class="nested-list"></div>
+      </div>
+    </section>
+
+    <section id="panel-settings" class="panel" hidden>
+      <p class="dispatchers-intro">
+        Model-agnostic agent-runtime settings — one logical surface projected to
+        <code>.claude/settings.json</code> (identity deep-merge, preserving your keys).
+        Per-hook badges show <strong>capability</strong>: hooks project to Claude today;
+        Gemini (<code>mcpServers</code> only) and Cursor are <code>n/a</code> until their
+        hook surface is wired, at which point the badges become scope toggles.
+        Permissions and additional directories are Claude-settings concepts.
+        The <code>openspec-apply-enforce</code> PreToolUse invariant is always ensured by
+        <code>apply_config</code> regardless of this tab.
+      </p>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>Hooks</h3>
+          <button id="settings-add-hook" class="btn small" type="button">+ Add hook</button>
+        </div>
+        <div id="settings-hooks-list" class="settings-list"></div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>Permissions — allow</h3>
+          <button id="settings-add-perm" class="btn small" type="button">+ Add</button>
+        </div>
+        <div id="settings-perms-list" class="settings-list"></div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>Additional directories</h3>
+          <button id="settings-add-dir" class="btn small" type="button">+ Add</button>
+        </div>
+        <div id="settings-dirs-list" class="settings-list"></div>
+      </div>
+    </section>
+
     <section id="panel-files" class="panel" hidden>
       <div class="files-toolbar">
         <span class="enforce-summary" id="files-summary">…</span>
@@ -132,6 +216,21 @@
           <p class="files-inspector-empty">Select a file on the left to inspect its sections.</p>
         </div>
       </div>
+    </section>
+
+    <section id="panel-dispatchers" class="panel" hidden>
+      <div class="files-toolbar">
+        <span class="enforce-summary" id="dispatchers-summary">…</span>
+        <button id="dispatchers-curate-copy" class="btn small" type="button"
+                title="Copy the curate dry-run command">Copy curate command</button>
+      </div>
+      <p class="dispatchers-intro">
+        Loose prose living outside marker blocks in your dispatcher files
+        (<code>AGENTS.md</code> / <code>CLAUDE.md</code> / <code>GEMINI.md</code> / <code>.cursor</code>).
+        Dispatchers should stay pointer-shaped; consolidate with the human-gated
+        <code>curate</code> one-shot — preview first, then apply with <code>--yes</code>.
+      </p>
+      <div id="dispatchers-list" class="dispatchers-list"></div>
     </section>
 
     <section id="panel-preview" class="panel" hidden>

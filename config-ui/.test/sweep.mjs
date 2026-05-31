@@ -99,7 +99,7 @@ async function runFileScenario(browser) {
     findings.A.push({ id: 'A1', sev: 'info', area: 'init', symptom: 'No banner — init may have succeeded or never ran', evidence: shot1 });
   }
 
-  const tabs = ['rules','features','global','skills','mcps','files','preview','dashboard'];
+  const tabs = ['rules','features','global','skills','mcps','settings','configfiles','files','dispatchers','preview','dashboard'];
   for (const t of tabs) {
     try {
       await page.click(`.tab[data-tab="${t}"]`, { timeout: 1500 });

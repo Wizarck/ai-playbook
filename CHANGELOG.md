@@ -119,12 +119,41 @@ CHECK = `apply --dry-run`; REMEDY = `apply`. There is no second write path.
   leave thin pointers. `--dry-run` previews; `--yes` applies; default refuses
   without consent. The LLM never writes; it only returns a plan.
 
-Deferred to follow-up changes: trimming `copy_templates` to a minimal seed, the
-formal idempotency / clone-repro / telemetry-emission tests, the config-UI
-Settings/Config-files tabs + aggregated `.md` drift view + Cursor "n/a" badge
-(needs in-browser verification), wiring `collect_drift` into `ai_playbook_check` /
-`apply --dry-run` as a `curate_candidate` surface, and `uninstall.py` preferring
-the base-tagged record via `restore_base`.
+### Added — config-UI custom surface (`feat/config-ui-custom-surface`)
+
+- **Dispatchers tab** — aggregated `.md` drift view (D14). `build_files_state`
+  emits `dispatcher_drift` in the sidecar (via `_dispatcher_shape.collect_drift`);
+  the tab renders each loose-prose chunk with provenance + a suggested
+  destination, plus a "Copy curate command" trigger.
+- **Settings tab** — the model-agnostic surface (D5): hooks (event/matcher/
+  command/timeout) with a per-hook capability strip, plus permissions-allow +
+  additional-directories. Emits `settings` sparse (omits `targets` when a hook
+  applies to all models). Capability-gated (D9/D10): Claude is supported today;
+  Gemini (`mcpServers` only) and Cursor render `n/a` — the badges become scope
+  toggles when a second model gains hook support.
+- **Config files tab** — `.gitignore` extra patterns + `.coderabbit` path
+  filters (string lists) **plus native editors** for `.pre-commit-config.yaml`
+  hooks (id + common fields + arg/stage/dep lists; unknown keys preserved) and
+  `mcp-servers.project.yaml` records (transport / command|endpoint / scope /
+  auth / env / capabilities_hint; `scope: personal` disallowed at the project
+  layer). `config-files-inventory.json` flips both to `editable_in_ui: true`.
+  CodeRabbit `path_instructions` (free-form prose) still round-trip via JSON
+  import.
+- **Restore (D8)** — `scripts/restore.py`, a human-gated per-file restore CLI
+  wrapping `_backup_helper` (preview without `--yes`; `--from` / `--base` /
+  `--all-base`). The Files-tab Restore button is un-disabled and copies the
+  command for the selected backup.
+- **pre-commit renderer** — emits YAML-idiomatic lowercase booleans (was
+  `str(bool)`), surfaced by the new `pass_filenames` editor.
+- Verified with the Playwright sweep (every tab driven, A=0/B=0), a targeted
+  nested-editor round-trip probe, a schema round-trip test on the emitted
+  `settings` shape, and `tests/test_restore.py`.
+
+Deferred to follow-up changes: trimming `copy_templates` to a minimal seed and
+the formal idempotency / clone-repro / telemetry-emission tests. (The per-file
+`dispatch` trigger in the drift view is intentionally *not* built: `curate` is
+cross-file by D15, so the single "Copy curate command" is the faithful trigger
+for a static-HTML page.)
 
 ## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
 
