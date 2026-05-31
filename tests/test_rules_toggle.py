@@ -150,6 +150,19 @@ def test_inventory_advanced_mapping_has_env_var() -> None:
     assert adv["value_off"] == "0"
 
 
+def test_normalize_advanced_filters_malformed() -> None:
+    raw = [
+        {"key": "good", "env_var": "AIPLAYBOOK_X", "default": True},
+        {"key": "no_env"},               # missing env_var → dropped
+        {"env_var": "AIPLAYBOOK_Y"},      # missing key → dropped
+        "not-a-dict",                     # dropped
+    ]
+    out = rules_toggle._normalize_advanced(raw)
+    assert [a["key"] for a in out] == ["good"]
+    assert rules_toggle._normalize_advanced("nope") == []
+    assert rules_toggle._normalize_advanced(None) == []
+
+
 # ---------------------------------------------------------------------------
 # inventory --check (freshness + dangling-hook gate)
 # ---------------------------------------------------------------------------
@@ -219,6 +232,22 @@ def test_inventory_check_flags_dangling_hook(fake_playbook: Path, capsys: pytest
     )
     assert rules_toggle.main(["inventory", "--check"]) == 2
     assert "ghost" in capsys.readouterr().err
+
+
+def test_build_inventory_reads_advanced_from_frontmatter(fake_playbook: Path) -> None:
+    (fake_playbook / "docs" / "rules" / "adv.rule.md").write_text(
+        "---\nschema: rule/v1\nslug: adv\nstatus: enforced\n"
+        "advanced:\n  - key: foo_flag\n    env_var: AIPLAYBOOK_FOO\n"
+        "    default: true\n    value_on: '1'\n    value_off: '0'\n"
+        "---\n# Adv\n\nbody\n",
+        encoding="utf-8",
+    )
+    inv = rules_toggle.build_rules_inventory(fake_playbook)
+    adv_rule = next(r for r in inv["rules"] if r["slug"] == "adv")
+    assert adv_rule["advanced"][0]["env_var"] == "AIPLAYBOOK_FOO"
+    # the fixture's `foo` rule declares no advanced block → key omitted
+    foo = next(r for r in inv["rules"] if r["slug"] == "foo")
+    assert "advanced" not in foo
 
 
 def test_dangling_rule_hooks_empty_when_script_exists(fake_playbook: Path) -> None:

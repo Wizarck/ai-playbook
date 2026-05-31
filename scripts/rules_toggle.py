@@ -74,26 +74,30 @@ AUDIT_FILENAME = "rules-toggle-audit.jsonl"
 VALID_LAYERS = ("L1", "L2", "L3")
 SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 
-# Per-rule advanced sub-toggles. Hardcoded today because only one rule has
-# them; promote to a YAML manifest if the catalogue grows beyond ~5 entries.
-# Each entry projects to an env var written into .ai-playbook/feature-flags.env
-# by scripts/apply_config.py.
-ADVANCED_SUB_TOGGLES: dict[str, list[dict[str, Any]]] = {
-    "apply-skill-enforcement": [
-        {
-            "key": "bash_inspection",
-            "label": "Bash command inspection",
-            "description": (
-                "Inspect Bash commands for write_path mutations "
-                "(POSIX redirects + sed -i + python -c + PowerShell Out-File/Set-Content/...)."
-            ),
-            "env_var": "AIPLAYBOOK_BASH_INSPECTION",
-            "default": True,
-            "value_on": "1",
-            "value_off": "0",
-        }
-    ],
-}
+# Per-rule advanced sub-toggles are declared in each rule's own frontmatter
+# (`advanced:` block in docs/rules/<slug>.rule.md) and read by
+# build_rules_inventory — see _normalize_advanced. Each projects to an env var
+# written into .ai-playbook/feature-flags.env by scripts/apply_config.py.
+_ADVANCED_KEYS = ("key", "label", "description", "env_var", "default", "value_on", "value_off")
+
+
+def _normalize_advanced(raw: Any) -> list[dict[str, Any]]:
+    """Coerce a frontmatter ``advanced`` block into the inventory shape.
+
+    Mirrors the defensive filtering used for ``triggers``: a rule that declares a
+    malformed advanced entry degrades to "no sub-toggles" for that entry rather
+    than breaking the whole inventory build. ``key`` + ``env_var`` are required.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        if not isinstance(item.get("key"), str) or not isinstance(item.get("env_var"), str):
+            continue
+        out.append({k: item[k] for k in _ADVANCED_KEYS if k in item})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -374,8 +378,9 @@ def build_rules_inventory(playbook_root: Path | None = None) -> dict[str, Any]:
             "description": description,
             "doc_path": doc.relative_to(root).as_posix(),
         }
-        if slug in ADVANCED_SUB_TOGGLES:
-            entry["advanced"] = list(ADVANCED_SUB_TOGGLES[slug])
+        adv = _normalize_advanced(fm.get("advanced"))
+        if adv:
+            entry["advanced"] = adv
         rules.append(entry)
 
     rules.sort(key=lambda r: r["slug"])

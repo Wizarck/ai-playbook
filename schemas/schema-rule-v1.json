@@ -26,8 +26,8 @@
     },
     "description": {
       "type": "string",
-      "maxLength": 300,
-      "description": "One-line summary used as the routing key for Cursor agent-requested activation."
+      "maxLength": 500,
+      "description": "Summary used as the routing key for Cursor agent-requested activation. Concise is better, but enforced rules sometimes need a fuller binding statement (the canonical apply-skill-enforcement is ~390 chars)."
     },
     "paired_hardrule": {
       "oneOf": [
@@ -66,7 +66,7 @@
     },
     "triggers": {
       "type": "array",
-      "items": {"type": "string", "enum": ["Bash", "Edit", "Write", "Read", "Grep", "Glob", "Task", "PreToolUse", "PostToolUse", "SessionStart", "UserPromptSubmit", "Stop"]},
+      "items": {"type": "string", "enum": ["Bash", "Edit", "Write", "MultiEdit", "Read", "Grep", "Glob", "Task", "PreToolUse", "PostToolUse", "SessionStart", "UserPromptSubmit", "Stop"]},
       "description": "Hook dispatcher routing key per D10. Empty = always fires."
     },
     "break_glass": {
@@ -76,8 +76,31 @@
       "properties": {
         "env": {
           "type": "string",
-          "pattern": "^AIPLAYBOOK_[A-Z0-9_]+_SKIP$",
-          "description": "Canonical bypass env var. Audited to <consumer>/.ai-playbook-state/break-glass-audit.jsonl."
+          "pattern": "^AIPLAYBOOK_[A-Z0-9_]+_(SKIP|OVERRIDE)$",
+          "description": "Canonical bypass env var (_SKIP fully skips; _OVERRIDE bypasses with an audited reason). Audited to <consumer>/.ai-playbook-state/break-glass-audit.jsonl."
+        },
+        "rollback_env": {
+          "type": "string",
+          "pattern": "^AIPLAYBOOK_[A-Z0-9_]+$",
+          "description": "Optional feature-flag env var that disables one sub-behaviour of the rule (e.g. AIPLAYBOOK_BASH_INSPECTION) without a full break-glass."
+        }
+      }
+    },
+    "advanced": {
+      "type": "array",
+      "description": "Per-rule advanced sub-toggles. Each projects to an env var written into <consumer>/.ai-playbook-state/feature-flags.env by apply_config and surfaces in the config-UI rule row.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "env_var"],
+        "properties": {
+          "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "label": {"type": "string"},
+          "description": {"type": "string"},
+          "env_var": {"type": "string", "pattern": "^AIPLAYBOOK_[A-Z0-9_]+$"},
+          "default": {"type": "boolean"},
+          "value_on": {"type": "string"},
+          "value_off": {"type": "string"}
         }
       }
     },
