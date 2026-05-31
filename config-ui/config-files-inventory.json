@@ -1,6 +1,6 @@
 {
   "schema": "config-files-inventory/v1",
-  "description": "Data-driven catalog of the structured, model-agnostic config files the config-UI surfaces. `editable_in_ui` marks the surfaces the Config files / Settings tabs render today; the rest round-trip through Import… of a JSON bundle until a dedicated editor lands. apply_config writes each via its managed-file renderer (consumer lines outside the playbook marker blocks are preserved).",
+  "description": "Data-driven catalog of the structured, model-agnostic config files the config-UI surfaces. `editable_in_ui` marks the surfaces the Config files / Settings tabs render with native editors; anything still false round-trips through Import… of a JSON bundle. apply_config writes each via its managed-file renderer (consumer lines outside the playbook marker blocks are preserved).",
   "files": [
     {
       "rel_path": ".gitignore",
@@ -37,20 +37,20 @@
       "bundle_key": "pre_commit_extras",
       "field": "hooks",
       "kind": "object_list",
-      "editable_in_ui": false,
-      "tab": null,
+      "editable_in_ui": true,
+      "tab": "configfiles",
       "agnostic": true,
-      "note": "Nested hook objects — JSON import only for now."
+      "note": "Native hook editor (id + common fields + arg/stage/dep lists). Unknown keys from an imported bundle are preserved verbatim."
     },
     {
       "rel_path": "mcp-servers.project.yaml",
       "bundle_key": "mcp_project_servers",
       "field": "*",
       "kind": "object_map",
-      "editable_in_ui": false,
-      "tab": null,
+      "editable_in_ui": true,
+      "tab": "configfiles",
       "agnostic": true,
-      "note": "Full server records (validated downstream by scripts/mcp/validate.py) — JSON import only for now."
+      "note": "Native server editor (id/description/transport/command|endpoint/scope/auth/env/capabilities_hint). scope: personal is disallowed at the project layer; records are validated downstream by scripts/mcp/validate.py."
     }
   ]
 }
