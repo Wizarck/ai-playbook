@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import time
@@ -177,6 +178,134 @@ def dispatch(
     return fired
 
 
+_KNOWN_AIS = ("claude", "gemini", "cursor")
+_MODULE_CACHE: dict[str, Any] = {}
+
+
+def _consumer_root(start: Path | None = None) -> Path:
+    """Walk up for the consumer project root (.gitmodules or AGENTS.md); cwd fallback."""
+    cur = (start or Path.cwd()).resolve()
+    for parent in (cur, *cur.parents):
+        if (parent / ".gitmodules").is_file() or (parent / "AGENTS.md").is_file():
+            return parent
+    return cur
+
+
+def _load_rule_module(path: Path | None) -> Any:
+    """Import a rule.py by file path (memoised per process). None on failure."""
+    if path is None or not path.is_file():
+        return None
+    key = str(path)
+    if key in _MODULE_CACHE:
+        return _MODULE_CACHE[key]
+    import importlib.util
+
+    mod_name = "_rule_" + path.name.replace(".", "_").replace("-", "_")
+    try:
+        spec = importlib.util.spec_from_file_location(mod_name, path)
+        if spec is None or spec.loader is None:
+            _MODULE_CACHE[key] = None
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception:  # noqa: BLE001 — a broken rule must not wedge the hook path.
+        mod = None
+    _MODULE_CACHE[key] = mod
+    return mod
+
+
+def _rule_matches(rule: Rule, hook_event: str, tool: str) -> bool:
+    """A rule fires when its triggers include the hook event (PreToolUse) or the
+    tool name (Write/Edit/...), or when it declares no triggers (fires always)."""
+    if not rule.triggers:
+        return True
+    return hook_event in rule.triggers or (bool(tool) and tool in rule.triggers)
+
+
+def _applies(rule: Rule, llm: str) -> bool:
+    raw = rule.frontmatter.get("applies_to")
+    if isinstance(raw, list):
+        ais = [a for a in _KNOWN_AIS if a in raw] or list(_KNOWN_AIS)
+    else:
+        ais = list(_KNOWN_AIS)
+    return llm in ais
+
+
+def _emit_run_event(slug: str, verdict: str, hook_event: str, tool: str,
+                    llm: str, event: dict[str, Any], consumer_root: Path,
+                    latency_ms: float) -> None:
+    """rule-event/v2 row for an in-process hook decision. Fail-safe."""
+    try:
+        from scripts.telemetry.rule_event_logger import log_event
+        state_dir_env = os.environ.get("AI_PLAYBOOK_STATE_DIR")
+        state_dir = Path(state_dir_env) if state_dir_env else (consumer_root / ".ai-playbook-state")
+        log_event(
+            slug=slug, llm=llm, verdict=verdict, latency_ms=latency_ms,
+            trigger=f"{hook_event}:{tool}" if tool else hook_event,
+            session_id=str(event.get("session_id") or ""),
+            self_check=False, state_dir=state_dir,
+        )
+    except Exception:  # noqa: BLE001 — telemetry never affects the decision.
+        pass
+
+
+def run_rules(rules: list[Rule], hook_event: str, event: dict[str, Any], *,
+              consumer_root: Path | None = None) -> tuple[bool, list[str], list[str]]:
+    """Execute matched rules' in-process hook entrypoints.
+
+    Returns ``(blocked, messages, fired)``. A matched rule is run only if it is
+    not disabled at L1 for this consumer, applies to the event's LLM, and exposes
+    a ``pretooluse``/``posttooluse`` function. Validator-only rules (no such
+    function) are skipped — their enforcement stays in CI/pre-commit. A rule that
+    raises is failed OPEN (warn, never block) so a buggy rule can't wedge tooling.
+    """
+    from scripts.rules._hook_contract import BLOCK, WARN, tool_name as _tn
+
+    consumer_root = consumer_root or _consumer_root()
+    tool = _tn(event)
+    llm = str(event.get("llm") or event.get("model") or "claude")
+    entry = "posttooluse" if hook_event == "PostToolUse" else "pretooluse"
+
+    try:
+        from scripts.rules_toggle import is_rule_disabled
+    except Exception:  # noqa: BLE001
+        is_rule_disabled = None  # type: ignore[assignment]
+
+    blocked = False
+    messages: list[str] = []
+    fired: list[str] = []
+    for r in rules:
+        if not _rule_matches(r, hook_event, tool) or not _applies(r, llm):
+            continue
+        if is_rule_disabled is not None:
+            try:
+                if is_rule_disabled(consumer_root, r.slug, layer="L1"):
+                    continue
+            except Exception:  # noqa: BLE001
+                pass
+        mod = _load_rule_module(r.hardrule_path)
+        fn = getattr(mod, entry, None) if mod is not None else None
+        if not callable(fn):
+            continue  # validator-only rule — no in-process hook
+        t0 = time.perf_counter_ns()
+        try:
+            verdict = fn(event)
+        except Exception as exc:  # noqa: BLE001 — fail open.
+            from scripts.rules._hook_contract import HookVerdict
+            verdict = HookVerdict(WARN, f"{r.slug} hook errored: {exc}")
+        if verdict is None:
+            continue
+        latency_ms = (time.perf_counter_ns() - t0) / 1e6
+        fired.append(r.slug)
+        _emit_run_event(r.slug, verdict.verdict, hook_event, tool, llm, event, consumer_root, latency_ms)
+        if verdict.verdict == BLOCK:
+            blocked = True
+            messages.append(f"❌ [{r.slug}] {verdict.message}")
+        elif verdict.verdict == WARN and verdict.message:
+            messages.append(f"⚠ [{r.slug}] {verdict.message}")
+    return blocked, messages, fired
+
+
 def benchmark(rules: list[Rule], n: int = 1000) -> dict[str, float]:
     """Measure dispatch latency in microseconds; report p50/p95/p99 in ms."""
     samples: list[float] = []
@@ -202,8 +331,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="List loaded rules.")
     parser.add_argument("--benchmark", action="store_true", help="Run p50/p95/p99 benchmark.")
     parser.add_argument("--root", default=str(REPO_ROOT))
-    parser.add_argument("trigger", nargs="?", help="Tool trigger name (Edit, Bash, Write, ...).")
+    parser.add_argument("trigger", nargs="?", help="Hook event (PreToolUse/PostToolUse) or tool name.")
     parser.add_argument("--event-json", help="Inline event JSON; otherwise read from stdin.")
+    parser.add_argument("--match-only", action="store_true",
+                        help="Only report matched slugs (no rule execution); for diagnostics.")
     args = parser.parse_args(argv)
 
     rules = load_rules(Path(args.root))
@@ -232,9 +363,18 @@ def main(argv: list[str] | None = None) -> int:
         if raw:
             event = json.loads(raw)
 
-    fired = dispatch(rules, args.trigger, event)
-    print(json.dumps({"trigger": args.trigger, "fired": fired}))
-    return 0
+    if args.match_only:
+        fired = dispatch(rules, args.trigger, event)
+        print(json.dumps({"trigger": args.trigger, "fired": fired}))
+        return 0
+
+    # Execution path: run matched rules' in-process hooks. Exit 2 on a block
+    # (Claude Code blocks the tool call and surfaces stderr to the model).
+    blocked, messages, fired = run_rules(rules, args.trigger, event)
+    for m in messages:
+        print(m, file=sys.stderr)
+    print(json.dumps({"trigger": args.trigger, "fired": fired, "blocked": blocked}))
+    return 2 if blocked else 0
 
 
 if __name__ == "__main__":
