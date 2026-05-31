@@ -6,6 +6,10 @@ on:
       - "docs/concepts/**/*.md"
       - "schemas/schema-rule-v1.json"
       - "schemas/schema-concept-v1.json"
+      - "scripts/rules/**"
+      - ".github/workflows/**/*.rule.yml"
+      - "config-ui/rules-inventory.json"
+      - "templates/new-project/.claude/settings.json.tmpl"
       - ".github/workflows/check-rule-schemas.rule.yml"
 
 permissions:
@@ -104,3 +108,5 @@ jobs:
               sys.exit(2)
           print("concept-schema: OK")
           PY
+      - name: Rules inventory is fresh + no dangling hooks
+        run: python -m scripts.rules_toggle inventory --check

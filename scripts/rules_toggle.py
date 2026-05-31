@@ -720,25 +720,114 @@ def cmd_off(args: argparse.Namespace) -> int:
     return 0
 
 
+def _committed_inventory_path(out_arg: str | None) -> Path | None:
+    """Resolve where the committed rules-inventory.json lives (UI fetches this)."""
+    if out_arg is not None:
+        return Path(out_arg).expanduser().resolve()
+    root = find_playbook_root()
+    if root is None:
+        return None
+    # config-ui/ (the live UI dir). The pre-flip tools/config-ui/ was removed.
+    return root / "config-ui" / "rules-inventory.json"
+
+
+def _diff_inventory(committed: dict[str, Any], fresh: dict[str, Any]) -> list[str]:
+    """Human-readable drift lines between committed and freshly-built inventory.
+
+    The volatile ``generated_at`` stamp is ignored (it changes every run); only
+    the ``rules`` payload is compared.
+    """
+    def _by_slug(inv: dict[str, Any]) -> dict[str, Any]:
+        rules = inv.get("rules", []) if isinstance(inv, dict) else []
+        return {r.get("slug"): r for r in rules if isinstance(r, dict)}
+
+    c, f = _by_slug(committed), _by_slug(fresh)
+    lines: list[str] = []
+    for slug in sorted(set(f) - set(c)):
+        lines.append(f"  + rule on disk missing from committed inventory: {slug}")
+    for slug in sorted(set(c) - set(f)):
+        lines.append(f"  - committed inventory lists a rule no longer on disk: {slug}")
+    for slug in sorted(set(c) & set(f)):
+        if c[slug] != f[slug]:
+            changed = sorted(k for k in (set(c[slug]) | set(f[slug])) if c[slug].get(k) != f[slug].get(k))
+            lines.append(f"  ~ {slug}: fields changed: {', '.join(changed)}")
+    return lines
+
+
+_RULE_SCRIPT_REF_RE = re.compile(r"scripts/rules/([a-z][a-z0-9-]*)\.rule\.py")
+
+
+def _dangling_rule_hooks(root: Path) -> list[str]:
+    """Rule-script paths referenced by the settings template that don't exist on disk.
+
+    Catches the orphan-hook FileNotFoundError: a `.claude/settings.json` hook
+    pointing at a deleted `scripts/rules/<slug>.rule.py`.
+    """
+    tmpl = root / "templates" / "new-project" / ".claude" / "settings.json.tmpl"
+    if not tmpl.is_file():
+        return []
+    try:
+        text = tmpl.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    dangling = {
+        f"scripts/rules/{m.group(1)}.rule.py"
+        for m in _RULE_SCRIPT_REF_RE.finditer(text)
+        if not (root / "scripts" / "rules" / f"{m.group(1)}.rule.py").is_file()
+    }
+    return sorted(dangling)
+
+
 def cmd_inventory(args: argparse.Namespace) -> int:
     try:
         inv = build_rules_inventory()
     except FileNotFoundError as e:
         _emit_error(why=str(e), where="rules_toggle:inventory", fix="run from inside ai-playbook checkout.")
         return 2
-    out_arg = getattr(args, "output", None)
-    if out_arg is None:
-        # Default location: config-ui/rules-inventory.json relative to playbook root.
-        root = find_playbook_root()
-        if root is None:
-            _emit_error(why="ai-playbook root not found", where="rules_toggle:inventory:output", fix="pass --output PATH.")
+
+    out_path = _committed_inventory_path(getattr(args, "output", None))
+    if out_path is None:
+        _emit_error(why="ai-playbook root not found", where="rules_toggle:inventory:output", fix="pass --output PATH.")
+        return 2
+
+    root = find_playbook_root()
+    dangling = _dangling_rule_hooks(root) if root is not None else []
+
+    if getattr(args, "check", False):
+        # CHECK mode (CI / pre-commit gate): regenerate in memory, diff the
+        # committed file, never write. Exit 2 on any drift or dangling hook.
+        problems: list[str] = []
+        if not out_path.is_file():
+            problems.append(f"  committed inventory missing: {out_path.as_posix()}")
+        else:
+            try:
+                committed = json.loads(out_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as e:
+                problems.append(f"  committed inventory unreadable: {e}")
+            else:
+                problems.extend(_diff_inventory(committed, inv))
+        problems.extend(f"  dangling hook: settings.json.tmpl references missing {rel}" for rel in dangling)
+        if problems:
+            _emit_error(
+                why="rules inventory is stale or a hook references a missing rule script",
+                where=out_path.as_posix(),
+                fix="run `python -m scripts.rules_toggle inventory` and commit it (and remove any dangling hook).",
+            )
+            for line in problems:
+                print(line, file=sys.stderr)
             return 2
-        out_path = root / "tools" / "config-ui" / "rules-inventory.json"
-    else:
-        out_path = Path(out_arg).expanduser().resolve()
+        if getattr(args, "json", False):
+            print(json.dumps({"ok": True, "checked": out_path.as_posix(), "rules_count": len(inv["rules"])}, indent=2, ensure_ascii=False))
+        else:
+            print(f"✅ rules inventory fresh ({len(inv['rules'])} rules); no dangling hooks")
+        return 0
+
+    # WRITE mode (default).
     out_path.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(inv, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
     out_path.write_text(body, encoding="utf-8")
+    for rel in dangling:
+        print(f"⚠️  settings.json.tmpl references missing {rel}", file=sys.stderr)
     if getattr(args, "json", False):
         print(json.dumps({"ok": True, "output": out_path.as_posix(), "rules_count": len(inv["rules"])}, indent=2, ensure_ascii=False))
     else:
@@ -838,8 +927,10 @@ def main(argv: list[str] | None = None) -> int:
     p_off.add_argument("--json", action="store_true")
     p_off.set_defaults(func=cmd_off)
 
-    p_inv = sub.add_parser("inventory", help="Re-scan rules and write rules-inventory.json.")
+    p_inv = sub.add_parser("inventory", help="Re-scan rules and write (or --check) rules-inventory.json.")
     p_inv.add_argument("--output", default=None, help="Override default config-ui/rules-inventory.json path.")
+    p_inv.add_argument("--check", action="store_true",
+                       help="Verify the committed inventory is fresh + no dangling hooks; write nothing, exit 2 on drift.")
     p_inv.add_argument("--json", action="store_true")
     p_inv.set_defaults(func=cmd_inventory)
 

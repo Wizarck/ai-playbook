@@ -74,3 +74,12 @@ repos:
         # appending `--strict` to the entry above, after 30 days of green
         # builds (target: 2026-06-05).
         always_run: true
+
+      - id: rules-inventory-check
+        name: rules-inventory-check (config-ui/rules-inventory.json fresh + no dangling hooks)
+        entry: python -m scripts.rules_toggle inventory --check
+        language: system
+        # Depends on the SET of rule artifacts on disk, not the staged files —
+        # so always_run (a deleted .rule.md wouldn't otherwise trigger it).
+        pass_filenames: false
+        always_run: true
