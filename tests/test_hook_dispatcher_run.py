@@ -76,6 +76,45 @@ def test_run_rules_buggy_rule_fails_open(tmp_path: Path, monkeypatch: pytest.Mon
     assert any("errored" in m for m in messages)
 
 
+# --- english-only-docs pretooluse -----------------------------------------
+
+_EOD = HD.REPO_ROOT / "scripts" / "rules" / "english-only-docs.rule.py"
+_ES = ("Este documento describe la configuración del módulo en español con muchas "
+       "tildes: configuración, también, según, número, función, versión, sesión.")
+_EN = "This document describes the module configuration in plain English prose."
+
+
+def _doc_event(text: str, path: str = "docs/guide.md", tool: str = "Write") -> dict:
+    return {"tool_name": tool, "tool_input": {"file_path": path, "content": text}}
+
+
+def test_english_only_blocks_non_english_doc_write() -> None:
+    mod = HD._load_rule_module(_EOD)
+    assert mod.pretooluse(_doc_event(_ES)).verdict == "block"
+
+
+def test_english_only_allows_english_doc_write() -> None:
+    mod = HD._load_rule_module(_EOD)
+    assert mod.pretooluse(_doc_event(_EN)).verdict == "allow"
+
+
+def test_english_only_skips_partial_edit() -> None:
+    mod = HD._load_rule_module(_EOD)
+    assert mod.pretooluse(_doc_event(_ES, tool="Edit")) is None
+
+
+def test_english_only_skips_non_docs_and_non_md() -> None:
+    mod = HD._load_rule_module(_EOD)
+    assert mod.pretooluse(_doc_event(_ES, path="README.md")) is None
+    assert mod.pretooluse(_doc_event(_ES, path="docs/x.txt")) is None
+
+
+def test_english_only_skips_when_skip_env_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AIPLAYBOOK_DOC_LANG_SKIP", "1")
+    mod = HD._load_rule_module(_EOD)
+    assert mod.pretooluse(_doc_event(_ES)) is None
+
+
 # --- matching + capability helpers ----------------------------------------
 
 

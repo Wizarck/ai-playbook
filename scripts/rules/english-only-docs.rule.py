@@ -34,6 +34,44 @@ def validate(paths: list[str]) -> int:
     return 1 if rc != 0 else 0
 
 
+def pretooluse(event: dict):
+    """In-process L1 hook: refuse a full-file Write that introduces non-English docs.
+
+    Scoped to full-content ``Write`` of a ``.md`` under ``docs/`` — partial
+    ``Edit`` events carry incomplete prose (false positives), so they are left to
+    the tree/PR ``validate`` backstop. Mirrors ``check_doc_language.check_file``
+    on the new content, in-process (no subprocess on the hot path).
+    OVERRIDE: AIPLAYBOOK_DOC_LANG_SKIP.
+    """
+    from scripts.rules._hook_contract import allow, block, edited_path, edited_text, tool_name
+
+    if os.environ.get("AIPLAYBOOK_DOC_LANG_SKIP"):
+        return None
+    if tool_name(event) != "Write":
+        return None
+    path = edited_path(event)
+    p = Path(path)
+    if p.suffix != ".md" or "docs" not in p.parts:
+        return None
+    text = edited_text(event)
+    try:
+        from scripts import check_doc_language as C
+        prose = C._strip_code_and_frontmatter(text)
+        if not prose.strip():
+            return None
+        detected = C._try_langdetect(prose)
+        ok = (detected == "en") if detected is not None else C._is_english_heuristic(prose)
+    except Exception:  # noqa: BLE001 — checker unavailable → fail open.
+        return None
+    if not ok:
+        return block(
+            f"non-English prose detected in {path}. ai-playbook docs are English-only "
+            "(code and your own comments may stay in your language). "
+            "OVERRIDE: set AIPLAYBOOK_DOC_LANG_SKIP."
+        )
+    return allow()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="english-only-docs")
     parser.add_argument("subcommand", choices=["validate"])
