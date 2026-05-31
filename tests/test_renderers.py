@@ -258,6 +258,28 @@ def test_pre_commit_renders_baseline_and_extras() -> None:
     assert "local-extras" in out
 
 
+def test_pre_commit_bool_fields_render_lowercase_yaml() -> None:
+    """Booleans (e.g. pass_filenames) must emit YAML-idiomatic lowercase, not str(bool)."""
+    template = (
+        "repos:\n"
+        "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+        "  - repo: local\n"
+        "    hooks: []\n"
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+    )
+    out = render_pre_commit(
+        template=template,
+        substitutions={},
+        bundle={"pre_commit_extras": {"hooks": [
+            {"id": "h", "pass_filenames": False, "args": ["--fix"]},
+        ]}},
+    )
+    assert "pass_filenames: false" in out
+    assert "pass_filenames: False" not in out
+    import yaml  # the extras fragment must stay valid YAML
+    yaml.safe_load(out)
+
+
 def test_pre_commit_empty_extras_returns_canonical() -> None:
     template = (
         "repos:\n"

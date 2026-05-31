@@ -165,6 +165,14 @@
     if (addGi) addGi.addEventListener("click", () => { _ensureConfigFiles().gitignore_extras.patterns.push(""); renderConfigFiles(); });
     const addCr = $("#cf-add-coderabbit");
     if (addCr) addCr.addEventListener("click", () => { _ensureConfigFiles().coderabbit_extras.path_filters.push(""); renderConfigFiles(); });
+    const addPc = $("#cf-add-precommit");
+    if (addPc) addPc.addEventListener("click", () => { _ensureConfigFiles().pre_commit_extras.hooks.push({ id: "" }); renderPreCommit(); updateConfigFilesCounter(); });
+    const addMcp = $("#cf-add-mcpserver");
+    if (addMcp) addMcp.addEventListener("click", () => {
+      _ensureConfigFiles();
+      state.mcp_project_servers_edit.push({ id: "", transport: "stdio", env: { required: [], optional: [] }, capabilities_hint: [] });
+      renderMcpProject(); updateConfigFilesCounter();
+    });
 
     wireNextSteps();
   }
@@ -321,7 +329,7 @@
       ? `<select id="restore-bak-select">
            ${backupsForFile.map(b => `<option value="${escapeHtml(b.backup_rel_path)}">${escapeHtml(b.timestamp)} (${escapeHtml(b.location)})</option>`).join("")}
          </select>
-         <button class="btn small" type="button" id="restore-bak-btn" disabled title="Restore is a CLI action; see hint">Restore (CLI)</button>`
+         <button class="btn small" type="button" id="restore-bak-btn" title="Copy the restore CLI command for the selected backup">Copy restore command</button>`
       : `<span class="files-inspector-hint">No backups recorded for this file yet.</span>`;
 
     // ---- v2: file-level curate buttons + v3: per-section ----
@@ -378,6 +386,25 @@
       </div>
     `;
     wireCurateControls(file.rel_path);
+    wireRestoreControl(file.rel_path);
+  }
+
+  // Shell-quote a path only when it needs it (keeps the common no-space case clean).
+  function _shArg(s) {
+    return /[\s"']/.test(s) ? `"${String(s).replace(/"/g, '\\"')}"` : String(s);
+  }
+
+  function wireRestoreControl(relPath) {
+    const btn = document.getElementById("restore-bak-btn");
+    const sel = document.getElementById("restore-bak-select");
+    if (!btn || !sel) return;
+    btn.addEventListener("click", () => {
+      const backupRel = sel.value;
+      // Copy the safe (preview) form — no --yes. Running it previews the restore;
+      // the user adds --yes to overwrite current content (a blast-radius action).
+      const cmd = `python -m scripts.restore ${_shArg(relPath)} --from ${_shArg(backupRel)}`;
+      copyPlainText(cmd, btn);
+    });
   }
 
   function getCurateIntent(relPath) {
@@ -513,6 +540,19 @@
 
   // ------- Settings tab (model-agnostic surface) -------
   const _SETTINGS_TARGETS = ["claude", "gemini", "cursor"];
+  // Capability gating (D9/D10): which models actually receive a projected hook
+  // today. The surface stays agnostic (targets persist for forward-compat), but
+  // the UI only offers scoping among capable models and badges the rest as n/a.
+  const _SETTINGS_CAPABILITY = {
+    claude: true,
+    gemini: false, // D10: Gemini hooks unverified — only mcpServers is projected
+    cursor: false, // D9: Cursor has no settings/hooks target
+  };
+  const _CAP_NOTE = {
+    gemini: "Gemini hooks are not projected yet — only mcpServers is rendered. Capability-gated.",
+    cursor: "Cursor has no settings/hooks target. Capability-gated.",
+  };
+  const _SETTINGS_CAPABLE = _SETTINGS_TARGETS.filter(t => _SETTINGS_CAPABILITY[t]);
 
   function _normalizeSettings(s) {
     s = s || {};
@@ -555,9 +595,21 @@
     s.hooks.forEach((h, i) => {
       const row = document.createElement("div");
       row.className = "settings-hook";
-      const chips = _SETTINGS_TARGETS.map(t => `
-        <button type="button" class="target-chip ${h.targets.includes(t) ? "on" : ""}"
-                data-hook-target="${i}:${t}">${t}</button>`).join("");
+      // Capability-gated target strip. With a single capable model (today:
+      // claude) scoping is moot, so the supported model shows as a locked ✓
+      // badge and the rest as n/a. When a second model gains hook support the
+      // capable badges become interactive toggles automatically.
+      const multiCapable = _SETTINGS_CAPABLE.length > 1;
+      const chips = _SETTINGS_TARGETS.map(t => {
+        if (!_SETTINGS_CAPABILITY[t]) {
+          return `<span class="target-chip na" title="${escapeHtml(_CAP_NOTE[t] || "Not supported")}">${t} n/a</span>`;
+        }
+        if (!multiCapable) {
+          return `<span class="target-chip on locked" title="Hooks project to ${escapeHtml(t)} today">${escapeHtml(t)} ✓</span>`;
+        }
+        return `<button type="button" class="target-chip ${h.targets.includes(t) ? "on" : ""}"
+                data-hook-target="${i}:${t}">${escapeHtml(t)}</button>`;
+      }).join("");
       row.innerHTML = `
         <div class="settings-hook-fields">
           <input class="settings-input" data-hook="${i}:event" placeholder="event (e.g. PreToolUse)" value="${escapeHtml(h.event)}" />
@@ -646,6 +698,68 @@
   }
 
   // ------- Config files tab (structured agnostic config) -------
+  // MCP project servers round-trip as a map (id → record) in the bundle, but a
+  // map is awkward to edit (renaming a key loses focus), so the editing form is
+  // a LIST of records each carrying an `id` field. Convert at the boundary.
+  function _mcpMapToList(map) {
+    if (!map || typeof map !== "object" || Array.isArray(map)) return [];
+    return Object.entries(map).map(([id, rec]) => {
+      const r = (rec && typeof rec === "object" && !Array.isArray(rec)) ? deepClone(rec) : {};
+      r.id = id; // the map key is the canonical id
+      if (!r.env || typeof r.env !== "object" || Array.isArray(r.env)) r.env = {};
+      if (!Array.isArray(r.env.required)) r.env.required = [];
+      if (!Array.isArray(r.env.optional)) r.env.optional = [];
+      if (!Array.isArray(r.capabilities_hint)) r.capabilities_hint = [];
+      return r;
+    });
+  }
+
+  function _mcpListToMap(list) {
+    const out = {};
+    (list || []).forEach(rec => {
+      const id = (rec.id || "").trim();
+      if (!id) return;
+      const r = deepClone(rec);
+      delete r.id; // id is the map key, not an inner field
+      ["description", "command", "endpoint", "auth", "scope", "transport"].forEach(k => {
+        if (typeof r[k] === "string") { const v = r[k].trim(); if (v) r[k] = v; else delete r[k]; }
+      });
+      const env = {};
+      if (r.env && typeof r.env === "object") {
+        const req = (r.env.required || []).map(s => (s || "").trim()).filter(Boolean);
+        const opt = (r.env.optional || []).map(s => (s || "").trim()).filter(Boolean);
+        if (req.length) env.required = req;
+        if (opt.length) env.optional = opt;
+      }
+      if (Object.keys(env).length) r.env = env; else delete r.env;
+      const caps = (r.capabilities_hint || []).map(s => (s || "").trim()).filter(Boolean);
+      if (caps.length) r.capabilities_hint = caps; else delete r.capabilities_hint;
+      out[id] = r;
+    });
+    return out;
+  }
+
+  // Clean one pre-commit hook for export: trim scalars, drop empties, normalise
+  // the pass_filenames tri-state, prune empty lists — but preserve unknown keys
+  // (a hook imported with fields we don't render must round-trip intact).
+  function _cleanPreCommitHook(h) {
+    const out = deepClone(h);
+    const id = (out.id || "").trim();
+    if (!id) return null;
+    out.id = id;
+    ["name", "entry", "language", "files", "exclude"].forEach(k => {
+      if (typeof out[k] === "string") { const v = out[k].trim(); if (v) out[k] = v; else delete out[k]; }
+    });
+    if (out.pass_filenames !== true && out.pass_filenames !== false) delete out.pass_filenames;
+    ["args", "stages", "additional_dependencies", "types"].forEach(k => {
+      if (Array.isArray(out[k])) {
+        const v = out[k].map(s => (s || "").trim()).filter(Boolean);
+        if (v.length) out[k] = v; else delete out[k];
+      }
+    });
+    return out;
+  }
+
   function _ensureConfigFiles() {
     if (!state.gitignore_extras || !Array.isArray(state.gitignore_extras.patterns)) {
       state.gitignore_extras = { patterns: Array.isArray((state.gitignore_extras || {}).patterns) ? state.gitignore_extras.patterns : [] };
@@ -654,6 +768,15 @@
       state.coderabbit_extras = {};
     }
     if (!Array.isArray(state.coderabbit_extras.path_filters)) state.coderabbit_extras.path_filters = [];
+    // Pre-commit: list of raw hook objects (unknown keys preserved verbatim).
+    if (!state.pre_commit_extras || typeof state.pre_commit_extras !== "object") state.pre_commit_extras = {};
+    if (!Array.isArray(state.pre_commit_extras.hooks)) state.pre_commit_extras.hooks = [];
+    // MCP project servers: hydrate the editing list from a baseline/applied map
+    // exactly once, then treat the list as the single source of truth.
+    if (!Array.isArray(state.mcp_project_servers_edit)) {
+      state.mcp_project_servers_edit = _mcpMapToList(state.mcp_project_servers);
+      delete state.mcp_project_servers;
+    }
     return state;
   }
 
@@ -661,7 +784,10 @@
     const el = document.getElementById("tab-count-configfiles");
     if (!el) return;
     _ensureConfigFiles();
-    const n = state.gitignore_extras.patterns.length + state.coderabbit_extras.path_filters.length;
+    const n = state.gitignore_extras.patterns.length
+      + state.coderabbit_extras.path_filters.length
+      + state.pre_commit_extras.hooks.length
+      + state.mcp_project_servers_edit.length;
     el.textContent = String(n);
   }
 
@@ -702,7 +828,218 @@
       document.getElementById("cf-coderabbit-list"),
       state.coderabbit_extras.path_filters, "cr", renderConfigFiles,
     );
+    renderPreCommit();
+    renderMcpProject();
     updateConfigFilesCounter();
+  }
+
+  // ---- Nested string-list sub-editor (shared by pre-commit + mcp) ----
+  // Path encodes the owning array: "pc:<i>:<field>" or "mcp:<i>:<field>" where
+  // field may be dotted ("env.required"). Item rows append ":<j>".
+  function _resolveNestedArr(path) {
+    const [kind, idxStr, field] = path.split(":");
+    const idx = Number(idxStr);
+    if (kind === "pc") {
+      const h = state.pre_commit_extras.hooks[idx];
+      if (!h) return null;
+      if (!Array.isArray(h[field])) h[field] = [];
+      return h[field];
+    }
+    if (kind === "mcp") {
+      const rec = state.mcp_project_servers_edit[idx];
+      if (!rec) return null;
+      if (field === "env.required" || field === "env.optional") {
+        if (!rec.env || typeof rec.env !== "object") rec.env = {};
+        const sub = field.split(".")[1];
+        if (!Array.isArray(rec.env[sub])) rec.env[sub] = [];
+        return rec.env[sub];
+      }
+      if (!Array.isArray(rec[field])) rec[field] = [];
+      return rec[field];
+    }
+    return null;
+  }
+
+  function _renderNestedStrList(path, label, arr) {
+    const items = (arr || []).map((v, j) => `
+      <div class="nested-strrow">
+        <input class="settings-input" data-nl="${path}:${j}" value="${escapeHtml(v || "")}" />
+        <button type="button" class="btn small ghost" data-nl-remove="${path}:${j}">✕</button>
+      </div>`).join("");
+    return `
+      <div class="nested-sublist">
+        <div class="nested-sublist-head">
+          <span>${escapeHtml(label)}</span>
+          <button type="button" class="btn small" data-nl-add="${path}">+ add</button>
+        </div>
+        ${items || `<span class="files-inspector-hint">none</span>`}
+      </div>`;
+  }
+
+  function _wireNestedLists(host, onStructural) {
+    host.querySelectorAll("[data-nl]").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const parts = inp.dataset.nl.split(":");
+        const j = Number(parts.pop());
+        const arr = _resolveNestedArr(parts.join(":"));
+        if (arr) { arr[j] = inp.value; }
+      });
+    });
+    host.querySelectorAll("[data-nl-add]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const arr = _resolveNestedArr(btn.dataset.nlAdd);
+        if (arr) { arr.push(""); onStructural(); }
+      });
+    });
+    host.querySelectorAll("[data-nl-remove]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const parts = btn.dataset.nlRemove.split(":");
+        const j = Number(parts.pop());
+        const arr = _resolveNestedArr(parts.join(":"));
+        if (arr) { arr.splice(j, 1); onStructural(); }
+      });
+    });
+  }
+
+  // ---- .pre-commit-config.yaml — extra hooks ----
+  const _PC_SCALARS = [
+    { key: "name", ph: "name" },
+    { key: "entry", ph: "entry (command/script)" },
+    { key: "language", ph: "language (system/python/script…)" },
+    { key: "files", ph: "files (regex)" },
+    { key: "exclude", ph: "exclude (regex)" },
+  ];
+  const _PC_LISTS = ["args", "stages", "additional_dependencies", "types"];
+
+  function renderPreCommit() {
+    const host = document.getElementById("cf-precommit-list");
+    if (!host) return;
+    const hooks = state.pre_commit_extras.hooks;
+    host.innerHTML = "";
+    if (!hooks.length) { host.innerHTML = `<p class="files-inspector-hint">No extra hooks.</p>`; return; }
+    hooks.forEach((h, i) => {
+      const card = document.createElement("div");
+      card.className = "nested-card";
+      const scalars = _PC_SCALARS.map(f => `
+        <label class="nested-field"><span>${f.key}</span>
+          <input class="settings-input" data-pc="${i}:${f.key}" placeholder="${escapeHtml(f.ph)}" value="${escapeHtml(h[f.key] || "")}" />
+        </label>`).join("");
+      const pf = (h.pass_filenames === true) ? "true" : (h.pass_filenames === false) ? "false" : "";
+      const lists = _PC_LISTS.map(k => _renderNestedStrList(`pc:${i}:${k}`, k, h[k] || [])).join("");
+      card.innerHTML = `
+        <div class="nested-card-head">
+          <input class="settings-input nested-id" data-pc="${i}:id" placeholder="id (required)" value="${escapeHtml(h.id || "")}" />
+          <button type="button" class="btn small ghost" data-pc-remove="${i}">Remove hook</button>
+        </div>
+        <div class="nested-grid">${scalars}
+          <label class="nested-field"><span>pass_filenames</span>
+            <select class="settings-input" data-pc-pf="${i}">
+              <option value=""${pf === "" ? " selected" : ""}>(default)</option>
+              <option value="true"${pf === "true" ? " selected" : ""}>true</option>
+              <option value="false"${pf === "false" ? " selected" : ""}>false</option>
+            </select>
+          </label>
+        </div>
+        <div class="nested-lists">${lists}</div>`;
+      host.appendChild(card);
+    });
+    _wirePreCommit();
+  }
+
+  function _wirePreCommit() {
+    const host = document.getElementById("cf-precommit-list");
+    if (!host) return;
+    const hooks = state.pre_commit_extras.hooks;
+    host.querySelectorAll("[data-pc]").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const [iStr, field] = inp.dataset.pc.split(":");
+        const h = hooks[Number(iStr)];
+        if (h) { h[field] = inp.value; if (field === "id") updateConfigFilesCounter(); }
+      });
+    });
+    host.querySelectorAll("[data-pc-pf]").forEach(sel => {
+      sel.addEventListener("change", () => {
+        const h = hooks[Number(sel.dataset.pcPf)];
+        if (!h) return;
+        if (sel.value === "") delete h.pass_filenames;
+        else h.pass_filenames = (sel.value === "true");
+      });
+    });
+    host.querySelectorAll("[data-pc-remove]").forEach(btn => {
+      btn.addEventListener("click", () => { hooks.splice(Number(btn.dataset.pcRemove), 1); renderPreCommit(); updateConfigFilesCounter(); });
+    });
+    _wireNestedLists(host, renderPreCommit);
+  }
+
+  // ---- mcp-servers.project.yaml — project servers ----
+  const _MCP_TRANSPORTS = ["stdio", "http", "sse", "streamable-http"];
+  const _MCP_SCOPES = ["", "project", "universal"]; // personal is personal-layer-only
+
+  function renderMcpProject() {
+    const host = document.getElementById("cf-mcpserver-list");
+    if (!host) return;
+    const list = state.mcp_project_servers_edit;
+    host.innerHTML = "";
+    if (!list.length) { host.innerHTML = `<p class="files-inspector-hint">No project servers.</p>`; return; }
+    list.forEach((rec, i) => {
+      if (!rec.env || typeof rec.env !== "object") rec.env = {};
+      if (!Array.isArray(rec.env.required)) rec.env.required = [];
+      if (!Array.isArray(rec.env.optional)) rec.env.optional = [];
+      if (!Array.isArray(rec.capabilities_hint)) rec.capabilities_hint = [];
+      const transport = rec.transport || "stdio";
+      const transOpts = _MCP_TRANSPORTS.map(t => `<option value="${t}"${t === transport ? " selected" : ""}>${t}</option>`).join("");
+      const scope = rec.scope || "";
+      const scopeOpts = _MCP_SCOPES.map(s => `<option value="${s}"${s === scope ? " selected" : ""}>${s || "(unset)"}</option>`).join("");
+      const connField = (transport === "stdio")
+        ? `<label class="nested-field"><span>command</span><input class="settings-input" data-mcp="${i}:command" placeholder="command (argv joined)" value="${escapeHtml(rec.command || "")}" /></label>`
+        : `<label class="nested-field"><span>endpoint</span><input class="settings-input" data-mcp="${i}:endpoint" placeholder="https://… endpoint URL" value="${escapeHtml(rec.endpoint || "")}" /></label>`;
+      const card = document.createElement("div");
+      card.className = "nested-card";
+      card.innerHTML = `
+        <div class="nested-card-head">
+          <input class="settings-input nested-id" data-mcp="${i}:id" placeholder="server id (required)" value="${escapeHtml(rec.id || "")}" />
+          <button type="button" class="btn small ghost" data-mcp-remove="${i}">Remove server</button>
+        </div>
+        <div class="nested-grid">
+          <label class="nested-field"><span>description</span><input class="settings-input" data-mcp="${i}:description" value="${escapeHtml(rec.description || "")}" /></label>
+          <label class="nested-field"><span>transport</span><select class="settings-input" data-mcp-trans="${i}">${transOpts}</select></label>
+          ${connField}
+          <label class="nested-field"><span>scope</span><select class="settings-input" data-mcp="${i}:scope">${scopeOpts}</select></label>
+          <label class="nested-field"><span>auth</span><input class="settings-input" data-mcp="${i}:auth" placeholder="optional" value="${escapeHtml(rec.auth || "")}" /></label>
+        </div>
+        <div class="nested-lists">
+          ${_renderNestedStrList(`mcp:${i}:env.required`, "env.required", rec.env.required)}
+          ${_renderNestedStrList(`mcp:${i}:env.optional`, "env.optional", rec.env.optional)}
+          ${_renderNestedStrList(`mcp:${i}:capabilities_hint`, "capabilities_hint", rec.capabilities_hint)}
+        </div>`;
+      host.appendChild(card);
+    });
+    _wireMcpProject();
+  }
+
+  function _wireMcpProject() {
+    const host = document.getElementById("cf-mcpserver-list");
+    if (!host) return;
+    const list = state.mcp_project_servers_edit;
+    host.querySelectorAll("[data-mcp]").forEach(el => {
+      const handler = () => {
+        const [iStr, field] = el.dataset.mcp.split(":");
+        const rec = list[Number(iStr)];
+        if (rec) { rec[field] = el.value; if (field === "id") updateConfigFilesCounter(); }
+      };
+      el.addEventListener("input", handler);
+      el.addEventListener("change", handler);
+    });
+    host.querySelectorAll("[data-mcp-trans]").forEach(sel => {
+      sel.addEventListener("change", () => {
+        const rec = list[Number(sel.dataset.mcpTrans)];
+        if (rec) { rec.transport = sel.value; renderMcpProject(); }
+      });
+    });
+    host.querySelectorAll("[data-mcp-remove]").forEach(btn => {
+      btn.addEventListener("click", () => { list.splice(Number(btn.dataset.mcpRemove), 1); renderMcpProject(); updateConfigFilesCounter(); });
+    });
+    _wireNestedLists(host, renderMcpProject);
   }
 
   function updateSkillsSummary() {
@@ -1228,6 +1565,16 @@
       if (Array.isArray(instrs) && instrs.length) out.path_instructions = instrs;
       if (Object.keys(out).length) bundle.coderabbit_extras = out;
     }
+    // Pre-commit extra hooks — sparse list of cleaned hook objects (id required).
+    if (state.pre_commit_extras && Array.isArray(state.pre_commit_extras.hooks)) {
+      const hooks = state.pre_commit_extras.hooks.map(_cleanPreCommitHook).filter(Boolean);
+      if (hooks.length) bundle.pre_commit_extras = { hooks };
+    }
+    // MCP project servers — fold the editing list back into the id→record map.
+    if (Array.isArray(state.mcp_project_servers_edit)) {
+      const map = _mcpListToMap(state.mcp_project_servers_edit);
+      if (Object.keys(map).length) bundle.mcp_project_servers = map;
+    }
     // Model-agnostic settings surface — sparse. Only emit non-empty entries; a
     // hook targeting every model omits `targets` (the schema default). Hooks
     // missing event or command are dropped (incomplete rows).
@@ -1473,6 +1820,13 @@
         if (data.coderabbit_extras && typeof data.coderabbit_extras === "object") {
           state.coderabbit_extras = deepClone(data.coderabbit_extras);
         }
+        if (data.pre_commit_extras && Array.isArray(data.pre_commit_extras.hooks)) {
+          state.pre_commit_extras = { hooks: data.pre_commit_extras.hooks.map(h => deepClone(h)) };
+        }
+        if (data.mcp_project_servers && typeof data.mcp_project_servers === "object") {
+          state.mcp_project_servers_edit = _mcpMapToList(data.mcp_project_servers);
+          delete state.mcp_project_servers;
+        }
         renderAll();
         updateCounters();
         banner("success", `Imported ${file.name}. Review the tabs, then click Export to round-trip.`);
@@ -1491,6 +1845,9 @@
     state.settings = _normalizeSettings(defaults && defaults.settings);
     delete state.gitignore_extras;
     delete state.coderabbit_extras;
+    delete state.pre_commit_extras;
+    delete state.mcp_project_servers;
+    delete state.mcp_project_servers_edit;
     expandedSlugs.clear();
     renderAll();
     updateCounters();
