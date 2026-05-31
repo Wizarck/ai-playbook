@@ -10,6 +10,14 @@ triggers: [Edit, Write, MultiEdit, Bash, PreToolUse]
 break_glass:
   env: AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE
   rollback_env: AIPLAYBOOK_BASH_INSPECTION
+advanced:
+  - key: bash_inspection
+    label: Bash command inspection
+    description: Inspect Bash commands for write_path mutations (POSIX redirects + sed -i + python -c + PowerShell Out-File/Set-Content/...).
+    env_var: AIPLAYBOOK_BASH_INSPECTION
+    default: true
+    value_on: "1"
+    value_off: "0"
 last_validated: "2026-05-25"
 ---
 
