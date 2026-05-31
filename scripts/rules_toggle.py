@@ -78,6 +78,22 @@ SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 # (`advanced:` block in docs/rules/<slug>.rule.md) and read by
 # build_rules_inventory — see _normalize_advanced. Each projects to an env var
 # written into .ai-playbook/feature-flags.env by scripts/apply_config.py.
+_KNOWN_AIS = ("claude", "gemini", "cursor")
+
+
+def _normalize_applies_to(raw: Any) -> list[str]:
+    """Coerce frontmatter ``applies_to`` into a canonical-ordered AI list.
+
+    ``"all"``, absent, or anything unrecognised → every known AI. A list is
+    filtered to known AIs (canonical order); an empty/unknown list also falls
+    back to all (an applies-to-nothing rule is meaningless).
+    """
+    if isinstance(raw, list):
+        picked = [a for a in _KNOWN_AIS if a in raw]
+        return picked or list(_KNOWN_AIS)
+    return list(_KNOWN_AIS)
+
+
 _ADVANCED_KEYS = ("key", "label", "description", "env_var", "default", "value_on", "value_off")
 
 
@@ -367,12 +383,21 @@ def build_rules_inventory(playbook_root: Path | None = None) -> dict[str, Any]:
         if isinstance(triggers_raw, list):
             triggers = [str(t) for t in triggers_raw if isinstance(t, str)]
 
+        has_l1 = slug in script_slugs
+        applies_to = _normalize_applies_to(fm.get("applies_to"))
+        # l1_effective: a `.rule.py` existing (has_l1) is NOT the same as "an L1
+        # hook fires". L1 only runs on Claude (native PreToolUse) and only when
+        # the rule declares triggers. This is the truth the UI badge should use.
+        l1_effective = has_l1 and bool(triggers) and "claude" in applies_to
+
         entry = {
             "slug": slug,
             "status": fm.get("status") or "unknown",
             "paired_hardrule": fm.get("paired_hardrule"),
-            "has_l1": slug in script_slugs,
+            "has_l1": has_l1,
             "has_l3": slug in workflow_slugs,
+            "l1_effective": l1_effective,
+            "applies_to": applies_to,
             "break_glass_env": break_glass_env,
             "triggers": triggers,
             "description": description,
