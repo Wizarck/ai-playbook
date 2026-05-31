@@ -4,6 +4,8 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+## [0.19.8] — 2026-05-31 — reconcile foundation + agnostic config surface
+
 ### Added — template security guardrails (`feat/template-deny-guardrails`)
 
 - **`permissions.deny` in the new-project template.** `templates/new-project/.claude/settings.json.tmpl` now ships 38 universal safety 
