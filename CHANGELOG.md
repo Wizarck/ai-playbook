@@ -4,6 +4,15 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Added — template security guardrails (`feat/template-deny-guardrails`)
+
+- **`permissions.deny` in the new-project template.** `templates/new-project/.claude/settings.json.tmpl` now ships 38 universal safety 
+  guardrails (force-push to main/master, `git reset --hard`, `rm -rf` of system/root 
+  dirs, `DROP DATABASE`/`DROP TABLE`/`TRUNCATE`, `dd`/`mkfs`, `shutdown`/`reboot`) so 
+  every new consumer inherits the deny net. `deny` is enforced even under 
+  `bypassPermissions`. Promoted from the maintainer global config during the 
+  `~/.claude` audit; existing consumers pick it up on next bootstrap-from-template.
+
 ### Added — rules-lifecycle-hardening (`feat/rules-lifecycle-hardening`)
 
 Makes adding/removing a rule safe and the config-UI 100% generated from the rules
