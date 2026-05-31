@@ -36,6 +36,35 @@ def validate() -> int:
     return 1 if rc != 0 else 0
 
 
+def pretooluse(event: dict):
+    """In-process L1 hook: refuse an Edit/Write/MultiEdit that introduces a secret.
+
+    Scans the NEW content of the event (not the staged tree — this fires before
+    the write lands). Fail-open if the scanner is unavailable; CI/pre-commit
+    ``validate`` remains the backstop. OVERRIDE: none (per the rule contract).
+    """
+    from scripts.rules._hook_contract import allow, block, edited_path, edited_text, tool_name
+
+    if tool_name(event) not in ("Edit", "Write", "MultiEdit"):
+        return None
+    text = edited_text(event)
+    if not text:
+        return None
+    try:
+        from scripts import secrets_scan
+        matches = secrets_scan.scan(text)
+    except Exception:  # noqa: BLE001 — scanner missing → fail open.
+        return None
+    if matches:
+        kinds = ", ".join(sorted({m.kind for m in matches}))
+        where = edited_path(event) or "the edited content"
+        return block(
+            f"likely secret(s) detected in {where}: {kinds}. Remove the secret or move "
+            "it to a SOPS-encrypted env file before writing. OVERRIDE: none."
+        )
+    return allow()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="secrets-handling")
     parser.add_argument("subcommand", choices=["validate"])
