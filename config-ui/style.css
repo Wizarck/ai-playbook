@@ -818,3 +818,100 @@ main { padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
 .files-section-curate input[type="radio"] {
   margin: 0;
 }
+
+/* Dispatchers tab — aggregated .md drift view */
+.dispatchers-intro {
+  font-size: 13px;
+  color: var(--muted, #555);
+  margin: 8px 0 12px;
+  line-height: 1.5;
+}
+.dispatchers-list { display: flex; flex-direction: column; gap: 12px; }
+.dispatcher-card {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--card-bg, #fff);
+}
+.dispatcher-card-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 8px;
+}
+.dispatcher-file {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 600;
+}
+.dispatcher-chunk {
+  border-top: 1px dashed var(--border, #e3e3e3);
+  padding-top: 8px; margin-top: 8px;
+}
+.dispatcher-chunk:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+.dispatcher-chunk-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.dispatcher-chunk-heading { font-weight: 600; font-size: 13px; }
+.dispatcher-suggestion {
+  font-size: 12px; color: #e65100;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* Settings tab — model-agnostic surface */
+.settings-block { margin-bottom: 20px; }
+.settings-block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.settings-block-head h3 { margin: 0; font-size: 15px; }
+.settings-list { display: flex; flex-direction: column; gap: 8px; }
+.settings-hook {
+  border: 1px solid var(--border, #ddd); border-radius: 6px;
+  padding: 8px 10px; background: var(--card-bg, #fff);
+}
+.settings-hook-fields { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.settings-strrow { display: flex; gap: 6px; align-items: center; }
+.settings-input {
+  flex: 1 1 120px; min-width: 100px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+  padding: 4px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
+}
+.settings-input.wide { flex: 3 1 220px; }
+.settings-input.narrow { flex: 0 0 80px; min-width: 64px; }
+.settings-targets { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.settings-targets-label { font-size: 11px; color: var(--muted, #666); }
+.target-chip {
+  font-size: 11px; padding: 1px 8px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border, #ccc); background: #f0f0f0; color: #777;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.target-chip.on { background: #c8e6c9; color: #1b5e20; border-color: #1b5e20; }
+.target-chip.locked { cursor: default; }
+.target-chip.na {
+  cursor: not-allowed; background: #f5f5f5; color: #bbb;
+  border-style: dashed;
+}
+
+/* Nested config editors (pre-commit hooks, MCP project servers) */
+.nested-list { display: flex; flex-direction: column; gap: 12px; }
+.nested-card {
+  border: 1px solid var(--border, #ddd); border-radius: 6px;
+  padding: 10px 12px; background: var(--card-bg, #fff);
+}
+.nested-card-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.nested-id { flex: 1 1 auto; font-weight: 600; }
+.nested-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 12px;
+}
+.nested-field { display: flex; flex-direction: column; gap: 2px; }
+.nested-field > span { font-size: 11px; color: var(--muted, #666); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.nested-lists {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px; margin-top: 10px;
+}
+.nested-sublist {
+  border: 1px dashed var(--border, #ddd); border-radius: 4px; padding: 6px 8px;
+}
+.nested-sublist-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; color: var(--muted, #666); margin-bottom: 4px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.nested-strrow { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
