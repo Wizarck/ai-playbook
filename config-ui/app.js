@@ -1197,12 +1197,28 @@
     if (!enabled) li.classList.add("disabled");
     if (expanded) li.classList.add("expanded");
 
+    // L1 capability (D20): `has_l1` means a rule.py exists; `l1_effective` means
+    // an L1 hook actually fires (Claude-targeted + declares triggers). The badge
+    // reflects the truth. Back-compat: absent l1_effective falls back to has_l1.
+    const l1Effective = rule.l1_effective !== undefined ? rule.l1_effective : rule.has_l1;
     const layerBadge = (L) => {
-      if (L === "L1" && !rule.has_l1) return `<span class="badge layer">—</span>`;
+      if (L === "L1") {
+        if (!rule.has_l1) return `<span class="badge layer">—</span>`;
+        if (!l1Effective) {
+          const why = (rule.triggers && rule.triggers.length)
+            ? "L1 fires only on Claude; this rule is not Claude-targeted"
+            : "rule.py is a validator with no PreToolUse trigger — no L1 hook fires";
+          return `<span class="badge layer na" title="${escapeHtml(why)}">L1 n/a</span>`;
+        }
+      }
       if (L === "L3" && !rule.has_l3) return `<span class="badge layer">—</span>`;
       const present = layers[L] !== undefined ? layers[L] : enabled;
       return `<span class="badge layer ${present ? "on" : "off"}">${L}${present ? "✓" : "✗"}</span>`;
     };
+    const appliesTo = Array.isArray(rule.applies_to) && rule.applies_to.length
+      ? rule.applies_to : ["claude", "gemini", "cursor"];
+    const appliesChips = ["claude", "gemini", "cursor"].map(ai =>
+      `<span class="target-chip ${appliesTo.includes(ai) ? "on" : "na"}">${ai}</span>`).join("");
 
     li.innerHTML = `
       <div class="rule-header">
@@ -1221,9 +1237,11 @@
       </div>
       <div class="rule-meta">${escapeHtml(rule.description || "")}</div>
       <div class="rule-advanced">
+        <h4>Applies to</h4>
+        <div class="applies-row">${appliesChips}</div>
         <h4>Layers</h4>
         <div class="layer-row">
-          <label><input type="checkbox" data-layer="${rule.slug}:L1" ${rule.has_l1 ? "" : "disabled"} ${layerValue(layers, "L1", enabled, rule.has_l1) ? "checked" : ""} /> L1 (hook + rule.py)</label>
+          <label><input type="checkbox" data-layer="${rule.slug}:L1" ${l1Effective ? "" : "disabled"} ${layerValue(layers, "L1", enabled, l1Effective) ? "checked" : ""} /> L1 (hook + rule.py)</label>
           <label><input type="checkbox" data-layer="${rule.slug}:L2" ${layerValue(layers, "L2", enabled, true) ? "checked" : ""} /> L2 (markdown)</label>
           <label><input type="checkbox" data-layer="${rule.slug}:L3" ${rule.has_l3 ? "" : "disabled"} ${layerValue(layers, "L3", enabled, rule.has_l3) ? "checked" : ""} /> L3 (workflow)</label>
         </div>

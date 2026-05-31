@@ -78,7 +78,10 @@ def ensure_hooks(settings: dict[str, Any], hooks: list[dict[str, Any]]) -> dict[
             continue
         matcher = h.get("matcher")
         timeout = h.get("timeout")
-        identity = command_identity(str(command))
+        # An explicit `identity` overrides basename dedup — needed when the
+        # command carries a trailing arg (e.g. `... hook_dispatcher.py PreToolUse`)
+        # so the last token isn't the script name.
+        identity = h.get("identity") or command_identity(str(command))
 
         entries = list(hooks_root.get(event, [])) if isinstance(hooks_root.get(event), list) else []
         if any(
@@ -127,6 +130,32 @@ def merge_required_pretooluse(settings: dict[str, Any]) -> dict[str, Any]:
     }])
 
 
+# Generic L1 dispatcher entry (D21). Routes PreToolUse events to every
+# trigger-declaring rule with an in-process hook — so adding such a rule needs
+# ZERO settings edits. Runs ALONGSIDE the bespoke openspec-apply-enforce hook
+# (which keeps its own precise Bash-inspection behaviour); deduped by basename.
+DISPATCHER_PRE_TOOL_USE_MATCHER = "Edit|Write|MultiEdit|Bash"
+DISPATCHER_PRE_TOOL_USE_COMMAND = "python .ai-playbook/scripts/hook_dispatcher.py PreToolUse"
+DISPATCHER_PRE_TOOL_USE_TIMEOUT = 10
+DISPATCHER_IDENTITY = "hook_dispatcher.py"
+
+
+def merge_required_dispatcher(settings: dict[str, Any]) -> dict[str, Any]:
+    """Ensure the generic L1 dispatcher PreToolUse entry. Idempotent.
+
+    Deduped by the ``hook_dispatcher.py`` basename (an explicit identity, since
+    the command carries a trailing ``PreToolUse`` arg), so any matcher satisfies
+    it and re-running never duplicates.
+    """
+    return ensure_hooks(settings, [{
+        "event": "PreToolUse",
+        "matcher": DISPATCHER_PRE_TOOL_USE_MATCHER,
+        "command": DISPATCHER_PRE_TOOL_USE_COMMAND,
+        "timeout": DISPATCHER_PRE_TOOL_USE_TIMEOUT,
+        "identity": DISPATCHER_IDENTITY,
+    }])
+
+
 def merge_permissions(
     settings: dict[str, Any],
     *,
@@ -164,6 +193,10 @@ def merge_permissions(
 
 
 __all__ = [
+    "DISPATCHER_IDENTITY",
+    "DISPATCHER_PRE_TOOL_USE_COMMAND",
+    "DISPATCHER_PRE_TOOL_USE_MATCHER",
+    "DISPATCHER_PRE_TOOL_USE_TIMEOUT",
     "REQUIRED_PRE_TOOL_USE_COMMAND",
     "REQUIRED_PRE_TOOL_USE_IDENTITY",
     "REQUIRED_PRE_TOOL_USE_MATCHER",
@@ -172,5 +205,6 @@ __all__ = [
     "ensure_hooks",
     "has_hook",
     "merge_permissions",
+    "merge_required_dispatcher",
     "merge_required_pretooluse",
 ]

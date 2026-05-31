@@ -4,6 +4,44 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Added — rules-lifecycle-hardening (`feat/rules-lifecycle-hardening`)
+
+Makes adding/removing a rule safe and the config-UI 100% generated from the rules
+that exist — closing the silent-drift failure modes found in the rule system.
+
+- **Inventory freshness gate (A).** `rules_toggle inventory --check` regenerates
+  in memory and diffs the committed `config-ui/rules-inventory.json` (ignoring
+  `generated_at`), exit 2 on drift; also flags dangling hooks (a settings tmpl
+  command pointing at a missing `scripts/rules/<slug>.rule.py`). Wired into
+  `check-rule-schemas.rule.yml` + a `rules-inventory-check` pre-commit hook.
+  Fixed a dead output path: both inventory generators wrote to the removed
+  `tools/config-ui/` instead of the live `config-ui/`.
+- **Live inventory + orphan prune (B).** `apply_config` builds the rules
+  inventory live (stale-proof env-var projection) and drops bundle slugs absent
+  from it, guarded so a missing inventory never wipes valid toggles.
+- **Self-describing advanced sub-toggles (C).** `advanced` moved from the
+  hardcoded `ADVANCED_SUB_TOGGLES` dict into each rule's frontmatter. Realigned
+  `schema-rule-v1.json` with the canonical apply-skill-enforcement doc
+  (description length, break_glass `_OVERRIDE`/`rollback_env`, `MultiEdit`
+  trigger, new `advanced[]`); all 50 rule docs validate.
+- **Per-AI capability (D).** Inventory gains `applies_to` + `l1_effective`
+  (`has_l1 AND triggers AND claude-targeted`). The config-UI rules tab badges L1
+  `n/a` where it can't fire and shows an "Applies to" chip strip (mirrors the
+  Settings-tab D9/D10 gating).
+- **Dispatcher executes rules in-process (E).** `hook_dispatcher` now RUNS matched
+  rules (was match-only): a rule opts in via `pretooluse(event)`/`posttooluse(event)`
+  (`scripts/rules/_hook_contract.py`), honouring the consumer's L1 toggle +
+  `applies_to`, emitting real-verdict telemetry, failing OPEN on a rule error.
+  `secrets-handling` (block on secrets in new content) and `english-only-docs`
+  (block non-English full-file doc Writes) are retrofitted; the settings renderer
+  ensures a generic dispatcher PreToolUse entry (`merge_required_dispatcher`,
+  alongside the bespoke openspec-apply-enforce hook), so new trigger-rules
+  auto-fire with zero settings edits. The git/PR/session validators
+  (link-integrity, delegated-shipping-prompt, subagent-envelope-schema,
+  update-documentation, …) are deliberately NOT dispatcher-executed — their
+  inputs aren't in a tool event or would false-positive; they keep CI/pre-commit
+  `validate` enforcement.
+
 ### Changed — reconcile foundation: one door for all writes (`feat/reconcile-single-door`)
 
 Collapses the parallel file-writing paths into a single idempotent operation.

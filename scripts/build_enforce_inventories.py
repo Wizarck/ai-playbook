@@ -42,7 +42,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"
-UI_DIR = REPO_ROOT / "tools" / "config-ui"
+UI_DIR = REPO_ROOT / "config-ui"
 SKILLS_OUT = UI_DIR / "skills-inventory.json"
 MCPS_OUT = UI_DIR / "mcps-inventory.json"
 

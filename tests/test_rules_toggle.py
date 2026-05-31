@@ -150,6 +150,138 @@ def test_inventory_advanced_mapping_has_env_var() -> None:
     assert adv["value_off"] == "0"
 
 
+def test_inventory_has_applies_to_and_l1_effective() -> None:
+    inv = rules_toggle.build_rules_inventory()
+    by_slug = {r["slug"]: r for r in inv["rules"]}
+    # apply-skill-enforcement: claude-targeted + has triggers + has rule.py.
+    ase = by_slug["apply-skill-enforcement"]
+    assert ase["applies_to"] == ["claude", "gemini", "cursor"]
+    assert ase["l1_effective"] is True
+    # gemini-session-start: gemini-only → L1 (a Claude hook) cannot fire for it.
+    gem = by_slug["gemini-session-start"]
+    assert gem["applies_to"] == ["gemini"]
+    assert gem["l1_effective"] is False
+
+
+def test_normalize_applies_to() -> None:
+    assert rules_toggle._normalize_applies_to("all") == ["claude", "gemini", "cursor"]
+    assert rules_toggle._normalize_applies_to(None) == ["claude", "gemini", "cursor"]
+    assert rules_toggle._normalize_applies_to(["gemini"]) == ["gemini"]
+    # canonical order is enforced regardless of input order
+    assert rules_toggle._normalize_applies_to(["cursor", "claude"]) == ["claude", "cursor"]
+    # empty / unknown → all (an applies-to-nothing rule is meaningless)
+    assert rules_toggle._normalize_applies_to([]) == ["claude", "gemini", "cursor"]
+    assert rules_toggle._normalize_applies_to(["bogus"]) == ["claude", "gemini", "cursor"]
+
+
+def test_normalize_advanced_filters_malformed() -> None:
+    raw = [
+        {"key": "good", "env_var": "AIPLAYBOOK_X", "default": True},
+        {"key": "no_env"},               # missing env_var → dropped
+        {"env_var": "AIPLAYBOOK_Y"},      # missing key → dropped
+        "not-a-dict",                     # dropped
+    ]
+    out = rules_toggle._normalize_advanced(raw)
+    assert [a["key"] for a in out] == ["good"]
+    assert rules_toggle._normalize_advanced("nope") == []
+    assert rules_toggle._normalize_advanced(None) == []
+
+
+# ---------------------------------------------------------------------------
+# inventory --check (freshness + dangling-hook gate)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_playbook(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A minimal playbook root so inventory build/check run in isolation."""
+    for d in ("specs", "scripts", "schemas", "config-ui"):
+        (tmp_path / d).mkdir()
+    (tmp_path / "docs" / "rules").mkdir(parents=True)
+    (tmp_path / "scripts" / "rules").mkdir(parents=True)
+    (tmp_path / "docs" / "rules" / "foo.rule.md").write_text(
+        "---\nschema: rule/v1\nslug: foo\nstatus: advisory\n---\n# Foo\n\nFoo body.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rules_toggle, "find_playbook_root", lambda *a, **k: tmp_path)
+    return tmp_path
+
+
+def test_inventory_writes_to_config_ui_not_tools(fake_playbook: Path) -> None:
+    assert rules_toggle.main(["inventory"]) == 0
+    assert (fake_playbook / "config-ui" / "rules-inventory.json").is_file()
+    assert not (fake_playbook / "tools").exists()  # the pre-flip dead path
+
+
+def test_inventory_check_passes_when_fresh(fake_playbook: Path, capsys: pytest.CaptureFixture) -> None:
+    assert rules_toggle.main(["inventory"]) == 0
+    capsys.readouterr()
+    assert rules_toggle.main(["inventory", "--check"]) == 0
+    assert "fresh" in capsys.readouterr().out
+
+
+def test_inventory_check_missing_committed_fails(fake_playbook: Path, capsys: pytest.CaptureFixture) -> None:
+    assert rules_toggle.main(["inventory", "--check"]) == 2  # never written
+    assert "missing" in capsys.readouterr().err
+
+
+def test_inventory_check_detects_added_rule(fake_playbook: Path, capsys: pytest.CaptureFixture) -> None:
+    assert rules_toggle.main(["inventory"]) == 0
+    capsys.readouterr()
+    (fake_playbook / "docs" / "rules" / "bar.rule.md").write_text(
+        "---\nschema: rule/v1\nslug: bar\nstatus: advisory\n---\n# Bar\n\nBar.\n", encoding="utf-8",
+    )
+    assert rules_toggle.main(["inventory", "--check"]) == 2
+    assert "bar" in capsys.readouterr().err
+
+
+def test_inventory_check_ignores_generated_at(fake_playbook: Path) -> None:
+    assert rules_toggle.main(["inventory"]) == 0
+    p = fake_playbook / "config-ui" / "rules-inventory.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["generated_at"] = "2000-01-01T00:00:00+00:00"  # tamper only the stamp
+    p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    assert rules_toggle.main(["inventory", "--check"]) == 0
+
+
+def test_inventory_check_flags_dangling_hook(fake_playbook: Path, capsys: pytest.CaptureFixture) -> None:
+    assert rules_toggle.main(["inventory"]) == 0
+    capsys.readouterr()
+    tmpl = fake_playbook / "templates" / "new-project" / ".claude" / "settings.json.tmpl"
+    tmpl.parent.mkdir(parents=True, exist_ok=True)
+    tmpl.write_text(
+        '{"hooks":{"PreToolUse":[{"hooks":[{"command":'
+        '"python .ai-playbook/scripts/rules/ghost.rule.py"}]}]}}',
+        encoding="utf-8",
+    )
+    assert rules_toggle.main(["inventory", "--check"]) == 2
+    assert "ghost" in capsys.readouterr().err
+
+
+def test_build_inventory_reads_advanced_from_frontmatter(fake_playbook: Path) -> None:
+    (fake_playbook / "docs" / "rules" / "adv.rule.md").write_text(
+        "---\nschema: rule/v1\nslug: adv\nstatus: enforced\n"
+        "advanced:\n  - key: foo_flag\n    env_var: AIPLAYBOOK_FOO\n"
+        "    default: true\n    value_on: '1'\n    value_off: '0'\n"
+        "---\n# Adv\n\nbody\n",
+        encoding="utf-8",
+    )
+    inv = rules_toggle.build_rules_inventory(fake_playbook)
+    adv_rule = next(r for r in inv["rules"] if r["slug"] == "adv")
+    assert adv_rule["advanced"][0]["env_var"] == "AIPLAYBOOK_FOO"
+    # the fixture's `foo` rule declares no advanced block → key omitted
+    foo = next(r for r in inv["rules"] if r["slug"] == "foo")
+    assert "advanced" not in foo
+
+
+def test_dangling_rule_hooks_empty_when_script_exists(fake_playbook: Path) -> None:
+    (fake_playbook / "scripts" / "rules" / "real.rule.py").write_text("# x\n", encoding="utf-8")
+    tmpl = fake_playbook / "templates" / "new-project" / ".claude" / "settings.json.tmpl"
+    tmpl.parent.mkdir(parents=True, exist_ok=True)
+    tmpl.write_text('{"command": "python .ai-playbook/scripts/rules/real.rule.py"}', encoding="utf-8")
+    assert rules_toggle._dangling_rule_hooks(fake_playbook) == []
+
+
 # ---------------------------------------------------------------------------
 # CLI subcommands
 # ---------------------------------------------------------------------------

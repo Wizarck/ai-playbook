@@ -21,6 +21,7 @@ from typing import Any
 from scripts._renderers._settings_merge import (
     ensure_hooks,
     merge_permissions,
+    merge_required_dispatcher,
     merge_required_pretooluse,
 )
 
@@ -76,6 +77,9 @@ def render(
             base = {}
 
     merged = merge_required_pretooluse(base)
+    # Generic L1 dispatcher entry — ensures trigger-declaring rules auto-fire
+    # without per-rule settings edits (runs alongside the bespoke enforce hook).
+    merged = merge_required_dispatcher(merged)
 
     settings_section = bundle.get("settings") or {}
     claude_hooks = _claude_hooks(settings_section)

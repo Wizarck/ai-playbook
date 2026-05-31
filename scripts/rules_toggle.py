@@ -74,26 +74,46 @@ AUDIT_FILENAME = "rules-toggle-audit.jsonl"
 VALID_LAYERS = ("L1", "L2", "L3")
 SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 
-# Per-rule advanced sub-toggles. Hardcoded today because only one rule has
-# them; promote to a YAML manifest if the catalogue grows beyond ~5 entries.
-# Each entry projects to an env var written into .ai-playbook/feature-flags.env
-# by scripts/apply_config.py.
-ADVANCED_SUB_TOGGLES: dict[str, list[dict[str, Any]]] = {
-    "apply-skill-enforcement": [
-        {
-            "key": "bash_inspection",
-            "label": "Bash command inspection",
-            "description": (
-                "Inspect Bash commands for write_path mutations "
-                "(POSIX redirects + sed -i + python -c + PowerShell Out-File/Set-Content/...)."
-            ),
-            "env_var": "AIPLAYBOOK_BASH_INSPECTION",
-            "default": True,
-            "value_on": "1",
-            "value_off": "0",
-        }
-    ],
-}
+# Per-rule advanced sub-toggles are declared in each rule's own frontmatter
+# (`advanced:` block in docs/rules/<slug>.rule.md) and read by
+# build_rules_inventory — see _normalize_advanced. Each projects to an env var
+# written into .ai-playbook/feature-flags.env by scripts/apply_config.py.
+_KNOWN_AIS = ("claude", "gemini", "cursor")
+
+
+def _normalize_applies_to(raw: Any) -> list[str]:
+    """Coerce frontmatter ``applies_to`` into a canonical-ordered AI list.
+
+    ``"all"``, absent, or anything unrecognised → every known AI. A list is
+    filtered to known AIs (canonical order); an empty/unknown list also falls
+    back to all (an applies-to-nothing rule is meaningless).
+    """
+    if isinstance(raw, list):
+        picked = [a for a in _KNOWN_AIS if a in raw]
+        return picked or list(_KNOWN_AIS)
+    return list(_KNOWN_AIS)
+
+
+_ADVANCED_KEYS = ("key", "label", "description", "env_var", "default", "value_on", "value_off")
+
+
+def _normalize_advanced(raw: Any) -> list[dict[str, Any]]:
+    """Coerce a frontmatter ``advanced`` block into the inventory shape.
+
+    Mirrors the defensive filtering used for ``triggers``: a rule that declares a
+    malformed advanced entry degrades to "no sub-toggles" for that entry rather
+    than breaking the whole inventory build. ``key`` + ``env_var`` are required.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        if not isinstance(item.get("key"), str) or not isinstance(item.get("env_var"), str):
+            continue
+        out.append({k: item[k] for k in _ADVANCED_KEYS if k in item})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -363,19 +383,29 @@ def build_rules_inventory(playbook_root: Path | None = None) -> dict[str, Any]:
         if isinstance(triggers_raw, list):
             triggers = [str(t) for t in triggers_raw if isinstance(t, str)]
 
+        has_l1 = slug in script_slugs
+        applies_to = _normalize_applies_to(fm.get("applies_to"))
+        # l1_effective: a `.rule.py` existing (has_l1) is NOT the same as "an L1
+        # hook fires". L1 only runs on Claude (native PreToolUse) and only when
+        # the rule declares triggers. This is the truth the UI badge should use.
+        l1_effective = has_l1 and bool(triggers) and "claude" in applies_to
+
         entry = {
             "slug": slug,
             "status": fm.get("status") or "unknown",
             "paired_hardrule": fm.get("paired_hardrule"),
-            "has_l1": slug in script_slugs,
+            "has_l1": has_l1,
             "has_l3": slug in workflow_slugs,
+            "l1_effective": l1_effective,
+            "applies_to": applies_to,
             "break_glass_env": break_glass_env,
             "triggers": triggers,
             "description": description,
             "doc_path": doc.relative_to(root).as_posix(),
         }
-        if slug in ADVANCED_SUB_TOGGLES:
-            entry["advanced"] = list(ADVANCED_SUB_TOGGLES[slug])
+        adv = _normalize_advanced(fm.get("advanced"))
+        if adv:
+            entry["advanced"] = adv
         rules.append(entry)
 
     rules.sort(key=lambda r: r["slug"])
@@ -720,25 +750,114 @@ def cmd_off(args: argparse.Namespace) -> int:
     return 0
 
 
+def _committed_inventory_path(out_arg: str | None) -> Path | None:
+    """Resolve where the committed rules-inventory.json lives (UI fetches this)."""
+    if out_arg is not None:
+        return Path(out_arg).expanduser().resolve()
+    root = find_playbook_root()
+    if root is None:
+        return None
+    # config-ui/ (the live UI dir). The pre-flip tools/config-ui/ was removed.
+    return root / "config-ui" / "rules-inventory.json"
+
+
+def _diff_inventory(committed: dict[str, Any], fresh: dict[str, Any]) -> list[str]:
+    """Human-readable drift lines between committed and freshly-built inventory.
+
+    The volatile ``generated_at`` stamp is ignored (it changes every run); only
+    the ``rules`` payload is compared.
+    """
+    def _by_slug(inv: dict[str, Any]) -> dict[str, Any]:
+        rules = inv.get("rules", []) if isinstance(inv, dict) else []
+        return {r.get("slug"): r for r in rules if isinstance(r, dict)}
+
+    c, f = _by_slug(committed), _by_slug(fresh)
+    lines: list[str] = []
+    for slug in sorted(set(f) - set(c)):
+        lines.append(f"  + rule on disk missing from committed inventory: {slug}")
+    for slug in sorted(set(c) - set(f)):
+        lines.append(f"  - committed inventory lists a rule no longer on disk: {slug}")
+    for slug in sorted(set(c) & set(f)):
+        if c[slug] != f[slug]:
+            changed = sorted(k for k in (set(c[slug]) | set(f[slug])) if c[slug].get(k) != f[slug].get(k))
+            lines.append(f"  ~ {slug}: fields changed: {', '.join(changed)}")
+    return lines
+
+
+_RULE_SCRIPT_REF_RE = re.compile(r"scripts/rules/([a-z][a-z0-9-]*)\.rule\.py")
+
+
+def _dangling_rule_hooks(root: Path) -> list[str]:
+    """Rule-script paths referenced by the settings template that don't exist on disk.
+
+    Catches the orphan-hook FileNotFoundError: a `.claude/settings.json` hook
+    pointing at a deleted `scripts/rules/<slug>.rule.py`.
+    """
+    tmpl = root / "templates" / "new-project" / ".claude" / "settings.json.tmpl"
+    if not tmpl.is_file():
+        return []
+    try:
+        text = tmpl.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    dangling = {
+        f"scripts/rules/{m.group(1)}.rule.py"
+        for m in _RULE_SCRIPT_REF_RE.finditer(text)
+        if not (root / "scripts" / "rules" / f"{m.group(1)}.rule.py").is_file()
+    }
+    return sorted(dangling)
+
+
 def cmd_inventory(args: argparse.Namespace) -> int:
     try:
         inv = build_rules_inventory()
     except FileNotFoundError as e:
         _emit_error(why=str(e), where="rules_toggle:inventory", fix="run from inside ai-playbook checkout.")
         return 2
-    out_arg = getattr(args, "output", None)
-    if out_arg is None:
-        # Default location: config-ui/rules-inventory.json relative to playbook root.
-        root = find_playbook_root()
-        if root is None:
-            _emit_error(why="ai-playbook root not found", where="rules_toggle:inventory:output", fix="pass --output PATH.")
+
+    out_path = _committed_inventory_path(getattr(args, "output", None))
+    if out_path is None:
+        _emit_error(why="ai-playbook root not found", where="rules_toggle:inventory:output", fix="pass --output PATH.")
+        return 2
+
+    root = find_playbook_root()
+    dangling = _dangling_rule_hooks(root) if root is not None else []
+
+    if getattr(args, "check", False):
+        # CHECK mode (CI / pre-commit gate): regenerate in memory, diff the
+        # committed file, never write. Exit 2 on any drift or dangling hook.
+        problems: list[str] = []
+        if not out_path.is_file():
+            problems.append(f"  committed inventory missing: {out_path.as_posix()}")
+        else:
+            try:
+                committed = json.loads(out_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as e:
+                problems.append(f"  committed inventory unreadable: {e}")
+            else:
+                problems.extend(_diff_inventory(committed, inv))
+        problems.extend(f"  dangling hook: settings.json.tmpl references missing {rel}" for rel in dangling)
+        if problems:
+            _emit_error(
+                why="rules inventory is stale or a hook references a missing rule script",
+                where=out_path.as_posix(),
+                fix="run `python -m scripts.rules_toggle inventory` and commit it (and remove any dangling hook).",
+            )
+            for line in problems:
+                print(line, file=sys.stderr)
             return 2
-        out_path = root / "tools" / "config-ui" / "rules-inventory.json"
-    else:
-        out_path = Path(out_arg).expanduser().resolve()
+        if getattr(args, "json", False):
+            print(json.dumps({"ok": True, "checked": out_path.as_posix(), "rules_count": len(inv["rules"])}, indent=2, ensure_ascii=False))
+        else:
+            print(f"✅ rules inventory fresh ({len(inv['rules'])} rules); no dangling hooks")
+        return 0
+
+    # WRITE mode (default).
     out_path.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(inv, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
     out_path.write_text(body, encoding="utf-8")
+    for rel in dangling:
+        print(f"⚠️  settings.json.tmpl references missing {rel}", file=sys.stderr)
     if getattr(args, "json", False):
         print(json.dumps({"ok": True, "output": out_path.as_posix(), "rules_count": len(inv["rules"])}, indent=2, ensure_ascii=False))
     else:
@@ -838,8 +957,10 @@ def main(argv: list[str] | None = None) -> int:
     p_off.add_argument("--json", action="store_true")
     p_off.set_defaults(func=cmd_off)
 
-    p_inv = sub.add_parser("inventory", help="Re-scan rules and write rules-inventory.json.")
+    p_inv = sub.add_parser("inventory", help="Re-scan rules and write (or --check) rules-inventory.json.")
     p_inv.add_argument("--output", default=None, help="Override default config-ui/rules-inventory.json path.")
+    p_inv.add_argument("--check", action="store_true",
+                       help="Verify the committed inventory is fresh + no dangling hooks; write nothing, exit 2 on drift.")
     p_inv.add_argument("--json", action="store_true")
     p_inv.set_defaults(func=cmd_inventory)
 
