@@ -30,6 +30,11 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Make `from scripts...` resolve when run as a direct consumer script
+# (`python .ai-playbook/scripts/hook_dispatcher.py PreToolUse`), not just via -m.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 
 class Rule:
     __slots__ = ("slug", "doc_path", "hardrule_path", "triggers", "frontmatter")
