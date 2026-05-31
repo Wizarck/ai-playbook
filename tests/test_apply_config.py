@@ -97,6 +97,29 @@ def test_apply_rules_advanced_projects_to_env_file(tmp_path: Path) -> None:
     assert apply_config.ENV_MARKER_END in body
 
 
+def test_apply_rules_prunes_unknown_slug(tmp_path: Path) -> None:
+    """A bundle slug absent from the inventory (deleted rule) is dropped, not persisted."""
+    target = _fake_project(tmp_path)
+    bundle = {"rules": {"known-rule": {"enabled": False}, "ghost-rule": {"enabled": False}}}
+    inv = {"schema": "rules-inventory/v1", "rules": [{"slug": "known-rule"}]}
+    sr, _env = apply_config.apply_rules(target, bundle, inv)
+    assert sr.ok
+    state = rules_toggle.read_state(target)
+    assert "known-rule" in state["rules"]
+    assert "ghost-rule" not in state["rules"]
+    assert any("pruned unknown rule: ghost-rule" in c for c in sr.changes)
+
+
+def test_apply_rules_no_inventory_keeps_all(tmp_path: Path) -> None:
+    """When the inventory is unavailable (None), never prune — keep every toggle."""
+    target = _fake_project(tmp_path)
+    bundle = {"rules": {"a-rule": {"enabled": False}, "b-rule": {"enabled": False}}}
+    sr, _env = apply_config.apply_rules(target, bundle, None)
+    assert sr.ok
+    state = rules_toggle.read_state(target)
+    assert set(state["rules"]) == {"a-rule", "b-rule"}
+
+
 # ---------------------------------------------------------------------------
 # Global flags section
 # ---------------------------------------------------------------------------
