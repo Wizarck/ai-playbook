@@ -222,23 +222,27 @@ def test_source_missing_emits_canonical_error(
 # ---------------------------------------------------------------------------
 
 
-def test_partial_mirror_regenerates_missing_targets(tmp_path: Path) -> None:
+def test_partial_mirror_adds_skills_and_preserves_unmanaged(tmp_path: Path) -> None:
+    """Missing mirrors are created; a pre-existing directory the playbook never
+    installed (no manifest entry) is treated as user content and preserved — the
+    migration seed deletes nothing on the first run."""
     consumer = _build_consumer(tmp_path)
-    # Pre-create one mirror with wrong content; leave the other two missing.
+    # Pre-create one mirror with a directory the playbook never installed.
     skewed = consumer / Path(".claude") / "skills"
     skewed.mkdir(parents=True, exist_ok=True)
-    (skewed / "stale-skill").mkdir()
-    (skewed / "stale-skill" / "SKILL.md").write_text("stale", encoding="utf-8")
+    (skewed / "user-skill").mkdir()
+    (skewed / "user-skill" / "SKILL.md").write_text("mine", encoding="utf-8")
 
     result = ms.materialise_skills(consumer, quiet=True)
 
     assert result.ok
-    # All three mirrors get written (the stale one is wiped + recopied).
     assert result.mirrors_rewritten == 3
     for rel in ms.MIRROR_RELS:
         assert (consumer / rel / "hello-world" / "SKILL.md").is_file()
         assert (consumer / rel / "ping" / "SKILL.md").is_file()
-        assert not (consumer / rel / "stale-skill").exists()
+    # The unmanaged directory survives (no manifest claimed it).
+    assert (skewed / "user-skill" / "SKILL.md").read_text(encoding="utf-8") == "mine"
+    assert ".claude/skills/user-skill" in result.user_dirs_preserved
 
 
 # ---------------------------------------------------------------------------
@@ -354,10 +358,15 @@ def test_cli_dry_run_smoke(tmp_path: Path) -> None:
 
 def test_subprocess_invocation(tmp_path: Path) -> None:
     consumer = _build_consumer(tmp_path)
-    script = Path(__file__).resolve().parent.parent / "scripts" / "materialise_skills.py"
+    repo_root = Path(__file__).resolve().parent.parent
+    script = repo_root / "scripts" / "materialise_skills.py"
 
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+    # Resolve the `scripts` package from the checkout under test, not whatever a
+    # global editable install happens to point at (mirrors a consumer running
+    # the script from its own .ai-playbook checkout).
+    env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
     result = subprocess.run(
         [sys.executable, str(script), "--consumer", str(consumer), "--quiet"],
         capture_output=True,
@@ -466,3 +475,69 @@ def test_enforce_unknown_slug_in_disabled_is_tolerated(tmp_path: Path) -> None:
     assert result.ok
     for rel in ms.MIRROR_RELS:
         assert (consumer / rel / "alpha" / "SKILL.md").is_file()
+
+
+# ---------------------------------------------------------------------------
+# Additive / provenance-aware behaviour (skills-manifest/v1)
+# ---------------------------------------------------------------------------
+
+
+def test_user_added_skill_survives_materialise(tmp_path: Path) -> None:
+    """A skill directory the user adds (not in the playbook source) must survive
+    re-materialisation untouched, and never be recorded as playbook-owned."""
+    from scripts import _skills_manifest
+
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}})
+    ms.materialise_skills(consumer, quiet=True)  # establishes the manifest
+
+    # User drops their own skill into one mirror.
+    own = consumer / ".claude" / "skills" / "my-own"
+    own.mkdir(parents=True, exist_ok=True)
+    (own / "SKILL.md").write_text("# my own skill\n", encoding="utf-8")
+
+    result = ms.materialise_skills(consumer, quiet=True)
+
+    assert result.ok
+    assert (own / "SKILL.md").read_text(encoding="utf-8") == "# my own skill\n"
+    assert (consumer / ".claude" / "skills" / "alpha" / "SKILL.md").is_file()
+    assert ".claude/skills/my-own" in result.user_dirs_preserved
+
+    manifest = _skills_manifest.read(consumer)
+    assert manifest[".claude/skills"] == {"alpha"}
+    assert "my-own" not in manifest[".claude/skills"]
+
+
+def test_manifest_absent_migration_deletes_nothing(tmp_path: Path) -> None:
+    """A consumer whose mirrors predate the manifest must not lose any directory
+    on the first run, even a playbook skill removed upstream (one cycle of
+    eventual consistency)."""
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}})
+    # Simulate an old mirror produced by the destructive materialiser: it
+    # contains a now-removed playbook skill, with NO manifest present.
+    for rel in ms.MIRROR_RELS:
+        legacy = consumer / rel / "legacy-removed"
+        legacy.mkdir(parents=True, exist_ok=True)
+        (legacy / "SKILL.md").write_text("# legacy\n", encoding="utf-8")
+
+    result = ms.materialise_skills(consumer, quiet=True)
+
+    assert result.ok
+    assert result.stale_removed == []  # nothing deleted on the seeding run
+    for rel in ms.MIRROR_RELS:
+        assert (consumer / rel / "legacy-removed").exists()
+        assert (consumer / rel / "alpha" / "SKILL.md").is_file()
+
+
+def test_manifest_records_owned_skills(tmp_path: Path) -> None:
+    """After a run, the manifest lists exactly the playbook-installed skills per
+    mirror (the desired, enforcement-filtered set)."""
+    from scripts import _skills_manifest
+
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}, "beta": {}})
+    _write_skills_enforce(consumer, disabled=["beta"])
+
+    ms.materialise_skills(consumer, quiet=True)
+
+    manifest = _skills_manifest.read(consumer)
+    for rel in ms.MIRROR_RELS:
+        assert manifest[rel.as_posix()] == {"alpha"}

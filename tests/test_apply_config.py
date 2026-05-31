@@ -436,3 +436,94 @@ def test_apply_enforce_sections_appear_in_report(tmp_path: Path) -> None:
     section_names = [s.name for s in report.sections]
     assert "skills_enforce" in section_names
     assert "mcps_enforce" in section_names
+
+
+# ---------------------------------------------------------------------------
+# Enforce sections execute their consequence (reconcile-foundation slice A)
+# ---------------------------------------------------------------------------
+
+
+def test_skills_enforce_drives_the_mirror(tmp_path: Path) -> None:
+    """skills_enforce must run materialisation: a disabled skill is absent from
+    the mirror, the enabled one is present, and a 'skills_enforce.materialise'
+    section is reported."""
+    target = _fake_project(tmp_path)
+    src = target / ".ai-playbook" / "skills"
+    for name in ("alpha", "skipme"):
+        d = src / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "skills_enforce": {"disabled": ["skipme"]},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+
+    from scripts.apply_config import SectionResult
+    with patch.object(apply_config, "apply_caveman") as mock_cv, \
+         patch.object(apply_config, "apply_mcp_render") as mock_render:
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        mock_render.return_value = SectionResult(
+            name="mcps_enforce.render", section_id="mcps_enforce.render", ok=True,
+        )
+        report = apply_config.apply(bp, target=target)
+
+    section_ids = [s.section_id or s.name for s in report.sections]
+    assert "skills_enforce.materialise" in section_ids
+    for mirror in ("skills", ".claude/skills", ".gemini/skills"):
+        assert (target / mirror / "alpha" / "SKILL.md").is_file()
+        assert not (target / mirror / "skipme").exists()
+
+
+def test_section_order_has_no_duplicates(tmp_path: Path) -> None:
+    """Regression for the duplicate 'Section 5' comment: the ordered section
+    registry must have unique ids."""
+    assert len(apply_config.SECTION_ORDER) == len(set(apply_config.SECTION_ORDER))
+    assert "skills_enforce.materialise" in apply_config.SECTION_ORDER
+    assert "mcps_enforce.render" in apply_config.SECTION_ORDER
+
+
+# ---------------------------------------------------------------------------
+# caveman transaction-safety (deferred 4.4): manual reconcile instruction
+# ---------------------------------------------------------------------------
+
+
+def test_caveman_reconcile_instruction_on_managed_files_rollback(tmp_path: Path) -> None:
+    """When caveman mutated state AND the managed-files batch rolled back, the
+    report surfaces a precise manual reconcile step (caveman is not
+    transactional)."""
+    from scripts import _managed_files as mf_mod
+    target = _fake_project(tmp_path)
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "features": {"caveman": {"enabled": True, "mode": "full"}},
+        "project_meta": {"project_identity": "x"},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+
+    cv = apply_config.SectionResult(
+        name="features.caveman", ok=True,
+        changes=["invoked: python -m scripts.caveman on --mode full"],
+    )
+    rolled = mf_mod.ManagedFilesResult(
+        ok=False,
+        changes=[
+            "✗ .gitignore: commit failed (disk full)",
+            "↩ rolled back 1 overwritten file(s) from session apply-X",
+        ],
+    )
+    with patch.object(apply_config, "apply_caveman", return_value=cv), \
+         patch.object(apply_config, "_caveman_preflight", return_value={"enabled": False}), \
+         patch.object(apply_config._managed_files, "apply_managed_files", return_value=rolled):
+        report = apply_config.apply(bp, target=target)
+
+    mf_section = next(s for s in report.sections if s.name == "managed_files")
+    assert mf_section.ok is False
+    instruction = " ".join(mf_section.changes)
+    assert "caveman is not transactional" in instruction
+    # pre-apply state was OFF ⇒ instruction restores with `caveman off`.
+    assert "scripts.caveman off" in instruction
+    # applied-config must NOT advance past the failed transaction.
+    ab = next(s for s in report.sections if s.name == "applied-bundle")
+    assert ab.ok is False

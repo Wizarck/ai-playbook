@@ -284,3 +284,116 @@ def test_session_id_grouping(consumer: Path) -> None:
     assert sessions == {"session-a", "session-b"}
     a_records = [r for r in records if r.session_id == "session-a"]
     assert {r.rel_path for r in a_records} == {"AGENTS.md", ".gitignore"}
+
+
+# ---------------------------------------------------------------------------
+# restore_session — set-level rollback of a failed transactional apply
+# ---------------------------------------------------------------------------
+
+
+def test_restore_session_reverts_all_files_to_pre_session(consumer: Path) -> None:
+    # Back up two files under one session (snapshots their pre-session content).
+    bh.backup_once(consumer, consumer / "AGENTS.md", session_id="sess-1")
+    bh.backup_once(consumer, consumer / ".gitignore", session_id="sess-1")
+    # Now both files get mutated (simulating the apply that we will roll back).
+    _write_lf(consumer / "AGENTS.md", "# MUTATED\n")
+    _write_lf(consumer / ".gitignore", "MUTATED\n")
+
+    restored, warnings = bh.restore_session(consumer, "sess-1")
+
+    assert warnings == []
+    assert {p.name for p in restored} == {"AGENTS.md", ".gitignore"}
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# project agents\n"
+    assert (consumer / ".gitignore").read_text(encoding="utf-8") == "node_modules/\n"
+
+
+def test_restore_session_uses_earliest_snapshot_per_file(consumer: Path) -> None:
+    # First (pre-session) backup, then a later backup of mutated content.
+    bh.backup_once(consumer, consumer / "AGENTS.md", session_id="sess-2")
+    time.sleep(1.1)  # timestamp granularity is whole seconds
+    _write_lf(consumer / "AGENTS.md", "# later mutation\n")
+    bh.backup_once(consumer, consumer / "AGENTS.md", session_id="sess-2")
+    _write_lf(consumer / "AGENTS.md", "# final mutation\n")
+
+    bh.restore_session(consumer, "sess-2")
+
+    # The EARLIEST snapshot (original pre-session content) must win.
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# project agents\n"
+
+
+def test_restore_session_ignores_other_sessions(consumer: Path) -> None:
+    bh.backup_once(consumer, consumer / "AGENTS.md", session_id="sess-a")
+    bh.backup_once(consumer, consumer / ".gitignore", session_id="sess-b")
+    _write_lf(consumer / "AGENTS.md", "# mutated a\n")
+    _write_lf(consumer / ".gitignore", "mutated b\n")
+
+    restored, _ = bh.restore_session(consumer, "sess-a")
+
+    assert {p.name for p in restored} == {"AGENTS.md"}
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# project agents\n"
+    # The other session's file is untouched by this rollback.
+    assert (consumer / ".gitignore").read_text(encoding="utf-8") == "mutated b\n"
+
+
+def test_restore_session_warns_on_missing_backup_file(consumer: Path) -> None:
+    record = bh.backup_once(consumer, consumer / "AGENTS.md", session_id="sess-x")
+    assert record is not None
+    # Delete the backup file on disk to simulate a missing artifact.
+    (consumer / record.backup_rel_path).unlink()
+
+    restored, warnings = bh.restore_session(consumer, "sess-x")
+
+    assert restored == []
+    assert len(warnings) == 1
+    assert "backup file missing" in warnings[0]
+
+
+# ---------------------------------------------------------------------------
+# BASE snapshot (pre-playbook anchor for uninstall)
+# ---------------------------------------------------------------------------
+
+
+def test_backup_base_captures_once_and_is_idempotent(consumer: Path) -> None:
+    rec1 = bh.backup_base(consumer, consumer / "AGENTS.md")
+    assert rec1 is not None
+    assert rec1.session_id == bh.BASE_SESSION_ID
+    # Second call is a no-op: the base is the very first state, never overwritten.
+    # Even after the file changes, the base record stays the original.
+    _write_lf(consumer / "AGENTS.md", "# mutated by playbook\n")
+    rec2 = bh.backup_base(consumer, consumer / "AGENTS.md")
+    assert rec2 is None
+    base = bh.base_record_for(consumer, "AGENTS.md")
+    assert base is not None and base.sha256 == rec1.sha256
+
+
+def test_restore_base_returns_preplaybook_content(consumer: Path) -> None:
+    original = (consumer / "AGENTS.md").read_text(encoding="utf-8")
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    _write_lf(consumer / "AGENTS.md", "# heavily rewritten\n")
+    restored, warnings = bh.restore_base(consumer, "AGENTS.md")
+    assert warnings == []
+    assert len(restored) == 1
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == original
+
+
+def test_restore_base_all_files(consumer: Path) -> None:
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    bh.backup_base(consumer, consumer / ".gitignore")
+    _write_lf(consumer / "AGENTS.md", "x\n")
+    _write_lf(consumer / ".gitignore", "y\n")
+    restored, warnings = bh.restore_base(consumer)
+    assert warnings == []
+    assert len(restored) == 2
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# project agents\n"
+    assert (consumer / ".gitignore").read_text(encoding="utf-8") == "node_modules/\n"
+
+
+def test_prune_never_removes_base(consumer: Path) -> None:
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    # Pile up ordinary backups for the same file.
+    for _ in range(5):
+        time.sleep(0.01)
+        bh.backup_once(consumer, consumer / "AGENTS.md", with_timestamp=True)
+    bh.prune_backups(consumer, keep_per_file=1)
+    # The base survives pruning regardless of keep_per_file.
+    assert bh.base_record_for(consumer, "AGENTS.md") is not None

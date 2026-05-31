@@ -438,7 +438,13 @@ def _caveman_calls(calls: list[list[str]]) -> list[list[str]]:
 def test_main_default_on_invokes_caveman(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bootstrap without --no-caveman MUST shell out to `python -m scripts.caveman on`."""
+    """Bootstrap without --no-caveman MUST shell out to `python -m scripts.caveman on`.
+
+    Post-collapse the activation runs as a SECTION of the single door
+    (apply_config.apply_caveman), not the old inline enable_caveman_default. The
+    door invokes caveman with cwd=<target> (no --project flag); the command shape
+    is otherwise the same: on --mode full --components <csv>.
+    """
     _stub_prereqs(monkeypatch)
     calls: list[list[str]] = []
     _neuter_subprocess_with_classifier(monkeypatch, calls)
@@ -450,7 +456,8 @@ def test_main_default_on_invokes_caveman(
     cav_calls = _caveman_calls(calls)
     assert len(cav_calls) >= 1, f"expected a caveman invocation, got: {calls}"
     invoked = cav_calls[0]
-    # Command shape: python -m scripts.caveman on --mode full --components <csv> --project <path>
+    # Command shape (via apply_config.apply_caveman): python -m scripts.caveman
+    # on --mode full --components <csv>. cwd is the target; no --project flag.
     assert "on" in invoked
     assert "--mode" in invoked
     assert "full" in invoked
@@ -458,9 +465,6 @@ def test_main_default_on_invokes_caveman(
     csv = invoked[invoked.index("--components") + 1]
     for comp in bs.DEFAULT_CAVEMAN_COMPONENTS:
         assert comp in csv, f"component {comp!r} missing from --components {csv!r}"
-    assert "--project" in invoked
-    target = invoked[invoked.index("--project") + 1]
-    assert Path(target).name == "alpha"
 
 
 def test_main_no_caveman_skips_activation(
@@ -494,35 +498,14 @@ def test_main_default_on_dry_run_is_noop(
 
     assert _caveman_calls(calls) == [], "dry-run must not invoke caveman"
     out = capsys.readouterr().out
-    assert "Would activate caveman default-on" in out
+    # The dry-run reconcile report describes the caveman activation it WOULD run.
+    assert "DRY-RUN would invoke: python -m scripts.caveman on" in out
 
 
-def test_enable_caveman_default_warns_on_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-) -> None:
-    """A non-zero caveman exit MUST warn but not raise — bootstrap is best-effort here."""
-    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
-        return _FakeProc(returncode=1, stderr="❌ something went wrong\n")
-    monkeypatch.setattr(bs.subprocess, "run", fake_run)
-
-    target = tmp_path / "alpha"
-    target.mkdir()
-    bs.enable_caveman_default(target, dry_run=False)  # must not raise
-    out = capsys.readouterr().out
-    assert "caveman default-on failed" in out
-    assert "something went wrong" in out
-
-
-def test_enable_caveman_default_dry_run_message(
-    tmp_path: Path, capsys: pytest.CaptureFixture
-) -> None:
-    target = tmp_path / "alpha"
-    target.mkdir()
-    bs.enable_caveman_default(target, dry_run=True)
-    out = capsys.readouterr().out
-    assert "Would activate caveman default-on" in out
-    for comp in bs.DEFAULT_CAVEMAN_COMPONENTS:
-        assert comp in out
+# Caveman activation moved from bootstrap.enable_caveman_default (deleted in the
+# reconcile collapse) into the single door, apply_config.apply_caveman. Its
+# best-effort / dry-run behaviour is now covered by tests/test_apply_config.py;
+# bootstrap-level coverage is the default-on / --no-caveman / dry-run trio above.
 
 
 # ---------------------------------------------------------------------------
