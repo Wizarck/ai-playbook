@@ -150,6 +150,30 @@ def test_inventory_advanced_mapping_has_env_var() -> None:
     assert adv["value_off"] == "0"
 
 
+def test_inventory_has_applies_to_and_l1_effective() -> None:
+    inv = rules_toggle.build_rules_inventory()
+    by_slug = {r["slug"]: r for r in inv["rules"]}
+    # apply-skill-enforcement: claude-targeted + has triggers + has rule.py.
+    ase = by_slug["apply-skill-enforcement"]
+    assert ase["applies_to"] == ["claude", "gemini", "cursor"]
+    assert ase["l1_effective"] is True
+    # gemini-session-start: gemini-only → L1 (a Claude hook) cannot fire for it.
+    gem = by_slug["gemini-session-start"]
+    assert gem["applies_to"] == ["gemini"]
+    assert gem["l1_effective"] is False
+
+
+def test_normalize_applies_to() -> None:
+    assert rules_toggle._normalize_applies_to("all") == ["claude", "gemini", "cursor"]
+    assert rules_toggle._normalize_applies_to(None) == ["claude", "gemini", "cursor"]
+    assert rules_toggle._normalize_applies_to(["gemini"]) == ["gemini"]
+    # canonical order is enforced regardless of input order
+    assert rules_toggle._normalize_applies_to(["cursor", "claude"]) == ["claude", "cursor"]
+    # empty / unknown → all (an applies-to-nothing rule is meaningless)
+    assert rules_toggle._normalize_applies_to([]) == ["claude", "gemini", "cursor"]
+    assert rules_toggle._normalize_applies_to(["bogus"]) == ["claude", "gemini", "cursor"]
+
+
 def test_normalize_advanced_filters_malformed() -> None:
     raw = [
         {"key": "good", "env_var": "AIPLAYBOOK_X", "default": True},

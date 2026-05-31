@@ -1,6 +1,6 @@
 {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-05-25T13:43:54.891879+00:00",
+  "generated_at": "2026-05-31T12:33:58.506173+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -8,6 +8,12 @@
       "paired_hardrule": "scripts/rules/agentic-failure-catalog-schema.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "New entries in the `docs/concepts/agentic-failures.md` catalog MUST carry an OTel attribute key (`ai_playbook.failure.<class>`), MUST land via an RFC (not a direct edit), and detectors emitting the failure MUST set the OTel attribute on the span.",
@@ -19,6 +25,12 @@
       "paired_hardrule": "scripts/rules/ai-reviewer-signoff.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "When an AI reviewer is present (Profile A), the worker MUST address each Actionable comment with a fix-commit citing the comment ID, run L1 self-review, and emit the §4.5.3 signoff block; Profile B (no AI reviewer) requires a self-review pass before Gate F.",
@@ -30,6 +42,12 @@
       "paired_hardrule": "scripts/rules/alembic-migration-naming.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Alembic migrations MUST use the verbose form `<NNNN>_<topic>` matching the filename — `revision = \"0010_research_sources_tier_b_c\"` not `revision = \"0010\"`; the L1 pre-commit hook greps `alembic/versions/*.py` for the bare-integer form and fails the commit.",
@@ -41,6 +59,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Workflow mutations of prod state outside the autonomous tier MUST go through `hitl.request_approval` with the full envelope, pass `verify_apply_safety` (exact-match + idempotency), and record the outcome to `.ai-playbook/incidents.jsonl`.",
@@ -52,6 +76,12 @@
       "paired_hardrule": "scripts/rules/apply-skill-enforcement.rule.py",
       "has_l1": true,
       "has_l3": true,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": "AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE",
       "triggers": [
         "Edit",
@@ -80,6 +110,12 @@
       "paired_hardrule": "scripts/rules/auto-merge-discipline.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "Bash",
@@ -94,6 +130,12 @@
       "paired_hardrule": "scripts/rules/auto-pr-stream-closure.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Auto-generated PRs (`chore/bump-playbook`, `chore/bump-skills`, dependabot, renovate) MUST close any prior open PR on the same logical change-stream when a newer one opens; the propagate-bump scripts L1-enforce this via `gh pr list --search head:<stream>` + `gh pr close <prior>`.",
@@ -105,6 +147,12 @@
       "paired_hardrule": "scripts/rules/bare-layout.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repos with multiple concurrent feature branches MUST use the bare-repo + per-branch worktree layout; legacy single-tree clones drift and should migrate.",
@@ -116,6 +164,12 @@
       "paired_hardrule": "scripts/rules/bootstrap-directive.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "SessionStart"
@@ -129,6 +183,12 @@
       "paired_hardrule": "scripts/rules/break-glass.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": "AIPLAYBOOK_BREAK_GLASS_SKIP",
       "triggers": [],
       "description": "Every blocking playbook script MUST support `--force-with-reason=\"<text>\"` with a ≥10-char reason, an OTel span, an append to overrides.log, and the original error printed unchanged before exit 0 — except when the script declares OVERRIDE none.\n",
@@ -140,6 +200,12 @@
       "paired_hardrule": "scripts/rules/caveman-reinforce.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "UserPromptSubmit"
@@ -153,6 +219,12 @@
       "paired_hardrule": "scripts/rules/claude-settings.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repos using Claude Code must declare the playbook's required hooks (openspec-apply-enforce) in .claude/settings.json so PreToolUse enforcement actually fires.",
@@ -164,6 +236,12 @@
       "paired_hardrule": "scripts/rules/cleanup-on-bump.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": "AIPLAYBOOK_CLEANUP_ON_BUMP_SKIP",
       "triggers": [
         "PostToolUse"
@@ -177,6 +255,12 @@
       "paired_hardrule": "scripts/rules/cleanup-zombies.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": "AIPLAYBOOK_CLEANUP_SKIP",
       "triggers": [],
       "description": "Consumer post-merge / post-checkout hooks MUST invoke `scripts/rules/cleanup-zombies.rule.py --apply --quiet` to remove fossils left by past playbook versions; the script consumes `specs/zombies-manifest.yaml`, writes a 3-channel report, and never exits non-zero in hook context.",
@@ -188,6 +272,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "When two PRs / OpenSpec changes / wave slices touch the same file or capability, the second merger MUST rebase; T3 conflicts >5 lines OR ≥3 conflict markers MUST open a coordination issue; T4 architectural conflicts MUST stop both PRs and escalate.",
@@ -199,6 +289,12 @@
       "paired_hardrule": "scripts/rules/cross-slice-additive-extension.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Parallel slices adding fields to a shared entity MUST each ship their own additive migration (Shape A nullable / Shape B NOT NULL DEFAULT sentinel / Shape C JSONB) claiming a reserved slot; no big-bang ownership slice, no sister tables.",
@@ -210,6 +306,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "No PII in playbook logs; session ids and any user identifiers MUST be hashed before persistence.",
@@ -221,6 +323,12 @@
       "paired_hardrule": "scripts/rules/delegated-shipping-prompt.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "Task"
@@ -234,6 +342,12 @@
       "paired_hardrule": "scripts/rules/dispatcher-cursor.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repos using Cursor must ship a `.cursor/rules/00-AGENTS.mdc` pointer that defers to AGENTS.md as the canonical dispatcher.",
@@ -245,6 +359,12 @@
       "paired_hardrule": "scripts/rules/dispatcher-gemini.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repos using Gemini CLI must ship a GEMINI.md pointer that defers to AGENTS.md as the canonical dispatcher.",
@@ -256,6 +376,12 @@
       "paired_hardrule": "scripts/rules/doc-drift-enforcement.rule.py",
       "has_l1": true,
       "has_l3": true,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": "AIPLAYBOOK_DOC_DRIFT_SKIP",
       "triggers": [],
       "description": "PRs against the playbook upstream MUST co-modify every Tier-1 (code, doc) pair declared in `specs/co-edit-pairs.yaml`; the gate exits 1 on drift unless the PR title contains `[no-doc-impact]` (case-insensitive); schema breaks exit 2.",
@@ -267,6 +393,12 @@
       "paired_hardrule": "scripts/rules/english-only-docs.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "Edit",
@@ -281,6 +413,12 @@
       "paired_hardrule": "scripts/rules/error-message-standard.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Every user-visible error from a playbook script MUST follow the canonical four-line shape — ❌ WHY at WHERE / FIX / OVERRIDE — with exit codes from the small stable set (0 success, 1 user-actionable, 2 setup, 3 safety block).",
@@ -292,6 +430,10 @@
       "paired_hardrule": "scripts/rules/gemini-session-start.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "gemini"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Gemini CLI sessions MUST start through scripts/gemini_start.py to inject always-loaded rules.",
@@ -303,6 +445,12 @@
       "paired_hardrule": "scripts/rules/github-project-board-schema.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Every consumer project's GitHub Project board MUST carry a `Status` field with exactly five options in fixed order (Todo / In Progress / In Review / Blocked / Done) plus two worker-populated text fields (Slice ID, Last Update) populated on every Todo → In Progress transition.",
@@ -314,6 +462,12 @@
       "paired_hardrule": "scripts/rules/gitignore-entries.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer `.gitignore` must include playbook-managed entries for break-glass audit state, notification queue, and hindsight queue.",
@@ -325,6 +479,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "State-mutating actions in single-operator AI systems MUST be gated on an asynchronous human approval delivered via a chat channel (Telegram/WhatsApp/Slack/Hermes) with HMAC-validated reply correlation, a persisted `approval_decisions` row, and a TTL + escalation ladder.",
@@ -336,6 +496,12 @@
       "paired_hardrule": "scripts/rules/install-playbook.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer one-time bootstrap of the .ai-playbook submodule with a pinned semver tag.",
@@ -347,6 +513,12 @@
       "paired_hardrule": "scripts/rules/link-integrity.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "Edit",
@@ -361,6 +533,12 @@
       "paired_hardrule": "scripts/rules/mcp-render.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer MCP configs (.mcp.json + .gemini/settings.json) MUST be regenerated from mcp-servers.yaml whenever the SSOT changes; stale rendered files leak deprecated server lists into CLI sessions.",
@@ -372,6 +550,12 @@
       "paired_hardrule": "scripts/rules/migration-slot-reservation.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Monotonic / append-only slot resources (DB migration revisions, gotcha IDs, ADR numbers) MUST be reserved in `docs/openspec-slice.md` Slot reservations at Gate C; `openspec-propose` refuses to scaffold without a slot; deleted slots are never recycled.",
@@ -383,6 +567,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Notification channel adapters live under `scripts/notifications/<name>.py` and MUST export `send(payload) -> SendResult`, `healthcheck() -> bool`, `name() -> str`; adapters MUST fail open — a broken channel never blocks the emit, it logs to the fallback channel and returns a non-fatal SendResult.",
@@ -394,6 +584,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Every notification emitted by a playbook-driven actor MUST declare one of four levels (`info`, `warn`, `error`, `urgent`); `warn` and `error` notifications MUST carry the emitting OTel `trace_id` so the recipient can jump directly to the trace.",
@@ -405,6 +601,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "A notification payload MUST NOT include any value that `scripts/secrets_scan.py` would flag (API keys, tokens, credentials, cookies, PII); the L1 hook runs secrets_scan on the rendered payload before the channel adapter sends.",
@@ -416,6 +618,12 @@
       "paired_hardrule": "scripts/rules/openspec-apply-enforcement.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "PreToolUse"
@@ -429,6 +637,12 @@
       "paired_hardrule": "scripts/rules/openspec-scaffold.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repos using the openspec workflow must keep the canonical scaffold (openspec/changes/ and openspec/specs/) present at the root, even when empty.",
@@ -440,6 +654,12 @@
       "paired_hardrule": "scripts/rules/output-completeness.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Agent-emitted deliverables MUST be complete — no placeholders, ellipses, skeleton code, or \"for brevity\" abbreviations; gaps are surfaced via the `❓ CLARIFICATION NEEDED` verdict, never by emitting half-baked artefacts.",
@@ -451,6 +671,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Wave-N slices running in parallel MUST declare in `docs/openspec-slice.md` \"Anti-collision contract\" the shared files they touch and the coordination protocol (first-lander-wins, rebase order, split-paths); the contract is reviewer-enforced and surfaced in retros.",
@@ -462,6 +688,12 @@
       "paired_hardrule": "scripts/rules/pr-tracker-reference.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Every PR body MUST reference its tracker issue via `Closes",
@@ -473,6 +705,12 @@
       "paired_hardrule": "scripts/rules/pre-commit-hooks.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repos must include the ai-playbook pre-commit hooks bundle in .pre-commit-config.yaml so L1 gates (validate-pairing, check-doc-language, check-link-integrity, check-agents-md-size) fire at commit time.",
@@ -484,6 +722,12 @@
       "paired_hardrule": "scripts/rules/registry-entry.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repo must be registered in the developer's local playbook registry at ~/.ai-playbook/projects.yaml so dispatchers resolve via path lookup.",
@@ -495,6 +739,12 @@
       "paired_hardrule": "scripts/rules/secrets-handling.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "Edit",
@@ -509,6 +759,12 @@
       "paired_hardrule": "scripts/rules/skills-sync.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Consumer repos that use Claude Code skills must reflect at least one playbook skill under .claude/skills/ (via materialise_skills.py mirror or platform-native symlink).",
@@ -520,6 +776,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Before the first task commit on `slice/<change-id>`, the worker MUST run the openspec preflight checklist — `openspec_validate.py`, `validate_pairing.py`, marker `start` record, slot-reservation lookup, anti-collision contract read — and confirm exit 0 for each.",
@@ -531,6 +793,12 @@
       "paired_hardrule": "scripts/rules/subagent-envelope-schema.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [
         "Task"
@@ -544,6 +812,12 @@
       "paired_hardrule": "scripts/rules/update-documentation.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": "AIPLAYBOOK_DOC_DRIFT_SKIP",
       "triggers": [
         "Edit",
@@ -558,6 +832,12 @@
       "paired_hardrule": "scripts/rules/update-playbook.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Bump the .ai-playbook submodule pin in a consumer repository to a newer semver tag.",
@@ -569,6 +849,12 @@
       "paired_hardrule": "scripts/rules/verdict-contract.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Every QA-style artefact MUST end with exactly one canonical verdict line from a fixed four-literal set; the verdict is the machine-readable interface between worker and reviewer.",
@@ -580,6 +866,12 @@
       "paired_hardrule": "scripts/rules/verification-before-completion.rule.py",
       "has_l1": true,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "No claim of completion without fresh verification output in the same message — `✅ APPROVED` MUST be preceded by the verbatim output of the verification command (exit code cited, broadest CI scope) executed after the work being claimed.",
@@ -591,6 +883,12 @@
       "paired_hardrule": null,
       "has_l1": false,
       "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
       "break_glass_env": null,
       "triggers": [],
       "description": "Before proposing a new concept, rule, script, or pattern, the agent MUST inspect the existing surface (`docs/concepts/INDEX.md` + `docs/rules/` + `scripts/`) and cite checks plus overlaps in the SAME message as the proposal — paraphrased checks do not satisfy.",
