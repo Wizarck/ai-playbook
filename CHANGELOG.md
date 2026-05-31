@@ -4,6 +4,128 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Changed — reconcile foundation: one door for all writes (`feat/reconcile-single-door`)
+
+Collapses the parallel file-writing paths into a single idempotent operation.
+`apply_config.apply` is now THE door: bootstrap (the *first reconcile*),
+`--update`, and the new `--check` (drift-CI gate) all funnel through it.
+CHECK = `apply --dry-run`; REMEDY = `apply`. There is no second write path.
+(openspec change: `reconcile-foundation`.)
+
+- **Single entrypoint.** `scripts/bootstrap.py` no longer calls
+  `materialise_skills` / `render_mcp_configs` / `enable_caveman_default` inline
+  (all three deleted). A fresh install synthesises an "everything ON" defaults
+  bundle (caveman omitted iff `--no-caveman`) and runs it through the door;
+  `--update` resolves the consumer's bundle (`applied-config.json` or
+  `migrate_to_bundle`) and reconciles the same way. New `bootstrap --check`
+  runs a read-only reconcile and exits non-zero on drift.
+- **`*_enforce` executes its consequence as a door section.** `skills_enforce`
+  → `apply_skills_materialise`; `mcps_enforce` → `apply_mcp_render`. The
+  state file is the input; the consequence runs right after it commits. Fixes
+  the fresh-clone bug where `.claude/skills/` was never regenerated (the mirror
+  is now a section of the door, materialised on every reconcile).
+- **Additive, provenance-aware skills materialisation.** `materialise_skills`
+  no longer `rmtree`s the whole mirror. A new `scripts/_skills_manifest.py`
+  (`ai-playbook-skills-manifest/v1`, at `.ai-playbook-state/skills-manifest.json`)
+  records playbook-owned dirs per mirror; only stale owned dirs are removed,
+  user-added skills are preserved, and an absent manifest seeds
+  `present ∩ desired` (deletes nothing). `SkillsMaterialisationResult` gains
+  `user_dirs_preserved` + `stale_removed`.
+- **Transactional managed-files write.** `apply_managed_files` now stages all
+  renders in memory (a staging error aborts before any write) then commits the
+  batch under one `session_id`; a commit failure rolls the batch back via the
+  new `_backup_helper.restore_session` (restores pre-session content + deletes
+  newly-created files). `applied-config.json` does NOT advance when the batch
+  rolls back, so on-disk state and the persisted bundle never diverge.
+- **Section registry.** `apply_config.SECTION_ORDER` + `SectionResult.section_id`
+  replace the hand-numbered headers (and the duplicate `# Section 5`).
+- **Telemetry.** The door (`apply_config`) is entry-wrapped with
+  `script_emit("apply_config", main)` so a standalone invocation is observable;
+  in-process it nests under the caller's span. A child `reconcile` span carries
+  `ai_playbook.reconcile.mode` (`first_run` / `update` / `check`) — modes are
+  distinguished by attribute, not by a separate slug, preserving metric
+  continuity. The managed-files transaction emits
+  `reconcile.managed_files.{staged,stage_failed,committed,rolled_back}` events
+  with canonical `ai_playbook.managed_files.*` attributes.
+
+### Changed — provenance conflict detection + agnostic settings (`feat/reconcile-single-door`)
+
+- **Never overwrite silently.** The door now detects when a consumer edited a
+  sealed canonical block (two-state: the `sha=` in the block's own on-disk marker
+  vs the SHA of its current content — no external manifest). A drifted block with
+  no curate decision is a CONFLICT: the file is skipped, the section reports
+  failure, and `apply --dry-run` (= `bootstrap --check`, the drift-CI gate) fails
+  on it. `keep_mine` restores + re-seals the consumer's content; `take_playbook`
+  overwrites with a backup. Conflicts are per-file skips, not a full-batch abort,
+  but still block `applied-config.json` from advancing past unresolved drift.
+- **`.claude/settings.json` folded into the door.** New `_renderers/settings.py`
+  does an identity deep-merge: it guarantees the openspec-apply-enforce PreToolUse
+  invariant and projects the agnostic `settings` surface while preserving every
+  consumer-authored key. Byte-level no-op when nothing changes (formatting kept).
+  The legacy `claude-settings.rule.py apply` is superseded; its `validate` stays
+  the L1 gate and now matches the enforce hook by command identity under any
+  matcher (fixing the `Edit|Write|MultiEdit|Bash` template vs exact-matcher rule
+  mismatch — no more false drift / duplicate entries).
+- **Model-agnostic `settings` bundle key** (`hooks[]` with optional per-item
+  `targets`, `permissions_allow`, `additional_directories`). One logical surface,
+  projected per model. `claude_settings_extras` kept for backwards-compat
+  (union-merged into settings.json permissions). Bootstrap's synth defaults carry
+  `settings: {}` so the door owns `.claude/settings.json` from the first reconcile.
+- **Gemini merge-preserve.** `mcp/render.py` now replaces ONLY `mcpServers` in an
+  existing `.gemini/settings.json`, preserving user keys (theme/telemetry/hooks);
+  Gemini hooks are not yet projected (capability-gated). Cursor degrades (no
+  settings/MCP target — the door never invents `.cursor/mcp.json`).
+- **caveman transaction-safety.** A pre-flight snapshots caveman's enabled-state
+  before any mutation; when a managed-files batch rolls back after caveman ran,
+  the report surfaces the exact manual reconcile step. caveman is NOT reordered to
+  run last (that would break the locked caveman→MCP-render ordering the
+  `mcp_shrink` post-hook depends on).
+- **Conflict telemetry.** `reconcile.managed_files.conflict` event (file +
+  conflicting block ids); the staged event carries a `conflicts` count.
+
+### Changed — compare-and-swap round-trip + config-UI cleanup (`feat/reconcile-single-door`)
+
+- **Optimistic concurrency (compare-and-swap).** `build_files_state.py` now emits
+  a `\n`-normalised whole-file `file_sha` per managed file; the config UI stamps
+  those into `bundle.base_shas`; `apply_config` recomputes each file's on-disk sha
+  before writing and SKIPS it (per-file conflict, surfaced in `--check`) when it
+  diverged since the UI loaded — so a structured config edited out-of-band is
+  never silently clobbered. Complements the marker-block conflict gate.
+  `reconcile.managed_files.cas_conflict` telemetry event; optional `base_shas`
+  schema key.
+- **Removed the stale `tools/config-ui/`.** It was an untracked working-tree
+  leftover from the b37f744 move to repo root; deleting it only cleaned local
+  cruft (no tracked content, no history rewrite).
+
+### Added — dispatcher curate (`feat/reconcile-single-door`)
+
+- **Structural drift engine** (`scripts/_dispatcher_shape.py`). Detects loose
+  prose (>10 substantive lines, principle #2) living OUTSIDE marker blocks in a
+  dispatcher (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.cursor`), with per-chunk
+  provenance + a suggested destination. Drift is defined STRUCTURALLY (D3) — once
+  prose is moved to a leaf doc (exempt), a re-run is a no-op, so curate converges.
+- **Wrap-not-rewrite adoption** (`scripts/_renderers/_wrap_legacy.py`).
+  `seed_markers` appends only the canonical blocks a legacy file is MISSING
+  (sealed sha), preserving its prose + existing blocks verbatim. Idempotent.
+- **BASE snapshot** (`scripts/_backup_helper.py`, D8). `backup_base` captures the
+  pre-playbook content of a file once (tag `base`, central, never pruned);
+  `restore_base` is the uninstall recovery path.
+- **`curate` — the LLM-assisted, human-gated, one-shot consolidator**
+  (`scripts/curate.py`, deliberately NOT importable from `apply`). detect →
+  announce → guardrail (`secrets_scan` + `prompt_injection_filter`, fails safe;
+  tainted prose never reaches the model) → LLM proposes a `curate-plan/v1` of
+  VERBATIM moves → `_curate_validate` (anti-fabrication substring check, no path
+  traversal, leaf-doc/AGENTS dest, pointer-shaped) → BASE snapshot → move prose +
+  leave thin pointers. `--dry-run` previews; `--yes` applies; default refuses
+  without consent. The LLM never writes; it only returns a plan.
+
+Deferred to follow-up changes: trimming `copy_templates` to a minimal seed, the
+formal idempotency / clone-repro / telemetry-emission tests, the config-UI
+Settings/Config-files tabs + aggregated `.md` drift view + Cursor "n/a" badge
+(needs in-browser verification), wiring `collect_drift` into `ai_playbook_check` /
+`apply --dry-run` as a `curate_candidate` surface, and `uninstall.py` preferring
+the base-tagged record via `restore_base`.
+
 ## [0.19.7] — 2026-05-27 — bundle-driven managed-files redesign
 
 ### Added — bundle-driven managed-files redesign (`feat/bootstrap-dispatch`)

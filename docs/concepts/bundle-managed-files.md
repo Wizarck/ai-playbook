@@ -76,10 +76,23 @@ JSON5 / JS:
 
 ## End-to-end flow
 
+> **One door.** Fresh install, `--update`, and `--check` all funnel through the
+> same operation: `apply_config.apply` (the *reconcile* door). CHECK is
+> `apply --dry-run`; REMEDY is `apply`. There is no second file-writing path.
+> caveman activation, skills materialisation, and MCP render are ordered
+> *sections* of the door (`SECTION_ORDER` in `scripts/apply_config.py`), not
+> separate inline steps. `bootstrap` is just the *first reconcile* plus the
+> one-time `git submodule add` precondition.
+
 ### Fresh install (`python -m scripts.bootstrap <project>`)
 
 1. `copy_templates` copies the templates as before. Markers are baked in.
-2. `enable_caveman_default` runs (unchanged from prior versions).
+2. `reconcile(first_run=True)` synthesises the "everything ON" defaults bundle
+   (all skills + MCP servers enforced; caveman default-on with every component,
+   omitted iff `--no-caveman`) and runs it through `apply_config.apply`. The
+   synthesised bundle carries no managed-file trigger sections, so the
+   freshly-copied templates are left untouched; caveman activation + skills
+   materialise + MCP render run as the door's sections.
 3. The freshly-bootstrapped consumer has marker blocks visible in
    AGENTS.md / .gitignore / etc.
 
@@ -89,15 +102,25 @@ JSON5 / JS:
    `migrate_to_bundle` to extract consumer state into a bundle (parses
    AGENTS.md sections, .gitignore lines, mcp-servers.project.yaml entries,
    .claude/settings.local.json permissions).
-2. Invoke `apply_config` on the resolved bundle. Per managed file:
+2. `reconcile(first_run=False)` invokes `apply_config.apply` on the resolved
+   bundle — the same door as fresh install. Per managed file:
    - Read template from `<playbook>/templates/new-project/<file>.tmpl`.
    - Compute substitutions from `<consumer>/AGENTS.md` frontmatter.
    - Run the renderer for that file.
    - If destination exists AND content differs from rendered output:
      `backup_once` → atomic write.
    - Update `bundle.file_states[<rel_path>]` with the new SHA manifest.
-3. Re-materialise skills + re-render MCP configs (idempotent).
-4. Advisory drift check.
+   The door also re-applies caveman intent, re-materialises skills, and
+   re-renders MCP configs as its own sections (idempotent).
+3. Advisory drift check.
+
+### Drift-CI gate (`bootstrap --check`)
+
+1. `reconcile(first_run=False)` runs `apply_config.apply` in `--dry-run` mode
+   against an existing consumer (resolving its `applied-config.json`, or
+   synthesising defaults when none exists). Nothing is written.
+2. The dry-run report IS the drift report; the command exits non-zero when any
+   section differs from desired state.
 
 ### Curating via the UI
 

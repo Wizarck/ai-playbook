@@ -35,7 +35,12 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._backup_helper import BackupRecord, read_index, restore_backup
+from scripts._backup_helper import (
+    BackupRecord,
+    base_record_for,
+    read_index,
+    restore_backup,
+)
 from scripts._marker_blocks import (
     CommentStyle,
     parse_blocks,
@@ -75,12 +80,24 @@ def _oldest_backup_for(records: list[BackupRecord], rel_path: str) -> BackupReco
     return matches[0] if matches else None  # records are oldest-first
 
 
+def _restore_record_for(
+    consumer_root: Path, records: list[BackupRecord], rel_path: str,
+) -> BackupRecord | None:
+    """Prefer the explicit BASE (pre-playbook) snapshot; fall back to the oldest
+    ordinary backup. The base tag is the authoritative pre-playbook anchor (D8)
+    even when later backups have shuffled the index ordering."""
+    base = base_record_for(consumer_root, rel_path)
+    if base is not None:
+        return base
+    return _oldest_backup_for(records, rel_path)
+
+
 def restore_originals(consumer_root: Path, report: UninstallReport) -> None:
     records = read_index(consumer_root)
     if not records:
         return
     for rel in MANAGED_PATHS:
-        record = _oldest_backup_for(records, rel)
+        record = _restore_record_for(consumer_root, records, rel)
         if record is None:
             continue
         try:
@@ -210,7 +227,7 @@ def uninstall(
     if dry_run:
         records = read_index(consumer_root)
         for rel in MANAGED_PATHS:
-            if restore_from_bak and _oldest_backup_for(records, rel) is not None:
+            if restore_from_bak and _restore_record_for(consumer_root, records, rel) is not None:
                 report.restored.append(f"(dry-run) would restore {rel}")
             elif (consumer_root / rel).is_file():
                 report.stripped.append(f"(dry-run) would strip markers from {rel}")

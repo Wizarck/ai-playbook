@@ -37,14 +37,17 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 # Force UTF-8 stdio — sigils in output.
 for _stream in (sys.stdout, sys.stderr):
@@ -55,6 +58,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 from scripts.materialise_skills import materialise_skills  # noqa: E402
+from scripts.tracing import trace_emit  # noqa: E402
 
 SCRIPT_BASENAME = "bootstrap.py"
 GATE_NAME = "submodule-unreachable"
@@ -102,8 +106,9 @@ class BootstrapArgs:
     dry_run: bool
     refresh_skills: bool = False      # If True, only run skills materialisation
                                       # against the resolved target dir + exit.
-    no_caveman: bool = False          # If True, skip the default-on caveman
-                                      # activation step (see enable_caveman_default).
+    no_caveman: bool = False          # If True, omit caveman from the synthesised
+                                      # defaults bundle so the door's apply_caveman
+                                      # no-ops (see _synthesize_defaults_bundle).
     from_config: Path | None = None   # If set, apply an ai-playbook-config/v1 bundle
                                       # after the base bootstrap flow completes.
                                       # See scripts/apply_config.py.
@@ -117,11 +122,16 @@ class BootstrapArgs:
                                       # already-bootstrapped consumer: skip
                                       # submodule-add + copy_templates (those
                                       # would clobber consumer customisations);
-                                      # instead invoke apply_config on the
-                                      # existing applied-config.json (or the
-                                      # one produced by migrate_to_bundle if
-                                      # absent), then re-materialise skills +
-                                      # re-render MCP configs + advisory check.
+                                      # instead reconcile through the single
+                                      # apply_config door against the existing
+                                      # applied-config.json (or the one produced
+                                      # by migrate_to_bundle if absent).
+    check: bool = False               # If True, run a read-only reconcile
+                                      # (apply --dry-run) against an existing
+                                      # consumer and exit non-zero when any
+                                      # section reports drift. This is the
+                                      # drift-CI gate: same code path as apply,
+                                      # report-only. Implies no writes.
 
 
 # ---------------------------------------------------------------------------
@@ -426,12 +436,14 @@ def run_doctor(target_dir: Path, dry_run: bool) -> None:
     )
 
 
-# Components that bootstrap turns on by default. The playbook ships caveman
-# default-on: response_style materialises the AGENTS.md ruleset block, mcp_shrink
-# wraps the just-rendered .mcp.json + .gemini/settings.json via the post-render
-# hook in scripts/mcp/render.py, and the remaining flags advertise the related
-# skills. Consumers can opt-out with `--no-caveman` at bootstrap time or run
-# `python -m scripts.caveman off` later.
+# Components the first reconcile turns on by default (the "everything ON"
+# defaults synthesised when no user bundle exists). response_style materialises
+# the AGENTS.md ruleset block, mcp_shrink wraps the rendered .mcp.json +
+# .gemini/settings.json via the post-render hook in scripts/mcp/render.py, and
+# the remaining flags advertise the related skills. Consumers opt-out with
+# `--no-caveman` at bootstrap time (omits caveman from the synthesised bundle)
+# or run `python -m scripts.caveman off` later. The actual activation now
+# happens inside the door (apply_config.apply_caveman), not here.
 DEFAULT_CAVEMAN_COMPONENTS = (
     "response_style",
     "compress_docs",
@@ -440,49 +452,6 @@ DEFAULT_CAVEMAN_COMPONENTS = (
     "review_caveman",
     "mcp_shrink",
 )
-
-
-def enable_caveman_default(target_dir: Path, dry_run: bool) -> None:
-    """Activate caveman by default for the freshly-bootstrapped consumer.
-
-    Best-effort: any failure prints a warning but does NOT abort bootstrap —
-    same discipline as the skills-materialise step. The consumer can always
-    re-run `python -m scripts.caveman on` against their project root.
-    """
-    components_csv = ",".join(DEFAULT_CAVEMAN_COMPONENTS)
-    if dry_run:
-        print(
-            f"(dry-run) Would activate caveman default-on for {target_dir} "
-            f"(--mode full --components {components_csv})."
-        )
-        return
-    playbook_root = find_playbook_root()
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
-    cmd = [
-        sys.executable, "-m", "scripts.caveman", "on",
-        "--mode", "full",
-        "--components", components_csv,
-        "--project", str(target_dir),
-    ]
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", env=env,
-        )
-    except FileNotFoundError:
-        print(
-            f"⚠️ python not found on PATH; skipping caveman default-on for {target_dir}. "
-            "Run `python -m scripts.caveman on` manually once the env is ready."
-        )
-        return
-    if result.returncode != 0:
-        first_err = (result.stderr or "").splitlines()[0] if result.stderr else "<empty>"
-        print(
-            f"⚠️ caveman default-on failed for {target_dir} (exit {result.returncode}); "
-            f"bootstrap continues. First stderr line: {first_err}"
-        )
-        return
-    print(f"→ caveman: default-on (mode=full, components={components_csv}).")
 
 
 def run_discover(target_dir: Path, dry_run: bool) -> None:
@@ -619,16 +588,30 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                              "config-ui/) after the base bootstrap flow. Mutates "
                              "rules-toggle.json + caveman.json (via its CLI) + "
                              "feature-flags.env. See scripts/apply_config.py.")
+    parser.add_argument("--check", action="store_true",
+                        help="Read-only reconcile (apply --dry-run) against an "
+                             "existing consumer at --path (or cwd): report drift "
+                             "without writing, and exit non-zero when any section "
+                             "differs. This is the drift-CI gate — same code path "
+                             "as a real apply. project_name is optional under "
+                             "--check (taken from the consumer).")
     add_break_glass_flag(parser)
     ns = parser.parse_args(argv)
     project_name = ns.project_name
     if not project_name:
-        if not ns.refresh_skills and not ns.update:
+        if not ns.refresh_skills and not ns.update and not ns.check:
             parser.error(
-                "project_name is required unless --refresh-skills or --update is used"
+                "project_name is required unless --refresh-skills, --update, or "
+                "--check is used"
             )
-        # Use a placeholder; --refresh-skills + --update don't validate the slug.
-        project_name = "_update" if ns.update else "_refresh-skills"
+        # Use a placeholder; --refresh-skills / --update / --check don't validate
+        # the slug (they operate on an existing consumer tree).
+        if ns.update:
+            project_name = "_update"
+        elif ns.check:
+            project_name = "_check"
+        else:
+            project_name = "_refresh-skills"
     return BootstrapArgs(
         project_name=project_name,
         path=ns.path,
@@ -643,18 +626,34 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         from_config=ns.from_config,
         no_check=ns.no_check,
         update=ns.update,
+        check=ns.check,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
+    # --check short-circuit: read-only reconcile (apply --dry-run) against an
+    # already-bootstrapped consumer. This is the drift-CI gate — same code path
+    # as a real apply, but it writes nothing and exits non-zero when any section
+    # reports drift. No submodule-add, no template copy, no advisory check
+    # (the dry-run report IS the check).
+    if args.check:
+        target_dir = (args.path or Path.cwd()).expanduser().resolve()
+        if not target_dir.is_dir():
+            print(
+                f"❌ --check target {target_dir} is not a directory",
+                file=sys.stderr,
+            )
+            return 1
+        return reconcile(target_dir, args, first_run=False)
+
     # --update short-circuit: skip submodule-add + copy_templates (which would
-    # clobber consumer customisations) and run the safe pipeline:
-    #   1. migrate_to_bundle if applied-config.json is absent
-    #   2. apply_config on the (existing or migrated) bundle
-    #   3. materialise_skills + render_mcp_configs (idempotent)
-    #   4. ai_playbook_check --check (advisory)
+    # clobber consumer customisations) and reconcile through the single door:
+    #   1. resolve the bundle (applied-config.json, or migrate_to_bundle)
+    #   2. apply_config.apply — which itself re-materialises skills + re-renders
+    #      MCP configs + re-applies caveman intent as its own sections
+    #   3. ai_playbook_check --check (advisory)
     if args.update:
         target_dir = (args.path or Path.cwd()).expanduser().resolve()
         if not target_dir.is_dir():
@@ -785,43 +784,19 @@ def main(argv: list[str] | None = None) -> int:
     run_doctor(target_dir, dry_run=args.dry_run)
     run_discover(target_dir, dry_run=args.dry_run)
 
-    # Step 4.5: skills materialisation (RFC-0001). Opt-in via AGENTS.md
-    # `skills_sources`; consumer pre-Phase-5 will no-op silently. Failures
-    # warn but don't abort the bootstrap.
-    try:
-        skills_result = materialise_skills(target_dir, dry_run=args.dry_run)
-        if not skills_result.ok:
-            print(
-                f"⚠️ skills materialisation failed for {target_dir}; "
-                f"bootstrap continues. Errors: "
-                f"{'; '.join(skills_result.errors)[:300]}",
-                file=sys.stderr,
-            )
-    except Exception as exc:  # noqa: BLE001 — never abort bootstrap on skills errors
-        print(
-            f"⚠️ skills materialisation raised {type(exc).__name__}: {exc}; "
-            "bootstrap continues.",
-            file=sys.stderr,
-        )
-
-    # Step 4.6: caveman default-on. MUST run before step 5 so that
-    # render_mcp_configs picks up the just-written caveman.json state and
-    # auto-wraps the freshly-rendered .mcp.json + .gemini/settings.json with
-    # `caveman-shrink` (post-render hook in scripts/mcp/render.py). Skipped
-    # entirely when --no-caveman is passed.
-    if args.no_caveman:
-        print("→ caveman: skipped (--no-caveman). Run `python -m scripts.caveman on` to activate later.")
-    else:
-        enable_caveman_default(target_dir, dry_run=args.dry_run)
-
-    # Step 5: render .mcp.json + .gemini/settings.json from the merged layers.
-    render_mcp_configs(target_dir, args.project_name, args.dry_run)
-
-    # Step 6: apply ai-playbook-config bundle (rules + features + global_flags)
-    # if --from-config was passed. Runs LAST so any caveman state from step 4.6
-    # is overridden by the bundle's declared intent.
-    if args.from_config is not None:
-        apply_from_config(target_dir, args.from_config, dry_run=args.dry_run)
+    # Steps 4.5–6 collapsed into the single reconcile door.
+    #
+    # Skills materialisation, MCP render, and caveman default-on used to run
+    # here as separate inline calls. They are now SECTIONS of the one operation
+    # (apply_config.apply); bootstrap is the *first reconcile*. On a fresh
+    # install with no --from-config bundle we synthesise the defaults (every
+    # feature ON; caveman omitted iff --no-caveman) and apply them. Section
+    # ordering inside the door keeps caveman before MCP render (so the
+    # post-render shrink hook sees caveman.json) and managed-files last; a
+    # synthesised defaults bundle carries no managed-file trigger sections, so
+    # the freshly-copied templates are left untouched. See SECTION_ORDER in
+    # scripts/apply_config.py.
+    reconcile(target_dir, args, first_run=True)
 
     # Step 7: post-bootstrap drift report (advisory). Runs ai-playbook-check
     # in validate-only mode so the operator sees any rule drift (bare-layout,
@@ -838,162 +813,215 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def run_update(target_dir: Path, args: BootstrapArgs) -> int:
-    """Run the consumer-update pipeline (no submodule-add, no copy_templates).
+# ---------------------------------------------------------------------------
+# The single reconcile door
+#
+# bootstrap (the first reconcile), --update, and --check all funnel through
+# scripts.apply_config.apply. The door owns caveman activation, skills
+# materialisation, MCP render, and managed-file rendering as ordered sections
+# (see SECTION_ORDER in scripts/apply_config.py). There is no second
+# file-writing path: CHECK = apply --dry-run, REMEDY = apply.
+# ---------------------------------------------------------------------------
 
-    The update flow is the safe inverse of fresh install: it presumes the
-    consumer already has a populated tree (AGENTS.md, .gitignore, etc.) and
-    is bumping the playbook submodule to a newer tag. It must NEVER clobber
-    consumer customisations.
 
-    Pipeline
-    --------
-    1. Locate or build the applied-config bundle. If
-       ``.ai-playbook/applied-config.json`` already exists, use it directly.
-       Otherwise, run the migrate flow to derive a bundle from the consumer's
-       current files.
-    2. Invoke ``apply_config`` on the resolved bundle. This re-renders the
-       managed files (AGENTS.md, .gitignore, .pre-commit, .coderabbit,
-       .claude/settings.local.json, mcp-servers.project.yaml) with current
-       playbook templates + consumer state. Each file is backed up first.
-    3. Re-materialise skills + re-render MCP configs (idempotent).
-    4. Advisory drift check via ``ai_playbook_check --check``.
+def _synthesize_defaults_bundle(args: BootstrapArgs) -> dict[str, Any]:
+    """Build the "everything ON" defaults bundle for a consumer with no config.
 
-    Returns the bootstrap exit code (0 on success, 1 on apply failure).
+    The first reconcile has nothing on disk to read, so it materialises the
+    playbook's defaults: all skills + MCP servers enforced (empty opt-out
+    lists), and caveman default-on with every component — unless --no-caveman,
+    which omits the caveman section entirely (so the door's apply_caveman
+    no-ops rather than running `caveman off` against a never-activated tree).
+
+    Carries NO content-bearing managed-file trigger sections (gitignore_extras,
+    project_meta, …) so those stay no-ops and the freshly-copied templates are
+    left exactly as bootstrap wrote them. The ONE exception is ``settings: {}``,
+    which makes the door own ``.claude/settings.json`` from the first reconcile:
+    its renderer only re-serialises on a real merge, so against the just-copied
+    template (which already carries the PreToolUse invariant) it is a byte-level
+    no-op — but it guarantees the enforce hook on every subsequent reconcile.
     """
-    print(f"→ ai-playbook update for {target_dir}")
-    print(f"   mode: {'dry-run' if args.dry_run else 'live'}")
+    bundle: dict[str, Any] = {
+        "schema": "ai-playbook-config/v1",
+        "generated_by": "bootstrap-reconcile",
+        "skills_enforce": {"disabled": []},
+        "mcps_enforce": {"disabled": []},
+        "settings": {},
+    }
+    if not args.no_caveman:
+        bundle["features"] = {
+            "caveman": {
+                "enabled": True,
+                "mode": "full",
+                "components": {c: True for c in DEFAULT_CAVEMAN_COMPONENTS},
+            }
+        }
+    return bundle
 
-    applied_bundle_path = target_dir / ".ai-playbook" / "applied-config.json"
-    bundle_path_to_use: Path
 
-    if applied_bundle_path.is_file():
-        print(f"→ found existing bundle: {applied_bundle_path}")
-        bundle_path_to_use = applied_bundle_path
-    else:
-        print("→ no applied-config.json — invoking migrate_to_bundle to extract state")
-        if args.dry_run:
-            print("(dry-run) would invoke migrate_to_bundle + apply_config")
-        else:
-            playbook_root = find_playbook_root()
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
-            cmd = [
-                sys.executable, "-m", "scripts.migrate_to_bundle",
-                "--target", str(target_dir),
-            ]
-            try:
-                rc = subprocess.run(cmd, env=env, check=False).returncode
-            except FileNotFoundError:
-                print("⚠️ python not found on PATH; cannot run migrate_to_bundle")
-                return 2
-            if rc != 0:
-                print(f"⚠️ migrate_to_bundle exited {rc}; aborting update")
-                return rc
-        bundle_path_to_use = target_dir / ".ai-playbook-state" / "migrated-bundle.json"
-        if not bundle_path_to_use.is_file() and not args.dry_run:
-            print(f"❌ expected bundle not produced at {bundle_path_to_use}")
-            return 1
+def _write_temp_bundle(bundle: dict[str, Any]) -> Path:
+    """Serialise a synthesised/derived bundle to a tempfile apply() can read.
 
-    # Step 1: apply_config on the resolved bundle.
-    if args.dry_run:
-        print(f"(dry-run) would apply_config {bundle_path_to_use}")
-    else:
-        playbook_root = find_playbook_root()
-        env = os.environ.copy()
-        env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
-        cmd = [
-            sys.executable, "-m", "scripts.apply_config",
-            str(bundle_path_to_use), "--target", str(target_dir),
-        ]
-        print(f"→ {' '.join(cmd)}")
-        try:
-            rc = subprocess.run(cmd, env=env, check=False).returncode
-        except FileNotFoundError:
-            return 2
-        if rc not in (0,):
-            print(f"⚠️ apply_config exited {rc}; continuing with downstream steps")
+    apply() takes a path, not an in-memory dict, so the synthesised defaults
+    are written to a throwaway tempfile (outside the consumer tree, so even a
+    dry-run reconcile leaves no consumer-visible artifact). The caller unlinks
+    it once apply() has read it.
+    """
+    fd, name = tempfile.mkstemp(prefix="ai-playbook-reconcile-", suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(bundle, fh, ensure_ascii=False, indent=2)
+    return Path(name)
 
-    # Step 2: skills materialisation (idempotent).
+
+def _resolve_bundle_path(
+    target_dir: Path, args: BootstrapArgs, *, first_run: bool
+) -> tuple[Path | None, bool]:
+    """Resolve the bundle the door should consume. Returns (path, is_temp).
+
+    Precedence:
+      --from-config <path>          → that bundle (never temp)
+      applied-config.json present   → reuse the last-applied state
+      first_run OR dry-run          → synthesise defaults (temp file)
+      live update, no prior state   → migrate_to_bundle to derive desired state
+
+    ``(None, False)`` signals a fatal resolution error (caller returns non-zero).
+    """
+    if args.from_config is not None:
+        return args.from_config.expanduser().resolve(), False
+
+    applied = target_dir / ".ai-playbook" / "applied-config.json"
+    if applied.is_file():
+        return applied, False
+
+    dry = args.dry_run or args.check
+    if first_run or dry:
+        # Nothing on disk to read: synthesise the "everything ON" defaults.
+        # For a dry-run check this yields a meaningful "what the playbook would
+        # set" report without writing migrate output to the consumer tree.
+        return _write_temp_bundle(_synthesize_defaults_bundle(args)), True
+
+    # Live update with no applied-config.json: derive desired state via migrate.
+    print("→ no applied-config.json — invoking migrate_to_bundle to extract state")
+    playbook_root = find_playbook_root()
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
+    cmd = [sys.executable, "-m", "scripts.migrate_to_bundle", "--target", str(target_dir)]
     try:
-        skills_result = materialise_skills(target_dir, dry_run=args.dry_run)
-        if not skills_result.ok:
-            print(
-                f"⚠️ skills materialisation reported issues: "
-                f"{'; '.join(skills_result.errors)[:300]}",
-                file=sys.stderr,
-            )
-    except Exception as exc:  # noqa: BLE001
-        print(f"⚠️ skills materialisation raised {type(exc).__name__}: {exc}", file=sys.stderr)
+        rc = subprocess.run(cmd, env=env, check=False).returncode
+    except FileNotFoundError:
+        print("⚠️ python not found on PATH; cannot run migrate_to_bundle", file=sys.stderr)
+        return None, False
+    if rc != 0:
+        print(f"⚠️ migrate_to_bundle exited {rc}; aborting reconcile", file=sys.stderr)
+        return None, False
+    migrated = target_dir / ".ai-playbook-state" / "migrated-bundle.json"
+    if not migrated.is_file():
+        print(f"❌ expected bundle not produced at {migrated}", file=sys.stderr)
+        return None, False
+    return migrated, False
 
-    # Step 3: re-render MCP configs.
-    render_mcp_configs(target_dir, args.project_name, args.dry_run)
 
-    # Step 4: advisory drift check.
+def _apply_through_door(target_dir: Path, bundle_path: Path, *, dry_run: bool):
+    """Invoke the one door (apply_config.apply) in-process. None on fatal error."""
+    from scripts import apply_config as ac
+    try:
+        return ac.apply(bundle_path, target=target_dir, dry_run=dry_run)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"❌ reconcile/apply failed: {exc}", file=sys.stderr)
+        return None
+
+
+def reconcile(target_dir: Path, args: BootstrapArgs, *, first_run: bool) -> int:
+    """The single write door — bootstrap, --update, and --check all funnel here.
+
+    - first_run / fresh install: synthesise the "everything ON" defaults (or use
+      --from-config) and apply. Best-effort — section failures warn but do not
+      change the exit code (submodule/template errors already gated the
+      fresh-install path before reaching here).
+    - --update: resolve the consumer's bundle (applied-config.json or migrate)
+      and apply. Best-effort.
+    - --check: dry-run apply; exit non-zero when any section reports drift —
+      this is the drift-CI gate, same code path as a real apply, report-only.
+    """
+    dry = args.dry_run or args.check
+    # One slug ("bootstrap"); the mode is a span attribute, not a separate slug,
+    # so first-reconcile / update / check stay distinguishable in telemetry
+    # without breaking metric continuity. Nests under the entry span created by
+    # script_emit("bootstrap", main).
+    mode = "check" if args.check else ("first_run" if first_run else "update")
+    if not first_run:
+        label = "check (dry-run reconcile)" if args.check else "update"
+        print(f"→ ai-playbook {label} for {target_dir}")
+        print(f"   mode: {'dry-run' if dry else 'live'}")
+
+    with trace_emit.span(
+        "reconcile",
+        {
+            "ai_playbook.reconcile.mode": mode,
+            "ai_playbook.reconcile.dry_run": dry,
+        },
+    ) as rspan:
+        bundle_path, is_temp = _resolve_bundle_path(target_dir, args, first_run=first_run)
+        if bundle_path is None:
+            return 1
+        try:
+            report = _apply_through_door(target_dir, bundle_path, dry_run=dry)
+        finally:
+            if is_temp:
+                try:
+                    bundle_path.unlink()
+                except OSError:
+                    pass
+        if rspan is not None and report is not None:
+            try:
+                rspan.set_attribute("ai_playbook.reconcile.ok", bool(report.ok))
+                rspan.set_attribute("ai_playbook.reconcile.sections", len(report.sections))
+            except Exception:  # noqa: BLE001 — telemetry must never break reconcile
+                pass
+
+    if report is None:
+        return 1
+    print(report.to_markdown())
+
+    if args.check:
+        # CI gate: any section drift / failure → non-zero exit.
+        return 0 if report.ok else 1
+    if not report.ok:
+        print(
+            "⚠️ reconcile: one or more sections reported issues; see report above. "
+            "Re-run `python -m scripts.apply_config <bundle> --target <root>` after "
+            "fixing the issue.",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def run_update(target_dir: Path, args: BootstrapArgs) -> int:
+    """Update an already-bootstrapped consumer through the single reconcile door.
+
+    No submodule-add, no copy_templates (those would clobber consumer
+    customisations). Reconcile resolves the consumer's bundle
+    (.ai-playbook/applied-config.json, or migrate_to_bundle when absent) and
+    funnels it through apply_config.apply — which re-applies caveman intent,
+    re-materialises skills, re-renders MCP configs, and re-renders managed files
+    as its own ordered sections. The advisory drift check runs last.
+
+    Returns 0 on success (best-effort, matching the fresh-install discipline);
+    non-zero only when the bundle could not be resolved.
+    """
+    rc = reconcile(target_dir, args, first_run=False)
+    if rc != 0:
+        return rc
+
     if not args.no_check:
         run_playbook_check(target_dir, dry_run=args.dry_run)
 
     print()
     print("✅ Update complete.")
-    print("   - Managed files re-rendered from the bundle. Backups in .bak (configured location).")
-    print("   - Skills + MCP configs regenerated.")
+    print("   - Managed files, skills + MCP configs reconciled from the bundle "
+          "via the single door. Backups in .bak (configured location).")
     print("   - Restart Claude Code / Gemini CLI sessions if AGENTS.md or .claude/* changed.")
     return 0
-
-
-def apply_from_config(target_dir: Path, bundle_path: Path, *, dry_run: bool) -> None:
-    """Invoke scripts.apply_config on the bundle. Best-effort — prints the report.
-
-    Failures in individual sections are surfaced but do not abort bootstrap;
-    the consumer is left in a partially-configured state and can re-run
-    `python -m scripts.apply_config <bundle>` after fixing the issue.
-    """
-    if dry_run:
-        print(f"(dry-run) Would apply config bundle: {bundle_path}")
-        return
-    print(f"→ apply_config: applying {bundle_path}")
-    try:
-        from scripts import apply_config as ac
-        report = ac.apply(bundle_path, target=target_dir, dry_run=False)
-    except (FileNotFoundError, ValueError) as exc:
-        print(f"⚠️ apply_config failed: {exc}")
-        return
-    print(report.to_markdown())
-    if not report.ok:
-        print("⚠️ apply_config: one or more sections failed; see report above. "
-              "Re-run `python -m scripts.apply_config <bundle>` after fixing the issue.")
-
-
-def render_mcp_configs(target_dir: Path, project_name: str, dry_run: bool) -> None:
-    """Run scripts/mcp/render.py against the new consumer to produce .mcp.json
-    + .gemini/settings.json from the 3-layer merge. Best-effort — failures
-    print a warning + leave the consumer with its template files only."""
-    if dry_run:
-        print(f"(dry-run) Would render .mcp.json + .gemini/settings.json for {project_name}.")
-        return
-    playbook_root = find_playbook_root()
-    cmd = [
-        sys.executable, "-m", "scripts.mcp.render",
-        "--project", project_name,
-        "--playbook-root", str(playbook_root),
-        "--consumer-root", str(target_dir),
-    ]
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(playbook_root) + os.pathsep + env.get("PYTHONPATH", "")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env)
-    except FileNotFoundError:
-        print(f"⚠️ python not found on PATH; skipping mcp/render for {project_name}.")
-        return
-    if result.returncode != 0:
-        print(
-            f"⚠️ mcp/render.py failed for {project_name} "
-            f"(exit {result.returncode}); first stderr line: "
-            f"{(result.stderr or '').splitlines()[0] if result.stderr else '<empty>'}"
-        )
-        return
-    print(f"✓ rendered .mcp.json + .gemini/settings.json for {project_name}.")
-
 
 
 if __name__ == "__main__":

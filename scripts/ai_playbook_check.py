@@ -79,6 +79,10 @@ class CheckReport:
     pinned_tag: str | None = None
     latest_tag: str | None = None
     upgrade_available: bool = False
+    # Read-only curate candidates: dispatcher .md files carrying loose prose
+    # that `python -m scripts.curate` could consolidate. Advisory only — curate
+    # is human-gated, so this NEVER affects has_drift()/the CI exit code.
+    curate_candidates: list[dict[str, Any]] = field(default_factory=list)
 
     def actionable_rules(self) -> list[RuleResult]:
         return [r for r in self.rules if r.status == STATUS_DRIFT and r.apply_available]
@@ -313,7 +317,43 @@ def run_checks(
     if pinned and latest and latest > pinned:
         report.upgrade_available = True
 
+    # Curate candidates — structural dispatcher drift (advisory; never fails CI).
+    report.curate_candidates = _collect_curate_candidates(target)
+
     return report
+
+
+def _collect_curate_candidates(target: Path) -> list[dict[str, Any]]:
+    """Detect loose prose in the consumer's dispatcher .md files (read-only).
+
+    Best-effort: any error yields an empty list so the L4 check never breaks on
+    the advisory curate surface.
+    """
+    try:
+        from scripts._dispatcher_shape import collect_drift, is_dispatcher_file
+    except Exception:  # noqa: BLE001
+        return []
+    candidates = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".cursorrules")
+    sources: dict[str, str] = {}
+    for rel in candidates:
+        p = target / rel
+        if p.is_file() and is_dispatcher_file(rel):
+            try:
+                sources[rel] = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+    try:
+        drift = collect_drift(sources)
+    except Exception:  # noqa: BLE001
+        return []
+    return [
+        {
+            "rel_path": d.rel_path,
+            "chunks": len(d.chunks),
+            "suggestions": sorted({c.suggestion for c in d.chunks}),
+        }
+        for d in drift
+    ]
 
 
 def _truncate(s: str, n: int) -> str:
@@ -350,6 +390,13 @@ def render_text(report: CheckReport) -> str:
             if r.status == STATUS_MANUAL_ONLY:
                 tag = " [manual fix only]"
             lines.append(f"  {icon} {r.slug:<32} {r.detail}{tag}")
+    if report.curate_candidates:
+        lines.append("")
+        total = sum(c["chunks"] for c in report.curate_candidates)
+        lines.append(f"  ℹ {total} loose-prose chunk(s) in {len(report.curate_candidates)} dispatcher(s) — "
+                     "run `python -m scripts.curate --dry-run` to preview consolidation:")
+        for c in report.curate_candidates:
+            lines.append(f"      {c['rel_path']}: {c['chunks']} chunk(s)")
     if report.upgrade_available:
         lines.append("")
         lines.append(f"  ℹ playbook upgrade available: {report.pinned_tag} → {report.latest_tag}")
@@ -374,6 +421,7 @@ def render_json(report: CheckReport) -> str:
             }
             for r in report.rules
         ],
+        "curate_candidates": report.curate_candidates,
     }
     return json.dumps(payload, indent=2)
 

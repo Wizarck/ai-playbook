@@ -42,18 +42,19 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._backup_helper import BackupLocation, backup_once
-from scripts._marker_blocks import CommentStyle, parse_blocks
+from scripts._backup_helper import BackupLocation, backup_once, restore_session
+from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks
+from scripts.tracing import trace_emit
 from scripts._renderers import (
     render_agents_md,
-    render_claude_settings,
     render_claude_settings_local,
     render_coderabbit,
     render_gitignore,
     render_mcp_project,
     render_pre_commit,
+    render_settings_json,
 )
-from scripts._template_classifier import compute_sha
+from scripts._template_classifier import compute_file_sha, compute_sha
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +103,14 @@ MANAGED_FILES: list[ManagedFile] = [
         renderer=render_coderabbit,
         trigger_section="coderabbit_extras",
         style=None,  # no marker blocks today
+    ),
+    ManagedFile(
+        rel_path=".claude/settings.json",
+        template_rel=".claude/settings.json.tmpl",
+        renderer=render_settings_json,
+        trigger_section="settings",
+        style=None,  # plain JSON — provenance preserved by identity deep-merge
+        use_current_text=True,  # re-ensure the PreToolUse invariant on every reconcile
     ),
     ManagedFile(
         rel_path=".claude/settings.local.json",
@@ -232,6 +241,99 @@ _LLM_READ_FILES = frozenset({
 
 
 # ---------------------------------------------------------------------------
+# Conflict detection (two-state: marker sha vs computed content sha)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_intent_action(block_id: str, intents: dict[str, Any] | None) -> str | None:
+    """Return the consumer's explicit curate decision for ``block_id``, or None.
+
+    ``"keep_mine"`` / ``"take_playbook"`` when ``bundle.file_curate_intents``
+    names the block (per-block override, else the file's ``default_action``);
+    ``None`` when the consumer expressed no decision — which the reconciler
+    treats as an unresolved CONFLICT rather than a silent overwrite. This is
+    the conflict-aware twin of ``agents_md._resolve_block_action`` (which falls
+    back to ``take_playbook``); the difference is deliberate — the central gate
+    must NOT assume consent.
+    """
+    if not intents:
+        return None
+    blocks = intents.get("blocks") or {}
+    explicit = blocks.get(block_id)
+    if explicit in ("take_playbook", "keep_mine"):
+        return explicit
+    default = intents.get("default_action")
+    if default in ("take_playbook", "keep_mine"):
+        return default
+    return None
+
+
+def _reconcile_blocks(
+    *,
+    style: CommentStyle | None,
+    current_text: str | None,
+    rendered: str,
+    intents: dict[str, Any] | None,
+) -> tuple[str | None, list[str]]:
+    """Two-state conflict gate + keep_mine preservation, renderer-agnostic.
+
+    For each canonical block present in BOTH the consumer's current file and
+    the freshly-rendered output, compare the block content against the SHA
+    embedded in its OWN marker on disk (``expected`` = marker sha, ``actual``
+    = ``compute_sha(content)`` — the two-state model, no external manifest).
+    A mismatch means the consumer edited sealed canonical content. The bundle's
+    ``file_curate_intents`` decides what happens:
+
+      * ``keep_mine``     → restore the consumer's content into the render
+                            (re-sealing the sha so the next apply is clean)
+      * ``take_playbook`` → let the rendered playbook content win (consented)
+      * (no decision)     → CONFLICT: the file MUST NOT be written
+
+    Returns ``(final_text | None, conflict_block_ids)``. ``final_text`` is
+    ``None`` iff there is at least one unresolved conflict. Files without
+    markers (``style is None``), without prior content, or with malformed
+    markers pass through unchanged (no gate). Blocks whose on-disk marker
+    carries no ``sha=`` (legacy / first-touch) are treated as a clean seed,
+    never a conflict.
+    """
+    if style is None or not current_text:
+        return rendered, []
+    try:
+        current = parse_blocks(current_text, style)
+        rendered_parsed = parse_blocks(rendered, style)
+    except ValueError:
+        # Malformed markers — do not gate; let the renderer output stand.
+        return rendered, []
+
+    conflicts: list[str] = []
+    overrides: dict[str, MarkerBlock] = {}
+    for block_id, cur in current.blocks.items():
+        if block_id not in rendered_parsed.blocks:
+            continue
+        if cur.sha is None:
+            continue  # legacy / first-touch block — no prior sha to enforce
+        if compute_sha(cur.content) == cur.sha:
+            continue  # clean canonical — the consumer did not touch it
+        # Drifted: the consumer edited a sealed canonical block.
+        action = _resolve_intent_action(block_id, intents)
+        if action == "keep_mine":
+            overrides[block_id] = MarkerBlock(
+                id=block_id, content=cur.content,
+                sha=compute_sha(cur.content), style=style,
+            )
+        elif action == "take_playbook":
+            continue  # consented overwrite — backup happens at commit
+        else:
+            conflicts.append(block_id)
+
+    if conflicts:
+        return None, sorted(conflicts)
+    if overrides:
+        rendered = write_blocks(rendered, overrides, style=style)
+    return rendered, []
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -255,11 +357,11 @@ def apply_managed_files(
     """
     result = ManagedFilesResult()
 
-    if dry_run:
-        triggered = [mf.rel_path for mf in MANAGED_FILES if mf.trigger_section in bundle]
+    triggered = [mf for mf in MANAGED_FILES if mf.trigger_section in bundle]
+    if not triggered:
         result.detail = (
-            f"DRY-RUN would render {len(triggered)} managed file(s): {', '.join(triggered)}"
-            if triggered else "DRY-RUN: no managed-file sections in bundle — no-op"
+            "DRY-RUN: no managed-file sections in bundle — no-op" if dry_run
+            else "no managed-file trigger sections in bundle — no-op"
         )
         return result
 
@@ -267,10 +369,17 @@ def apply_managed_files(
     location, with_ts = _resolve_backup_pref(bundle)
     templates_root = playbook_root / "templates" / "new-project"
     timestamp_iso = datetime.now(UTC).isoformat()
+    curate_intents = bundle.get("file_curate_intents") or {}
+    base_shas = bundle.get("base_shas") or {}  # compare-and-swap tokens from the UI
 
-    for mf in MANAGED_FILES:
-        if mf.trigger_section not in bundle:
-            continue
+    # --- STAGE: render everything in memory; gate conflicts; decide writes. ---
+    # Runs identically for dry-run (= CHECK) and commit; only the COMMIT phase
+    # below is gated on `not dry_run`. A planned write is
+    # (dest, rendered_text, ManagedFile, existed_before).
+    planned: list[tuple[Path, str, ManagedFile, bool]] = []
+    staging_failed = False  # a render/template error ⇒ abort the whole batch
+    conflicts: list[str] = []  # drifted-without-decision ⇒ per-file skip
+    for mf in triggered:
         template_path = templates_root / mf.template_rel
         if not template_path.is_file():
             result.changes.append(f"⚠ {mf.rel_path}: template missing at {template_path}, skipped")
@@ -280,37 +389,61 @@ def apply_managed_files(
         except OSError as exc:
             result.changes.append(f"⚠ {mf.rel_path}: cannot read template ({exc})")
             result.ok = False
+            staging_failed = True
             continue
 
         dest = consumer_root / mf.rel_path
+        existed = dest.is_file()
         current_text: str | None = None
-        if dest.is_file():
+        if existed:
             try:
                 current_text = dest.read_text(encoding="utf-8")
             except OSError:
                 current_text = None
-        elif mf.seed_only:
-            # Fresh consumer + seed-only file: create from template once, no extras parsing.
+
+        if mf.seed_only:
+            if existed:
+                result.changes.append(f"· {mf.rel_path}: seed-only, kept as-is")
+                continue
             try:
                 rendered = mf.renderer(
                     template=template, substitutions=substitutions, bundle=bundle,
                 )
-                _atomic_write_text(dest, rendered)
-                result.changes.append(f"✓ {mf.rel_path}: seeded (new file)")
-                manifest = _build_manifest_for_file(rendered, mf.style)
-                result.file_states[mf.rel_path] = {
-                    "manifest": manifest, "last_applied": timestamp_iso,
-                }
-                if mf.rel_path in _LLM_READ_FILES:
-                    result.restart_session_needed = True
             except Exception as exc:  # noqa: BLE001
                 result.ok = False
-                result.changes.append(f"✗ {mf.rel_path}: render/write failed ({exc})")
+                staging_failed = True
+                result.changes.append(f"✗ {mf.rel_path}: render failed ({exc})")
+                continue
+            planned.append((dest, rendered, mf, existed))
             continue
 
-        if mf.seed_only and dest.is_file():
-            result.changes.append(f"· {mf.rel_path}: seed-only, kept as-is")
-            continue
+        # Compare-and-swap gate: if the UI stamped a base sha for this file and
+        # the on-disk content changed since (someone edited it after the UI
+        # loaded), refuse the write — the intended edit was computed against
+        # stale content. Per-file skip; the rest of the batch still applies.
+        base_sha = base_shas.get(mf.rel_path)
+        if existed and current_text is not None and base_sha is not None:
+            actual_file_sha = compute_file_sha(current_text)
+            if actual_file_sha != base_sha:
+                result.ok = False
+                conflicts.append(f"{mf.rel_path} (CAS)")
+                result.file_states[mf.rel_path] = {
+                    "cas_conflict": {"base": base_sha, "actual": actual_file_sha},
+                    "last_seen": timestamp_iso,
+                }
+                result.changes.append(
+                    f"✗ {mf.rel_path}: changed on disk since the UI loaded it "
+                    f"(compare-and-swap conflict) — not written"
+                )
+                trace_emit.add_event(
+                    "reconcile.managed_files.cas_conflict",
+                    {
+                        "ai_playbook.managed_files.file": mf.rel_path,
+                        "ai_playbook.managed_files.base_sha": base_sha,
+                        "ai_playbook.managed_files.actual_sha": actual_file_sha,
+                    },
+                )
+                continue
 
         try:
             if mf.use_current_text:
@@ -324,50 +457,148 @@ def apply_managed_files(
                 )
         except Exception as exc:  # noqa: BLE001
             result.ok = False
+            staging_failed = True
             result.changes.append(f"✗ {mf.rel_path}: render failed ({exc})")
             continue
 
-        # Skip no-op writes — saves a backup churn.
-        if current_text is not None and rendered == current_text:
-            manifest = _build_manifest_for_file(rendered, mf.style)
+        # Conflict gate: never silently overwrite a canonical block the
+        # consumer edited without an explicit curate decision (two-state model).
+        final_text, conflict_ids = _reconcile_blocks(
+            style=mf.style,
+            current_text=current_text,
+            rendered=rendered,
+            intents=curate_intents.get(mf.rel_path),
+        )
+        if conflict_ids:
+            result.ok = False
+            conflicts.extend(f"{mf.rel_path}#{bid}" for bid in conflict_ids)
             result.file_states[mf.rel_path] = {
-                "manifest": manifest, "last_applied": timestamp_iso,
+                "conflict": conflict_ids,
+                "last_seen": timestamp_iso,
+            }
+            result.changes.append(
+                f"✗ {mf.rel_path}: {len(conflict_ids)} drifted canonical block(s) "
+                f"without a curate decision — not written "
+                f"(conflict: {', '.join(conflict_ids)})"
+            )
+            trace_emit.add_event(
+                "reconcile.managed_files.conflict",
+                {
+                    "ai_playbook.managed_files.file": mf.rel_path,
+                    "ai_playbook.managed_files.conflict_blocks": ",".join(conflict_ids),
+                },
+            )
+            continue
+        rendered = final_text  # type: ignore[assignment]  # not None when no conflict
+
+        # Skip no-op writes — saves backup churn but still records the manifest.
+        if current_text is not None and rendered == current_text:
+            result.file_states[mf.rel_path] = {
+                "manifest": _build_manifest_for_file(rendered, mf.style),
+                "last_applied": timestamp_iso,
             }
             result.changes.append(f"· {mf.rel_path}: identical, no write")
             continue
 
-        # Backup current contents if any, then write.
-        if dest.is_file():
-            try:
+        planned.append((dest, rendered, mf, existed))
+
+    # A render/template error ⇒ abort before any write so the disk is left
+    # untouched (the transaction never enters the commit phase). Conflicts are
+    # NOT a hard staging failure: they skip their own file but let the rest of
+    # the batch commit, while still marking the section ok=False so
+    # applied-config does not advance past unresolved drift.
+    if staging_failed:
+        result.changes.append("⚠ staging failed; no files written (transaction aborted)")
+        trace_emit.add_event(
+            "reconcile.managed_files.stage_failed",
+            {"ai_playbook.managed_files.planned": len(planned)},
+        )
+        return result
+
+    if dry_run:
+        rels = [mf.rel_path for _, _, mf, _ in planned]
+        parts: list[str] = []
+        if rels:
+            parts.append(f"DRY-RUN would render {len(rels)} managed file(s): {', '.join(rels)}")
+        if conflicts:
+            parts.append(f"{len(conflicts)} unresolved conflict(s): {', '.join(conflicts)}")
+        result.detail = " — ".join(parts) if parts else (
+            "DRY-RUN: managed files in sync — no-op"
+        )
+        return result
+
+    trace_emit.add_event(
+        "reconcile.managed_files.staged",
+        {
+            "ai_playbook.managed_files.planned": len(planned),
+            "ai_playbook.managed_files.conflicts": len(conflicts),
+        },
+    )
+
+    # --- COMMIT: backup + atomic-write the planned set under one session_id. ---
+    created_fresh: list[Path] = []
+    for dest, rendered, mf, existed in planned:
+        try:
+            if existed:
                 backup_once(
                     consumer_root, dest,
                     location=location, with_timestamp=with_ts,
                     session_id=session_id,
                 )
-            except (OSError, ValueError) as exc:
-                result.ok = False
-                result.changes.append(f"✗ {mf.rel_path}: backup failed ({exc})")
-                continue
-
-        try:
             _atomic_write_text(dest, rendered)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
+            # Roll the whole batch back: restore overwritten files from the
+            # session backups and delete files this batch newly created.
             result.ok = False
-            result.changes.append(f"✗ {mf.rel_path}: write failed ({exc})")
-            continue
+            result.changes.append(f"✗ {mf.rel_path}: commit failed ({exc})")
+            if session_id:
+                restored, warnings = restore_session(consumer_root, session_id)
+                result.changes.append(
+                    f"↩ rolled back {len(restored)} overwritten file(s) "
+                    f"from session {session_id}"
+                )
+                result.changes.extend(f"⚠ rollback: {w}" for w in warnings)
+            for fresh in created_fresh:
+                try:
+                    fresh.unlink()
+                except OSError:
+                    pass
+            if created_fresh:
+                result.changes.append(
+                    f"↩ removed {len(created_fresh)} newly-created file(s)"
+                )
+            trace_emit.add_event(
+                "reconcile.managed_files.rolled_back",
+                {
+                    "ai_playbook.managed_files.session_id": session_id or "",
+                    "ai_playbook.managed_files.failed_file": mf.rel_path,
+                    "ai_playbook.managed_files.removed": len(created_fresh),
+                },
+            )
+            return result
 
+        if not existed:
+            created_fresh.append(dest)
         manifest = _build_manifest_for_file(rendered, mf.style)
         result.file_states[mf.rel_path] = {
             "manifest": manifest, "last_applied": timestamp_iso,
         }
-        result.changes.append(
-            f"✓ {mf.rel_path}: rendered ({len(manifest)} canonical block(s))"
-        )
+        if mf.seed_only and not existed:
+            result.changes.append(f"✓ {mf.rel_path}: seeded (new file)")
+        else:
+            result.changes.append(
+                f"✓ {mf.rel_path}: rendered ({len(manifest)} canonical block(s))"
+            )
         if mf.rel_path in _LLM_READ_FILES:
             result.restart_session_needed = True
 
-    if not result.changes:
-        result.detail = "no managed-file trigger sections in bundle — no-op"
+    trace_emit.add_event(
+        "reconcile.managed_files.committed",
+        {"ai_playbook.managed_files.written": len(planned)},
+    )
+
+    if not planned and not conflicts:
+        result.detail = "managed files already in sync — no writes"
     return result
 
 

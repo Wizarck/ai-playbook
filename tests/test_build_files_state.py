@@ -102,3 +102,14 @@ def test_backups_section_populated(consumer: Path) -> None:
     state = bfs.build_files_state(consumer)
     assert len(state["backups"]) == 1
     assert state["backups"][0]["rel_path"] == "AGENTS.md"
+
+
+def test_file_sha_emitted_for_cas(consumer: Path) -> None:
+    """Every listed file carries a whole-file `file_sha` CAS token matching
+    compute_file_sha of its current content."""
+    from scripts._template_classifier import compute_file_sha
+    state = bfs.build_files_state(consumer)
+    for f in state["files"]:
+        assert "file_sha" in f
+        text = (consumer / f["rel_path"]).read_text(encoding="utf-8")
+        assert f["file_sha"] == compute_file_sha(text)

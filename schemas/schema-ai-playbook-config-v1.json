@@ -191,7 +191,7 @@
     "claude_settings_extras": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Consumer extras for .claude/settings.local.json (Claude Code natively merges this on top of settings.json). apply_config writes only this file; settings.json itself is canonical.",
+      "description": "Consumer extras for .claude/settings.local.json (Claude Code natively merges this on top of settings.json). apply_config writes only this file; settings.json itself is canonical. LEGACY: prefer the model-agnostic `settings` key; entries here are still honoured and union-merged into `.claude/settings.json` permissions for backwards compatibility.",
       "properties": {
         "permissions_allow": {
           "type": "array",
@@ -199,6 +199,44 @@
         },
         "additional_directories": {
           "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 400 }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Model-agnostic settings surface (the door's single source for agent-runtime config). Projected to .claude/settings.json via identity deep-merge (preserving every consumer-authored key) and, where the target supports it, to Gemini/Cursor. Each hook may carry an optional `targets` array to scope it to specific models; absent ⇒ all supported targets. The openspec-apply-enforce PreToolUse invariant is ALWAYS ensured by apply_config regardless of this section — presence of the key only signals that the door manages .claude/settings.json for this consumer.",
+      "properties": {
+        "hooks": {
+          "type": "array",
+          "description": "Agent-runtime hooks to ensure (idempotent, deduped by command basename). Order-preserving; additive.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event", "command"],
+            "properties": {
+              "event": { "type": "string", "minLength": 1, "maxLength": 64, "description": "e.g. PreToolUse, SessionStart, UserPromptSubmit." },
+              "matcher": { "type": "string", "maxLength": 200, "description": "Tool/event matcher (Claude format). Omit for events without matchers." },
+              "command": { "type": "string", "minLength": 1, "maxLength": 1000 },
+              "timeout": { "type": "integer", "minimum": 1, "maximum": 600 },
+              "targets": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "string", "enum": ["claude", "gemini", "cursor"] },
+                "description": "Models this hook applies to. Absent ⇒ all supported targets."
+              }
+            }
+          }
+        },
+        "permissions_allow": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "additional_directories": {
+          "type": "array",
+          "uniqueItems": true,
           "items": { "type": "string", "minLength": 1, "maxLength": 400 }
         }
       }
@@ -250,6 +288,11 @@
         "with_timestamp": { "type": "boolean", "description": "Append .YYYY-MM-DDTHH-MM-SSZ to .bak names. Default: true." },
         "keep_per_file": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
+    },
+    "base_shas": {
+      "type": "object",
+      "description": "Optimistic-concurrency tokens (compare-and-swap). Key is a managed-file relative path; value is the whole-file SHA (12 hex, \\n-normalised) the config UI saw when it loaded files-state.js. apply_config recomputes the on-disk sha before writing each file and SKIPS it as a conflict when the value differs (the disk changed under the UI). Sparse/optional: files absent here are written without a CAS guard.",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{12}$" }
     },
     "file_curate_intents": {
       "type": "object",
