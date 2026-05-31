@@ -4,6 +4,17 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Fixed — bump_consumers robustness (`fix/bump-consumers-robustness`)
+
+- **Force-fetch tags.** `bump_consumers` now runs `git fetch --tags --force` on each
+  submodule, so a release tag that moved on the remote no longer makes the whole
+  fetch exit non-zero (`would clobber existing tag`) and abort the bump for
+  consumers pinned at older tags.
+- **Compare the committed gitlink, not the checked-out HEAD.** A submodule checked
+  out at the target while the parent still pinned an older commit was wrongly
+  reported `up-to-date` and skipped — the pointer bump (the whole point) never got
+  committed. The comparison now reads `HEAD:.ai-playbook`.
+
 ## [0.19.8] — 2026-05-31 — reconcile foundation + agnostic config surface
 
 ### Added — template security guardrails (`feat/template-deny-guardrails`)

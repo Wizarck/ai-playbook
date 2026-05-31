@@ -173,16 +173,25 @@ def _bump_one(
 
     sub = consumer.path / SUBMODULE_PATH
 
-    # Fetch tags on the submodule.
-    _run(["git", "fetch", "--tags", "--quiet", "origin"], cwd=sub)
+    # Fetch tags on the submodule. --force reconciles tags that diverged on the
+    # remote (e.g. a release tag was moved): without it a single "would clobber
+    # existing tag" rejection makes the whole fetch exit non-zero and the bump
+    # aborts, even though the target tag fetched fine.
+    _run(["git", "fetch", "--tags", "--force", "--quiet", "origin"], cwd=sub)
 
     if not _tag_exists(consumer.path, tag):
         return BumpResult(consumer.name, "error", f"tag {tag} not in submodule remote")
 
-    # Resolve target SHA to compare with current.
+    # Compare the target against the consumer's COMMITTED gitlink — not the
+    # submodule's checked-out HEAD. A submodule can be checked out at the target
+    # while the parent still pins an older commit; the pointer bump is exactly
+    # what we need to commit, so comparing HEAD would falsely report "up-to-date"
+    # and skip the commit.
     target_sha = _run(["git", "rev-parse", f"{tag}^{{commit}}"], cwd=sub).stdout.strip()
-    current_sha = _run(["git", "rev-parse", "HEAD"], cwd=sub).stdout.strip()
-    if target_sha == current_sha and not force:
+    pinned_sha = _run(
+        ["git", "rev-parse", f"HEAD:{SUBMODULE_PATH}"], cwd=consumer.path, check=False
+    ).stdout.strip()
+    if target_sha == pinned_sha and not force:
         return BumpResult(consumer.name, "up-to-date", f"already at {tag}")
 
     if dry_run:
