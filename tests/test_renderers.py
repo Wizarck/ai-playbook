@@ -461,7 +461,15 @@ _SETTINGS_TMPL_WITH_BASH = json.dumps({
                      "command": "python .claude/hooks/openspec-apply-enforce.py",
                      "timeout": 10},
                 ],
-            }
+            },
+            {
+                "matcher": "Edit|Write|MultiEdit|Bash",
+                "hooks": [
+                    {"type": "command",
+                     "command": "python .ai-playbook/scripts/hook_dispatcher.py PreToolUse",
+                     "timeout": 10},
+                ],
+            },
         ]
     },
     "permissions": {"allow": [], "additionalDirectories": []},
@@ -481,11 +489,13 @@ def test_settings_json_seeds_invariant_when_missing() -> None:
         for e in parsed["hooks"]["PreToolUse"] for h in e["hooks"]
     ]
     assert any("openspec-apply-enforce.py" in c for c in cmds)
+    # The generic L1 dispatcher entry is also ensured (Fase E2).
+    assert any("hook_dispatcher.py" in c for c in cmds)
 
 
 def test_settings_json_no_duplicate_when_bash_matcher_present() -> None:
-    """The template's `...|Bash` matcher already satisfies the invariant — the
-    renderer must NOT append a second PreToolUse entry."""
+    """Both required PreToolUse hooks already present (enforce + dispatcher) → the
+    renderer is a byte-level no-op and never duplicates either."""
     out = render_settings_json(
         template=_SETTINGS_TMPL_WITH_BASH,
         substitutions={},
@@ -494,8 +504,37 @@ def test_settings_json_no_duplicate_when_bash_matcher_present() -> None:
     )
     # No semantic change ⇒ verbatim passthrough (byte-identical).
     assert out == _SETTINGS_TMPL_WITH_BASH
-    parsed = json.loads(out)
-    assert len(parsed["hooks"]["PreToolUse"]) == 1
+    cmds = [
+        h.get("command", "")
+        for e in json.loads(out)["hooks"]["PreToolUse"] for h in e["hooks"]
+    ]
+    assert sum("openspec-apply-enforce.py" in c for c in cmds) == 1
+    assert sum("hook_dispatcher.py" in c for c in cmds) == 1
+
+
+def test_settings_json_ensures_dispatcher_when_only_enforce_present() -> None:
+    """An older consumer with just the enforce hook gains the dispatcher entry,
+    deduped by basename (idempotent on a second render)."""
+    only_enforce = json.dumps({
+        "hooks": {"PreToolUse": [{
+            "matcher": "Edit|Write|MultiEdit",
+            "hooks": [{"type": "command",
+                       "command": "python .claude/hooks/openspec-apply-enforce.py",
+                       "timeout": 10}],
+        }]},
+    }) + "\n"
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH, substitutions={},
+        bundle={"settings": {}}, current_text=only_enforce,
+    )
+    cmds = [h.get("command", "") for e in json.loads(out)["hooks"]["PreToolUse"] for h in e["hooks"]]
+    assert sum("hook_dispatcher.py" in c for c in cmds) == 1
+    # idempotent: re-render adds nothing
+    out2 = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH, substitutions={},
+        bundle={"settings": {}}, current_text=out,
+    )
+    assert out2 == out
 
 
 def test_settings_json_preserves_user_keys() -> None:

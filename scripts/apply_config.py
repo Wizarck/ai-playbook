@@ -158,6 +158,24 @@ def _load_inventory(name: str) -> dict[str, Any] | None:
         return None
 
 
+def _load_rules_inventory_live() -> dict[str, Any] | None:
+    """Rules inventory for the door — built LIVE from the rule artifacts (D18).
+
+    The committed ``config-ui/rules-inventory.json`` exists for the file:// UI;
+    the door must NOT trust it for the advanced→env projection (a stale commit
+    would silently drop env vars). So build it from disk here. Fall back to the
+    committed file only when the playbook root is unavailable (e.g. a detached
+    consumer without the build context).
+    """
+    root = rules_toggle.find_playbook_root()
+    if root is not None:
+        try:
+            return rules_toggle.build_rules_inventory(root)
+        except Exception:  # noqa: BLE001 — fall back to the committed file
+            pass
+    return _load_inventory("rules-inventory.json")
+
+
 def _audit_append(target: Path, entry: dict[str, Any]) -> None:
     p = target / STATE_DIR_NAME / AUDIT_FILENAME
     try:
@@ -217,11 +235,23 @@ def apply_rules(target: Path, bundle: dict[str, Any], rules_inventory: dict[str,
     state["applied_at"] = datetime.now(UTC).isoformat()
     state["applied_by"] = _actor()
 
+    # Orphan prune (D-plan Fase B): a bundle slug absent from the live inventory
+    # is a rule that no longer exists on disk — drop it so deleting a rule never
+    # leaves dangling consumer toggle state. Guard: only prune when we actually
+    # have an inventory; `None` (transient build error / detached consumer) keeps
+    # every slug so a missing inventory never silently wipes valid toggles.
+    known: set[str] | None = None
+    if rules_inventory is not None:
+        known = {r.get("slug") for r in rules_inventory.get("rules", [])}
+
     for slug, entry in rules.items():
         if not isinstance(entry, dict):
             sr.ok = False
             sr.detail = f"rule {slug!r} is not a dict"
             return sr, env_entries
+        if known is not None and slug not in known:
+            sr.changes.append(f"pruned unknown rule: {slug}")
+            continue
         state["rules"][slug] = dict(entry)
         sr.changes.append(f"{slug}: {('OFF' if entry.get('enabled') is False else 'partial')}")
 
@@ -680,7 +710,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
     # (caveman is a subprocess and is not covered by the session rollback).
     caveman_preflight = _caveman_preflight(target)
 
-    rules_inv = _load_inventory("rules-inventory.json")
+    rules_inv = _load_rules_inventory_live()
     global_flags_inv = _load_inventory("global-flags-inventory.json")
 
     if dry_run:

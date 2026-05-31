@@ -263,6 +263,7 @@ main { padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
 .badge.layer { background: #f4f4f4; color: #666; font-family: ui-monospace, monospace; }
 .badge.layer.on { background: #c8e6c9; color: #1b5e20; }
 .badge.layer.off { background: #ffcdd2; color: #b71c1c; }
+.badge.layer.na { background: #f5f5f5; color: #bbb; border: 1px dashed #ccc; cursor: help; }
 .badge.bg { background: #fce4ec; color: #ad1457; }
 
 .rule-meta { margin-top: 6px; color: var(--text-muted); font-size: 12px; }
@@ -286,6 +287,7 @@ main { padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
 }
 .rule.expanded .rule-advanced { display: block; }
 .rule-advanced h4 { margin: 0 0 6px 0; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.rule-advanced .applies-row { display: flex; gap: 6px; margin-bottom: 10px; }
 .rule-advanced .layer-row { display: flex; gap: 16px; margin-bottom: 8px; }
 .rule-advanced .layer-row label { display: flex; align-items: center; gap: 4px; font-size: 12px; }
 .rule-advanced .adv-row { margin-bottom: 6px; font-size: 12px; }
