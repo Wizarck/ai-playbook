@@ -4,6 +4,8 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+## [0.19.9] — 2026-06-01 — config-UI file:// + green CI
+
 ### Fixed — CI gates green again (`chore/ci-green-ruff-and-gates`)
 
 - **`ruff check .` clean.** Cleared the 97 accumulated lint violations the `test`
@@ -47,6 +49,16 @@ All notable changes to `ai-playbook` are documented here. Semver.
   out at the target while the parent still pinned an older commit was wrongly
   reported `up-to-date` and skipped — the pointer bump (the whole point) never got
   committed. The comparison now reads `HEAD:.ai-playbook`.
+
+### Changed — CI maintenance + docs
+
+- **GitHub Actions bumped to Node-24 majors** (`chore/bump-gh-actions-node24`):
+  `checkout` v4→v6, `setup-python` v5→v6, `github-script` v7→v9,
+  `upload-pages-artifact` v3→v5, `deploy-pages` v4→v5, `upload-artifact` v4→v7 —
+  ahead of Node.js 20's removal from GitHub-hosted runners (2026-09-16).
+- **README** now sources the "neuro-symbolic" claim at its first mention (the TL;DR
+  links to `docs/concepts/academic-foundations.md`), and the IBM entry there is
+  retitled from "Position Paper" to a research overview (the cited URL is a blog).
 
 ## [0.19.8] — 2026-05-31 — reconcile foundation + agnostic config surface
 
