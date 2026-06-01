@@ -155,11 +155,11 @@ def dispatch(
                     trigger=trigger,
                     session_id=session_id,
                     self_check=bool(event.get("self_check", False)),
-                    tokens_in=int(tokens_in) if isinstance(tokens_in, (int, float)) else None,
-                    tokens_out=int(tokens_out) if isinstance(tokens_out, (int, float)) else None,
+                    tokens_in=int(tokens_in) if isinstance(tokens_in, int | float) else None,
+                    tokens_out=int(tokens_out) if isinstance(tokens_out, int | float) else None,
                     cache_read_tokens=(
                         int(cache_read_tokens)
-                        if isinstance(cache_read_tokens, (int, float))
+                        if isinstance(cache_read_tokens, int | float)
                         else None
                     ),
                     escape_hatch=str(escape_hatch) if escape_hatch else None,
@@ -229,7 +229,7 @@ def _rule_matches(rule: Rule, hook_event: str, tool: str) -> bool:
 
 def _applies(rule: Rule, llm: str) -> bool:
     raw = rule.frontmatter.get("applies_to")
-    if isinstance(raw, list):
+    if isinstance(raw, list):  # noqa: SIM108 — nested ternary would be unreadable
         ais = [a for a in _KNOWN_AIS if a in raw] or list(_KNOWN_AIS)
     else:
         ais = list(_KNOWN_AIS)
@@ -264,7 +264,8 @@ def run_rules(rules: list[Rule], hook_event: str, event: dict[str, Any], *,
     function) are skipped — their enforcement stays in CI/pre-commit. A rule that
     raises is failed OPEN (warn, never block) so a buggy rule can't wedge tooling.
     """
-    from scripts.rules._hook_contract import BLOCK, WARN, tool_name as _tn
+    from scripts.rules._hook_contract import BLOCK, WARN
+    from scripts.rules._hook_contract import tool_name as _tn
 
     consumer_root = consumer_root or _consumer_root()
     tool = _tn(event)

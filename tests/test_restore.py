@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from scripts import _backup_helper as bh
-from scripts import restore as R
+from scripts import restore as R  # noqa: N812
 
 
 def _w(path: Path, content: str) -> None:

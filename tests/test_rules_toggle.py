@@ -4,10 +4,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from scripts import rules_toggle
-
 
 # ---------------------------------------------------------------------------
 # Discovery + state IO
@@ -55,7 +55,7 @@ def test_write_then_read_roundtrip(tmp_path: Path) -> None:
 def test_write_state_rejects_invalid_schema(tmp_path: Path) -> None:
     project = _fake_project(tmp_path)
     bad = {"schema": "rules-toggle/v1", "rules": {"foo": {"extra_field": True}}}
-    with pytest.raises(Exception):
+    with pytest.raises(jsonschema.ValidationError):
         rules_toggle.write_state(project, bad)
 
 
@@ -303,7 +303,9 @@ def test_cli_list_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: 
     assert len(data["rules"]) > 0
 
 
-def test_cli_off_then_on_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+def test_cli_off_then_on_roundtrip(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
     project = _fake_project(tmp_path)
     # Off with reason.
     rc = _run_cli(monkeypatch, project, ["off", "apply-skill-enforcement", "--reason", "test ten-chars reason"])
@@ -323,7 +325,9 @@ def test_cli_off_then_on_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     assert "apply-skill-enforcement" not in state.get("rules", {})
 
 
-def test_cli_off_requires_reason_for_break_glass(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+def test_cli_off_requires_reason_for_break_glass(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
     project = _fake_project(tmp_path)
     rc = _run_cli(monkeypatch, project, ["off", "apply-skill-enforcement"])
     assert rc == 1
@@ -365,7 +369,9 @@ def test_cli_init_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsy
     assert rules_toggle.state_path(project).is_file()
 
 
-def test_cli_inventory_writes_output(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+def test_cli_inventory_writes_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
     project = _fake_project(tmp_path)
     out = tmp_path / "out-inv.json"
     rc = _run_cli(monkeypatch, project, ["inventory", "--output", str(out), "--json"])

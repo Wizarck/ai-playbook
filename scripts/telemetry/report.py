@@ -125,7 +125,7 @@ def load_pricing(path: Path) -> PricingCatalog:
             rows[str(k)] = {
                 str(kk): float(vv)
                 for kk, vv in v.items()
-                if isinstance(vv, (int, float))
+                if isinstance(vv, int | float)
             }
     return PricingCatalog(rows=rows, loaded=bool(rows), source=path)
 

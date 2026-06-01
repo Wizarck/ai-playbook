@@ -20,9 +20,6 @@ Skipped paths:
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 

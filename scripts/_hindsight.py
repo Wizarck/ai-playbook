@@ -247,7 +247,7 @@ def post_recall(
     ) as s:
         result = _post_json(recall_url(creds, bank_id), body, creds.headers(), timeout=timeout)
         # Best-effort entries count — recall responses use {"results"|"entries": [...]}.
-        if s is not None and result.ok and isinstance(result.body, (dict, list)):
+        if s is not None and result.ok and isinstance(result.body, dict | list):
             try:
                 items = (
                     result.body.get("results") or result.body.get("entries") or []

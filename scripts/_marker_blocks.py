@@ -56,7 +56,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
-class CommentStyle(str, Enum):
+class CommentStyle(str, Enum):  # noqa: UP042 — StrEnum changes str()/format() used in marker serialisation
     HTML = "html"      # <!-- ... -->
     HASH = "hash"      # # ...
     SLASH = "slash"    # // ...

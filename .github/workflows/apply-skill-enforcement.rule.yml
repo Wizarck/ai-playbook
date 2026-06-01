@@ -34,8 +34,11 @@ jobs:
 
       - name: Validate
         if: steps.toggle.outcome == 'success'
+        # Invoked by PATH, not `python -m`: the `.rule.py` filename's kebab-case
+        # slug is not an importable module name (`scripts.rules.apply-skill-enforcement`
+        # → No module named …). Matches the script's own docstring usage.
         run: |
-          python -m scripts.rules.apply-skill-enforcement validate-pr-diff \
+          python scripts/rules/apply-skill-enforcement.rule.py validate-pr-diff \
             --base "${{ github.event.pull_request.base.sha }}" \
             --head "${{ github.event.pull_request.head.sha }}"
 

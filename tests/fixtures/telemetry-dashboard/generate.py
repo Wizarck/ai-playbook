@@ -29,11 +29,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-
 
 SEED = 42
 
@@ -127,7 +125,7 @@ TRIGGERS_BASH = ["PreToolUse:Bash", "PostToolUse:Bash"]
 
 def _session_id_hash(session_seed: int) -> str:
     """Stable 8-hex session id hash from a session seed."""
-    raw = f"session-{session_seed}".encode("utf-8")
+    raw = f"session-{session_seed}".encode()
     return hashlib.sha256(raw).hexdigest()[:8]
 
 
@@ -214,7 +212,7 @@ def _gen_event(rng: random.Random, ts: datetime, session_seed: int) -> dict:
 
 def _spread_timestamps(rng: random.Random, n: int, days: int) -> list[datetime]:
     """Produce n monotonically-sortable timestamps over the last `days` days."""
-    end = datetime(2026, 5, 26, 12, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2026, 5, 26, 12, 0, 0, tzinfo=UTC)
     start = end - timedelta(days=days)
     span_seconds = int((end - start).total_seconds())
     offsets = sorted(rng.randint(0, span_seconds) for _ in range(n))

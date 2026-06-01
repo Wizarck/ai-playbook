@@ -4,6 +4,24 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Fixed — CI gates green again (`chore/ci-green-ruff-and-gates`)
+
+- **`ruff check .` clean.** Cleared the 97 accumulated lint violations the `test`
+  workflow was failing on (which also blocked pytest from running): auto-fixable
+  ones via `ruff --fix` (+ vetted `--unsafe-fixes`: `isinstance` PEP-604 unions,
+  `Callable` moved to `collections.abc`, etc.), `E402` on intentional
+  post-preamble imports marked `# noqa: E402`, long lines wrapped, two unreadable
+  auto-generated ternaries reverted to `if/else`.
+- **`apply-skill-enforcement.rule` workflow** invoked its validator as
+  `python -m scripts.rules.apply-skill-enforcement` — a kebab-case name that is not
+  an importable module (`No module named …`), so the gate failed on every PR. Now
+  invoked by path (`python scripts/rules/apply-skill-enforcement.rule.py …`), matching
+  the script's own documented usage.
+- **`check-rule-schemas.rule` concept validation** failed on
+  `docs/concepts/skills-mcps-enforcement.md`: its frontmatter used `description`/`audience`
+  (not in `schema-concept-v1.json`) and lacked the required `title`. Conformed to the
+  schema (`description`→`summary`, added `title`, dropped the non-schema `audience`).
+
 ### Added — config-UI works under `file://` (`feat/config-ui-file-sidecars`)
 
 - **No local server required.** The config UI's six inventories (rules, features,

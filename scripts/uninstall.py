@@ -21,7 +21,6 @@ Idempotent: running twice has no incremental effect.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import subprocess
@@ -35,18 +34,16 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._backup_helper import (
+from scripts._backup_helper import (  # noqa: E402
     BackupRecord,
     base_record_for,
     read_index,
     restore_backup,
 )
-from scripts._marker_blocks import (
-    CommentStyle,
+from scripts._marker_blocks import (  # noqa: E402
     parse_blocks,
     style_for_filename,
 )
-
 
 MANAGED_PATHS = [
     "AGENTS.md",
@@ -280,12 +277,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.yes and not args.dry_run:
         print(f"This will uninstall ai-playbook from: {target}")
         print(f"  - {'restore from .bak when available' if not args.no_restore else 'strip markers only'}")
-        print(f"  - remove .ai-playbook/ submodule")
+        print("  - remove .ai-playbook/ submodule")
         print(f"  - {'remove' if not args.keep_state_dir else 'keep'} .ai-playbook-state/")
-        if os.environ.get("PLAYBOOK_NO_PROMPT"):
-            answer = "y"
-        else:
-            answer = input("Continue? [y/N] ").strip().lower()
+        answer = "y" if os.environ.get("PLAYBOOK_NO_PROMPT") else input("Continue? [y/N] ").strip().lower()
         if answer not in ("y", "yes"):
             print("aborted.")
             return 1

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import hook_dispatcher as HD
+from scripts import hook_dispatcher as HD  # noqa: N812
 from scripts import rules_toggle
 
 SECRET = "AKIA" + "A" * 16  # AWS access-key-id shape recognised by secrets_scan

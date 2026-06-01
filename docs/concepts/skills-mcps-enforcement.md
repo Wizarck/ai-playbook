@@ -1,8 +1,8 @@
 ---
 schema: concept/v1
 slug: skills-mcps-enforcement
-description: Per-consumer opt-out toggles for which Skills and MCP servers participate in the playbook's enforcement pipeline (materialisation + rendering).
-audience: developer
+title: Skills + MCPs enforcement
+summary: Per-consumer opt-out toggles for which Skills and MCP servers participate in the playbook's enforcement pipeline (materialisation + rendering).
 last_validated: "2026-05-26"
 ---
 

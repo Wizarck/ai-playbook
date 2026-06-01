@@ -33,9 +33,10 @@ import re
 import subprocess
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Tunables.
@@ -92,7 +93,7 @@ _JS_SUFFIX = ";\n"
 
 
 def _utcnow() -> _dt.datetime:
-    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    return _dt.datetime.now(_dt.UTC).replace(microsecond=0)
 
 
 def _iso(dt: _dt.datetime) -> str:
@@ -210,9 +211,7 @@ def _is_hero_incident(event: dict) -> bool:
     """``verdict='block'`` AND no break-glass override; warnings excluded."""
     if event.get("verdict") != "block":
         return False
-    if event.get("override_reason"):
-        return False
-    return True
+    return not event.get("override_reason")
 
 
 def _is_llm01(event: dict) -> bool:
@@ -225,9 +224,7 @@ def _is_llm01(event: dict) -> bool:
     """
     if event.get("escape_hatch"):
         return True
-    if event.get("bash_pattern_kind"):
-        return True
-    return False
+    return bool(event.get("bash_pattern_kind"))
 
 
 def _compute_hero(events: Iterable[dict]) -> dict[str, int]:
@@ -322,7 +319,7 @@ def _compute_matrix(
             prior_counts[(slug, llm)][0] += 1
 
     # Build per-slug rows.
-    slugs = sorted({k[0] for k in cur_counts.keys()})
+    slugs = sorted({k[0] for k in cur_counts})
     rows: list[dict[str, Any]] = []
     for slug in slugs:
         by_llm: dict[str, float] = {}
@@ -337,7 +334,11 @@ def _compute_matrix(
             continue
 
         # Drift sense 1: cross-LLM disagreement.
-        cross_drift = (max(by_llm.values()) - min(by_llm.values())) > CROSS_LLM_DRIFT_THRESHOLD if len(by_llm) >= 2 else False
+        cross_drift = (
+            (max(by_llm.values()) - min(by_llm.values())) > CROSS_LLM_DRIFT_THRESHOLD
+            if len(by_llm) >= 2
+            else False
+        )
 
         # Drift sense 2: per-LLM time-over-time, against prior window.
         time_drift = False

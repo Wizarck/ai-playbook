@@ -14,7 +14,6 @@ from __future__ import annotations
 from scripts._marker_blocks import CommentStyle, parse_blocks
 from scripts._template_classifier import compute_sha
 
-
 _CONSUMER_HEADER = "# >>> consumer patterns (preserved across apply_config) >>>"
 
 

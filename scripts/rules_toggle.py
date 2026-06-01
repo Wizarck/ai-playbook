@@ -64,8 +64,7 @@ except ImportError:
     )
     raise SystemExit(2) from None
 
-from scripts._project_root import find_project_root as _find_project_root_shared
-
+from scripts._project_root import find_project_root as _find_project_root_shared  # noqa: E402
 
 SCHEMA_VERSION = "rules-toggle/v1"
 STATE_DIR_NAME = ".ai-playbook"
@@ -695,7 +694,7 @@ def cmd_off(args: argparse.Namespace) -> int:
                 "persistent disable requires --reason (>=10 chars)"
             ),
             where="rules_toggle:off:reason",
-            fix=f"re-run with --reason '<>=10 chars explaining why>'.",
+            fix="re-run with --reason '<>=10 chars explaining why>'.",
         )
         return 1
     try:
@@ -847,7 +846,10 @@ def cmd_inventory(args: argparse.Namespace) -> int:
                 print(line, file=sys.stderr)
             return 2
         if getattr(args, "json", False):
-            print(json.dumps({"ok": True, "checked": out_path.as_posix(), "rules_count": len(inv["rules"])}, indent=2, ensure_ascii=False))
+            print(json.dumps(
+                {"ok": True, "checked": out_path.as_posix(), "rules_count": len(inv["rules"])},
+                indent=2, ensure_ascii=False,
+            ))
         else:
             print(f"✅ rules inventory fresh ({len(inv['rules'])} rules); no dangling hooks")
         return 0
@@ -859,7 +861,10 @@ def cmd_inventory(args: argparse.Namespace) -> int:
     for rel in dangling:
         print(f"⚠️  settings.json.tmpl references missing {rel}", file=sys.stderr)
     if getattr(args, "json", False):
-        print(json.dumps({"ok": True, "output": out_path.as_posix(), "rules_count": len(inv["rules"])}, indent=2, ensure_ascii=False))
+        print(json.dumps(
+            {"ok": True, "output": out_path.as_posix(), "rules_count": len(inv["rules"])},
+            indent=2, ensure_ascii=False,
+        ))
     else:
         print(f"✅ wrote {len(inv['rules'])} rules to {out_path}")
     return 0
@@ -891,7 +896,10 @@ def cmd_init(args: argparse.Namespace) -> int:
             raw = src.read_text(encoding="utf-8")
             data = json.loads(raw)
         except (OSError, json.JSONDecodeError) as e:
-            _emit_error(why=f"failed to read --from {src}: {e}", where="rules_toggle:init:from", fix="provide valid JSON.")
+            _emit_error(
+                why=f"failed to read --from {src}: {e}",
+                where="rules_toggle:init:from", fix="provide valid JSON.",
+            )
             return 1
         # Accept either a rules-toggle/v1 state file directly, or an
         # ai-playbook-config/v1 bundle whose `rules{}` field is extracted.
@@ -910,7 +918,10 @@ def cmd_init(args: argparse.Namespace) -> int:
         _emit_error(why=f"failed to write state: {e}", where="rules_toggle:init:write", fix="check perms.")
         return 2
     if getattr(args, "json", False):
-        print(json.dumps({"ok": True, "state_path": p.as_posix(), "rules_count": len(state.get("rules") or {})}, indent=2, ensure_ascii=False))
+        print(json.dumps(
+            {"ok": True, "state_path": p.as_posix(), "rules_count": len(state.get("rules") or {})},
+            indent=2, ensure_ascii=False,
+        ))
     else:
         print(f"✅ initialized {p}")
     return 0
@@ -959,13 +970,19 @@ def main(argv: list[str] | None = None) -> int:
 
     p_inv = sub.add_parser("inventory", help="Re-scan rules and write (or --check) rules-inventory.json.")
     p_inv.add_argument("--output", default=None, help="Override default config-ui/rules-inventory.json path.")
-    p_inv.add_argument("--check", action="store_true",
-                       help="Verify the committed inventory is fresh + no dangling hooks; write nothing, exit 2 on drift.")
+    p_inv.add_argument(
+        "--check", action="store_true",
+        help="Verify the committed inventory is fresh + no dangling hooks; "
+             "write nothing, exit 2 on drift.",
+    )
     p_inv.add_argument("--json", action="store_true")
     p_inv.set_defaults(func=cmd_inventory)
 
     p_init = sub.add_parser("init", help="Initialise an empty rules-toggle.json (or import from a bundle).")
-    p_init.add_argument("--from", dest="from_path", default=None, help="Import from an existing state file or bundle JSON.")
+    p_init.add_argument(
+        "--from", dest="from_path", default=None,
+        help="Import from an existing state file or bundle JSON.",
+    )
     p_init.add_argument("--force", action="store_true", help="Overwrite an existing state file.")
     p_init.add_argument("--json", action="store_true")
     p_init.set_defaults(func=cmd_init)

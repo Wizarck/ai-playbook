@@ -37,7 +37,7 @@ def _render_extras_yaml(hooks: list[dict]) -> str:
             if isinstance(val, bool):
                 # YAML booleans are lowercase by convention (str(bool) is "True").
                 out.append(f"        {key}: {'true' if val else 'false'}")
-            elif isinstance(val, (str, int, float)):
+            elif isinstance(val, str | int | float):
                 out.append(f"        {key}: {val}")
             elif isinstance(val, list):
                 out.append(f"        {key}: {val!r}")
