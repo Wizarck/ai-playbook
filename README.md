@@ -7,7 +7,7 @@
 [![check-rule-schemas](https://github.com/Wizarck/ai-playbook/actions/workflows/check-rule-schemas.rule.yml/badge.svg)](https://github.com/Wizarck/ai-playbook/actions/workflows/check-rule-schemas.rule.yml)
 [![docs](https://github.com/Wizarck/ai-playbook/actions/workflows/docs-deploy.yml/badge.svg)](https://github.com/Wizarck/ai-playbook/actions/workflows/docs-deploy.yml)
 
-> **TL;DR** — Stop the silent drift between what your LLM thinks the rules are and what CI actually enforces. `ai-playbook` is an **LLM-agnostic, neuro-symbolic enforcement framework**: every rule is one slug bound to four paired artefacts (markdown contract + Python hook + GitHub workflow + tests). The validator refuses to ship if any pair disagrees. Claude Code, Gemini CLI, and Cursor all read the same files. Ships per-project as a git submodule, runs on Windows / macOS / Linux, and configures from a double-click HTML UI.
+> **TL;DR** — Stop the silent drift between what your LLM thinks the rules are and what CI actually enforces. `ai-playbook` is an **LLM-agnostic, [neuro-symbolic](docs/concepts/academic-foundations.md) enforcement framework**: every rule is one slug bound to four paired artefacts (markdown contract + Python hook + GitHub workflow + tests). The validator refuses to ship if any pair disagrees. Claude Code, Gemini CLI, and Cursor all read the same files. Ships per-project as a git submodule, runs on Windows / macOS / Linux, and configures from a double-click HTML UI.
 
 ## The problem: rule drift is invisible until it isn't
 
