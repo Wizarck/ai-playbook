@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0   # need full history to count commits + diff vs base
 
@@ -95,7 +95,7 @@ jobs:
           echo "reason=$REASON" >> "$GITHUB_OUTPUT"
 
       - name: Post or update sticky comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           REC: ${{ steps.classify.outputs.recommendation }}
           REASON: ${{ steps.classify.outputs.reason }}
