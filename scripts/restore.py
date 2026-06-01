@@ -39,13 +39,12 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._backup_helper import (
+from scripts._backup_helper import (  # noqa: E402
     BackupRecord,
     base_record_for,
     latest_backup_for,
     read_index,
     restore_backup,
-    restore_base,
 )
 
 

@@ -27,7 +27,6 @@ from scripts._marker_blocks import (
 )
 from scripts._template_classifier import compute_sha
 
-
 _PROJECT_META_TO_PLACEHOLDER = {
     "project_identity": "{{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}",
     "active_work": "{{ACTIVE_OPENSPEC_CHANGE_OR_NONE}}",
@@ -97,7 +96,7 @@ def _apply_curate_intents(
         return text
 
     overrides: dict[str, MarkerBlock] = {}
-    for block_id, block in rendered_parsed.blocks.items():
+    for block_id, _block in rendered_parsed.blocks.items():
         action = _resolve_block_action(block_id, intents)
         if action != "keep_mine":
             continue

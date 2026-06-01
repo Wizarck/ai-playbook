@@ -7,7 +7,6 @@ import pytest
 
 from scripts import _project_root
 
-
 # ---------------------------------------------------------------------------
 # is_inside_playbook_checkout — segment-based detection
 # ---------------------------------------------------------------------------

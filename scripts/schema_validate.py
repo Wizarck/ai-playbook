@@ -384,7 +384,7 @@ def apply_autofix(
                 f"normalised `updated: {data['updated']!r}` -> `{normalised}`"
             )
             data["updated"] = normalised
-        elif isinstance(data["updated"], (date, datetime)):
+        elif isinstance(data["updated"], date | datetime):
             # PyYAML loads dates as date objects; serialise back to ISO string.
             normalised = normalise_date(data["updated"])
             if normalised:
