@@ -8,7 +8,10 @@ on:
       - "schemas/schema-concept-v1.json"
       - "scripts/rules/**"
       - ".github/workflows/**/*.rule.yml"
-      - "config-ui/rules-inventory.json"
+      - "config-ui/*-inventory.json"
+      - "config-ui/defaults.json"
+      - "config-ui/*.js"
+      - "scripts/build_ui_sidecars.py"
       - "templates/new-project/.claude/settings.json.tmpl"
       - ".github/workflows/check-rule-schemas.rule.yml"
 
@@ -110,3 +113,5 @@ jobs:
           PY
       - name: Rules inventory is fresh + no dangling hooks
         run: python -m scripts.rules_toggle inventory --check
+      - name: config-ui .js sidecars match their .json
+        run: python -m scripts.build_ui_sidecars --check

@@ -83,3 +83,13 @@ repos:
         # so always_run (a deleted .rule.md wouldn't otherwise trigger it).
         pass_filenames: false
         always_run: true
+
+      - id: ui-sidecars-check
+        name: ui-sidecars-check (config-ui/*.js sidecars match their .json)
+        entry: python -m scripts.build_ui_sidecars --check
+        language: system
+        # The .js sidecars are derived from the committed .json inventories; a
+        # .json edited without regenerating its sidecar would ship a stale UI
+        # under file://. Depends on the SET of config-ui files → always_run.
+        pass_filenames: false
+        always_run: true
