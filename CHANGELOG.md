@@ -4,6 +4,21 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Added — config-UI works under `file://` (`feat/config-ui-file-sidecars`)
+
+- **No local server required.** The config UI's six inventories (rules, features,
+  global-flags, skills, mcps, defaults) now each ship a `.js` sidecar
+  (`window.RULES_INVENTORY = {…}`, etc.) loaded via `<script src>` — which browsers
+  permit under `file://`, where `fetch()` is blocked by CORS. The UI is now a true
+  double-click HTML, matching the existing applied-config/files-state/dashboard
+  sidecars. `app.js` prefers the injected global and falls back to `fetch()` of the
+  `.json` when served over http(s), so the JSON stays the source of truth for
+  programmatic/CI use.
+- **`scripts/build_ui_sidecars.py`** generates the `.js` from whatever the committed
+  `.json` holds; `--check` is a freshness gate wired into `check-rule-schemas.rule.yml`
+  and a `ui-sidecars-check` pre-commit hook, so a `.json` edited without regenerating
+  its sidecar fails CI rather than silently shipping a stale UI.
+
 ### Fixed — bump_consumers robustness (`fix/bump-consumers-robustness`)
 
 - **Force-fetch tags.** `bump_consumers` now runs `git fetch --tags --force` on each

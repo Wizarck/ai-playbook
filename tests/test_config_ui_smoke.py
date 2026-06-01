@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 
 import jsonschema
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 UI_DIR = REPO_ROOT / "config-ui"
@@ -22,6 +21,14 @@ def test_ui_assets_present() -> None:
         "features-inventory.json",
         "global-flags-inventory.json",
         "defaults.json",
+        # .js sidecars (build_ui_sidecars.py) must be committed so the UI works
+        # under file:// after a plain clone/submodule checkout — no build step.
+        "rules-inventory.js",
+        "features-inventory.js",
+        "global-flags-inventory.js",
+        "skills-inventory.js",
+        "mcps-inventory.js",
+        "defaults.js",
     ):
         assert (UI_DIR / name).is_file(), f"missing UI asset: {name}"
 
@@ -68,10 +75,40 @@ def test_app_js_updates_enforce_summary_on_individual_toggle() -> None:
     assert "updateMcpsSummary" in text
 
 
-def test_app_js_fetches_inventories() -> None:
+def test_app_js_loads_inventories_via_sidecar_with_fetch_fallback() -> None:
+    """init() prefers each inventory's window global (the .js sidecar, which
+    works under file://) and falls back to fetch() of the .json over http(s).
+    Both the global name and the .json URL must appear for every inventory."""
     text = (UI_DIR / "app.js").read_text(encoding="utf-8")
-    for name in ("rules-inventory.json", "features-inventory.json", "global-flags-inventory.json", "defaults.json"):
-        assert f'fetch("{name}")' in text, f"app.js does not fetch {name}"
+    assert "loadInv(" in text, "expected the loadInv() global-preferring loader"
+    for global_name, url in (
+        ("RULES_INVENTORY", "rules-inventory.json"),
+        ("FEATURES_INVENTORY", "features-inventory.json"),
+        ("GLOBAL_FLAGS_INVENTORY", "global-flags-inventory.json"),
+        ("SKILLS_INVENTORY", "skills-inventory.json"),
+        ("MCPS_INVENTORY", "mcps-inventory.json"),
+        ("DEFAULTS", "defaults.json"),
+    ):
+        assert global_name in text, f"app.js does not reference window.{global_name}"
+        assert f'"{url}"' in text, f"app.js does not keep {url} as a fetch fallback"
+    # The fallback path must still go through fetch().
+    assert "fetch(url)" in text, "expected fetch(url) fallback inside loadInv"
+
+
+def test_index_html_loads_inventory_sidecars() -> None:
+    """index.html must load each inventory .js sidecar via <script src> (the
+    file://-safe path) with an onerror flag for the offline-mode banner."""
+    text = (UI_DIR / "index.html").read_text(encoding="utf-8")
+    for base, flag in (
+        ("rules-inventory", "RULES_INVENTORY_MISSING"),
+        ("features-inventory", "FEATURES_INVENTORY_MISSING"),
+        ("global-flags-inventory", "GLOBAL_FLAGS_INVENTORY_MISSING"),
+        ("skills-inventory", "SKILLS_INVENTORY_MISSING"),
+        ("mcps-inventory", "MCPS_INVENTORY_MISSING"),
+        ("defaults", "DEFAULTS_MISSING"),
+    ):
+        assert f'src="{base}.js"' in text, f"index.html does not load {base}.js"
+        assert flag in text, f"index.html missing onerror flag {flag}"
 
 
 def test_defaults_validates_against_bundle_schema() -> None:

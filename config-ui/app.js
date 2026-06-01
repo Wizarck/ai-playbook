@@ -1,11 +1,14 @@
 /* ai-playbook config UI — vanilla JS, no build, no framework.
  *
- * Loads three inventories + a defaults bundle from the same directory, lets
- * the user toggle rules / caveman / global flags, and exports a sparse
+ * Loads the inventories + a defaults bundle from the same directory, lets the
+ * user toggle rules / caveman / global flags, and exports a sparse
  * ai-playbook-config/v1 bundle JSON that scripts/apply_config.py consumes.
  *
- * file:// note: modern browsers block fetch() from file:// in many cases.
- * The footer hint documents `python -m http.server` as the workaround.
+ * file:// note: modern browsers block fetch() from file:// (CORS) but permit
+ * <script src>. So each inventory ships a `.js` sidecar (built by
+ * scripts/build_ui_sidecars.py) that sets a window global; init() prefers that
+ * global and only falls back to fetch() when served over http(s) — making the
+ * UI a true double-click HTML with no local server required.
  */
 (function () {
   "use strict";
@@ -30,14 +33,24 @@
     // offlineCount drives a contextual "offline mode" banner after init.
     let offlineCount = 0;
     const onFail = (fallback) => () => { offlineCount++; return fallback; };
+    // Prefer an inventory injected as a window global by its <name>.js sidecar
+    // (works under file://); fall back to fetch() of the .json over http(s) or
+    // when the sidecar is absent. offlineCount only increments when BOTH the
+    // global and the fetch fail — so the offline banner stays quiet when the
+    // sidecars are present (the common double-click case).
+    const loadInv = (globalName, url, fallback) => {
+      const g = (typeof window !== "undefined") ? window[globalName] : undefined;
+      if (g !== undefined && g !== null) return Promise.resolve(g);
+      return fetch(url).then(r => r.json()).catch(onFail(fallback));
+    };
     try {
       const [rulesInv, featuresInv, globalFlagsInv, skillsInv, mcpsInv, defaultsJson] = await Promise.all([
-        fetch("rules-inventory.json").then(r => r.json()).catch(onFail({ rules: [] })),
-        fetch("features-inventory.json").then(r => r.json()).catch(onFail({ features: {} })),
-        fetch("global-flags-inventory.json").then(r => r.json()).catch(onFail({ flags: [] })),
-        fetch("skills-inventory.json").then(r => r.json()).catch(onFail({ skills: [] })),
-        fetch("mcps-inventory.json").then(r => r.json()).catch(onFail({ servers: [] })),
-        fetch("defaults.json").then(r => r.json()).catch(onFail({ schema: "ai-playbook-config/v1" })),
+        loadInv("RULES_INVENTORY", "rules-inventory.json", { rules: [] }),
+        loadInv("FEATURES_INVENTORY", "features-inventory.json", { features: {} }),
+        loadInv("GLOBAL_FLAGS_INVENTORY", "global-flags-inventory.json", { flags: [] }),
+        loadInv("SKILLS_INVENTORY", "skills-inventory.json", { skills: [] }),
+        loadInv("MCPS_INVENTORY", "mcps-inventory.json", { servers: [] }),
+        loadInv("DEFAULTS", "defaults.json", { schema: "ai-playbook-config/v1" }),
       ]);
       inv.rules = rulesInv.rules || [];
       inv.features = featuresInv.features || {};
@@ -93,8 +106,8 @@
           banner(
             "info",
             `Offline mode: ${offlineCount} inventory file(s) could not be loaded ` +
-            "(likely file:// CORS or missing JSON). The UI is running on reduced data. " +
-            "For full functionality, run `python -m http.server` from this directory."
+            "(missing .js sidecar and file:// blocked the .json fetch). The UI is running on reduced data. " +
+            "Regenerate the sidecars with `python -m scripts.build_ui_sidecars`, or serve over `python -m http.server`."
           );
         }
       }
