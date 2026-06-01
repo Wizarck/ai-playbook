@@ -47,7 +47,7 @@ The papers and specs below are grouped by the role they play in the playbook's d
 
 ### Symbolic + neural composition
 
-11. **IBM Neuro-Symbolic AI: Position Paper** — IBM Research, 2023. <https://research.ibm.com/blog/neuro-symbolic-ai>. The playbook's L1 (deterministic Python) + L2 (LLM-interpreted markdown) split is a neuro-symbolic composition: the symbolic layer enforces invariants the neural layer cannot reliably verify on its own. Decision D8 (L1 authoritative) mirrors the neuro-symbolic convention that the symbolic verifier wins on disagreement.
+11. **Neuro-Symbolic AI (research overview)** — IBM Research, 2023. <https://research.ibm.com/blog/neuro-symbolic-ai>. A practitioner overview (not a peer-reviewed paper) of the neuro-symbolic programme: combining neural pattern-matching with symbolic reasoning so each compensates for the other's weakness. The playbook's L1 (deterministic Python) + L2 (LLM-interpreted markdown) split is a neuro-symbolic composition in this sense: the symbolic layer enforces invariants the neural layer cannot reliably verify on its own. Decision D8 (L1 authoritative) mirrors the neuro-symbolic convention that the symbolic verifier wins on disagreement.
 
 ### Telemetry + observability
 
