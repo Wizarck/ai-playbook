@@ -57,7 +57,7 @@ INDEX_SCHEMA = "ai-playbook-backups/v1"
 TIMESTAMP_FMT = "%Y-%m-%dT%H-%M-%SZ"  # colons stripped — Windows-safe
 
 
-class BackupLocation(str, Enum):
+class BackupLocation(str, Enum):  # noqa: UP042 — StrEnum changes str()/format(); keep (str, Enum)
     """Where ``backup_once`` should write the ``.bak`` file."""
 
     NEXT_TO_FILE = "next"
