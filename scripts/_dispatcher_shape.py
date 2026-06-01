@@ -180,12 +180,12 @@ def loose_prose_sections(
         run: list[str] = []
         run_start = 0
 
-        def _flush(start_idx: int) -> None:
-            substantive = [ln for ln in run if ln.strip()]
+        def _flush(start_idx: int, run_lines: list[str], all_lines: list[str]) -> None:
+            substantive = [ln for ln in run_lines if ln.strip()]
             if len(substantive) > LOOSE_PROSE_LINE_THRESHOLD:
                 out.append(LooseProse(
                     rel_path=rel_path,
-                    heading=_heading_before(lines, start_idx),
+                    heading=_heading_before(all_lines, start_idx),
                     line_count=len(substantive),
                     preview="\n".join(substantive[:3])[:200],
                     suggestion=suggestion,
@@ -194,14 +194,14 @@ def loose_prose_sections(
         for i, line in enumerate(lines):
             if _is_pointer_line(line):
                 if run:
-                    _flush(run_start)
+                    _flush(run_start, run, lines)
                     run = []
                 continue
             if not run:
                 run_start = i
             run.append(line)
         if run:
-            _flush(run_start)
+            _flush(run_start, run, lines)
 
     return out
 

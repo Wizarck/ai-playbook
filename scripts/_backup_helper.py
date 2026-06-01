@@ -459,7 +459,7 @@ def prune_backups(
 
     keep: list[BackupRecord] = list(base_keep)
     removed_files = 0
-    for rel_path, group in by_rel.items():
+    for _rel_path, group in by_rel.items():
         group_sorted = sorted(group, key=lambda r: r.timestamp)
         if len(group_sorted) <= keep_per_file:
             keep.extend(group_sorted)

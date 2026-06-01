@@ -1,9 +1,9 @@
 """Tests for ``scripts._renderers`` — per-file renderers."""
 from __future__ import annotations
 
-from scripts._marker_blocks import CommentStyle, parse_blocks
 import json
 
+from scripts._marker_blocks import CommentStyle, parse_blocks
 from scripts._renderers import (
     render_agents_md,
     render_claude_settings,
@@ -15,7 +15,6 @@ from scripts._renderers import (
     render_settings_json,
 )
 from scripts._template_classifier import compute_sha
-
 
 # ---------------------------------------------------------------------------
 # AGENTS.md

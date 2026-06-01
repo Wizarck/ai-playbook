@@ -39,6 +39,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+from scripts._enforce_state import disabled_mcps as _disabled_mcps_state  # noqa: E402
 from scripts.mcp.validate import (  # noqa: E402
     CanonicalError,
     _apply_break_glass,
@@ -51,7 +52,6 @@ from scripts.mcp.validate import (  # noqa: E402
     resolve_personal_file,
     resolve_playbook_root,
 )
-from scripts._enforce_state import disabled_mcps as _disabled_mcps_state  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:

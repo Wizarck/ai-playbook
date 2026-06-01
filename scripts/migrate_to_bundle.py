@@ -38,8 +38,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._marker_blocks import CommentStyle, parse_blocks
-
+from scripts._marker_blocks import CommentStyle, parse_blocks  # noqa: E402
 
 SECTION_HEADER_RE = re.compile(
     r"^##\s*[§]?(\d+)\s*[.\-—]?\s*(.+?)\s*$", re.MULTILINE,

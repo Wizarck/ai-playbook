@@ -501,7 +501,7 @@ def notify(
             otel_attrs.update({
                 f"ai_playbook.notification.attrs.{k}": v
                 for k, v in attrs_final.items()
-                if isinstance(v, (str, int, float, bool))
+                if isinstance(v, str | int | float | bool)
             })
             with trace_emit.span(f"notification.{event}", otel_attrs):
                 pass

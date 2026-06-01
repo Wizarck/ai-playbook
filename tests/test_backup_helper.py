@@ -9,7 +9,6 @@ import pytest
 
 from scripts import _backup_helper as bh
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -271,7 +270,7 @@ def test_prune_noop_when_under_limit(consumer: Path) -> None:
 def test_record_carries_sha_and_size(consumer: Path) -> None:
     rec = bh.backup_once(consumer, consumer / "AGENTS.md")
     assert rec is not None
-    assert rec.source_size == len("# project agents\n".encode("utf-8"))
+    assert rec.source_size == len(b"# project agents\n")
     assert len(rec.sha256) == 64  # SHA-256 hex
 
 

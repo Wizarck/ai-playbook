@@ -46,8 +46,7 @@ except ImportError:
     )
     raise SystemExit(2) from None
 
-from scripts._project_root import find_project_root as _find_project_root_shared
-
+from scripts._project_root import find_project_root as _find_project_root_shared  # noqa: E402
 
 SCHEMA_VERSION = "caveman-toggle/v1"
 STATE_DIR_NAME = ".ai-playbook"

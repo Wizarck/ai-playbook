@@ -55,11 +55,11 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._backup_helper import read_index
-from scripts._dispatcher_shape import collect_drift, is_dispatcher_file
-from scripts._managed_files import MANAGED_FILES
-from scripts._marker_blocks import CommentStyle
-from scripts._template_classifier import classify, compute_file_sha
+from scripts._backup_helper import read_index  # noqa: E402
+from scripts._dispatcher_shape import collect_drift, is_dispatcher_file  # noqa: E402
+from scripts._managed_files import MANAGED_FILES  # noqa: E402
+from scripts._marker_blocks import CommentStyle  # noqa: E402
+from scripts._template_classifier import classify, compute_file_sha  # noqa: E402
 
 # Dispatcher .md files the aggregated drift view scans (consumer-root relative).
 _DISPATCHER_CANDIDATES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".cursorrules")

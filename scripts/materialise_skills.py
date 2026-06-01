@@ -65,7 +65,6 @@ for _stream in (sys.stdout, sys.stderr):
 from scripts import _skills_manifest  # noqa: E402
 from scripts._enforce_state import disabled_skills as _disabled_skills_state  # noqa: E402
 
-
 SCRIPT_BASENAME = "materialise_skills.py"
 SOURCE_REL = Path(".ai-playbook") / "skills"
 MIRROR_RELS = (
@@ -239,7 +238,7 @@ def _sync_one(
 
     err = "; ".join(errors) if errors else None
     if not quiet:
-        if dry_run:
+        if dry_run:  # noqa: SIM108 — nested ternary would be unreadable
             verb = "would update" if changed else "in sync"
         else:
             verb = "updated" if changed else "in sync"

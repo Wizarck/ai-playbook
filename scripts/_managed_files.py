@@ -31,10 +31,11 @@ import os
 import re
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 for _stream in (sys.stdout, sys.stderr):
     try:
@@ -42,10 +43,9 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts._backup_helper import BackupLocation, backup_once, restore_session
-from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks
-from scripts.tracing import trace_emit
-from scripts._renderers import (
+from scripts._backup_helper import BackupLocation, backup_once, restore_session  # noqa: E402
+from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks  # noqa: E402
+from scripts._renderers import (  # noqa: E402
     render_agents_md,
     render_claude_settings_local,
     render_coderabbit,
@@ -54,8 +54,8 @@ from scripts._renderers import (
     render_pre_commit,
     render_settings_json,
 )
-from scripts._template_classifier import compute_file_sha, compute_sha
-
+from scripts._template_classifier import compute_file_sha, compute_sha  # noqa: E402
+from scripts.tracing import trace_emit  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Catalog

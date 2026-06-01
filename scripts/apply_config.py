@@ -62,9 +62,11 @@ except ImportError:
     )
     raise SystemExit(2) from None
 
-from scripts import rules_toggle  # noqa: E402
-from scripts import _enforce_state  # noqa: E402
-from scripts import _managed_files  # noqa: E402
+from scripts import (  # noqa: E402
+    _enforce_state,  # noqa: E402
+    _managed_files,  # noqa: E402
+    rules_toggle,  # noqa: E402
+)
 
 STATE_DIR_NAME = ".ai-playbook"
 ENFORCE_STATE_DIR_NAME = _enforce_state.STATE_DIR_NAME
@@ -120,7 +122,7 @@ class ApplyReport:
         }
 
     def to_markdown(self) -> str:
-        lines = [f"# apply_config report", f"- target: `{self.target}`", f"- bundle: `{self.bundle_path}`", ""]
+        lines = ["# apply_config report", f"- target: `{self.target}`", f"- bundle: `{self.bundle_path}`", ""]
         for s in self.sections:
             sig = "✅" if s.ok else "❌"
             lines.append(f"## {sig} {s.name}")
@@ -214,7 +216,9 @@ def _caveman_preflight(target: Path) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-def apply_rules(target: Path, bundle: dict[str, Any], rules_inventory: dict[str, Any] | None) -> tuple[SectionResult, dict[str, str]]:
+def apply_rules(
+    target: Path, bundle: dict[str, Any], rules_inventory: dict[str, Any] | None
+) -> tuple[SectionResult, dict[str, str]]:
     """Write rules-toggle.json + return env var entries derived from advanced{}.
 
     Returns (SectionResult, env_entries) where env_entries is a dict of
@@ -304,7 +308,10 @@ def apply_caveman(target: Path, caveman_intent: dict[str, Any] | None, *, dry_ru
 
     if dry_run:
         if enabled:
-            sr.changes.append(f"DRY-RUN would invoke: python -m scripts.caveman on --mode {mode} --components {','.join(requested) or 'response_style'}")
+            sr.changes.append(
+                f"DRY-RUN would invoke: python -m scripts.caveman on --mode {mode} "
+                f"--components {','.join(requested) or 'response_style'}"
+            )
         else:
             sr.changes.append("DRY-RUN would invoke: python -m scripts.caveman off")
         return sr
@@ -405,10 +412,7 @@ def _write_env_block(target: Path, env_entries: dict[str, str]) -> list[str]:
     p = target / STATE_DIR_NAME / FEATURE_FLAGS_FILENAME
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    if p.is_file():
-        text = p.read_text(encoding="utf-8")
-    else:
-        text = ""
+    text = p.read_text(encoding="utf-8") if p.is_file() else ""
 
     lines = text.split("\n")
     begin_idx = end_idx = None

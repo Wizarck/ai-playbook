@@ -319,12 +319,12 @@ def jira_find_or_create_fixversion(
         creds=creds, method="GET",
         path=f"/rest/api/3/project/{project_key}/versions",
     )
-    if status == 200 and isinstance(payload, (list, dict)):
+    if status == 200 and isinstance(payload, list | dict):
         items = payload if isinstance(payload, list) else payload.get("values", [])
         for v in items or []:
             if isinstance(v, dict) and v.get("name") == name:
                 vid = v.get("id")
-                if isinstance(vid, (str, int)):
+                if isinstance(vid, str | int):
                     return str(vid), "exists"
     # Create
     status, payload, msg = _jira_authorised_request(
