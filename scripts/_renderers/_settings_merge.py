@@ -135,18 +135,35 @@ def merge_required_pretooluse(settings: dict[str, Any]) -> dict[str, Any]:
 # ZERO settings edits. Runs ALONGSIDE the bespoke openspec-apply-enforce hook
 # (which keeps its own precise Bash-inspection behaviour); deduped by basename.
 DISPATCHER_PRE_TOOL_USE_MATCHER = "Edit|Write|MultiEdit|Bash"
-DISPATCHER_PRE_TOOL_USE_COMMAND = "python .ai-playbook/scripts/hook_dispatcher.py PreToolUse"
+# Anchor to $CLAUDE_PROJECT_DIR (like the openspec-apply-enforce hook) instead of
+# a bare relative path. A relative `.ai-playbook/...` resolves against the hook's
+# cwd — which can be a sibling repo when the session's shell has cd'd away — so a
+# missing-file error (exit 2) blocks EVERY Edit/Write/Bash, leaving no tool able
+# to repair settings.json. The absolute form removes that cwd fragility.
+DISPATCHER_PRE_TOOL_USE_COMMAND = (
+    'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/hook_dispatcher.py" PreToolUse'
+)
 DISPATCHER_PRE_TOOL_USE_TIMEOUT = 10
 DISPATCHER_IDENTITY = "hook_dispatcher.py"
 
 
-def merge_required_dispatcher(settings: dict[str, Any]) -> dict[str, Any]:
+def merge_required_dispatcher(
+    settings: dict[str, Any], *, available: bool = True
+) -> dict[str, Any]:
     """Ensure the generic L1 dispatcher PreToolUse entry. Idempotent.
 
     Deduped by the ``hook_dispatcher.py`` basename (an explicit identity, since
     the command carries a trailing ``PreToolUse`` arg), so any matcher satisfies
     it and re-running never duplicates.
+
+    ``available`` lets the caller suppress the entry when the consumer's submodule
+    pin does NOT ship ``hook_dispatcher.py`` (older pins). Wiring a hook to an
+    absent script would exit 2 on every tool call and block the whole session;
+    the impure caller (``_managed_files``) does the on-disk existence check and
+    passes the result here so this helper stays filesystem-free.
     """
+    if not available:
+        return dict(settings)
     return ensure_hooks(settings, [{
         "event": "PreToolUse",
         "matcher": DISPATCHER_PRE_TOOL_USE_MATCHER,

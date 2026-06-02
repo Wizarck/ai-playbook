@@ -577,6 +577,35 @@ SECTION_ORDER = (
 )
 
 
+_MCP_BUNDLE_SECTIONS: tuple[str, ...] = ("mcps_enforce", "mcp_project_servers")
+
+
+def _has_mcp_intent(bundle: dict[str, Any]) -> bool:
+    """True when the bundle carries an MCP-related section.
+
+    ``apply_mcp_render`` re-renders ``.mcp.json`` + ``.gemini/settings.json`` (and
+    a global gemini config) from the MCP SSOT. That render is the *consequence* of
+    an MCP intent — running it for a bundle that says nothing about MCP (e.g. a
+    caveman-only toggle) rewrites the consumer's entire MCP surface for an
+    unrelated change. Gate it on a declared MCP section.
+    """
+    return any(section in bundle for section in _MCP_BUNDLE_SECTIONS)
+
+
+def _skipped_mcp_render_section(*, dry_run: bool = False) -> SectionResult:
+    """The ``mcps_enforce.render`` slot, reported as a no-op when MCP intent absent."""
+    prefix = "DRY-RUN: " if dry_run else ""
+    return SectionResult(
+        name="mcps_enforce.render",
+        section_id="mcps_enforce.render",
+        ok=True,
+        detail=(
+            f"{prefix}skipped — no MCP intent in bundle "
+            "(mcps_enforce / mcp_project_servers absent)"
+        ),
+    )
+
+
 def apply_skills_materialise(target: Path, *, dry_run: bool = False) -> SectionResult:
     """Consequence of ``skills_enforce``: mirror the enforcement-filtered skills.
 
@@ -729,7 +758,10 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         report.sections.append(apply_skills_enforce(target, bundle, dry_run=True))
         report.sections.append(apply_skills_materialise(target, dry_run=True))
         report.sections.append(apply_mcps_enforce(target, bundle, dry_run=True))
-        report.sections.append(apply_mcp_render(target, dry_run=True))
+        if _has_mcp_intent(bundle):
+            report.sections.append(apply_mcp_render(target, dry_run=True))
+        else:
+            report.sections.append(_skipped_mcp_render_section(dry_run=True))
         # Dry-run managed files: count what would be touched.
         try:
             playbook_root_for_mf = rules_toggle.find_playbook_root()
@@ -833,7 +865,12 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
 
     # Section 5b: MCP render — the consequence of mcps_enforce. Reads the
     # disabled-MCP state file (written above) and renders the per-model configs.
-    mr_sr = apply_mcp_render(target)
+    # Gated on a declared MCP intent so an unrelated bundle (e.g. a caveman-only
+    # toggle) never rewrites the consumer's MCP surface + the global gemini config.
+    if _has_mcp_intent(bundle):
+        mr_sr = apply_mcp_render(target)
+    else:
+        mr_sr = _skipped_mcp_render_section()
     report.sections.append(mr_sr)
     _audit_append(target, {
         "ts": datetime.now(UTC).isoformat(),

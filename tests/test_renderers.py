@@ -536,6 +536,51 @@ def test_settings_json_ensures_dispatcher_when_only_enforce_present() -> None:
     assert out2 == out
 
 
+_ONLY_ENFORCE = json.dumps({
+    "hooks": {"PreToolUse": [{
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{"type": "command",
+                   "command": "python .claude/hooks/openspec-apply-enforce.py",
+                   "timeout": 10}],
+    }]},
+}) + "\n"
+
+
+def test_settings_json_skips_dispatcher_when_unavailable() -> None:
+    """When the consumer's submodule pin lacks hook_dispatcher.py the caller sets
+    DISPATCHER_AVAILABLE=0; the dispatcher hook must NOT be wired (an absent
+    script would exit 2 and block every Edit/Write/Bash). The enforce invariant
+    still lands."""
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH,
+        substitutions={"DISPATCHER_AVAILABLE": "0"},
+        bundle={"settings": {}},
+        current_text=_ONLY_ENFORCE,
+    )
+    cmds = [h.get("command", "") for e in json.loads(out)["hooks"]["PreToolUse"] for h in e["hooks"]]
+    assert any("openspec-apply-enforce.py" in c for c in cmds)
+    assert not any("hook_dispatcher.py" in c for c in cmds)
+
+
+def test_settings_json_dispatcher_anchored_to_project_dir() -> None:
+    """The wired dispatcher command anchors to $CLAUDE_PROJECT_DIR (not a bare
+    relative path) so the hook is cwd-independent and cannot resolve into a
+    sibling repo."""
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH,
+        substitutions={},  # default ⇒ available
+        bundle={"settings": {}},
+        current_text=_ONLY_ENFORCE,
+    )
+    dispatch = [
+        h.get("command", "")
+        for e in json.loads(out)["hooks"]["PreToolUse"] for h in e["hooks"]
+        if "hook_dispatcher.py" in h.get("command", "")
+    ]
+    assert len(dispatch) == 1
+    assert "$CLAUDE_PROJECT_DIR" in dispatch[0]
+
+
 def test_settings_json_preserves_user_keys() -> None:
     current = json.dumps({
         "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]},

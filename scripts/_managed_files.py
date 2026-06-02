@@ -366,6 +366,14 @@ def apply_managed_files(
         return result
 
     substitutions = compute_substitutions(consumer_root)
+    # The settings renderer wires a generic L1 dispatcher PreToolUse hook pointing
+    # at .ai-playbook/scripts/hook_dispatcher.py. That script ships in the playbook
+    # but only reaches a consumer once its submodule pin is new enough; older pins
+    # lack it. A hook bound to an absent script exits 2 and blocks every tool call
+    # (Edit/Write/Bash), so flag availability here — the impure layer that knows
+    # consumer_root — and let the pure renderer suppress the entry when absent.
+    dispatcher_script = consumer_root / ".ai-playbook" / "scripts" / "hook_dispatcher.py"
+    substitutions["DISPATCHER_AVAILABLE"] = "1" if dispatcher_script.is_file() else "0"
     location, with_ts = _resolve_backup_pref(bundle)
     templates_root = playbook_root / "templates" / "new-project"
     timestamp_iso = datetime.now(UTC).isoformat()
