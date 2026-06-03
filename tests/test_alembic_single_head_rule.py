@@ -176,3 +176,86 @@ def test_base_unknown_ref_degrades_to_worktree(tmp_path: Path, capsys: pytest.Ca
     _linear(tmp_path)
     assert _ash.main(["validate", "--base", "origin/main", str(tmp_path)]) == 0
     assert "--base skipped" in capsys.readouterr().err.lower()
+
+
+# ─── --base auto (no main/origin assumption) ────────────────────────────────
+
+
+def _git_out(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=str(repo), check=True, capture_output=True, text=True).stdout.strip()
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_auto_resolves_origin_default_via_symbolic_ref(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    repo.mkdir()
+    _git(repo, "init", "-b", "master")
+    _git(repo, "config", "user.email", "t@t.test")
+    _git(repo, "config", "user.name", "t")
+    _mk(repo, "x.txt", "x")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "c1")
+    sha = _git_out(repo, "rev-parse", "HEAD")
+    _git(repo, "remote", "add", "origin", "https://example.invalid/r.git")
+    _git(repo, "update-ref", "refs/remotes/origin/master", sha)
+    _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master")
+    assert _ash._resolve_auto_base(repo) == "origin/master"
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_auto_resolves_single_nonorigin_remote_via_fallback(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    repo.mkdir()
+    _git(repo, "init", "-b", "trunk")
+    _git(repo, "config", "user.email", "t@t.test")
+    _git(repo, "config", "user.name", "t")
+    _mk(repo, "x.txt", "x")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "c1")
+    sha = _git_out(repo, "rev-parse", "HEAD")
+    _git(repo, "remote", "add", "upstream", "https://example.invalid/r.git")
+    # no origin, no symbolic-ref → fallback probes main/master/trunk/develop
+    _git(repo, "update-ref", "refs/remotes/upstream/trunk", sha)
+    assert _ash._resolve_auto_base(repo) == "upstream/trunk"
+
+
+def test_auto_no_remote_returns_none(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    repo.mkdir()
+    if shutil.which("git") is None:
+        pytest.skip("git not available")
+    _git(repo, "init", "-b", "main")
+    assert _ash._resolve_auto_base(repo) is None
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_auto_base_e2e_detects_fork_on_master(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    repo = tmp_path / "repo"
+    versions = repo / "alembic" / "versions"
+    versions.mkdir(parents=True)
+    _git(repo, "init", "-b", "master")
+    _git(repo, "config", "user.email", "t@t.test")
+    _git(repo, "config", "user.name", "t")
+    _mk(versions, "0001_init.py", 'revision = "0001_init"\ndown_revision = None\n')
+    _mk(versions, "0002_users.py", 'revision = "0002_users"\ndown_revision = "0001_init"\n')
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "base")
+    # origin/master advanced with sibling head 0003_b
+    _mk(versions, "0003_b.py", 'revision = "0003_b"\ndown_revision = "0002_users"\n')
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "main head b")
+    main_sha = _git_out(repo, "rev-parse", "HEAD")
+    _git(repo, "remote", "add", "origin", "https://example.invalid/r.git")
+    _git(repo, "update-ref", "refs/remotes/origin/master", main_sha)
+    _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master")
+    # feature branch off the base (before 0003_b) with its own head 0003_a
+    base_sha = _git_out(repo, "rev-parse", "HEAD~1")
+    # checkout the base commit → working tree drops 0003_b (feature lacks it yet)
+    _git(repo, "checkout", "-b", "feature", base_sha)
+    assert not (versions / "0003_b.py").exists()
+    _mk(versions, "0003_a.py", 'revision = "0003_a"\ndown_revision = "0002_users"\n')
+    # --base auto → resolves origin/master (NOT hardcoded main) → union → fork
+    rc = _ash.main(["validate", "--base", "auto", str(versions)])
+    assert rc == 1
+    err = capsys.readouterr().err.lower()
+    assert "0003_a" in err and "0003_b" in err

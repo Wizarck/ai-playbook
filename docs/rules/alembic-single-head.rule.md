@@ -38,10 +38,12 @@ more than one head, add a **no-op merge node** declaring every head as a parent
 in the SAME PR — never merge a multi-head chain, never deploy off one.
 
 The fetch + rebase is not optional bookkeeping; it is the step that makes the
-head count meaningful. Equivalently, run the L1 validator with
-`--base origin/<base>` after `git fetch` to union your branch's migrations with
-the base's WITHOUT a full rebase — it computes heads over what the base looks
-like once your branch merges.
+head count meaningful. Equivalently, run the L1 validator with `--base auto`
+after `git fetch` to union your branch's migrations with the base's WITHOUT a
+full rebase — it computes heads over what the base looks like once your branch
+merges. `auto` resolves the remote's published default branch (no `main`/`origin`
+assumption — `origin` or the sole remote; `main`/`master`/`trunk`/`develop`);
+pin a ref explicitly with `--base <remote>/<branch>` when needed.
 
 ## Trust boundary
 
@@ -73,8 +75,8 @@ non-rebased branch. Two enforcers close that gap: (1) the **L3 workflow** runs
 migrations with the base's so the merged result is what gets head-counted; and
 (2) on a `pull_request` event the check also runs against GitHub's merge ref
 (your branch already merged into the latest base). The agent self-check SHOULD
-`git fetch` then run `validate --base origin/main <dir>` rather than trust a
-bare local count.
+`git fetch` then run `validate --base auto <dir>` rather than trust a bare local
+count.
 
 ## How to fix a multi-head chain
 

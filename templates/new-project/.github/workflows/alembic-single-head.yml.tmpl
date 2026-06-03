@@ -16,8 +16,12 @@
 # 1. Copy this template to <consumer>/.github/workflows/alembic-single-head.yml.
 # 2. Add the check `single head` to branch protection's required status checks
 #    so a multi-head PR actually blocks merge.
-# 3. (optional) Pin the migrations path with `validate <path>` instead of the
-#    auto-discover default if your layout is unusual.
+# 3. If your default branch is NOT `main` (e.g. `master`/`develop`), change the
+#    `branches:` filters below to match. The validate step itself is
+#    branch-agnostic — it derives the base from `github.base_ref` (the PR's
+#    actual base) / `github.ref_name`, so no `main` is assumed there.
+# 4. (optional) Pin the migrations path with `validate --base origin/<base> <path>`
+#    instead of the auto-discover default if your layout is unusual.
 
 name: alembic-single-head
 

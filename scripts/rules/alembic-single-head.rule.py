@@ -131,6 +131,39 @@ def _git(args: list[str], cwd: Path) -> tuple[int, str]:
     return proc.returncode, proc.stdout if proc.returncode == 0 else proc.stderr
 
 
+def _resolve_auto_base(directory: Path) -> str | None:
+    """Auto-detect the base ref to union against — no `main`/`origin` assumption.
+
+    Remote: ``origin`` if present, else the sole remote, else None. Branch: the
+    remote's published default via ``symbolic-ref .../HEAD`` (handles
+    main/master/trunk/develop), falling back to probing those names when
+    ``<remote>/HEAD`` is unset (common in shallow CI clones). Returns e.g.
+    ``origin/master`` or None when nothing resolves.
+    """
+    rc, top = _git(["rev-parse", "--show-toplevel"], cwd=directory)
+    if rc != 0:
+        return None
+    root = Path(top.strip())
+    rc, remotes_out = _git(["remote"], cwd=root)
+    if rc != 0:
+        return None
+    remotes = [r.strip() for r in remotes_out.splitlines() if r.strip()]
+    if not remotes:
+        return None
+    remote = "origin" if "origin" in remotes else (remotes[0] if len(remotes) == 1 else None)
+    if remote is None:
+        return None
+    rc, head = _git(["symbolic-ref", "--quiet", f"refs/remotes/{remote}/HEAD"], cwd=root)
+    if rc == 0 and head.strip():
+        # refs/remotes/<remote>/<branch> -> <remote>/<branch>
+        return head.strip().removeprefix("refs/remotes/")
+    for branch in ("main", "master", "trunk", "develop"):
+        rc, _ = _git(["rev-parse", "--verify", "--quiet", f"{remote}/{branch}"], cwd=root)
+        if rc == 0:
+            return f"{remote}/{branch}"
+    return None
+
+
 def _base_dir_entries(directory: Path, ref: str) -> list[tuple[object, object]]:
     """Read the directory's migrations AS THEY EXIST ON ``ref`` (e.g. origin/main).
 
@@ -212,9 +245,18 @@ def check_dir(directory: Path, base_ref: str | None = None) -> int:
             continue
         _record(revisions, parents, revision, down, p)
 
+    resolved_ref: str | None = None
     if base_ref is not None:
-        for revision, down in _base_dir_entries(directory, base_ref):
-            _record(revisions, parents, revision, down, None)
+        resolved_ref = _resolve_auto_base(directory) if base_ref == "auto" else base_ref
+        if resolved_ref is None:
+            print(
+                "⚠ alembic-single-head: --base auto could not resolve a base "
+                f"branch for {directory}; falling back to working-tree-only",
+                file=sys.stderr,
+            )
+        else:
+            for revision, down in _base_dir_entries(directory, resolved_ref):
+                _record(revisions, parents, revision, down, None)
 
     if not revisions:
         return rc
@@ -222,7 +264,7 @@ def check_dir(directory: Path, base_ref: str | None = None) -> int:
     heads = sorted(rev for rev in revisions if rev not in parents)
     if len(heads) > 1:
         head_list = ", ".join(heads)
-        scope = f"{directory} (unioned with {base_ref})" if base_ref else str(directory)
+        scope = f"{directory} (unioned with {resolved_ref})" if resolved_ref else str(directory)
         _emit_error(
             why=f"{len(heads)} alembic heads present ({head_list})",
             where=scope,
@@ -283,9 +325,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="GITREF",
         help=(
             "Union the working tree's migrations with the same directory's "
-            "migrations on GITREF (e.g. origin/main) before computing heads, so "
-            "a fork already merged into the base is caught without a local "
-            "rebase. Run `git fetch` first."
+            "migrations on GITREF before computing heads, so a fork already "
+            "merged into the base is caught without a local rebase. The special "
+            "value `auto` resolves the remote's default branch (origin or the "
+            "sole remote; main/master/trunk/develop) — no `main`/`origin` "
+            "assumption. Or pin a ref explicitly (e.g. `--base upstream/release`). "
+            "Run `git fetch` first."
         ),
     )
     parser.add_argument("paths", nargs="*")
