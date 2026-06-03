@@ -4,6 +4,8 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+## [0.19.10] — 2026-06-04 — alembic single-head rule (single-head invariant)
+
 ### Added — `alembic-single-head` rule (single-head invariant, L1 + L2 + L3)
 
 - **New paired rule `alembic-single-head`** enforcing that the Alembic migration
