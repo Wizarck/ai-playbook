@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import ast
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -106,13 +107,84 @@ def _migration_files(directory: Path) -> list[Path]:
     return [p for p in sorted(directory.glob("*.py")) if p.name != "__init__.py"]
 
 
-def check_dir(directory: Path) -> int:
-    """Single-head check over every migration file directly in ``directory``."""
+def _record(revisions: dict[str, object], parents: set[str], revision: object, down: object, src: object) -> None:
+    """Fold one migration's (revision, down_revision) into the maps."""
+    if isinstance(revision, str):
+        revisions.setdefault(revision, src)
+    if isinstance(down, str):
+        parents.add(down)
+    elif isinstance(down, tuple):
+        parents.update(d for d in down if isinstance(d, str))
+
+
+def _git(args: list[str], cwd: Path) -> tuple[int, str]:
+    try:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError) as exc:
+        return 1, str(exc)
+    return proc.returncode, proc.stdout if proc.returncode == 0 else proc.stderr
+
+
+def _base_dir_entries(directory: Path, ref: str) -> list[tuple[object, object]]:
+    """Read the directory's migrations AS THEY EXIST ON ``ref`` (e.g. origin/main).
+
+    Returns a list of (revision, down_revision) for every migration file under
+    ``directory`` in ``ref``. Lets the head computation union the base's chain
+    with the working tree's — so a fork created by ANOTHER branch that already
+    merged into ``ref`` is caught WITHOUT a local rebase. Degrades to ``[]`` (with
+    a stderr notice) when ``directory`` is not in a git work tree or ``ref`` is
+    unknown — the check then falls back to working-tree-only.
+    """
+    rc, top = _git(["rev-parse", "--show-toplevel"], cwd=directory)
+    if rc != 0:
+        print(f"⚠ alembic-single-head: --base skipped — not a git work tree ({directory})", file=sys.stderr)
+        return []
+    root = Path(top.strip())
+    try:
+        rel = directory.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return []
+    rc, listing = _git(["ls-tree", "-r", "--name-only", ref, "--", rel], cwd=root)
+    if rc != 0:
+        print(f"⚠ alembic-single-head: --base skipped — ref '{ref}' not resolvable", file=sys.stderr)
+        return []
+    entries: list[tuple[object, object]] = []
+    for line in listing.splitlines():
+        name = line.strip()
+        if not name.endswith(".py") or name.rsplit("/", 1)[-1] == "__init__.py":
+            continue
+        # Only files DIRECTLY in the dir (migrations are flat under versions/).
+        if name.rsplit("/", 1)[0] != rel:
+            continue
+        frc, text = _git(["show", f"{ref}:{name}"], cwd=root)
+        if frc != 0:
+            continue
+        revision, down, shaped = _extract(text)
+        if shaped:
+            entries.append((revision, down))
+    return entries
+
+
+def check_dir(directory: Path, base_ref: str | None = None) -> int:
+    """Single-head check over the migrations in ``directory``.
+
+    When ``base_ref`` is given, the working tree's migrations are UNIONED with
+    the same directory's migrations on ``base_ref`` before computing heads —
+    modelling "what ``base_ref`` looks like after merging this branch". This is
+    what catches a fork introduced by a sibling branch that already merged into
+    the base, which a working-tree-only check on a non-rebased branch misses.
+    """
     files = _migration_files(directory)
-    if not files:
+    if not files and base_ref is None:
         return 0
 
-    revisions: dict[str, Path] = {}
+    revisions: dict[str, object] = {}
     parents: set[str] = set()
     rc = 0
 
@@ -138,12 +210,11 @@ def check_dir(directory: Path) -> int:
                 )
                 rc = max(rc, 1)
             continue
-        if isinstance(revision, str):
-            revisions[revision] = p
-        if isinstance(down, str):
-            parents.add(down)
-        elif isinstance(down, tuple):
-            parents.update(d for d in down if isinstance(d, str))
+        _record(revisions, parents, revision, down, p)
+
+    if base_ref is not None:
+        for revision, down in _base_dir_entries(directory, base_ref):
+            _record(revisions, parents, revision, down, None)
 
     if not revisions:
         return rc
@@ -151,9 +222,10 @@ def check_dir(directory: Path) -> int:
     heads = sorted(rev for rev in revisions if rev not in parents)
     if len(heads) > 1:
         head_list = ", ".join(heads)
+        scope = f"{directory} (unioned with {base_ref})" if base_ref else str(directory)
         _emit_error(
             why=f"{len(heads)} alembic heads present ({head_list})",
-            where=str(directory),
+            where=scope,
             fix=(
                 'add a no-op merge node — `alembic merge -m "merge heads" '
                 f"{heads[0]} {heads[1]}` — so `alembic upgrade head` resolves "
@@ -173,7 +245,7 @@ def _discover_dirs(root: Path) -> list[Path]:
     return sorted(seen)
 
 
-def validate(paths: list[str]) -> int:
+def validate(paths: list[str], base_ref: str | None = None) -> int:
     targets: list[Path] = []
     if not paths:
         targets = _discover_dirs(Path.cwd())
@@ -196,7 +268,7 @@ def validate(paths: list[str]) -> int:
 
     rc = 0
     for d in targets:
-        rc = max(rc, check_dir(d))
+        rc = max(rc, check_dir(d, base_ref=base_ref))
     return rc
 
 
@@ -205,9 +277,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     parser = argparse.ArgumentParser(prog="alembic-single-head")
     parser.add_argument("subcommand", choices=["validate"])
+    parser.add_argument(
+        "--base",
+        default=None,
+        metavar="GITREF",
+        help=(
+            "Union the working tree's migrations with the same directory's "
+            "migrations on GITREF (e.g. origin/main) before computing heads, so "
+            "a fork already merged into the base is caught without a local "
+            "rebase. Run `git fetch` first."
+        ),
+    )
     parser.add_argument("paths", nargs="*")
     args = parser.parse_args(argv)
-    return validate(args.paths)
+    return validate(args.paths, base_ref=args.base)
 
 
 if __name__ == "__main__":

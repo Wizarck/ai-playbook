@@ -19,13 +19,18 @@ All notable changes to `ai-playbook` are documented here. Semver.
   heads (revisions no other migration names as a parent), exits 1 on >1 head or
   on an empty/orphaned migration file. A file argument resolves to its parent
   directory, so editing one migration checks the whole `versions/` folder.
+  Supports `--base <gitref>` to union the branch's migrations with the base's
+  (read via `git show`) so a sibling head that already merged into the base is
+  caught WITHOUT a local rebase — the fetch+rebase discipline made enforceable.
 - **L2** `docs/rules/alembic-single-head.rule.md` — sandwich-defended contract +
   the "how to fix a multi-head chain" recipe (no-op merge node).
 - **L3** `templates/new-project/.github/workflows/alembic-single-head.yml.tmpl` —
   consumer-installable required check (toggle-aware).
-- **Tests** `tests/test_alembic_single_head_rule.py` — 9 fixtures (single head,
+- **Tests** `tests/test_alembic_single_head_rule.py` — 12 fixtures (single head,
   two heads, merge-node collapse, empty orphan, non-migration skip, file→dir
-  resolution, annotated assignment, missing path, empty dir).
+  resolution, annotated assignment, missing path, empty dir, plus three
+  git-integration cases for `--base`: cross-branch fork detection, merge-node
+  resolution, graceful degrade when the ref is unresolvable).
 - Registered in `AGENTS.md` Rule Map, `docs/rules/INDEX.md`, and the config-UI
   rules inventory. Origin: the `033_*` two-head fork that broke geeplo
   deploys + e2e api boot on 2026-06-03.

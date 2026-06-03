@@ -38,6 +38,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true # need .ai-playbook/scripts/rules/*
+          fetch-depth: 0 # need the base branch to union heads against
 
       - uses: actions/setup-python@v5
         with:
@@ -53,12 +54,16 @@ jobs:
         working-directory: .ai-playbook
         continue-on-error: true
 
-      - name: Validate single head
+      - name: Validate single head (unioned with the base branch)
         if: steps.toggle.outcome == 'success'
-        # Auto-discovers **/alembic/versions, **/migrations/versions, **/migrations
-        # under the repo root. Replace with an explicit path if needed.
+        # Auto-discovers **/alembic/versions, **/migrations/versions, **/migrations.
+        # `--base origin/<base>` unions this branch's migrations with the base's so
+        # a sibling head that already merged into the base is caught even if this
+        # branch was not rebased — the fetch+rebase discipline, enforced server-side.
         run: |
-          python .ai-playbook/scripts/rules/alembic-single-head.rule.py validate
+          BASE="${{ github.base_ref || github.ref_name }}"
+          git fetch --no-tags origin "$BASE"
+          python .ai-playbook/scripts/rules/alembic-single-head.rule.py validate --base "origin/$BASE"
 
       - name: Note skipped validation (if applicable)
         if: steps.toggle.outcome == 'failure'

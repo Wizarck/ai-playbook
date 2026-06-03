@@ -29,9 +29,19 @@ L3 workflow which runs the validator on every PR that touches migrations.
 YOU MUST keep the Alembic migration chain at **exactly one head**. When two
 slices add a migration in parallel off the same parent the chain forks into two
 heads and `alembic upgrade head` aborts. Before merging any PR that adds a
-migration YOU MUST run `alembic heads` (or the L1 validator) and, if it reports
+migration YOU MUST **first `git fetch` and rebase (or merge) the base branch
+into yours** — `main` moves under you, and a head check on a non-rebased branch
+is BLIND to a sibling migration that already merged (your working tree does not
+contain it yet, so `alembic heads` falsely reports one head). Only after syncing
+the base do you run `alembic heads` (or the L1 validator) and, if it reports
 more than one head, add a **no-op merge node** declaring every head as a parent
 in the SAME PR — never merge a multi-head chain, never deploy off one.
+
+The fetch + rebase is not optional bookkeeping; it is the step that makes the
+head count meaningful. Equivalently, run the L1 validator with
+`--base origin/<base>` after `git fetch` to union your branch's migrations with
+the base's WITHOUT a full rebase — it computes heads over what the base looks
+like once your branch merges.
 
 ## Trust boundary
 
@@ -55,6 +65,16 @@ id from filename"). The hardrule is **static** — it parses `revision` and
 other migration names as a parent); no live database or `alembic` install is
 required, so it runs identically in pre-commit, CI, and the agent self-check.
 Run it and confirm exit code 0.
+
+The cross-branch fork — your branch's head plus a sibling head that already
+merged into the base — is invisible to a working-tree-only check on a
+non-rebased branch. Two enforcers close that gap: (1) the **L3 workflow** runs
+`validate --base origin/<base>` after `git fetch`, unioning your branch's
+migrations with the base's so the merged result is what gets head-counted; and
+(2) on a `pull_request` event the check also runs against GitHub's merge ref
+(your branch already merged into the latest base). The agent self-check SHOULD
+`git fetch` then run `validate --base origin/main <dir>` rather than trust a
+bare local count.
 
 ## How to fix a multi-head chain
 
