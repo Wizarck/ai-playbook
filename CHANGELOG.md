@@ -4,6 +4,32 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Added — `alembic-single-head` rule (single-head invariant, L1 + L2 + L3)
+
+- **New paired rule `alembic-single-head`** enforcing that the Alembic migration
+  chain resolves to **exactly one head**. A forked multi-head chain makes
+  `alembic upgrade head` abort ("Multiple head revisions are present"), breaking
+  deploys, the CI migrate step, and any container entrypoint that runs
+  `alembic upgrade head` (e.g. `sh -c "alembic upgrade head && uvicorn ..."`).
+  Complements [`migration-slot-reservation`](docs/rules/migration-slot-reservation.rule.md)
+  (which prevents the slot collision at propose time) with a merge-/CI-time
+  safety net for repos that merge with red CI / no branch protection.
+- **L1** `scripts/rules/alembic-single-head.rule.py` — STATIC validator (no DB,
+  no `alembic` install): parses `revision`/`down_revision` via `ast`, computes
+  heads (revisions no other migration names as a parent), exits 1 on >1 head or
+  on an empty/orphaned migration file. A file argument resolves to its parent
+  directory, so editing one migration checks the whole `versions/` folder.
+- **L2** `docs/rules/alembic-single-head.rule.md` — sandwich-defended contract +
+  the "how to fix a multi-head chain" recipe (no-op merge node).
+- **L3** `templates/new-project/.github/workflows/alembic-single-head.yml.tmpl` —
+  consumer-installable required check (toggle-aware).
+- **Tests** `tests/test_alembic_single_head_rule.py` — 9 fixtures (single head,
+  two heads, merge-node collapse, empty orphan, non-migration skip, file→dir
+  resolution, annotated assignment, missing path, empty dir).
+- Registered in `AGENTS.md` Rule Map, `docs/rules/INDEX.md`, and the config-UI
+  rules inventory. Origin: the `033_*` two-head fork that broke geeplo
+  deploys + e2e api boot on 2026-06-03.
+
 ## [0.19.9] — 2026-06-01 — config-UI file:// + green CI
 
 ### Fixed — CI gates green again (`chore/ci-green-ruff-and-gates`)

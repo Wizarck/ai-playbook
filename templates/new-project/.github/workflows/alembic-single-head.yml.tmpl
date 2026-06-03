@@ -1,0 +1,66 @@
+# alembic-single-head.yml — L3 server-side gate for the single-head invariant.
+#
+# Paired rule: .ai-playbook/docs/rules/alembic-single-head.rule.md (L2) +
+# .ai-playbook/scripts/rules/alembic-single-head.rule.py (L1).
+#
+# A forked Alembic chain with two or more heads makes `alembic upgrade head`
+# abort ("Multiple head revisions are present"), breaking deploys, the CI
+# migrate step, and any container entrypoint that runs `alembic upgrade head`.
+# Slot reservation prevents the collision at propose time; this workflow is the
+# merge-time safety net for repos that merge with red CI / no branch protection.
+#
+# The check is STATIC — it parses revision/down_revision from each migration
+# file and computes heads; no database or alembic install needed.
+#
+# Setup:
+# 1. Copy this template to <consumer>/.github/workflows/alembic-single-head.yml.
+# 2. Add the check `single head` to branch protection's required status checks
+#    so a multi-head PR actually blocks merge.
+# 3. (optional) Pin the migrations path with `validate <path>` instead of the
+#    auto-discover default if your layout is unusual.
+
+name: alembic-single-head
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  single-head:
+    name: single head
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true # need .ai-playbook/scripts/rules/*
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check rule toggle (skip if L3 OFF)
+        id: toggle
+        run: |
+          python -m scripts.rules_toggle status \
+            --slug alembic-single-head \
+            --layer L3 \
+            --exit-code
+        working-directory: .ai-playbook
+        continue-on-error: true
+
+      - name: Validate single head
+        if: steps.toggle.outcome == 'success'
+        # Auto-discovers **/alembic/versions, **/migrations/versions, **/migrations
+        # under the repo root. Replace with an explicit path if needed.
+        run: |
+          python .ai-playbook/scripts/rules/alembic-single-head.rule.py validate
+
+      - name: Note skipped validation (if applicable)
+        if: steps.toggle.outcome == 'failure'
+        run: |
+          echo "::notice title=alembic-single-head skipped::The L3 layer of alembic-single-head is disabled in this repo's .ai-playbook/rules-toggle.json. Validation step skipped."

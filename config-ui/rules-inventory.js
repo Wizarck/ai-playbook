@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-05-31T12:33:58.506173+00:00",
+  "generated_at": "2026-06-03T20:05:26.416794+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -55,6 +55,23 @@ window.RULES_INVENTORY = {
       "triggers": [],
       "description": "Alembic migrations MUST use the verbose form `<NNNN>_<topic>` matching the filename — `revision = \"0010_research_sources_tier_b_c\"` not `revision = \"0010\"`; the L1 pre-commit hook greps `alembic/versions/*.py` for the bare-integer form and fails the commit.",
       "doc_path": "docs/rules/alembic-migration-naming.rule.md"
+    },
+    {
+      "slug": "alembic-single-head",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/alembic-single-head.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [],
+      "description": "The Alembic migration chain MUST resolve to exactly one head — a forked multi-head chain makes `alembic upgrade head` abort (\"Multiple head revisions are present\") and breaks deploys, the CI migrate step, and any container entrypoint that runs `alembic upgrade head`; the L1 hardrule statically computes heads from `revision`/`down_revision` and fails on >1. Fix is a no-op merge node.",
+      "doc_path": "docs/rules/alembic-single-head.rule.md"
     },
     {
       "slug": "apply-fix-contract",

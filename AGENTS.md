@@ -103,6 +103,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [agentic-failure-catalog-schema](docs/rules/agentic-failure-catalog-schema.rule.md)
 - [ai-reviewer-signoff](docs/rules/ai-reviewer-signoff.rule.md)
 - [alembic-migration-naming](docs/rules/alembic-migration-naming.rule.md)
+- [alembic-single-head](docs/rules/alembic-single-head.rule.md)
 - [apply-skill-enforcement](docs/rules/apply-skill-enforcement.rule.md)
 - [auto-merge-discipline](docs/rules/auto-merge-discipline.rule.md)
 - [auto-pr-stream-closure](docs/rules/auto-pr-stream-closure.rule.md)
