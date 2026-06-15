@@ -123,6 +123,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [gemini-session-start](docs/rules/gemini-session-start.rule.md)
 - [github-project-board-schema](docs/rules/github-project-board-schema.rule.md)
 - [gitignore-entries](docs/rules/gitignore-entries.rule.md)
+- [graphify-adoption](docs/rules/graphify-adoption.rule.md)
 - [install-playbook](docs/rules/install-playbook.rule.md)
 - [link-integrity](docs/rules/link-integrity.rule.md)
 - [mcp-render](docs/rules/mcp-render.rule.md)
