@@ -57,6 +57,36 @@ window.FEATURES_INVENTORY = {
           "side_effects": ["wrap .mcp.json", "wrap .gemini/settings.json", "backup both before mutation"]
         }
       ]
+    },
+    "graphify": {
+      "label": "Graphify knowledge graph",
+      "description": "Commit a queryable AST knowledge graph (graphify-out/) so agents orient by structure instead of grep. No intensity modes. Enabling injects a query-first guidance block into AGENTS.md and applies the .gitignore hygiene that keeps the committed graph portable. NOTE: graphify wraps an external PyPI tool — the toggle cannot install it; each dev still runs `uv tool install graphifyy>=0.8.31` + `graphify hook install` (surfaced in Next Steps).",
+      "doc_path": "docs/concepts/graphify.md",
+      "schema_path": "schemas/schema-graphify-toggle-v1.json",
+      "cli_module": "scripts.graphify",
+      "components": [
+        {
+          "key": "agent_guidance",
+          "label": "Agent guidance (AGENTS.md block)",
+          "description": "Inject the graphify query-first guidance into AGENTS.md as an auto-managed block (content from skills/graphify/SKILL.md).",
+          "default": false,
+          "side_effects": ["materialise AGENTS.md auto-managed block", "backup AGENTS.md before mutation"]
+        },
+        {
+          "key": "gitignore_hygiene",
+          "label": ".gitignore hygiene",
+          "description": "Run the graphify-adoption rule's apply so per-machine/per-run graph state (.graphify_python, cost.json, cache/, dated snapshots) is gitignored.",
+          "default": false,
+          "side_effects": ["append .gitignore managed block", "backup .gitignore before mutation"]
+        },
+        {
+          "key": "enforce_skill",
+          "label": "graphify skill",
+          "description": "Capability flag — gates the graphify skill (query-first navigation). No file side effects.",
+          "default": false,
+          "side_effects": []
+        }
+      ]
     }
   }
 };
