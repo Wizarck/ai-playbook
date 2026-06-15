@@ -318,8 +318,13 @@ def main(argv: list[str] | None = None) -> int:
     if os.environ.get(OVERRIDE_ENV):
         return 0
     parser = argparse.ArgumentParser(prog="alembic-single-head")
-    parser.add_argument("subcommand", choices=["validate"])
-    parser.add_argument(
+    # Subparser (not a bare choices-positional + nargs="*" sibling): on CPython
+    # 3.11/3.12 a single positional followed by a `nargs="*"` positional fails to
+    # consume the trailing args ("unrecognized arguments: <path>"); 3.13 fixed it.
+    # A subparser is the version-robust shape (matches scripts/caveman/cli.py).
+    sub = parser.add_subparsers(dest="subcommand", required=True)
+    v = sub.add_parser("validate", help="Verify the migration chain resolves to one head.")
+    v.add_argument(
         "--base",
         default=None,
         metavar="GITREF",
@@ -333,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
             "Run `git fetch` first."
         ),
     )
-    parser.add_argument("paths", nargs="*")
+    v.add_argument("paths", nargs="*")
     args = parser.parse_args(argv)
     return validate(args.paths, base_ref=args.base)
 
