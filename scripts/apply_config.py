@@ -211,6 +211,23 @@ def _caveman_preflight(target: Path) -> dict[str, Any] | None:
         return None
 
 
+def _graphify_preflight(target: Path) -> dict[str, Any] | None:
+    """Snapshot graphify's enabled-state BEFORE any mutation this reconcile.
+
+    Like caveman, graphify is a non-transactional subprocess that mutates
+    AGENTS.md (+ .gitignore) before the managed-files batch. If that batch rolls
+    back, graphify's changes are not covered — this snapshot lets the report tell
+    the operator what state to restore. Best-effort: ``None`` when graphify is
+    not installed or its state is unreadable.
+    """
+    try:
+        from scripts.graphify import toggle as _graphify_toggle
+
+        return _graphify_toggle.read_state(target)
+    except Exception:  # noqa: BLE001 — pre-flight is advisory only
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Section 1: rules
 # ---------------------------------------------------------------------------
@@ -349,6 +366,68 @@ def apply_caveman(target: Path, caveman_intent: dict[str, Any] | None, *, dry_ru
     sr.changes.append(f"invoked: {' '.join(cmd)}")
     if proc.stdout.strip():
         sr.changes.append(f"caveman output: {proc.stdout.strip()[:300]}")
+    return sr
+
+
+# ---------------------------------------------------------------------------
+# Section 2b: features.graphify (subprocess delegation)
+# ---------------------------------------------------------------------------
+
+
+def apply_graphify(target: Path, graphify_intent: dict[str, Any] | None, *, dry_run: bool = False) -> SectionResult:
+    sr = SectionResult(name="features.graphify", ok=True)
+    if not graphify_intent:
+        sr.detail = "no graphify intent in bundle — no-op"
+        return sr
+
+    enabled = bool(graphify_intent.get("enabled"))
+    components_dict = graphify_intent.get("components") or {}
+    requested = [k for k, v in components_dict.items() if v]
+    default_components = "agent_guidance,gitignore_hygiene"
+
+    if dry_run:
+        if enabled:
+            sr.changes.append(
+                "DRY-RUN would invoke: python -m scripts.graphify on "
+                f"--components {','.join(requested) or default_components}"
+            )
+        else:
+            sr.changes.append("DRY-RUN would invoke: python -m scripts.graphify off")
+        return sr
+
+    if enabled:
+        cmd = [sys.executable, "-m", "scripts.graphify", "on"]
+        if requested:
+            cmd.extend(["--components", ",".join(requested)])
+    else:
+        cmd = [sys.executable, "-m", "scripts.graphify", "off"]
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(target),
+            capture_output=True,
+            text=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as e:
+        sr.ok = False
+        sr.detail = f"subprocess launch failed: {e}"
+        return sr
+
+    if proc.returncode != 0:
+        sr.ok = False
+        sr.detail = (
+            f"graphify CLI exit {proc.returncode}\n"
+            f"  stdout: {proc.stdout.strip()[:500]}\n"
+            f"  stderr: {proc.stderr.strip()[:500]}"
+        )
+        return sr
+    sr.changes.append(f"invoked: {' '.join(cmd)}")
+    if proc.stdout.strip():
+        sr.changes.append(f"graphify output: {proc.stdout.strip()[:300]}")
     return sr
 
 
@@ -565,6 +644,7 @@ def apply_mcps_enforce(
 SECTION_ORDER = (
     "rules",
     "features.caveman",
+    "features.graphify",
     "global_flags",
     "skills_enforce",
     "skills_enforce.materialise",
@@ -713,6 +793,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
     # managed-files transaction can surface a precise manual reconcile step
     # (caveman is a subprocess and is not covered by the session rollback).
     caveman_preflight = _caveman_preflight(target)
+    graphify_preflight = _graphify_preflight(target)
 
     rules_inv = _load_rules_inventory_live()
     global_flags_inv = _load_inventory("global-flags-inventory.json")
@@ -723,6 +804,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         sr.detail = f"DRY-RUN would write {len(bundle.get('rules') or {})} rule entries"
         report.sections.append(sr)
         report.sections.append(apply_caveman(target, (bundle.get("features") or {}).get("caveman"), dry_run=True))
+        report.sections.append(apply_graphify(target, (bundle.get("features") or {}).get("graphify"), dry_run=True))
         sr2 = SectionResult(name="global_flags", ok=True)
         sr2.detail = f"DRY-RUN would write {len(bundle.get('global_flags') or {})} global flag entries"
         report.sections.append(sr2)
@@ -779,6 +861,21 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "action": "apply-config:caveman",
         "ok": cv_sr.ok,
         "detail": cv_sr.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
+    # Section 2b: features.graphify. Like caveman, a non-transactional subprocess
+    # that mutates AGENTS.md (+ .gitignore) — track whether it actually mutated so
+    # a later managed-files rollback can surface the manual reconcile step.
+    gx_sr = apply_graphify(target, (bundle.get("features") or {}).get("graphify"))
+    graphify_mutated = any(c.startswith("invoked:") for c in gx_sr.changes)
+    report.sections.append(gx_sr)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:graphify",
+        "ok": gx_sr.ok,
+        "detail": gx_sr.detail,
         "bundle": bundle_path.as_posix(),
     })
 
@@ -875,6 +972,14 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
                     f"Restore its pre-apply state with `python -m scripts.caveman "
                     f"{'on' if pre_enabled else 'off'}`, then re-run reconcile "
                     "(or `python -m scripts.caveman rollback --yes`)."
+                )
+            if graphify_mutated and any("rolled back" in c for c in mf_result.changes):
+                gx_pre_enabled = bool((graphify_preflight or {}).get("enabled"))
+                mf_sr_section.changes.append(
+                    "⚠ graphify mutated AGENTS.md/.gitignore earlier this reconcile but the "
+                    "managed-files batch rolled back; graphify is not transactional. "
+                    f"Restore its pre-apply state with `python -m scripts.graphify "
+                    f"{'on' if gx_pre_enabled else 'off'}`, then re-run reconcile."
                 )
             if mf_result.file_states:
                 existing_states = bundle.setdefault("file_states", {})

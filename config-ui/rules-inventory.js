@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-06-03T20:05:26.416794+00:00",
+  "generated_at": "2026-06-15T21:53:58.587982+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -492,6 +492,23 @@ window.RULES_INVENTORY = {
       "triggers": [],
       "description": "Consumer `.gitignore` must include playbook-managed entries for break-glass audit state, notification queue, and hindsight queue.",
       "doc_path": "docs/rules/gitignore-entries.rule.md"
+    },
+    {
+      "slug": "graphify-adoption",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/graphify-adoption.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [],
+      "description": "Consumer repos that commit a graphify knowledge graph MUST gitignore the per-machine/per-run graph state, register the graph.json union-merge driver via `graphify hook install`, and pin `graphifyy>=0.8.31`, so the committed `graphify-out/` stays portable and conflict-free across developer machines.",
+      "doc_path": "docs/rules/graphify-adoption.rule.md"
     },
     {
       "slug": "hitl-approval-pattern",

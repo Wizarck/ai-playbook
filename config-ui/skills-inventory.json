@@ -1,6 +1,6 @@
 {
   "schema": "skills-inventory/v1",
-  "generated_at": "2026-05-26T15:19:39.107070+00:00",
+  "generated_at": "2026-06-15T00:08:01.700653+00:00",
   "skills": [
     {
       "slug": "ai-playbook-check",
@@ -366,6 +366,11 @@
       "slug": "dev-flow",
       "description": "Orchestrate the canonical task↔PR↔release flow end-to-end. Two modes — `/dev-flow start <description>` scaffolds an OpenSpec change + branch + (optional) worktree + git hook ready for commits; `/dev-flow ship` validates the current branch +",
       "doc_path": "skills/dev-flow/SKILL.md"
+    },
+    {
+      "slug": "graphify",
+      "description": "Use when navigating an unfamiliar codebase, tracing how code connects (callers, dependencies, the blast radius of a change), or whenever the repo ships a graphify-out/graph.json knowledge graph. Query the graph before grepping/reading raw s",
+      "doc_path": "skills/graphify/SKILL.md"
     },
     {
       "slug": "openspec-apply-change",
