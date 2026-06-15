@@ -9,6 +9,7 @@
 | [coderabbit-fallback.md](coderabbit-fallback.md) | Execute the Profile B self-review fallback when CodeRabbit cannot review a PR, producing a populated §4.5 audit trail in the PR body. |
 | [docs-build-deploy.md](docs-build-deploy.md) | Build the static documentation site locally with mkdocs-material + Pagefind static-index, validate it strict, and (optionally) preview on http://localhost:8000. |
 | [git-worktree-bare-setup.md](git-worktree-bare-setup.md) | Set up the canonical bare-repo + per-branch worktree layout for a consumer project (greenfield, migration, or daily flow). |
+| [graphify-setup.md](graphify-setup.md) | graphify commits a code knowledge graph the whole team shares (see |
 | [hindsight-retain.md](hindsight-retain.md) | Persist a lesson, decision, gotcha, or failure pattern to the Hindsight memory layer so future agent sessions can recall it. |
 | [onboard-new-project.md](onboard-new-project.md) | Attach a new repo to the ai-playbook (submodule pin, dispatcher routers, MCP config, SessionStart hook, propagation, Profile A/B enforcement). |
 | [release.md](release.md) | Cut a new ai-playbook semver tag. Consumers bump at their own pace (pull model, v0.19.0+). |

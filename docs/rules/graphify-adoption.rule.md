@@ -134,6 +134,12 @@ invocations are still audited per [break-glass](break-glass.rule.md).
 
 ## See also
 
+- [graphify concept](../concepts/graphify.md) — what the graph is, graphify vs
+  RAG, and the multi-dev portability model this rule enforces.
+- [graphify-setup runbook](../runbooks/graphify-setup.md) — operator walkthrough
+  (install `graphifyy>=0.8.31` + `graphify hook install` + verify).
+- [graphify skill](../../skills/graphify/SKILL.md) — agent-facing usage
+  (query-first discipline, when to prefer the graph over grep).
 - [gitignore-entries](gitignore-entries.rule.md) — sibling rule for
   playbook-managed runtime-state `.gitignore` entries (same `apply` pattern).
 - [claude-settings](claude-settings.rule.md) — sibling consumer-config rule that
