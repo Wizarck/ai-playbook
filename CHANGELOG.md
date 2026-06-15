@@ -4,6 +4,19 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+## [0.19.13] — 2026-06-16 — fix: alembic-single-head CLI parses on CPython 3.11/3.12
+
+### Fixed
+
+- **`alembic-single-head.rule.py` CLI argparse** — the rule used a bare
+  `choices`-positional (`subcommand`) followed by a `nargs="*"` positional
+  (`paths`). On CPython 3.11/3.12 that shape fails to consume the trailing path
+  (`error: unrecognized arguments: <dir>`), so the rule's own test suite was red
+  on the `test` CI job (3.11 + 3.12) since v0.19.10 — even though it passed on
+  3.13. Restructured to a `validate` **subparser** (the version-robust shape
+  already used by `scripts/caveman/cli.py`); behaviour, flags (`--base`), and
+  exit codes are unchanged. Greens the `test` job across all supported Pythons.
+
 ## [0.19.12] — 2026-06-15 — graphify feature (adoption rule + skill + Features-tab)
 
 ### Added — `graphify` feature + `graphify-adoption` rule
