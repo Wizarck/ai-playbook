@@ -31,6 +31,7 @@
 | [gemini-session-start.rule.md](gemini-session-start.rule.md) | Gemini CLI sessions MUST start through scripts/gemini_start.py to inject always-loaded rules. |
 | [github-project-board-schema.rule.md](github-project-board-schema.rule.md) | Every consumer project's GitHub Project board MUST carry a `Status` field with exactly five options in fixed order (Todo / In Progress / In Review / Blocked / Done) plus two worker-populated text fie… |
 | [gitignore-entries.rule.md](gitignore-entries.rule.md) | Consumer `.gitignore` must include playbook-managed entries for break-glass audit state, notification queue, and hindsight queue. |
+| [graphify-adoption.rule.md](graphify-adoption.rule.md) | Consumer repos that commit a graphify knowledge graph MUST gitignore the per-machine/per-run graph state, register the graph.json union-merge driver via `graphify hook install`, and pin `graphifyy>=0… |
 | [hitl-approval-pattern.rule.md](hitl-approval-pattern.rule.md) | State-mutating actions in single-operator AI systems MUST be gated on an asynchronous human approval delivered via a chat channel (Telegram/WhatsApp/Slack/Hermes) with HMAC-validated reply correlatio… |
 | [install-playbook.rule.md](install-playbook.rule.md) | Consumer one-time bootstrap of the .ai-playbook submodule with a pinned semver tag. |
 | [link-integrity.rule.md](link-integrity.rule.md) | No dead relative markdown links under docs/; every relative target MUST resolve on disk. |
