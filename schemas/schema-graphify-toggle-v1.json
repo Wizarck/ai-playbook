@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wizarck.github.io/ai-playbook/schemas/schema-graphify-toggle-v1.json",
+  "title": "graphify toggle state (v1)",
+  "description": "Per-project graphify feature toggle. Single source of truth at <project>/.ai-playbook/graphify.json. Read/written exclusively through scripts/graphify/toggle.py. UI consumers MUST go through the CLI (python -m scripts.graphify) rather than touching the file directly. No 'mode' — graphify has no intensity levels.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "enabled",
+    "components",
+    "applied_at"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "graphify-toggle/v1",
+      "description": "Schema versioning hook. MUST be 'graphify-toggle/v1' for this version. Future bumps require a migration script under scripts/graphify/migrations/."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Master switch. When false, all components are inert regardless of their individual flags."
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_guidance",
+        "gitignore_hygiene",
+        "enforce_skill"
+      ],
+      "properties": {
+        "agent_guidance": {
+          "type": "boolean",
+          "description": "Inject the graphify query-first guidance block into AGENTS.md (materialise from skills/graphify/SKILL.md)."
+        },
+        "gitignore_hygiene": {
+          "type": "boolean",
+          "description": "Run the graphify-adoption rule's apply so per-machine/per-run graph state is gitignored."
+        },
+        "enforce_skill": {
+          "type": "boolean",
+          "description": "Capability flag — gates the graphify skill. No side effect."
+        }
+      },
+      "description": "Per-component flags. agent_guidance/gitignore_hygiene are persistent side effects; enforce_skill is a capability gate."
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of the last write. Used by audit/telemetry."
+    },
+    "applied_by": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Identifier of the agent/user that last toggled state. Optional. Sourced from $USER / $USERNAME by the CLI; UI consumers should set explicitly."
+    }
+  }
+}

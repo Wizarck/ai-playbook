@@ -84,6 +84,28 @@
               }
             }
           }
+        },
+        "graphify": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "description": "Graphify declarative intent. apply_config translates this to `python -m scripts.graphify on --components csv` or `off`. The canonical state lives at .ai-playbook/graphify.json (managed by the graphify CLI only; see schema-graphify-toggle-v1.json). No modes — graphify has no intensity levels.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Master switch. When false, apply_config calls `graphify off` (strips the AGENTS.md guidance block)."
+            },
+            "components": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Per-component flags. Keys mirror schema-graphify-toggle-v1.json#/properties/components.",
+              "properties": {
+                "agent_guidance": { "type": "boolean" },
+                "gitignore_hygiene": { "type": "boolean" },
+                "enforce_skill": { "type": "boolean" }
+              }
+            }
+          }
         }
       }
     },

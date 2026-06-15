@@ -18,6 +18,14 @@ window.DEFAULTS = {
         "review_caveman": false,
         "mcp_shrink": false
       }
+    },
+    "graphify": {
+      "enabled": false,
+      "components": {
+        "agent_guidance": false,
+        "gitignore_hygiene": false,
+        "enforce_skill": false
+      }
     }
   },
   "global_flags": {
