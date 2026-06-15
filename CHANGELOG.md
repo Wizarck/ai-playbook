@@ -4,6 +4,39 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+## [0.19.12] — 2026-06-15 — graphify feature (adoption rule + skill + Features-tab)
+
+### Added — `graphify` feature + `graphify-adoption` rule
+
+Promotes [graphify](https://github.com/safishamsi/graphify) (a committed AST
+knowledge graph under `graphify-out/`) into a first-class, toggleable playbook
+feature alongside caveman.
+
+- **New opt-in rule `graphify-adoption`** (`activation: manual`; not-applicable
+  when the repo does not commit a graph). `scripts/rules/graphify-adoption.rule.py`
+  (`validate`/`apply`, exit 0/1/2) enforces that the per-machine/per-run graph
+  state (`.graphify_python`, `.graphify_uncached.txt`, `cost.json`, `cache/`,
+  dated snapshot dirs) is gitignored and that `graphify-out/graph.json` has a
+  union-merge driver registered (via `graphify hook install`). `apply` converges
+  `.gitignore`; the `.gitattributes` half is delegated to `graphify hook install`
+  (graphify owns the driver name). A `graphifyy < 0.8.31` is an advisory.
+- **New skill `skills/graphify/SKILL.md`** — agent-facing usage (query-first
+  navigation, prefer the graph over grep, update-after-edit).
+- **New concept** `docs/concepts/graphify.md` (graph vs RAG, multi-dev model)
+  and **runbook** `docs/runbooks/graphify-setup.md` (install + `graphify hook
+  install` + verify + uninstall).
+- **Features surface** — graphify is now a toggleable Feature in the config UI
+  (mirrors caveman): new `scripts/graphify` package (`toggle` + `materialise` +
+  `cli`: `python -m scripts.graphify status|on|off`), state schema
+  `schema-graphify-toggle-v1.json`, `features.graphify` in the config-bundle
+  schema, `features-inventory.json` + `defaults.json` entries, and an
+  `apply_graphify` delegation section in `scripts/apply_config.py` (with
+  preflight + non-transactional rollback-reconcile parity). Unlike caveman
+  (in-repo CLI), graphify wraps an EXTERNAL PyPI tool — the toggle manages the
+  in-repo side effects (AGENTS.md guidance block + `.gitignore` hygiene) and
+  surfaces, but cannot run, the per-machine `uv tool install graphifyy>=0.8.31`
+  + per-clone `graphify hook install`.
+
 ## [0.19.10] — 2026-06-04 — alembic single-head rule (single-head invariant)
 
 ### Added — `alembic-single-head` rule (single-head invariant, L1 + L2 + L3)
