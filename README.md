@@ -131,18 +131,22 @@ Per-rule × per-LLM obey-rate (once telemetry has signal): [`docs/concepts/rule-
 A self-contained HTML UI at `<your-repo>/.ai-playbook/config-ui/index.html`. **Double-click it** — it opens in your default browser, reads current state from JS sidecars, and exposes seven tabs:
 
 - **Rules** — toggle any of ~50 rules at L1 / L2 / L3 with a `break_glass` reason audit.
-- **Features** — Caveman mode + modes + components.
+- **Features** — Caveman, Graphify, and Ponytail modes + components.
 - **Global flags** — live env-var projection.
 - **Skills** — per-skill enforcement opt-out (negative list).
 - **MCPs** — per-MCP-server enforcement opt-out.
 - **Files** *(v0.19.7+)* — read-only inspector of every managed file (AGENTS.md, .gitignore, .pre-commit-config.yaml, .coderabbit.yaml, .claude/settings.local.json, mcp-servers.project.yaml) with per-section provenance badges (canonical / drifted / custom), restore-from-`.bak` dropdown, and file-level + per-section curate controls (**Take playbook** / **Keep mine**).
 - **Preview JSON / Dashboard** — the exported bundle live + telemetry KPIs.
 
-Export produces an `applied-config.json` bundle that `scripts/apply_config.py` materialises into `rules-toggle.json`, `caveman.json`, `feature-flags.env`, `skills-enforce.json`, `mcps-enforce.json`, and (when triggered) re-renders the managed files with backup-once protection. Cross-platform (Windows / macOS / Linux), per-project (lives inside the repo), no localhost, no Node, no daemon, no auth, no telemetry. Walk-through: [`docs/runbooks/use-config-ui.md`](docs/runbooks/use-config-ui.md). Files-as-SSOT contract: [`docs/concepts/bundle-managed-files.md`](docs/concepts/bundle-managed-files.md).
+Export produces an `applied-config.json` bundle that `scripts/apply_config.py` materialises into `rules-toggle.json`, `caveman.json`, `graphify.json`, `ponytail.json`, `feature-flags.env`, `skills-enforce.json`, `mcps-enforce.json`, and (when triggered) re-renders the managed files with backup-once protection. Cross-platform (Windows / macOS / Linux), per-project (lives inside the repo), no localhost, no Node, no daemon, no auth, no telemetry. Walk-through: [`docs/runbooks/use-config-ui.md`](docs/runbooks/use-config-ui.md). Files-as-SSOT contract: [`docs/concepts/bundle-managed-files.md`](docs/concepts/bundle-managed-files.md).
 
 ### Caveman mode (~65 % output-token reduction)
 
 A Python port of [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) (MIT), integrated with the playbook's hooks, materialise pipeline, and MCP wrapping. Toggle it from the config UI (or `scripts/caveman/cli.py`) to get compressed, telegraphic agent responses while preserving full technical accuracy: ~65–75 % fewer output tokens per turn, ~46 % fewer input tokens when applied to AGENTS.md / CLAUDE.md, and shorter MCP tool descriptions on every turn. Side effects (AGENTS.md materialise, `.mcp.json` wrap) are opt-in and documented per-component. Concept: [`docs/concepts/caveman-mode.md`](docs/concepts/caveman-mode.md).
+
+### Ponytail mode (lazy/minimal code — caveman's twin)
+
+A Python port of [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) (MIT), the code-minimalism sibling of caveman. Where caveman compresses how the agent *talks*, ponytail disciplines what it *builds*: a lazy-senior-dev ladder (YAGNI → stdlib → native → installed dep → one line → minimum) that ships far less code without sacrificing trust boundaries (validation, error handling, security, accessibility are never simplified away). The two are orthogonal and compose. Toggle it from the config UI (or `scripts/ponytail/cli.py`); the `code_style` component materialises a ladder block in AGENTS.md + per-turn reinforcement, and `review_ponytail` / `audit_ponytail` / `debt_ponytail` gate the `/ponytail-review`, `/ponytail-audit`, and `/ponytail-debt` skills. **Default-ON** at bootstrap like caveman (opt out with `--no-ponytail`); the playbook dogfoods it ON. Concept: [`docs/concepts/ponytail-mode.md`](docs/concepts/ponytail-mode.md).
 
 ### BMAD + OpenSpec hybrid planning
 

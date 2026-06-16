@@ -26,6 +26,16 @@ window.DEFAULTS = {
         "gitignore_hygiene": false,
         "enforce_skill": false
       }
+    },
+    "ponytail": {
+      "enabled": false,
+      "mode": "full",
+      "components": {
+        "code_style": false,
+        "review_ponytail": false,
+        "audit_ponytail": false,
+        "debt_ponytail": false
+      }
     }
   },
   "global_flags": {

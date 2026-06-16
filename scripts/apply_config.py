@@ -5,6 +5,8 @@ script projects each section to its on-disk representation:
 
     rules{}            → <target>/.ai-playbook/rules-toggle.json (direct write)
     features.caveman   → subprocess: python -m scripts.caveman on/off ...
+    features.graphify  → subprocess: python -m scripts.graphify on/off ...
+    features.ponytail  → subprocess: python -m scripts.ponytail on/off ...
     global_flags{}     → <target>/.ai-playbook/feature-flags.env (marker block)
 
 Per-rule ``advanced{}`` sub-toggles (e.g. ``apply-skill-enforcement.advanced.bash_inspection``)
@@ -228,6 +230,23 @@ def _graphify_preflight(target: Path) -> dict[str, Any] | None:
         return None
 
 
+def _ponytail_preflight(target: Path) -> dict[str, Any] | None:
+    """Snapshot ponytail's enabled-state BEFORE any mutation this reconcile.
+
+    Like caveman/graphify, ponytail is a non-transactional subprocess that mutates
+    AGENTS.md before the managed-files batch. If that batch rolls back, ponytail's
+    changes are not covered — this snapshot lets the report tell the operator what
+    state to restore. Best-effort: ``None`` when ponytail is not installed or its
+    state is unreadable.
+    """
+    try:
+        from scripts.ponytail import toggle as _ponytail_toggle
+
+        return _ponytail_toggle.read_state(target)
+    except Exception:  # noqa: BLE001 — pre-flight is advisory only
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Section 1: rules
 # ---------------------------------------------------------------------------
@@ -428,6 +447,68 @@ def apply_graphify(target: Path, graphify_intent: dict[str, Any] | None, *, dry_
     sr.changes.append(f"invoked: {' '.join(cmd)}")
     if proc.stdout.strip():
         sr.changes.append(f"graphify output: {proc.stdout.strip()[:300]}")
+    return sr
+
+
+# ---------------------------------------------------------------------------
+# Section 2c: features.ponytail (subprocess delegation)
+# ---------------------------------------------------------------------------
+
+
+def apply_ponytail(target: Path, ponytail_intent: dict[str, Any] | None, *, dry_run: bool = False) -> SectionResult:
+    sr = SectionResult(name="features.ponytail", ok=True)
+    if not ponytail_intent:
+        sr.detail = "no ponytail intent in bundle — no-op"
+        return sr
+
+    enabled = bool(ponytail_intent.get("enabled"))
+    mode = ponytail_intent.get("mode", "full")
+    components_dict = ponytail_intent.get("components") or {}
+    requested = [k for k, v in components_dict.items() if v]
+
+    if dry_run:
+        if enabled:
+            sr.changes.append(
+                f"DRY-RUN would invoke: python -m scripts.ponytail on --mode {mode} "
+                f"--components {','.join(requested) or 'code_style'}"
+            )
+        else:
+            sr.changes.append("DRY-RUN would invoke: python -m scripts.ponytail off")
+        return sr
+
+    if enabled:
+        cmd = [sys.executable, "-m", "scripts.ponytail", "on", "--mode", mode]
+        if requested:
+            cmd.extend(["--components", ",".join(requested)])
+    else:
+        cmd = [sys.executable, "-m", "scripts.ponytail", "off"]
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(target),
+            capture_output=True,
+            text=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as e:
+        sr.ok = False
+        sr.detail = f"subprocess launch failed: {e}"
+        return sr
+
+    if proc.returncode != 0:
+        sr.ok = False
+        sr.detail = (
+            f"ponytail CLI exit {proc.returncode}\n"
+            f"  stdout: {proc.stdout.strip()[:500]}\n"
+            f"  stderr: {proc.stderr.strip()[:500]}"
+        )
+        return sr
+    sr.changes.append(f"invoked: {' '.join(cmd)}")
+    if proc.stdout.strip():
+        sr.changes.append(f"ponytail output: {proc.stdout.strip()[:300]}")
     return sr
 
 
@@ -645,6 +726,7 @@ SECTION_ORDER = (
     "rules",
     "features.caveman",
     "features.graphify",
+    "features.ponytail",
     "global_flags",
     "skills_enforce",
     "skills_enforce.materialise",
@@ -794,6 +876,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
     # (caveman is a subprocess and is not covered by the session rollback).
     caveman_preflight = _caveman_preflight(target)
     graphify_preflight = _graphify_preflight(target)
+    ponytail_preflight = _ponytail_preflight(target)
 
     rules_inv = _load_rules_inventory_live()
     global_flags_inv = _load_inventory("global-flags-inventory.json")
@@ -805,6 +888,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         report.sections.append(sr)
         report.sections.append(apply_caveman(target, (bundle.get("features") or {}).get("caveman"), dry_run=True))
         report.sections.append(apply_graphify(target, (bundle.get("features") or {}).get("graphify"), dry_run=True))
+        report.sections.append(apply_ponytail(target, (bundle.get("features") or {}).get("ponytail"), dry_run=True))
         sr2 = SectionResult(name="global_flags", ok=True)
         sr2.detail = f"DRY-RUN would write {len(bundle.get('global_flags') or {})} global flag entries"
         report.sections.append(sr2)
@@ -876,6 +960,21 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "action": "apply-config:graphify",
         "ok": gx_sr.ok,
         "detail": gx_sr.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
+    # Section 2c: features.ponytail. Like caveman/graphify, a non-transactional
+    # subprocess that mutates AGENTS.md — track whether it actually mutated so a
+    # later managed-files rollback can surface the manual reconcile step.
+    px_sr = apply_ponytail(target, (bundle.get("features") or {}).get("ponytail"))
+    ponytail_mutated = any(c.startswith("invoked:") for c in px_sr.changes)
+    report.sections.append(px_sr)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:ponytail",
+        "ok": px_sr.ok,
+        "detail": px_sr.detail,
         "bundle": bundle_path.as_posix(),
     })
 
@@ -980,6 +1079,14 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
                     "managed-files batch rolled back; graphify is not transactional. "
                     f"Restore its pre-apply state with `python -m scripts.graphify "
                     f"{'on' if gx_pre_enabled else 'off'}`, then re-run reconcile."
+                )
+            if ponytail_mutated and any("rolled back" in c for c in mf_result.changes):
+                px_pre_enabled = bool((ponytail_preflight or {}).get("enabled"))
+                mf_sr_section.changes.append(
+                    "⚠ ponytail mutated AGENTS.md earlier this reconcile but the "
+                    "managed-files batch rolled back; ponytail is not transactional. "
+                    f"Restore its pre-apply state with `python -m scripts.ponytail "
+                    f"{'on' if px_pre_enabled else 'off'}`, then re-run reconcile."
                 )
             if mf_result.file_states:
                 existing_states = bundle.setdefault("file_states", {})

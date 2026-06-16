@@ -5,3 +5,4 @@
 | File | Summary |
 | --- | --- |
 | [caveman-architecture.md](caveman-architecture.md) | **Path:** `<project>/.ai-playbook/caveman.json` |
+| [ponytail-architecture.md](ponytail-architecture.md) | **Path:** `<project>/.ai-playbook/ponytail.json` |
