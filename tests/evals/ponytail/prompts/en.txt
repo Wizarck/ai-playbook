@@ -1,0 +1,18 @@
+# Ponytail eval prompts — small tasks where laziness (stdlib / native / one line)
+# beats a hand-rolled or dependency-heavy solution. One task per line; lines
+# starting with # and blank lines are ignored.
+Validate an email address in Python.
+Sort an array of numbers in JavaScript.
+Debounce a function in JavaScript.
+Sum a numeric column of a CSV file in Python.
+Add a date picker to an HTML form.
+Cache the results of a pure function in Python.
+Read a JSON file and pretty-print it in Python.
+Deduplicate a list while preserving order in Python.
+Parse a URL query string into a dictionary in Python.
+Retry an HTTP GET up to three times in Python.
+Format a number as USD currency in JavaScript.
+Flatten a one-level-nested list in Python.
+Count word frequencies in a string in Python.
+Generate a random UUID in Python.
+Check whether a string is a palindrome in Python.
