@@ -1,6 +1,6 @@
 {
   "schema": "skills-inventory/v1",
-  "generated_at": "2026-06-15T00:08:01.700653+00:00",
+  "generated_at": "2026-06-16T15:08:03.307676+00:00",
   "skills": [
     {
       "slug": "ai-playbook-check",
@@ -396,6 +396,31 @@
       "slug": "openspec-propose",
       "description": "Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.",
       "doc_path": "skills/openspec-propose/SKILL.md"
+    },
+    {
+      "slug": "ponytail",
+      "description": "Use when the user wants the laziest solution that actually works — types /ponytail, says \"be lazy\", \"lazy mode\", \"simplest solution\", \"minimal solution\", \"yagni\", \"do less\", or \"shortest path\", or complains about over-engineering, bloat, bo",
+      "doc_path": "skills/ponytail/SKILL.md"
+    },
+    {
+      "slug": "ponytail-audit",
+      "description": "Use when the user wants a whole-repo audit for over-engineering — says \"audit this codebase\", \"audit for over-engineering\", \"what can I delete from this repo\", \"find bloat\", or invokes /ponytail-audit. Like ponytail-review but scans the ent",
+      "doc_path": "skills/ponytail-audit/SKILL.md"
+    },
+    {
+      "slug": "ponytail-debt",
+      "description": "Use when the user wants to harvest every `ponytail:` comment in the codebase into a tracked debt ledger — says \"ponytail debt\", \"/ponytail-debt\", \"what did ponytail defer\", \"list the shortcuts\", \"ponytail ledger\", or \"what did we mark to do",
+      "doc_path": "skills/ponytail-debt/SKILL.md"
+    },
+    {
+      "slug": "ponytail-help",
+      "description": "Use when the user asks how ponytail mode works, what intensity levels exist, what the slash commands are, how to toggle it, or wants a quick-reference card before turning the mode on. One-shot display, not a persistent mode. Trigger: /ponyt",
+      "doc_path": "skills/ponytail-help/SKILL.md"
+    },
+    {
+      "slug": "ponytail-review",
+      "description": "Use when the user wants a code review focused exclusively on over-engineering — says \"review for over-engineering\", \"what can we delete\", \"is this over-engineered\", \"simplify review\", or invokes /ponytail-review. Complements correctness/sec",
+      "doc_path": "skills/ponytail-review/SKILL.md"
     }
   ]
 }

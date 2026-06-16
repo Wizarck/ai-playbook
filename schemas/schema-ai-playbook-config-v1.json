@@ -106,6 +106,34 @@
               }
             }
           }
+        },
+        "ponytail": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "description": "Ponytail declarative intent. apply_config translates this to `python -m scripts.ponytail on --mode X --components csv` or `off`. The canonical state lives at .ai-playbook/ponytail.json (managed by the ponytail CLI only; see schema-ponytail-toggle-v1.json).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Master switch. When false, apply_config calls `ponytail off` (strips the AGENTS.md ladder block)."
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["lite", "full", "ultra"],
+              "description": "Intensity level for code_style. Consulted only when enabled=true."
+            },
+            "components": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Per-component flags. Keys mirror schema-ponytail-toggle-v1.json#/properties/components.",
+              "properties": {
+                "code_style": { "type": "boolean" },
+                "review_ponytail": { "type": "boolean" },
+                "audit_ponytail": { "type": "boolean" },
+                "debt_ponytail": { "type": "boolean" }
+              }
+            }
+          }
         }
       }
     },

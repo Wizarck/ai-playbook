@@ -12,6 +12,7 @@
 | [graphify-setup.md](graphify-setup.md) | graphify commits a code knowledge graph the whole team shares (see |
 | [hindsight-retain.md](hindsight-retain.md) | Persist a lesson, decision, gotcha, or failure pattern to the Hindsight memory layer so future agent sessions can recall it. |
 | [onboard-new-project.md](onboard-new-project.md) | Attach a new repo to the ai-playbook (submodule pin, dispatcher routers, MCP config, SessionStart hook, propagation, Profile A/B enforcement). |
+| [ponytail-toggle.md](ponytail-toggle.md) | Unlike caveman, **ponytail is OFF by default**, including for newly |
 | [release.md](release.md) | Cut a new ai-playbook semver tag. Consumers bump at their own pace (pull model, v0.19.0+). |
 | [rotate-secrets.md](rotate-secrets.md) | Rotate any of the playbook-managed secrets (GitHub PATs, SMTP credentials, Atlassian token, dev GITHUB_TOKEN, SOPS age key) on schedule or on compromise. |
 | [run-telemetry-report.md](run-telemetry-report.md) | Generate the weekly or monthly telemetry report (obey-rate, cost, lifecycle) from the consumer's rule-events.jsonl log. |
