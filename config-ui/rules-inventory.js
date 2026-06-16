@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-06-15T21:53:58.587982+00:00",
+  "generated_at": "2026-06-16T15:08:03.534000+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -718,6 +718,25 @@ window.RULES_INVENTORY = {
       "triggers": [],
       "description": "Wave-N slices running in parallel MUST declare in `docs/openspec-slice.md` \"Anti-collision contract\" the shared files they touch and the coordination protocol (first-lander-wins, rebase order, split-paths); the contract is reviewer-enforced and surfaced in retros.",
       "doc_path": "docs/rules/parallel-wave-anti-collision.rule.md"
+    },
+    {
+      "slug": "ponytail-reinforce",
+      "status": "advisory",
+      "paired_hardrule": "scripts/rules/ponytail-reinforce.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [
+        "UserPromptSubmit"
+      ],
+      "description": "Use when ponytail is ON for the consumer project — emits a brief per-turn reinforcement on UserPromptSubmit so the model keeps building the lazy/minimal solution mid-conversation, defending against drift back to over-building.",
+      "doc_path": "docs/rules/ponytail-reinforce.rule.md"
     },
     {
       "slug": "pr-tracker-reference",

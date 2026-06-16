@@ -53,6 +53,9 @@ Agents editing this repo MUST:
 | Caveman feature (concept) | [docs/concepts/caveman-mode.md](docs/concepts/caveman-mode.md) |
 | Caveman toggle (runbook) | [docs/runbooks/caveman-toggle.md](docs/runbooks/caveman-toggle.md) |
 | Caveman architecture + UI contract | [docs/operations/caveman-architecture.md](docs/operations/caveman-architecture.md) |
+| Ponytail feature (concept) | [docs/concepts/ponytail-mode.md](docs/concepts/ponytail-mode.md) |
+| Ponytail toggle (runbook) | [docs/runbooks/ponytail-toggle.md](docs/runbooks/ponytail-toggle.md) |
+| Ponytail architecture + UI contract | [docs/operations/ponytail-architecture.md](docs/operations/ponytail-architecture.md) |
 
 ## 3 Active work
 
@@ -153,6 +156,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [notification-level-declared](docs/rules/notification-level-declared.rule.md) — consumer-side surface (Slice 7).
 - [notification-no-secrets](docs/rules/notification-no-secrets.rule.md) — consumer-side surface (Slice 7).
 - [parallel-wave-anti-collision](docs/rules/parallel-wave-anti-collision.rule.md)
+- [ponytail-reinforce](docs/rules/ponytail-reinforce.rule.md) — per-turn UserPromptSubmit nudge when ponytail is ON; silent-fail; never blocks.
 - [slice-preflight](docs/rules/slice-preflight.rule.md)
 - [verify-existing-patterns](docs/rules/verify-existing-patterns.rule.md)
 
@@ -189,4 +193,57 @@ Boundaries:
 - File paths, URLs, and identifiers preserved byte-for-byte.
 
 Toggle off: `python -m scripts.caveman off`. Full rule: [skills/caveman/SKILL.md](skills/caveman/SKILL.md).
+<!-- END auto-managed -->
+
+<!-- BEGIN auto-managed: ponytail/ruleset:full -->
+**Ponytail: ON · intensity full — laziest solution that actually works**
+
+The ladder:
+Before writing any code, stop at the first rung that holds:
+
+1. **Does this need to exist at all?** Speculative need → skip it, say so in one line. (YAGNI)
+2. **Stdlib does it?** Use it.
+3. **Native platform feature covers it?** `<input type="date">` over a picker lib, CSS over JS, a DB constraint over app code.
+4. **Already-installed dependency solves it?** Use it. Never add a new one for what a few lines can do.
+5. **Can it be one line?** One line.
+6. **Only then:** the minimum code that works.
+
+The ladder is a reflex, not a research project. Two rungs work → take the higher
+one and move on. The first lazy solution that works is the right one.
+
+Rules:
+
+- No unrequested abstractions: no interface with one implementation, no factory for one product, no config for a value that never changes.
+- No boilerplate, no scaffolding "for later", later can scaffold for itself.
+- Deletion over addition. Boring over clever — clever is what someone decodes at 3am.
+- Fewest files possible. Shortest working diff wins.
+- Complex request? Ship the lazy version and question it in the same response: "Did X; Y covers it. Need full X? Say so." Never stall on an answer you can default.
+- Two stdlib options, same size? Take the one correct on edge cases. Lazy means writing less code, not picking the flimsier algorithm.
+- Mark deliberate simplifications with a `ponytail:` comment (`// ponytail: this exists`), so a shortcut reads as intent, not ignorance. A shortcut with a known ceiling (global lock, O(n²) scan, naive heuristic) names the ceiling and the upgrade path: `# ponytail: global lock, per-account locks if throughput matters`.
+
+Mode (full):
+The ladder enforced. Stdlib and native first. Shortest diff, shortest
+explanation. The default.
+
+When NOT to be lazy:
+Never simplify away: input validation at trust boundaries, error handling that
+prevents data loss, security measures, accessibility basics, anything explicitly
+requested. User insists on the full version → build it, no re-arguing.
+
+Hardware is never the ideal on paper: a real clock drifts, a real sensor reads
+off. Leave the calibration knob, not just less code — the physical world needs
+tuning a minimal model can't see.
+
+Lazy code without its check is unfinished. Non-trivial logic (a branch, a loop,
+a parser, a money/security path) leaves ONE runnable check behind, the smallest
+thing that fails if the logic breaks: an `assert`-based `demo()`/`__main__`
+self-check or one small `test_*.py`. No frameworks, no fixtures unless asked.
+Trivial one-liners need no test — YAGNI applies to tests too.
+
+Boundaries:
+Ponytail governs what you build, not how you talk (pair with caveman for terse
+prose). "stop ponytail" / "normal mode" reverts. Level persists until changed or
+session end. The shortest path to done is the right path.
+
+Toggle off: `python -m scripts.ponytail off`. Full rule: [skills/ponytail/SKILL.md](skills/ponytail/SKILL.md).
 <!-- END auto-managed -->

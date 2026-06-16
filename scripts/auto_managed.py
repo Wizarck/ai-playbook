@@ -319,6 +319,15 @@ def compute_expected(source_spec: str, playbook_root: Path) -> str:
         from scripts.caveman.materialise import render_block_content  # noqa: PLC0415 — lazy import dodges cycle
         return render_block_content(mode, playbook_root=playbook_root)
 
+    # Ponytail ruleset: same multi-section composition as caveman (ladder +
+    # mode + exceptions + boundaries of skills/ponytail/SKILL.md). Delegate to
+    # scripts.ponytail.materialise.render_block_content — the same function
+    # `ponytail on` uses — so drift_check and materialise stay byte-identical.
+    if spec.startswith("ponytail/ruleset:"):
+        mode = spec.split(":", 1)[1]
+        from scripts.ponytail.materialise import render_block_content  # noqa: PLC0415 — lazy import dodges cycle
+        return render_block_content(mode, playbook_root=playbook_root)
+
     # Generic fallback: ``<spec-file>:<anchor>`` with the spec-file relative to
     # the playbook root and ending in ``.md``. This keeps the extractor
     # extensible without requiring a registry edit for trivial additions.

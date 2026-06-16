@@ -4,6 +4,44 @@ All notable changes to `ai-playbook` are documented here. Semver.
 
 ## [Unreleased]
 
+### Added — `ponytail` feature (lazy/minimal code mode) + `ponytail-reinforce` rule
+
+Ports [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) (MIT) —
+the code-minimalism twin of caveman — into a first-class, toggleable playbook
+feature. Where caveman compresses how the agent *talks*, ponytail disciplines
+what it *builds* (YAGNI → stdlib → native → installed dep → one line → minimum),
+while never simplifying away trust boundaries (validation, error handling,
+security, accessibility). The two are orthogonal and compose.
+
+- **New subsystem `scripts/ponytail/`** (`toggle` / `materialise` / `cli`,
+  `python -m scripts.ponytail status|on|off`) mirroring the caveman feature shape
+  and reusing the shared utilities (`scripts._project_root`,
+  `scripts.auto_managed`, `scripts.caveman.backup`). Per-project state at
+  `.ai-playbook/ponytail.json` (schema `ponytail-toggle/v1`); four components —
+  `code_style` (materialises a ladder block in AGENTS.md + per-turn
+  reinforcement, the only side effect) and `review_ponytail` / `audit_ponytail` /
+  `debt_ponytail` (capability gates). Three intensity modes (lite / full / ultra).
+- **New skills** `ponytail`, `ponytail-review`, `ponytail-audit`, `ponytail-debt`,
+  `ponytail-help` under `skills/`. The `auto_managed` dispatcher learns the
+  `ponytail/ruleset:<mode>` source so the AGENTS.md block round-trips through the
+  drift checker.
+- **New advisory rule `ponytail-reinforce`** (`UserPromptSubmit`,
+  `scripts/rules/ponytail-reinforce.rule.py` + `docs/rules/ponytail-reinforce.rule.md`)
+  — a ≤50-token per-turn nudge when `code_style` is on; silent-fail, never blocks.
+  Wired into the bootstrap `.claude/settings.json` template alongside
+  `caveman-reinforce` (both coexist; each no-ops when its feature is OFF).
+- **Config UI Features tab** gains a Ponytail card; `apply_config.py` delegates
+  `features.ponytail` to `python -m scripts.ponytail on/off` (preflight + audit +
+  rollback reconciliation, mirroring caveman/graphify). `schema-ponytail-toggle-v1.json`
+  + a `ponytail` block in `schema-ai-playbook-config-v1.json` + `defaults.json`.
+- **Bootstrap**: ponytail is **default-ON**, like caveman — opt out with
+  `--no-ponytail`. The playbook dogfoods it ON (the `ponytail/ruleset:full`
+  block is committed in this repo's `AGENTS.md`).
+- **Docs + tests**: concept / architecture / runbook docs, the `ponytail-toggle`
+  spec, a 3-arm eval harness under `tests/evals/ponytail/` (measures **code lines**,
+  honest delta ponytail-vs-minimal), and `tests/test_ponytail_*.py` mirroring the
+  caveman toggle/cli/materialise/reinforce/evals coverage.
+
 ## [0.19.13] — 2026-06-16 — fix: alembic-single-head CLI parses on CPython 3.11/3.12
 
 ### Fixed

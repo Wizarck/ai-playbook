@@ -109,6 +109,10 @@ class BootstrapArgs:
     no_caveman: bool = False          # If True, omit caveman from the synthesised
                                       # defaults bundle so the door's apply_caveman
                                       # no-ops (see _synthesize_defaults_bundle).
+    no_ponytail: bool = False         # If True, omit ponytail from the synthesised
+                                      # defaults bundle so the door's apply_ponytail
+                                      # no-ops (mirrors no_caveman; ponytail is
+                                      # default-on like caveman).
     from_config: Path | None = None   # If set, apply an ai-playbook-config/v1 bundle
                                       # after the base bootstrap flow completes.
                                       # See scripts/apply_config.py.
@@ -453,6 +457,18 @@ DEFAULT_CAVEMAN_COMPONENTS = (
     "mcp_shrink",
 )
 
+# Ponytail is the code-minimalism twin of caveman and ships default-on at
+# bootstrap, just like caveman: the synthesised bundle turns it ON with every
+# component (see _synthesize_defaults_bundle). Consumers opt out with
+# `--no-ponytail` (omits the ponytail section so the door's apply_ponytail
+# no-ops) or run `python -m scripts.ponytail off` later.
+DEFAULT_PONYTAIL_COMPONENTS = (
+    "code_style",
+    "review_ponytail",
+    "audit_ponytail",
+    "debt_ponytail",
+)
+
 
 def run_discover(target_dir: Path, dry_run: bool) -> None:
     if dry_run:
@@ -524,6 +540,9 @@ def print_next_steps(target_dir: Path, project_name: str) -> None:
           "mcp-servers.project.yaml if you need to override base/personal layers.")
     print("   4. Check caveman status: `python -m scripts.caveman status` "
           "(default-on unless --no-caveman was passed; see docs/runbooks/caveman-toggle.md).")
+    print("      Ponytail (lazy/minimal code mode) is default-on too; check with "
+          "`python -m scripts.ponytail status` (skip at bootstrap with --no-ponytail; "
+          "see docs/runbooks/ponytail-toggle.md).")
     print("   5. If you applied a config bundle (--from-config), source the env file in your shell init: "
           "`set -a; source .ai-playbook/feature-flags.env; set +a` (or via direnv .envrc).")
     print("      Re-apply changes anytime with: `python -m scripts.apply_config <bundle.json>`. "
@@ -567,6 +586,12 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
                              "bootstrap runs `caveman on --mode full --components <all>` "
                              "against the new project. Opt-out only; the "
                              "consumer can still flip it on later.")
+    parser.add_argument("--no-ponytail", action="store_true",
+                        help="Skip the default-on ponytail (lazy/minimal code mode) "
+                             "activation step (see scripts/ponytail/). Without this "
+                             "flag, bootstrap runs `ponytail on --mode full "
+                             "--components <all>` against the new project. Opt-out "
+                             "only; the consumer can still flip it on later.")
     parser.add_argument("--no-check", action="store_true",
                         help="Skip the post-bootstrap ai-playbook-check drift "
                              "report (validate-only). Without this flag, "
@@ -623,6 +648,7 @@ def parse_args(argv: list[str] | None) -> BootstrapArgs:
         dry_run=ns.dry_run,
         refresh_skills=ns.refresh_skills,
         no_caveman=ns.no_caveman,
+        no_ponytail=ns.no_ponytail,
         from_config=ns.from_config,
         no_check=ns.no_check,
         update=ns.update,
@@ -829,9 +855,10 @@ def _synthesize_defaults_bundle(args: BootstrapArgs) -> dict[str, Any]:
 
     The first reconcile has nothing on disk to read, so it materialises the
     playbook's defaults: all skills + MCP servers enforced (empty opt-out
-    lists), and caveman default-on with every component — unless --no-caveman,
-    which omits the caveman section entirely (so the door's apply_caveman
-    no-ops rather than running `caveman off` against a never-activated tree).
+    lists), and caveman + ponytail default-on with every component — unless
+    --no-caveman / --no-ponytail, which omit that feature's section entirely (so
+    the door's apply_caveman / apply_ponytail no-ops rather than running `off`
+    against a never-activated tree).
 
     Carries NO content-bearing managed-file trigger sections (gitignore_extras,
     project_meta, …) so those stay no-ops and the freshly-copied templates are
@@ -848,14 +875,21 @@ def _synthesize_defaults_bundle(args: BootstrapArgs) -> dict[str, Any]:
         "mcps_enforce": {"disabled": []},
         "settings": {},
     }
+    features: dict[str, Any] = {}
     if not args.no_caveman:
-        bundle["features"] = {
-            "caveman": {
-                "enabled": True,
-                "mode": "full",
-                "components": {c: True for c in DEFAULT_CAVEMAN_COMPONENTS},
-            }
+        features["caveman"] = {
+            "enabled": True,
+            "mode": "full",
+            "components": {c: True for c in DEFAULT_CAVEMAN_COMPONENTS},
         }
+    if not args.no_ponytail:
+        features["ponytail"] = {
+            "enabled": True,
+            "mode": "full",
+            "components": {c: True for c in DEFAULT_PONYTAIL_COMPONENTS},
+        }
+    if features:
+        bundle["features"] = features
     return bundle
 
 

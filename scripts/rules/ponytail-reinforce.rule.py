@@ -1,0 +1,98 @@
+"""Per-turn ponytail reinforcement hook (UserPromptSubmit).
+
+Reads ``<project>/.ai-playbook/ponytail.json`` and emits a brief nudge to
+stdout when ponytail mode is ON with the ``code_style`` component active.
+Never blocks; never raises; silent-fails on any error so a broken hook never
+derails a user turn.
+
+Triggered by Claude Code's ``UserPromptSubmit`` hook (registered in the
+consumer's ``.claude/settings.json`` per
+``docs/rules/ponytail-reinforce.rule.md``).
+
+Performance budget: ≤ 5 ms p50 (stdlib only, no jsonschema/yaml import).
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except (AttributeError, OSError):
+        pass
+
+
+# Directory-name segments that mark a playbook checkout (kept in sync with
+# scripts/_project_root.py PLAYBOOK_CHECKOUT_SEGMENTS — inlined here to keep
+# this hook stdlib-only with no cross-module imports, per its ≤5 ms p50 budget).
+_PLAYBOOK_CHECKOUT_SEGMENTS = frozenset({".ai-playbook", ".skills-sources"})
+
+
+def _find_project_root(start: Path) -> Path | None:
+    here = start.resolve()
+    if here.is_file():
+        here = here.parent
+    for candidate in (here, *here.parents):
+        try:
+            if not (candidate / "AGENTS.md").is_file():
+                continue
+        except OSError:
+            continue
+        # Skip the playbook submodule's own AGENTS.md so consumers running
+        # `cd <consumer>/.ai-playbook && claude` resolve to <consumer>, not
+        # to the submodule directory.
+        if any(part in _PLAYBOOK_CHECKOUT_SEGMENTS for part in candidate.parts):
+            continue
+        return candidate
+    return None
+
+
+def _read_toggle(project_root: Path) -> dict[str, Any] | None:
+    p = project_root / ".ai-playbook" / "ponytail.json"
+    if not p.is_file():
+        return None
+    try:
+        text = p.read_text(encoding="utf-8")
+        loaded = json.loads(text)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def compose_nudge(mode: str) -> str:
+    return (
+        f"Ponytail mode active (intensity: {mode}). "
+        "Build the minimum that works: YAGNI, then stdlib, native, installed dep, "
+        "one line. No unrequested abstractions, deps, or boilerplate. Deletion over "
+        "addition. Never simplify away validation, error handling, security, or "
+        "accessibility. Mark deliberate shortcuts with a `ponytail:` comment."
+    )
+
+
+def main(argv: list[str] | None = None, *, cwd: Path | None = None) -> int:
+    try:
+        root = _find_project_root(cwd or Path.cwd())
+        if root is None:
+            return 0
+        state = _read_toggle(root)
+        if not state:
+            return 0
+        if not state.get("enabled"):
+            return 0
+        components = state.get("components")
+        if not isinstance(components, dict) or not components.get("code_style"):
+            return 0
+        mode = state.get("mode")
+        if mode not in ("lite", "full", "ultra"):
+            return 0
+        print(compose_nudge(mode))
+        return 0
+    except Exception:  # noqa: BLE001 — hooks MUST NOT block user turn
+        return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

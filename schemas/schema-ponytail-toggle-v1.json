@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wizarck.github.io/ai-playbook/schemas/schema-ponytail-toggle-v1.json",
+  "title": "ponytail toggle state (v1)",
+  "description": "Per-project ponytail feature toggle. Single source of truth at <project>/.ai-playbook/ponytail.json. Read/written exclusively through scripts/ponytail/toggle.py. UI consumers MUST go through the CLI (python -m scripts.ponytail) rather than touching the file directly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "enabled",
+    "mode",
+    "components",
+    "applied_at"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "ponytail-toggle/v1",
+      "description": "Schema versioning hook. MUST be 'ponytail-toggle/v1' for this version. Future bumps require a migration script under scripts/ponytail/migrations/."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Master switch. When false, all components are inert regardless of their individual flags."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["lite", "full", "ultra"],
+      "description": "Intensity level for code_style. Only consulted when components.code_style is true."
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code_style",
+        "review_ponytail",
+        "audit_ponytail",
+        "debt_ponytail"
+      ],
+      "properties": {
+        "code_style": {
+          "type": "boolean",
+          "description": "Inject the ponytail ladder ruleset into AGENTS.md (materialise) and enable the per-turn reinforcement hook."
+        },
+        "review_ponytail": {
+          "type": "boolean",
+          "description": "Capability flag — gates the /ponytail-review skill (over-engineering diff review). No file mutation."
+        },
+        "audit_ponytail": {
+          "type": "boolean",
+          "description": "Capability flag — gates the /ponytail-audit skill (whole-repo over-engineering audit). No file mutation."
+        },
+        "debt_ponytail": {
+          "type": "boolean",
+          "description": "Capability flag — gates the /ponytail-debt skill (harvest ponytail: comments into a ledger). No file mutation."
+        }
+      },
+      "description": "Per-component flags. code_style is persistent state (materialises AGENTS.md + per-turn reinforcement); review_ponytail/audit_ponytail/debt_ponytail are capability gates for on-demand skills."
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of the last write. Used by audit/telemetry."
+    },
+    "applied_by": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Identifier of the agent/user that last toggled state. Optional. Sourced from $USER / $USERNAME by the CLI; UI consumers should set explicitly."
+    }
+  }
+}

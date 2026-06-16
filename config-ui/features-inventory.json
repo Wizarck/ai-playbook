@@ -84,6 +84,45 @@
           "side_effects": []
         }
       ]
+    },
+    "ponytail": {
+      "label": "Ponytail (lazy code mode)",
+      "description": "Code-minimalism twin of caveman: caveman compresses how the agent talks, ponytail disciplines what it builds (YAGNI → stdlib → native → installed dep → one line → minimum). The code_style component materialises a lazy-ladder block in AGENTS.md + per-turn reinforcement; review/audit/debt are capability gates for the companion skills. Default-ON at bootstrap (like caveman; opt out with --no-ponytail). No MCP/compress side effects.",
+      "doc_path": "docs/concepts/ponytail-mode.md",
+      "schema_path": "schemas/schema-ponytail-toggle-v1.json",
+      "cli_module": "scripts.ponytail",
+      "modes": ["lite", "full", "ultra"],
+      "default_mode": "full",
+      "components": [
+        {
+          "key": "code_style",
+          "label": "Code style (AGENTS.md block)",
+          "description": "Inject the ponytail ladder ruleset into AGENTS.md as an auto-managed block + enable per-turn reinforcement (the ponytail-reinforce.rule.py pairs with this). The only component with a side effect.",
+          "default": false,
+          "side_effects": ["materialise AGENTS.md auto-managed block", "backup AGENTS.md before mutation"]
+        },
+        {
+          "key": "review_ponytail",
+          "label": "/ponytail-review skill",
+          "description": "Capability flag — gates the /ponytail-review skill (over-engineering review of the current diff). No file side effects.",
+          "default": false,
+          "side_effects": []
+        },
+        {
+          "key": "audit_ponytail",
+          "label": "/ponytail-audit skill",
+          "description": "Capability flag — gates the /ponytail-audit skill (whole-repo over-engineering audit). No file side effects.",
+          "default": false,
+          "side_effects": []
+        },
+        {
+          "key": "debt_ponytail",
+          "label": "/ponytail-debt skill",
+          "description": "Capability flag — gates the /ponytail-debt skill (harvest ponytail: comments into a tracked ledger). No file side effects.",
+          "default": false,
+          "side_effects": []
+        }
+      ]
     }
   }
 }

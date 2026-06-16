@@ -5,3 +5,4 @@
 | File | Summary |
 | --- | --- |
 | [caveman-toggle.md](caveman-toggle.md) | **Schema version:** `caveman-toggle/v1` |
+| [ponytail-toggle.md](ponytail-toggle.md) | **Schema version:** `ponytail-toggle/v1` |
