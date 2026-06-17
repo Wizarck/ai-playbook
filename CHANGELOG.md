@@ -2,6 +2,27 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.17] — 2026-06-17 — fix: bootstrap.py runnable by direct path
+
+### Fixed
+- `scripts/bootstrap.py` lacked the sibling-import sys.path shim, so the
+  documented `python .ai-playbook/scripts/bootstrap.py --update` (printed by the
+  upgrade-playbook-pin runbook AND by `update-playbook --execute`) failed with
+  `ModuleNotFoundError: No module named 'scripts'`. Added the canonical shim
+  (`sys.path.insert(0, <repo root>)`, matching retain_memory.py et al.) so
+  direct-path invocation works; `--update` defaults its target to cwd. Found by
+  dogfooding the v0.19.15/16 consumer-upgrade flow.
+- Regression test (`tests/test_bootstrap.py`): `bootstrap.py --help` via direct
+  path from a foreign cwd exits 0.
+
+### Known issue (deferred)
+- `render_agents_md` renders the template OVER a hand-authored / markerless
+  consumer `AGENTS.md` (blanking its `inherits_from` pin + duplicating static
+  sections). A naive markerless guard breaks the intended marker-seeding path,
+  so the correct fix (preserve consumer frontmatter + de-dup on seed) is tracked
+  for a dedicated change. Workaround: keep `bootstrap --update` to consumers
+  whose `AGENTS.md` already carries `ai-playbook:` markers.
+
 ## [0.19.16] — 2026-06-17 — fix: AGENTS.md template prose example parsed as a real marker
 
 ### Fixed
