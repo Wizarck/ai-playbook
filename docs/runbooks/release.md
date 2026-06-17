@@ -4,7 +4,7 @@ slug: release
 description: Cut a new ai-playbook semver tag. Consumers bump at their own pace (pull model, v0.19.0+).
 audience: developer
 estimated_time: 15-30 min
-last_validated: "2026-05-25"
+last_validated: "2026-06-17"
 ---
 
 # Cut a new ai-playbook version tag
@@ -58,7 +58,7 @@ flowchart TD
     ZombieGate --> Commit["§4 — git commit<br/>+ git tag -a vX.Y.Z"]
 
     Commit --> Push["§5 — git push origin<br/>main + vX.Y.Z"]
-    Push --> Release["GitHub auto-creates<br/>Release from tag<br/>(CHANGELOG = body)"]
+    Push --> Release["§5 — create Release manually<br/>gh release create vX.Y.Z<br/>(CHANGELOG = body)"]
     Release --> Smoke["§7 — first-run smoke test<br/>against a real consumer<br/>(OUTSIDE of CI)"]
     Smoke --> SmokeOk{"smoke passes?"}
     SmokeOk -->|no — rc only| RcBump
@@ -123,13 +123,22 @@ git commit -m "release: vX.Y.Z — <one-liner>"
 git tag -a vX.Y.Z -m "vX.Y.Z — <one-liner>"
 ```
 
-### 5. Push branch + tag
+### 5. Push branch + tag, then create the Release
 
 ```bash
 git push origin main vX.Y.Z
 ```
 
-GitHub auto-creates a Release from the tag (via `docs-deploy.yml` / standard tag-push behaviour). The CHANGELOG section becomes the release notes.
+Pushing the tag does **not** auto-create a GitHub Release. `release.yml` is still a disabled skeleton (a `workflow_dispatch` no-op — "Release automation lands in T22"), and `docs-deploy.yml` triggers on the `v*.*.*` tag push only to deploy docs — neither opens a Release. Create it explicitly so the tag appears under *Releases* with notes:
+
+```bash
+gh release create vX.Y.Z --verify-tag \
+  --title "vX.Y.Z — <one-liner>" \
+  --notes-file <file containing this version's CHANGELOG section>
+# inline alternative: --notes "<paste the CHANGELOG section for this version>"
+```
+
+The CHANGELOG section for this version is the release-notes body. (If a future task wires real automation into `release.yml`, replace this manual step and re-validate.)
 
 ### 6. (Optional) Notify maintainers manually
 
@@ -170,7 +179,7 @@ For consumers that want automated upgrade PRs, configure a Dependabot or Renovat
 ## Verification
 
 - `git tag --list` shows the new tag locally and `git ls-remote --tags origin` shows it on `origin`.
-- The CHANGELOG section is the release-notes body on the auto-created GitHub Release.
+- `gh release view vX.Y.Z` shows the Release with the CHANGELOG section as its body (created manually in §5 — the tag push does not auto-create it).
 - `git push origin main vX.Y.Z` completed without error and the CI test workflow on the tagged commit is green.
 
 ## Troubleshooting
