@@ -63,12 +63,16 @@ Each row is one rule. The master checkbox is the binary on/off. Click `advanced 
 
 Filters in the topbar narrow the list by `Only modified`, `Has advanced`, `Has break-glass`, or a substring of slug / description / status.
 
-### Tab `Features` (today: caveman)
+### Tab `Features` (caveman, graphify, ponytail)
 
 Caveman has:
 - A master `Enabled` checkbox.
 - A `Mode` dropdown (`lite` / `full` / `ultra`).
 - 6 component checkboxes. Tooltip + descriptions list side effects (AGENTS.md materialisation, `.mcp.json` wrapping). Side-effecting features get a red banner when enabled.
+
+Graphify has a master `Enabled` checkbox + 3 component checkboxes (no modes): `agent_guidance` materialises an AGENTS.md block, `gitignore_hygiene` appends a `.gitignore` managed block, `enforce_skill` is a pure capability gate.
+
+Ponytail (caveman's code-minimalism twin) has a master `Enabled` checkbox, a `Mode` dropdown (`lite` / `full` / `ultra`), and 4 component checkboxes. Only `code_style` has a side effect (AGENTS.md ladder block + per-turn reinforcement); `review` / `audit` / `debt` are capability gates for the companion skills.
 
 ### Tab `Global flags`
 
@@ -201,6 +205,22 @@ python -m scripts.caveman status
 <!-- END auto-managed -->
 ```
 
+### Graphify
+
+```bash
+python -m scripts.graphify status
+# Expected: matches what you toggled (enabled, components).
+```
+
+### Ponytail
+
+```bash
+python -m scripts.ponytail status
+# Expected: matches what you toggled (enabled, mode, components).
+```
+
+`AGENTS.md` should contain (or not) the block bounded by `<!-- BEGIN auto-managed: ponytail/ruleset:<mode> -->` … `<!-- END auto-managed -->`.
+
 ### Global flag
 
 ```bash
@@ -214,7 +234,7 @@ env | grep AIPLAYBOOK_LLM_ROUTING_STRICT
 tail -5 .ai-playbook/rules-toggle-audit.jsonl | python -m json.tool
 ```
 
-Every `apply_config` invocation appends one line per section (rules / caveman / global_flags) with `ts`, `actor`, `action`, `ok`, `detail`, `bundle`. Each `rules_toggle on/off` call also appends a line with `prev_state` + `new_state` + `reason`.
+Every `apply_config` invocation appends one line per section (rules / caveman / graphify / ponytail / global_flags) with `ts`, `actor`, `action`, `ok`, `detail`, `bundle`. Each `rules_toggle on/off` call also appends a line with `prev_state` + `new_state` + `reason`.
 
 ## 8. Restore the defaults
 
@@ -225,6 +245,8 @@ Or per-section by CLI:
 ```bash
 python -m scripts.rules_toggle on apply-skill-enforcement   # clears the rule override
 python -m scripts.caveman off                                # disables caveman
+python -m scripts.graphify off                               # disables graphify
+python -m scripts.ponytail off                               # disables ponytail
 # For global flags, edit feature-flags.env directly or re-apply a bundle with global_flags={} or false.
 ```
 
