@@ -618,3 +618,24 @@ def test_settings_json_malformed_current_returned_verbatim() -> None:
         current_text=bad,
     )
     assert out == bad  # never clobber a malformed file; L1 validate flags it
+
+
+def test_shipped_agents_template_renders_without_marker_mismatch() -> None:
+    # Regression: a prose EXAMPLE like `<!-- ai-playbook:begin id=… -->` inside the
+    # shipped template was parsed as a real (unclosed) marker, raising "marker
+    # mismatch" in render → breaking `bootstrap --update` managed_files for every
+    # consumer. The shipped template must always render + round-trip its managed
+    # blocks cleanly.
+    from pathlib import Path
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    out = render_agents_md(
+        template=tmpl,
+        substitutions={"PROJECT_NAME": "demo", "PROJECT_BANK": "demo-bank"},
+        bundle={"project_meta": {}},
+        current_text=None,
+    )
+    ids = set(parse_blocks(out, CommentStyle.HTML).blocks)
+    assert {"bootstrap-directive", "dispatcher-index", "capability-map", "mcp-sources"} <= ids

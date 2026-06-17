@@ -20,7 +20,7 @@ tracker_kind: github
 
 > Project dispatcher. Lean file. Universal norms inherit from `.ai-playbook/specs/*` (pinned via `inherits_from` above).
 >
-> **Sections wrapped in `<!-- ai-playbook:begin id=… -->` markers are playbook-managed.**
+> **Sections wrapped in `ai-playbook:begin id=<name>` / `ai-playbook:end id=<name>` HTML-comment markers are playbook-managed.**
 > They are overwritten on `apply_config` / `bootstrap --update`. Edits made inside a
 > marker block are detected as drift and surfaced in the config UI (Files tab) for
 > review. Content OUTSIDE marker blocks (project identity, active work, hard rules,
