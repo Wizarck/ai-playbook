@@ -2,7 +2,7 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased]
+## [0.19.14] — 2026-06-17 — ponytail feature (lazy/minimal code mode) + subagent-prompt hardening
 
 ### Added — `ponytail` feature (lazy/minimal code mode) + `ponytail-reinforce` rule
 
