@@ -2,6 +2,20 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.16] — 2026-06-17 — fix: AGENTS.md template prose example parsed as a real marker
+
+### Fixed
+- `templates/new-project/AGENTS.md.tmpl` carried a prose EXAMPLE marker
+  `<!-- ai-playbook:begin id=… -->` inside explanatory text. `parse_blocks`
+  matched it as a real (unclosed) marker, so `render_agents_md` raised
+  `marker mismatch: begin id='…', end id='bootstrap-directive'` — breaking
+  `bootstrap --update` managed_files for every consumer that renders AGENTS.md.
+  Escaped the example (dropped the `<!-- -->` delimiters). Found by dogfooding
+  the v0.19.15 upgrade flow on a real consumer.
+- Regression test (`tests/test_renderers.py`): the shipped template renders +
+  round-trips its 4 managed blocks (bootstrap-directive, dispatcher-index,
+  capability-map, mcp-sources) without raising.
+
 ## [0.19.15] — 2026-06-17 — consumer upgrade UX: graphify setup, doctor self-heal, executable pin bump
 
 ### Added
