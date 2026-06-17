@@ -614,3 +614,20 @@ def test_check_default_runs_in_dry_run(
     assert rc == 0
     out = capsys.readouterr().out
     assert "ai_playbook_check" in out
+
+
+def test_bootstrap_runnable_by_direct_path(tmp_path: Path) -> None:
+    # Regression: bootstrap.py must import its sibling `scripts.*` modules even
+    # when invoked by direct path from a foreign cwd — the form the runbook +
+    # `update-playbook --execute` output print. Previously raised
+    # ModuleNotFoundError: No module named 'scripts'.
+    import subprocess
+    import sys
+
+    script = Path(bs.__file__).resolve()
+    proc = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=str(tmp_path), capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "usage:" in (proc.stdout + proc.stderr).lower()

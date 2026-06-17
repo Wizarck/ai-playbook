@@ -56,6 +56,10 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+# Make sibling-script imports work whether invoked via `-m scripts.bootstrap`
+# or by direct path (`python .ai-playbook/scripts/bootstrap.py …`).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 from scripts.materialise_skills import materialise_skills  # noqa: E402
 from scripts.tracing import trace_emit  # noqa: E402
