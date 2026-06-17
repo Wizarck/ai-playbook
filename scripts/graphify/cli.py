@@ -3,8 +3,9 @@
 Subcommands
 -----------
     python -m scripts.graphify status [--json] [--project PATH]
-    python -m scripts.graphify on  [--components <csv>] [--project PATH]
-    python -m scripts.graphify off [--project PATH]
+    python -m scripts.graphify on    [--components <csv>] [--project PATH]
+    python -m scripts.graphify off   [--project PATH]
+    python -m scripts.graphify setup [--dry-run] [--min-version X.Y.Z] [--project PATH]
 
 Components (default on `on`: agent_guidance,gitignore_hygiene):
     agent_guidance     — inject the query-first guidance block into AGENTS.md
@@ -13,9 +14,10 @@ Components (default on `on`: agent_guidance,gitignore_hygiene):
                          per-machine/per-run graph state is gitignored.
     enforce_skill      — capability flag for the graphify skill (no side effect).
 
-NOTE — graphify wraps an EXTERNAL tool. This CLI manages the in-repo side
-effects only; it CANNOT install `graphifyy` or run `graphify hook install`
-(per-machine / per-clone). `on` prints those manual next steps.
+NOTE — graphify wraps an EXTERNAL tool (`graphifyy`). `on`/`off`/`status`
+manage the in-repo side effects only. The `setup` subcommand automates the
+per-machine / per-clone bootstrap (`uv tool install "graphifyy>=X"` +
+`graphify hook install`) so operators no longer run those by hand.
 
 Exit codes per docs/rules/error-message-standard.rule.md:
     0 ok · 1 user-actionable error · 2 environment/setup error
@@ -26,6 +28,8 @@ import argparse
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,9 +46,11 @@ from scripts.graphify import toggle  # noqa: E402
 
 VALID_COMPONENTS = toggle.COMPONENTS
 DEFAULT_COMPONENTS = "agent_guidance,gitignore_hygiene"
+GRAPHIFY_MIN_VERSION = "0.8.31"
 NEXT_STEPS = (
-    "next steps (per machine / per clone — this CLI cannot do them for you):\n"
-    "   1. uv tool install \"graphifyy>=0.8.31\"   # or pipx\n"
+    "next steps (per machine / per clone): run `python -m scripts.graphify setup`\n"
+    "   it installs the external CLI + registers hooks, equivalent to:\n"
+    f"   1. uv tool install \"graphifyy>={GRAPHIFY_MIN_VERSION}\"   # or pipx\n"
     "   2. graphify hook install                   # graph.json union-merge driver"
 )
 
@@ -256,6 +262,127 @@ def cmd_off(args: argparse.Namespace) -> int:
     return 0
 
 
+def _augmented_path() -> str:
+    """PATH with uv's default tools bin (``~/.local/bin``) prepended.
+
+    ``uv tool install`` puts the ``graphify`` executable on the tools bin, which
+    is not on the current process PATH until the shell is reopened. Prepend it so
+    we can resolve the freshly-installed CLI in the same run.
+
+    Note: uv uses ``~/.local/bin`` as its tools bin on all platforms (incl.
+    Windows, unless ``XDG_BIN_HOME``/``UV_TOOL_BIN_DIR`` override it), so the
+    single ``Path.home() / ".local" / "bin"`` candidate covers the common case.
+    A non-default bin dir still works as long as it is already on PATH — this
+    only *adds* a fallback, it never removes the inherited PATH.
+    """
+    extra = [str(Path.home() / ".local" / "bin")]
+    return os.pathsep.join([*extra, os.environ.get("PATH", "")])
+
+
+def cmd_setup(args: argparse.Namespace) -> int:
+    """Automate the per-machine/per-clone graphifyy bootstrap.
+
+    1. ``uv tool install "graphifyy>=<floor>"`` (per machine).
+    2. ``graphify hook install`` in this clone (registers the graph.json
+       union-merge driver + post-commit/checkout hooks).
+
+    Idempotent: re-running upgrades the tool and re-registers the hooks.
+    """
+    root = _resolve_project_root(getattr(args, "project", None))
+    if root is None:
+        _emit_error(
+            why="cannot resolve project root",
+            where="graphify:setup",
+            fix="run from inside a project directory or pass --project <PATH>.",
+        )
+        return 2
+
+    floor = getattr(args, "min_version", GRAPHIFY_MIN_VERSION)
+    spec = f"graphifyy>={floor}"
+    install_cmd = ["uv", "tool", "install", spec]
+    hook_cmd = ["graphify", "hook", "install"]
+
+    if getattr(args, "dry_run", False):
+        print("[dry-run] would run:")
+        print(f"   {' '.join(install_cmd)}")
+        print(f"   {' '.join(hook_cmd)}   (cwd={root})")
+        return 0
+
+    if shutil.which("uv") is None:
+        _emit_error(
+            why="`uv` not found on PATH",
+            where="graphify:setup",
+            fix=f'install uv (https://docs.astral.sh/uv/), or run manually: '
+                f'pipx install "{spec}" && graphify hook install.',
+        )
+        return 2
+
+    # 1. Install the external graphifyy CLI (per machine).
+    try:
+        proc = subprocess.run(
+            install_cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=600,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        _emit_error(
+            why=f"`uv tool install` failed to start: {e}",
+            where="graphify:setup:install",
+            fix=f'run manually: uv tool install "{spec}".',
+        )
+        return 2
+    if proc.returncode != 0:
+        _emit_error(
+            why=f"`uv tool install {spec}` exited {proc.returncode}",
+            where="graphify:setup:install",
+            fix=(proc.stderr or proc.stdout or "see uv output").strip()[:400],
+        )
+        return 2
+
+    # 2. Register the per-clone hooks + merge driver.
+    exe = shutil.which("graphify", path=_augmented_path())
+    if exe is None:
+        print(f"✅ graphifyy installed ({spec}).")
+        _emit_error(
+            why="`graphify` not on PATH after install",
+            where="graphify:setup:hook",
+            fix="add uv's tools bin (e.g. ~/.local/bin) to PATH (`uv tool update-shell`), "
+                "reopen your shell, then run `graphify hook install`.",
+        )
+        return 2
+    try:
+        hproc = subprocess.run(
+            [exe, "hook", "install"], cwd=str(root), capture_output=True,
+            text=True, encoding="utf-8", errors="replace", timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        _emit_error(
+            why=f"`graphify hook install` failed to start: {e}",
+            where="graphify:setup:hook",
+            fix="run `graphify hook install` manually in this clone.",
+        )
+        return 2
+    if hproc.returncode != 0:
+        _emit_error(
+            why=f"`graphify hook install` exited {hproc.returncode}",
+            where="graphify:setup:hook",
+            fix=(hproc.stderr or hproc.stdout or "see graphify output").strip()[:400],
+        )
+        return 2
+
+    if getattr(args, "json", False):
+        print(json.dumps(
+            {"ok": True, "installed": spec, "hook": "installed", "graphify": exe},
+            indent=2, ensure_ascii=False,
+        ))
+    else:
+        print(f"✅ graphify setup complete at {root}")
+        print(f"   installed {spec} ({exe})")
+        print("   per-clone hooks + graph.json merge driver registered")
+        print("   next: `python -m scripts.graphify on` (in-repo guidance) "
+              "then `graphify update .` to build the graph.")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argparse plumbing
 # ---------------------------------------------------------------------------
@@ -289,6 +416,22 @@ def _build_parser() -> argparse.ArgumentParser:
     s_off = sub.add_parser("off", help="Disable graphify for this project.", parents=[shared])
     s_off.add_argument("--json", action="store_true")
     s_off.set_defaults(func=cmd_off)
+
+    s_setup = sub.add_parser(
+        "setup",
+        help="Install the external graphifyy CLI + register per-clone hooks.",
+        parents=[shared],
+    )
+    s_setup.add_argument(
+        "--dry-run", action="store_true",
+        help="Print the commands without running them.",
+    )
+    s_setup.add_argument(
+        "--min-version", default=GRAPHIFY_MIN_VERSION,
+        help=f"graphifyy version floor (default: {GRAPHIFY_MIN_VERSION}).",
+    )
+    s_setup.add_argument("--json", action="store_true")
+    s_setup.set_defaults(func=cmd_setup)
 
     return p
 

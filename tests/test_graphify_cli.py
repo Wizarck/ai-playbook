@@ -102,3 +102,58 @@ def test_materialise_idempotent_single_block(tmp_path: Path) -> None:
     gcli.main(["on", "--project", str(c), "--components", "agent_guidance"])
     agents = (c / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.count("BEGIN auto-managed: graphify/ruleset") == 1
+
+
+# ── CLI setup (external graphifyy bootstrap) ────────────────────────────────
+
+
+def test_setup_dry_run(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    c = _consumer(tmp_path)
+    rc = gcli.main(["setup", "--project", str(c), "--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "uv tool install" in out
+    assert "graphify hook install" in out
+
+
+def test_setup_no_uv_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    c = _consumer(tmp_path)
+    monkeypatch.setattr(gcli.shutil, "which", lambda *a, **k: None)
+    rc = gcli.main(["setup", "--project", str(c)])
+    assert rc == 2
+    assert "uv" in capsys.readouterr().err.lower()
+
+
+def test_setup_installs_and_hooks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess as _sp
+
+    c = _consumer(tmp_path)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> _sp.CompletedProcess[str]:
+        calls.append(cmd)
+        return _sp.CompletedProcess(cmd, 0, "ok", "")
+
+    monkeypatch.setattr(gcli.shutil, "which", lambda name, path=None: f"/usr/bin/{name}")
+    monkeypatch.setattr(gcli.subprocess, "run", fake_run)
+    rc = gcli.main(["setup", "--project", str(c)])
+    assert rc == 0
+    assert any("tool" in cmd and "install" in cmd for cmd in calls)
+    assert any("hook" in cmd and "install" in cmd for cmd in calls)
+
+
+def test_setup_hook_failure_returns_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess as _sp
+
+    c = _consumer(tmp_path)
+
+    def fake_run(cmd: list[str], **kwargs: object) -> _sp.CompletedProcess[str]:
+        code = 0 if ("tool" in cmd and "install" in cmd) else 1
+        return _sp.CompletedProcess(cmd, code, "", "boom")
+
+    monkeypatch.setattr(gcli.shutil, "which", lambda name, path=None: f"/usr/bin/{name}")
+    monkeypatch.setattr(gcli.subprocess, "run", fake_run)
+    rc = gcli.main(["setup", "--project", str(c)])
+    assert rc == 2
