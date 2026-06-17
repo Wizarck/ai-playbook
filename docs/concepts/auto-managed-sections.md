@@ -44,10 +44,11 @@ Rules:
 | `specs/verdict-contract:levels` | `docs/rules/verdict-contract.rule.md` | §2 *Severity levels* table. |
 | `specs/universal-principles` | _(not yet checked in)_ | Hard-fails with a FIX pointing at the canonical file to create. |
 | `caveman/ruleset:<mode>` | composed from `skills/caveman/SKILL.md` | The caveman ruleset block injected by `python -m scripts.caveman on`. `<mode>` is one of `lite`, `full`, `ultra`. Delegates to `scripts.caveman.materialise.render_block_content` — the same function `caveman on` uses — so drift_check and materialise produce byte-identical bodies by construction. |
+| `ponytail/ruleset:<mode>` | composed from `skills/ponytail/SKILL.md` | The ponytail lazy-ladder block injected by `python -m scripts.ponytail on`. `<mode>` is one of `lite`, `full`, `ultra`. Delegates to `scripts.ponytail.materialise.render_block_content` — the same function `ponytail on` uses — so drift_check and materialise produce byte-identical bodies by construction. |
 
 A **generic** fallback is also accepted for any `<spec-file>:<anchor>` shape: the extractor opens `<playbook>/<spec-file>.md` (adding a `.md` suffix if missing), finds the first `## ` heading whose text contains or begins with `<anchor>` (case-insensitive, optional numeric prefix ignored), and returns everything up to the next `## ` heading.
 
-Composite extractors (like `caveman/ruleset:<mode>`, which weaves multiple SKILL.md sections together) are handled by special-case branches in `compute_expected` that delegate to a sibling module — the generic single-anchor fallback cannot reproduce a body composed from N sections.
+Composite extractors (like `caveman/ruleset:<mode>` and `ponytail/ruleset:<mode>`, which weave multiple SKILL.md sections together) are handled by special-case branches in `compute_expected` that delegate to a sibling module — the generic single-anchor fallback cannot reproduce a body composed from N sections.
 
 ### Adding a new source shape
 

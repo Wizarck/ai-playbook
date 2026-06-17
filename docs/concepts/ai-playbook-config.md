@@ -4,7 +4,7 @@ slug: ai-playbook-config
 title: ai-playbook config UI + bundle pipeline
 summary: |
   Unified per-consumer configuration surface. A single HTML UI manages six
-  surfaces — rules (~50), features (caveman + future), global flags
+  surfaces — rules (~50), features (caveman, graphify, ponytail), global flags
   (env-driven binaries), per-skill enforcement, per-MCP enforcement, and
   (since v0.19.7) managed files (AGENTS.md / .gitignore / .pre-commit /
   mcp-servers.project.yaml / etc.) — and exports a sparse JSON bundle that
@@ -16,7 +16,7 @@ last_validated: "2026-05-27"
 
 ## Why
 
-The framework ships **~50 rules** across L1 (PreToolUse hooks + rule.py wrappers), L2 (markdown), and L3 (GitHub Actions). On top of that there are **installed features** with their own state files (caveman) and **env-driven flags** (LLM routing strictness, telemetry feature flags, …).
+The framework ships **~50 rules** across L1 (PreToolUse hooks + rule.py wrappers), L2 (markdown), and L3 (GitHub Actions). On top of that there are **installed features** with their own state files (caveman, graphify, ponytail) and **env-driven flags** (LLM routing strictness, telemetry feature flags, …).
 
 Before this surface existed, an operator wanting to turn off a single rule for a hotfix had to: edit `.claude/settings.json`, set an env var with the right prefix (`AIPLAYBOOK_*_SKIP` / `AIPLAYBOOK_*_OVERRIDE`), and remember each rule has its own knob shape. That fragmentation is unmaintainable at our cadence.
 
@@ -27,7 +27,7 @@ Before this surface existed, an operator wanting to turn off a single rule for a
 | Surface | What | Source of truth on consumer | Managed by |
 |---|---|---|---|
 | **Rules** | ~50 with paired L1/L2/L3 + optional per-rule advanced sub-toggles (e.g. `bash_inspection`). | `.ai-playbook/rules-toggle.json` (sparse — only modified entries; rules absent = ON). | `scripts/rules_toggle.py` (CLI) + `scripts/apply_config.py` (bundle applier). |
-| **Features** | Installed components with their own state file + side effects (AGENTS.md materialisation, MCP wrap, backups). Today: caveman. | `.ai-playbook/caveman.json` (managed by caveman's own CLI). | `scripts/caveman` CLI — `apply_config` **delegates** via subprocess; never writes the file directly (schema-enforced). |
+| **Features** | Installed components with their own state file + side effects (AGENTS.md materialisation, MCP wrap, backups). Today: caveman, graphify, ponytail. | One state file per feature (`.ai-playbook/{caveman,graphify,ponytail}.json`), each managed by its own CLI. | `scripts/{caveman,graphify,ponytail}` CLI — `apply_config` **delegates** via subprocess (one section per feature); never writes the files directly (schema-enforced). |
 | **Global flags** | Binary env-driven toggles without their own state file (e.g. `AIPLAYBOOK_LLM_ROUTING_STRICT`). | `.ai-playbook/feature-flags.env` (marker-bracketed block). Consumer sources it in shell init (direnv `.envrc` or equivalent). | `scripts/apply_config.py` writes the file; per-rule `advanced` sub-toggles also project here via the inventory mapping. |
 | **Skills enforcement** | Per-skill opt-out of the materialise step (negative-list). | `.ai-playbook-state/skills-enforce.json`. Default = all enforced. | `scripts/_enforce_state.py` (reader) + `apply_config.py` (writer). Honoured by `scripts/materialise_skills.py`. |
 | **MCPs enforcement** | Per-server opt-out of MCP rendering (negative-list). | `.ai-playbook-state/mcps-enforce.json`. Default = all enforced. | Same as Skills. Honoured by `scripts/mcp/render.py` + `validate.py`. |
@@ -131,5 +131,7 @@ Reason: `cmd_on` executes **side effects before** writing the JSON — backup AG
 - [skills-mcps-enforcement.md](skills-mcps-enforcement.md) — per-Skill + per-MCP enforcement toggles.
 - [telemetry-design.md](telemetry-design.md) — rule-event/v2 fields + privacy model.
 - [caveman-mode.md](caveman-mode.md) — caveman feature internals.
+- [graphify.md](graphify.md) — graphify feature internals.
+- [ponytail-mode.md](ponytail-mode.md) — ponytail feature internals (caveman's code-minimalism twin).
 - [../runbooks/use-config-ui.md](../runbooks/use-config-ui.md) — operator walkthrough.
 - [../runbooks/upgrade-to-bash-enforcement.md](../runbooks/upgrade-to-bash-enforcement.md) — companion runbook for the v0.20.0 Bash inspection.

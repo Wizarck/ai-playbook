@@ -88,11 +88,12 @@ JSON5 / JS:
 
 1. `copy_templates` copies the templates as before. Markers are baked in.
 2. `reconcile(first_run=True)` synthesises the "everything ON" defaults bundle
-   (all skills + MCP servers enforced; caveman default-on with every component,
-   omitted iff `--no-caveman`) and runs it through `apply_config.apply`. The
+   (all skills + MCP servers enforced; caveman and ponytail default-on with
+   every component, omitted iff `--no-caveman` / `--no-ponytail`) and runs it
+   through `apply_config.apply`. The
    synthesised bundle carries no managed-file trigger sections, so the
-   freshly-copied templates are left untouched; caveman activation + skills
-   materialise + MCP render run as the door's sections.
+   freshly-copied templates are left untouched; caveman + ponytail activation +
+   skills materialise + MCP render run as the door's sections.
 3. The freshly-bootstrapped consumer has marker blocks visible in
    AGENTS.md / .gitignore / etc.
 
@@ -110,8 +111,8 @@ JSON5 / JS:
    - If destination exists AND content differs from rendered output:
      `backup_once` → atomic write.
    - Update `bundle.file_states[<rel_path>]` with the new SHA manifest.
-   The door also re-applies caveman intent, re-materialises skills, and
-   re-renders MCP configs as its own sections (idempotent).
+   The door also re-applies caveman / graphify / ponytail intent, re-materialises
+   skills, and re-renders MCP configs as its own sections (idempotent).
 3. Advisory drift check.
 
 ### Drift-CI gate (`bootstrap --check`)
