@@ -53,6 +53,8 @@ overrides.log
 # pattern to the .gitignore root with `/` so standalone playbook checkouts
 # are unaffected (these names never appear at `<playbook>/` proper).
 /caveman.json
+/graphify.json
+/ponytail.json
 /backups/
 /rules-toggle.json
 /rules-toggle-audit.jsonl

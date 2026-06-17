@@ -2,6 +2,29 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.15] — 2026-06-17 — consumer upgrade UX: graphify setup, doctor self-heal, executable pin bump
+
+### Added
+- `graphify setup` subcommand (`scripts/graphify/cli.py`) — automates the
+  per-machine/per-clone bootstrap (`uv tool install "graphifyy>=0.8.31"` +
+  `graphify hook install`), so operators no longer run those by hand. `--dry-run`
+  previews; degrades with an actionable error when `uv` is absent.
+- `doctor --install-deps` (`scripts/doctor.py`) — self-heal for the common
+  "consumer venv lacks jsonschema/pyyaml" failure: editable-installs the
+  playbook (`pip install -e`, with an `ensurepip` fallback) then runs the checks.
+- `update-playbook.rule.py apply --execute` — promotes the bump from plan-only
+  to executing it: fetch + checkout latest tag + re-pin `inherits_from` in
+  AGENTS.md + stage both (no commit; reconcile then commit together).
+- New runbook `docs/runbooks/upgrade-playbook-pin.md` — the canonical
+  bump → `bootstrap.py --update` (reconcile) → `doctor` flow, ending the
+  per-consumer "discovery" of how to upgrade a pin.
+
+### Fixed
+- `.gitignore` now anchors `/graphify.json` and `/ponytail.json` alongside
+  `/caveman.json`, so enabling those features no longer leaves the submodule
+  root dirty in consumer repos (regression from the v0.19.12/v0.19.14 feature
+  additions, which shipped the toggles without the matching ignore entries).
+
 ## [0.19.14] — 2026-06-17 — ponytail feature (lazy/minimal code mode) + subagent-prompt hardening
 
 ### Added — `ponytail` feature (lazy/minimal code mode) + `ponytail-reinforce` rule
