@@ -15,6 +15,11 @@ relative paths, and each clone has registered the `graph.json` union-merge
 driver. The [graphify-adoption rule](../rules/graphify-adoption.rule.md) is the
 enforcer; this runbook is the operator walkthrough.
 
+> **Shortcut.** Steps 1 + 2 below are automated by
+> `python -m scripts.graphify setup` (add `--dry-run` to preview). It runs the
+> `uv tool install` + `graphify hook install` for you; fall through to the
+> manual steps only when `uv` is unavailable or you need a non-default floor.
+
 ## 1. Install the CLI (per machine)
 
 ```

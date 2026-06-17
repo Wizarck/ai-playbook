@@ -88,6 +88,58 @@ def test_apply_dry_run_banner_when_drift_visible(
     assert rc == 0
 
 
+# --- re-pin + apply --execute --------------------------------------------------
+
+def test_repin_inherits_from_rewrites_tag(tmp_path: Path) -> None:
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text(
+        "---\ninherits_from:\n  - github.com/Wizarck/ai-playbook@v0.19.10\n---\n",
+        encoding="utf-8",
+    )
+    assert _up._repin_inherits_from(agents, "v0.19.15") is True
+    assert "ai-playbook@v0.19.15" in agents.read_text(encoding="utf-8")
+
+
+def test_repin_inherits_from_noop_when_absent(tmp_path: Path) -> None:
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text("# no pin here\n", encoding="utf-8")
+    assert _up._repin_inherits_from(agents, "v0.19.15") is False
+
+
+def test_apply_execute_dry_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    root = _make_gitmodules_root(tmp_path)
+    (root / ".ai-playbook").mkdir()
+    monkeypatch.chdir(root)
+    monkeypatch.setattr(_up, "_current_pin", lambda *_: "v0.19.10")
+    monkeypatch.setattr(_up, "_latest_tag", lambda *_: "v0.19.15")
+    rc = _up.apply(dry_run=True, execute=True)
+    assert rc == 0
+    assert "would bump" in capsys.readouterr().out.lower()
+
+
+def test_apply_execute_runs_git_and_repins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    root = _make_gitmodules_root(tmp_path)
+    (root / ".ai-playbook").mkdir()
+    (root / "AGENTS.md").write_text(
+        "inherits_from:\n  - github.com/Wizarck/ai-playbook@v0.19.10\n", encoding="utf-8"
+    )
+    monkeypatch.chdir(root)
+    monkeypatch.setattr(_up, "_current_pin", lambda *_: "v0.19.10")
+    monkeypatch.setattr(_up, "_latest_tag", lambda *_: "v0.19.15")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(_up.subprocess, "check_call", lambda cmd, **kw: calls.append(cmd) or 0)
+    rc = _up.apply(dry_run=False, execute=True)
+    assert rc == 0
+    flat = [" ".join(c) for c in calls]
+    assert any("checkout" in f and "v0.19.15" in f for f in flat)
+    assert any(f.endswith("add .ai-playbook") for f in flat)
+    assert "ai-playbook@v0.19.15" in (root / "AGENTS.md").read_text(encoding="utf-8")
+
+
 # --- _current_pin / _latest_tag (smoke) ----------------------------------------
 
 def test_current_pin_returns_none_for_non_git_dir(tmp_path: Path) -> None:

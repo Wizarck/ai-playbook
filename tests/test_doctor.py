@@ -296,3 +296,55 @@ def test_main_pretty_output_contains_sigils(
     assert "✅" in err
     assert "⚠️" in err
     assert "Summary:" in err
+
+
+# ---------------------------------------------------------------------------
+# --install-deps self-heal
+# ---------------------------------------------------------------------------
+
+
+def test_install_deps_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess as _sp
+
+    monkeypatch.setattr(doctor, "_ensure_pip", lambda: True)
+    monkeypatch.setattr(
+        doctor.subprocess, "run",
+        lambda cmd, **kw: _sp.CompletedProcess(cmd, 0, "Successfully installed", ""),
+    )
+    r = doctor.install_deps()
+    assert r.status == doctor.STATUS_OK
+    assert "editable" in r.detail
+
+
+def test_install_deps_pip_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess as _sp
+
+    monkeypatch.setattr(doctor, "_ensure_pip", lambda: True)
+    monkeypatch.setattr(
+        doctor.subprocess, "run",
+        lambda cmd, **kw: _sp.CompletedProcess(cmd, 1, "", "ERROR: boom"),
+    )
+    r = doctor.install_deps()
+    assert r.status == doctor.STATUS_FAIL
+    assert "exited 1" in r.detail
+
+
+def test_install_deps_no_pip(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(doctor, "_ensure_pip", lambda: False)
+    r = doctor.install_deps()
+    assert r.status == doctor.STATUS_FAIL
+    assert "pip" in r.detail.lower()
+
+
+def test_main_install_deps_runs_first(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        doctor, "install_deps",
+        lambda root=None: doctor.CheckResult("install-deps", doctor.STATUS_OK, "installed"),
+    )
+    monkeypatch.setattr(doctor, "run_all", list)
+    rc = doctor.main(["--install-deps", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload[0]["name"] == "install-deps"

@@ -23,7 +23,11 @@ Checks (each emits a :class:`CheckResult`):
 
 CLI
 ---
-    python -m scripts.doctor [--json] [--strict]
+    python -m scripts.doctor [--json] [--strict] [--install-deps]
+
+``--install-deps`` editable-installs the playbook (``pip install -e <root>``,
+with an ``ensurepip`` fallback) so the hard deps (pyyaml, jsonschema, …) resolve,
+then runs the checks. Self-heal for the common "venv lacks jsonschema" failure.
 
 Exit codes
 ----------
@@ -42,6 +46,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
@@ -413,6 +418,52 @@ ALL_CHECKS: tuple[Callable[[], CheckResult], ...] = (
 )
 
 
+def _ensure_pip() -> bool:
+    """Return True once ``pip`` is importable, bootstrapping via ``ensurepip``."""
+    if _import_check("pip"):
+        return True
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "ensurepip", "--upgrade"],
+            capture_output=True, text=True, timeout=120, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return _import_check("pip")
+
+
+def install_deps(root: Path | None = None) -> CheckResult:
+    """Editable-install the playbook so its hard deps resolve in this interpreter.
+
+    Self-heal for the common consumer failure where the active venv lacks
+    ``jsonschema``/``pyyaml`` (they are not in every consumer's pyproject).
+    Reuses ``PLAYBOOK_ROOT`` (the pyproject that declares the deps + console
+    scripts). Best-effort: returns a single ``install-deps`` CheckResult.
+    """
+    root = root or PLAYBOOK_ROOT
+    if not _ensure_pip():
+        return CheckResult(
+            "install-deps", STATUS_FAIL,
+            "pip unavailable and `ensurepip` failed — create a venv with pip "
+            "(`python -m venv .venv`) then re-run, or install pyyaml+jsonschema manually.",
+        )
+    cmd = [sys.executable, "-m", "pip", "install", "-e", str(root)]
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=600, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return CheckResult("install-deps", STATUS_FAIL, f"`pip install -e` failed to start: {exc}")
+    if proc.returncode != 0:
+        tail = " ".join((proc.stderr or proc.stdout or "").strip().splitlines()[-3:])
+        return CheckResult(
+            "install-deps", STATUS_FAIL,
+            f"`pip install -e {root}` exited {proc.returncode}: {tail[:300]}",
+        )
+    return CheckResult("install-deps", STATUS_OK, f"installed playbook (editable) from {root}")
+
+
 def run_all() -> list[CheckResult]:
     """Run every check and return the collected results."""
     results: list[CheckResult] = []
@@ -466,6 +517,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Treat warnings as failures (exit 1 on any warn).",
     )
+    parser.add_argument(
+        "--install-deps",
+        dest="install_deps",
+        action="store_true",
+        help="Editable-install the playbook (pip install -e) to resolve missing "
+             "hard deps (pyyaml, jsonschema) before running the checks.",
+    )
     return parser
 
 
@@ -475,8 +533,12 @@ def main(argv: list[str] | None = None) -> int:
     except SystemExit as exc:  # argparse error
         return int(exc.code or 2)
 
+    pre: list[CheckResult] = []
+    if getattr(args, "install_deps", False):
+        pre.append(install_deps())
+
     try:
-        results = run_all()
+        results = pre + run_all()
     except OSError as exc:
         print(f"❌ doctor setup error: {exc}", file=sys.stderr)
         print("   FIX: verify cwd is readable and the playbook checkout is intact.",

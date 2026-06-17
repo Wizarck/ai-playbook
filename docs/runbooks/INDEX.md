@@ -20,6 +20,7 @@
 | [runbook-key-rotation-emergency.md](runbook-key-rotation-emergency.md) | Emergency rotation of 1-3 suspected or confirmed compromised credentials within 1 hour (revoke + reissue + restart + history rewrite if published). |
 | [runbook-secrets-leak-containment.md](runbook-secrets-leak-containment.md) | Contain a wide-scope secrets leak (machine compromise, supplier compromise, public-repo leak with forks) through isolation, full credential rotation, history rewrite, and disclosure. |
 | [runbook-vps-down.md](runbook-vps-down.md) | Recover a VPS that is unreachable (SSH timeout, ping fail, HTTPS fail) — confirm scope, restore via cloud console, verify external reachability. |
+| [upgrade-playbook-pin.md](upgrade-playbook-pin.md) | Bump a consumer repo's .ai-playbook submodule pin to a newer tag and re-activate everything in one pass. |
 | [upgrade-to-bash-enforcement.md](upgrade-to-bash-enforcement.md) | In your consumer project with an active OpenSpec change whose `tasks.md` declares at least one `write_path`: |
 | [use-config-ui.md](use-config-ui.md) | Step-by-step: build a config bundle in the HTML UI, apply it to a consumer via bootstrap or apply_config, verify the toggles took effect, source the env file in your shell init. |
 | [windows-dev-environment.md](windows-dev-environment.md) | Resolve non-obvious Windows + WSL2 dev-loop gotchas (Windows Store Python, Jest worker crashes on Node 24+, worktree removal under file-handle locks). |

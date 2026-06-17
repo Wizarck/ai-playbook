@@ -189,6 +189,7 @@ nav:
       - "Release": runbooks/release.md
       - "Rotate secrets": runbooks/rotate-secrets.md
       - "Onboard new project": runbooks/onboard-new-project.md
+      - "Upgrade playbook pin": runbooks/upgrade-playbook-pin.md
       - "Run telemetry report": runbooks/run-telemetry-report.md
       - "Windows dev environment": runbooks/windows-dev-environment.md
       - "Docs build deploy": runbooks/docs-build-deploy.md
