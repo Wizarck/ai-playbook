@@ -141,4 +141,5 @@ used in the upstream JuliusBrussee/caveman `evals/` harness.
 - [specs/caveman-toggle.md](../../specs/caveman-toggle.md) — formal state schema.
 - [skills/caveman/SKILL.md](../../skills/caveman/SKILL.md) — the LLM-facing ruleset.
 - [tests/evals/caveman/](../../tests/evals/caveman/) — the 3-arm eval harness.
+- [ponytail-mode.md](ponytail-mode.md) — the code-minimalism twin (compresses what the agent *builds*, not how it *talks*).
 - [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) — upstream source (MIT).
