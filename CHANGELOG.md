@@ -42,6 +42,26 @@ security, accessibility). The two are orthogonal and compose.
   honest delta ponytail-vs-minimal), and `tests/test_ponytail_*.py` mirroring the
   caveman toggle/cli/materialise/reinforce/evals coverage.
 
+### Changed — subagent prompt hardening + force-push deny (CL4R1T4S-informed)
+
+Hardened the spawn-time guarantees of isolated subagents, prompted by reviewing
+the system-prompt patterns in [elder-plinius/CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S)
+(production agent prompts consistently encode anti-fabrication, ask-don't-assume,
+and explicit stop-conditions — gaps our isolated subagents had, since they do not
+inherit the interactive operator's global principles).
+
+- **`templates/subagent-prompt.md.tmpl`** — three new Hard rules (6–8), each
+  mapped to an existing failure mode in
+  [agentic-failures.md](docs/concepts/agentic-failures.md): **#6 no fabricated
+  verification output** (`over_confidence` §2.5 / `hallucination` §2.1), **#7 no
+  silent assumptions — surface `❓ CLARIFICATION NEEDED`** (`hallucination` §2.1),
+  **#8 no `done` with silent loose ends** (`premature_completion` §2.8). Five-section
+  structure unchanged; additive only.
+- **`templates/new-project/.claude/settings.json.tmpl`** — deny-list now blocks
+  raw `git push --force origin*` / `git push -f origin*` on **any** branch (not
+  just main/master). `--force-with-lease` stays allowed so the §6.5 pre-flight
+  rebase flow is unaffected.
+
 ## [0.19.13] — 2026-06-16 — fix: alembic-single-head CLI parses on CPython 3.11/3.12
 
 ### Fixed
