@@ -42,7 +42,7 @@ Expected exit code: 0. Non-zero indicates the new pin is not a semver tag, is ol
 
 **Preferred** (manual):
 
-```
+```bash
 cd .ai-playbook && git fetch --tags && git checkout v0.18.1 && cd ..
 git add .ai-playbook && git commit -m "chore(playbook): bump submodule v0.18.0 → v0.18.1"
 python .ai-playbook/scripts/rules/cleanup-on-bump.rule.py validate
@@ -51,7 +51,7 @@ python .ai-playbook/scripts/rules/cleanup-on-bump.rule.py validate
 **Preferred** (assisted — `apply --execute` does the fetch + checkout-latest +
 re-pin of `inherits_from` in AGENTS.md + stages both; reconcile then commit):
 
-```
+```bash
 python .ai-playbook/scripts/rules/update-playbook.rule.py apply --execute
 python .ai-playbook/scripts/bootstrap.py --update     # re-materialise skills/managed files
 git commit -m "chore(playbook): bump ai-playbook <old> → <new>"
@@ -61,7 +61,7 @@ See the [upgrade-playbook-pin runbook](../runbooks/upgrade-playbook-pin.md) for 
 
 **Avoided**:
 
-```
+```bash
 cd .ai-playbook && git checkout main   # ❌ floating branch, not a semver pin
 ```
 

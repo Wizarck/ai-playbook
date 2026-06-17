@@ -263,11 +263,17 @@ def cmd_off(args: argparse.Namespace) -> int:
 
 
 def _augmented_path() -> str:
-    """PATH with uv's default tools bin (~/.local/bin) prepended.
+    """PATH with uv's default tools bin (``~/.local/bin``) prepended.
 
     ``uv tool install`` puts the ``graphify`` executable on the tools bin, which
     is not on the current process PATH until the shell is reopened. Prepend it so
     we can resolve the freshly-installed CLI in the same run.
+
+    Note: uv uses ``~/.local/bin`` as its tools bin on all platforms (incl.
+    Windows, unless ``XDG_BIN_HOME``/``UV_TOOL_BIN_DIR`` override it), so the
+    single ``Path.home() / ".local" / "bin"`` candidate covers the common case.
+    A non-default bin dir still works as long as it is already on PATH — this
+    only *adds* a fallback, it never removes the inherited PATH.
     """
     extra = [str(Path.home() / ".local" / "bin")]
     return os.pathsep.join([*extra, os.environ.get("PATH", "")])
