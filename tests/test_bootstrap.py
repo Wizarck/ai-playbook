@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from scripts import bootstrap as bs
+from scripts._backup_helper import base_record_for, restore_base
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -220,6 +221,72 @@ def test_copy_templates_dry_run_no_files(tmp_path: Path) -> None:
     )
     assert written  # names listed
     assert not (target / "AGENTS.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# Lossless adoption — pre-existing files captured as BASE snapshots
+# ---------------------------------------------------------------------------
+
+
+def _copy(target: Path, *, dry_run: bool = False) -> list[Path]:
+    return bs.copy_templates(
+        playbook_root=bs.find_playbook_root(),
+        target_dir=target,
+        project_name="alpha",
+        owner="a@b.c",
+        playbook_pin="v1.2.3",
+        dry_run=dry_run,
+    )
+
+
+def test_copy_templates_backs_up_preexisting_dispatcher_as_base(tmp_path: Path) -> None:
+    """A pre-existing CLAUDE.md is captured as a BASE snapshot before overwrite."""
+    target = tmp_path / "alpha"
+    target.mkdir()
+    original = "# my hand-authored CLAUDE.md\n\nproject rule: never run X.\n"
+    (target / "CLAUDE.md").write_text(original, encoding="utf-8")
+
+    _copy(target)
+
+    # BASE snapshot recorded, and the original content is restorable.
+    assert base_record_for(target, "CLAUDE.md") is not None
+    # The working copy was overwritten by the template (thin router).
+    assert (target / "CLAUDE.md").read_text(encoding="utf-8") != original
+    restored, warnings = restore_base(target, "CLAUDE.md")
+    assert not warnings
+    assert (target / "CLAUDE.md").read_text(encoding="utf-8") == original
+
+
+def test_copy_templates_no_base_for_fresh_target(tmp_path: Path) -> None:
+    """A fresh consumer (no pre-existing dispatcher files) captures no BASE."""
+    target = tmp_path / "alpha"
+    target.mkdir()
+    _copy(target)
+    assert base_record_for(target, "CLAUDE.md") is None
+    assert base_record_for(target, "AGENTS.md") is None
+
+
+def test_copy_templates_base_capture_is_idempotent(tmp_path: Path) -> None:
+    """A second copy_templates keeps the earliest (pre-playbook) BASE, not the template."""
+    target = tmp_path / "alpha"
+    target.mkdir()
+    original = "# original CLAUDE.md\n"
+    (target / "CLAUDE.md").write_text(original, encoding="utf-8")
+
+    _copy(target)  # captures original as BASE, overwrites with template
+    _copy(target)  # CLAUDE.md now template; backup_base must NOT re-capture it
+
+    restored, warnings = restore_base(target, "CLAUDE.md")
+    assert not warnings
+    assert (target / "CLAUDE.md").read_text(encoding="utf-8") == original
+
+
+def test_copy_templates_dry_run_captures_no_base(tmp_path: Path) -> None:
+    target = tmp_path / "alpha"
+    target.mkdir()
+    (target / "CLAUDE.md").write_text("# original\n", encoding="utf-8")
+    _copy(target, dry_run=True)
+    assert base_record_for(target, "CLAUDE.md") is None
 
 
 # ---------------------------------------------------------------------------
