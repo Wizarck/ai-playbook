@@ -2,6 +2,22 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.21] — 2026-06-18 — feat: lossless adoption — pre-existing files preserved as BASE snapshots
+
+Slice C of the `lossless-adoption` change.
+
+### Added
+- `bootstrap.copy_templates` (first-run onboarding only — `--update` already skips
+  it) now captures any pre-existing consumer file it is about to overwrite
+  (`CLAUDE.md`, a hand-authored `AGENTS.md`, `GEMINI.md`, configs, …) as a **BASE
+  snapshot** via `backup_base` before writing the template. BASE is the
+  never-overwritten pre-playbook anchor (`restore_base` recovers it); capture is
+  idempotent. Adoption no longer silently discards prior content.
+- `_report_adoption_backups` prints which files were preserved and points dispatcher
+  files at `python -m scripts.curate --dry-run` (then `--yes`) to re-absorb their
+  prose into `AGENTS.md` §1/§4/§8 (the renderer is template-authoritative, so prose
+  is re-injected through `curate`/`project_meta`, not preserved in place).
+
 ## [0.19.20] — 2026-06-18 — fix: AGENTS.md inherits_from list-form pin no longer blanked
 
 Slice A of the `lossless-adoption` change.

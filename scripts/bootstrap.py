@@ -60,6 +60,7 @@ for _stream in (sys.stdout, sys.stderr):
 # or by direct path (`python .ai-playbook/scripts/bootstrap.py …`).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from scripts._backup_helper import backup_base  # noqa: E402
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 from scripts.materialise_skills import materialise_skills  # noqa: E402
 from scripts.tracing import trace_emit  # noqa: E402
@@ -351,6 +352,7 @@ def copy_templates(
 
     today_iso = date.today().isoformat()
     written: list[Path] = []
+    backed_up: list[str] = []  # pre-existing consumer files captured as BASE snapshots
 
     for src in src_root.rglob("*"):
         if src.is_dir():
@@ -359,11 +361,21 @@ def copy_templates(
         # Strip .tmpl suffix if present (so AGENTS.md.tmpl → AGENTS.md).
         rel_out = rel.with_suffix("") if rel.suffix == ".tmpl" else rel
         dst = target_dir / rel_out
+        rel_str = str(rel_out).replace(os.sep, "/")
 
         if dry_run:
+            if dst.is_file():
+                print(f"(dry-run) Would back up pre-existing {rel_str} (BASE snapshot) before overwrite.")
+                backed_up.append(rel_str)
             print(f"(dry-run) Would write {dst}.")
             written.append(dst)
             continue
+
+        # Lossless adoption: capture the consumer's pre-playbook content ONCE as a
+        # restorable BASE snapshot before the template overwrites it. No-op when the
+        # file is new or already has a base record (idempotent).
+        if backup_base(target_dir, dst) is not None:
+            backed_up.append(rel_str)
 
         dst.parent.mkdir(parents=True, exist_ok=True)
         raw = src.read_text(encoding="utf-8")
@@ -377,7 +389,34 @@ def copy_templates(
         dst.write_text(new, encoding="utf-8", newline="\n")
         written.append(dst)
 
+    if backed_up:
+        _report_adoption_backups(backed_up)
+
     return written
+
+
+_DISPATCHER_FILES = ("CLAUDE.md", "AGENTS.md", "GEMINI.md")
+
+
+def _report_adoption_backups(rel_paths: list[str]) -> None:
+    """Tell the operator which pre-existing files were preserved on adoption.
+
+    The originals are stored as BASE snapshots (``.ai-playbook-state/backups/``)
+    and are restorable via ``restore_base``. For dispatcher files we additionally
+    point at the human-gated ``curate`` pass that re-absorbs their prose into
+    ``AGENTS.md`` (the renderer is template-authoritative, so prose is preserved
+    through extraction, not in place — see the lossless-adoption design D2).
+    """
+    print(
+        f"📦 Lossless adoption: backed up {len(rel_paths)} pre-existing file(s) "
+        f"as restorable BASE snapshots: {', '.join(rel_paths)}"
+    )
+    if any(r in _DISPATCHER_FILES for r in rel_paths):
+        print(
+            "   Your prior CLAUDE.md/AGENTS.md prose is in the BASE snapshot. To "
+            "absorb it into AGENTS.md §1/§4/§8, run: "
+            "python -m scripts.curate --dry-run  (then --yes to apply)."
+        )
 
 
 # ---------------------------------------------------------------------------

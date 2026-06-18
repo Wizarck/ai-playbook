@@ -25,16 +25,19 @@
 - [ ] 2.4 Dogfood: re-pin gtm-advisor (hand-authored markerless AGENTS.md) through
   v0.19.20 and confirm `bootstrap --update` no longer blanks its pin.
 
-## 3. Slice C — dispatcher-prose absorb (backup + curate, follow-up release)
+## 3. Slice C — dispatcher-prose absorb (backup + curate) — v0.19.21
 
-- [ ] 3.1 In `scripts/bootstrap.py` `copy_templates`, before writing
-  `CLAUDE.md.tmpl`, if `<consumer>/CLAUDE.md` exists call `backup_once` (indexed)
-  under the run's session id. Markerless `AGENTS.md` is already backed up by the
-  COMMIT phase; assert + surface it.
-- [ ] 3.2 Emit a pointer: "pre-existing CLAUDE.md / markerless AGENTS.md backed up
-  → run `python -m scripts.curate` to absorb its prose into AGENTS.md §1/§4/§8."
-- [ ] 3.3 Tests: pre-existing CLAUDE.md backed up + indexed before overwrite;
-  restore round-trips. Note in `docs/runbooks/onboard-new-project.md`.
+- [x] 3.1 In `scripts/bootstrap.py` `copy_templates` (first-run only; `--update`
+  skips it), capture any pre-existing `dst` as a BASE snapshot via `backup_base`
+  before the template overwrites it. DEVIATION: used `backup_base` (CENTRAL,
+  session `base`, idempotent — never re-captures) covering ALL pre-existing files
+  (CLAUDE.md, markerless AGENTS.md, GEMINI.md, configs), not just CLAUDE.md via
+  `backup_once`. BASE is the true pre-playbook anchor with `restore_base` recovery.
+- [x] 3.2 `_report_adoption_backups` prints the preserved files and, for dispatcher
+  files, points at `python -m scripts.curate --dry-run` (then `--yes`).
+- [x] 3.3 Tests (`test_bootstrap.py`): pre-existing CLAUDE.md → BASE captured +
+  `restore_base` round-trips; fresh target captures none; capture idempotent;
+  dry-run captures none. Note added to `docs/runbooks/onboard-new-project.md`.
 
 ## 4. Slice B — MCP absorb (auto-classify + audit + idempotent, follow-up release)
 

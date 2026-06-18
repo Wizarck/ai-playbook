@@ -25,6 +25,15 @@ The new repo has:
 
 A Claude Code session at the repo root then auto-recalls from Hindsight bank `<project>` at startup and recognises the universal specs via inheritance. Submodule bumps are pulled by the consumer at its own pace (Dependabot / Renovate / manual `git submodule update`) per the v0.19.0 pull-model contract.
 
+> **Lossless adoption (≥ v0.19.21).** If the repo already had a `CLAUDE.md`,
+> `AGENTS.md`, or other files the templates overwrite, `bootstrap` captures each
+> one as a **BASE snapshot** under `.ai-playbook-state/backups/` before writing the
+> template, and prints which files it preserved. Nothing is lost on adoption — the
+> originals are restorable (`restore_base`). For dispatcher files, run
+> `python -m scripts.curate --dry-run` (then `--yes`) to absorb your prior prose
+> into `AGENTS.md` §1/§4/§8 — the renderer is template-authoritative, so consumer
+> prose is re-injected through `curate`/`project_meta`, not preserved in place.
+
 ### Overview — bootstrap dependency graph
 
 ```mermaid
