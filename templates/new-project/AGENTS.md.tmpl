@@ -96,7 +96,7 @@ Before responding to ANY task:
 2. **Project** — [`mcp-servers.project.yaml`](mcp-servers.project.yaml) (this project's overrides + Hindsight bank `{{PROJECT_BANK}}`).
 3. **Personal** — `~/.config/mcp-servers.yaml` (per-dev tenant instances; never committed).
 
-Rendered to [`.mcp.json`](.mcp.json) + [`.gemini/settings.json`](.gemini/settings.json) via `scripts/mcp/render.py`. Regenerate after editing the project layer.
+Rendered to **local, gitignored** `.mcp.json` + `.gemini/settings.json` via `scripts/mcp/render.py` — they are per-machine build artifacts so personal/tenant servers never land in a committed file. Regenerate after editing the project layer or your personal layer; on a fresh clone run `python .ai-playbook/scripts/mcp/render.py` once.
 <!-- ai-playbook:end mcp-sources -->
 
 ## 7 Overrides inherited from playbook
