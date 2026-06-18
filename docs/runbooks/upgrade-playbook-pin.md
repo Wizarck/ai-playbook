@@ -99,10 +99,29 @@ git commit -m "chore(playbook): bump ai-playbook <old> → <new>"
 Commit the submodule pointer, the re-pinned `AGENTS.md`, and the reconciled
 managed files together so the pin and its activated state never diverge.
 
+## One-time: untrack rendered MCP configs (≥ v0.19.18)
+
+`.mcp.json` and `.gemini/settings.json` are LOCAL build artifacts (the
+base+project+**personal** merge) and are gitignored by the playbook so personal/
+tenant servers never land in a committed file. If your repo committed them before
+v0.19.18, untrack them once (kept on disk) and re-render:
+
+```
+git rm --cached .mcp.json .gemini/settings.json
+python .ai-playbook/scripts/mcp/render.py        # regenerate locally
+git commit -m "chore(mcp): untrack rendered MCP configs (now local build artifacts)"
+```
+
+The committed source of truth stays `mcp-servers.project.yaml` (no personal) +
+`~/.config/mcp-servers.yaml` (personal, local-only). On a fresh clone, run the
+render once to materialise the local configs.
+
 ## Troubleshooting
 
 - **`doctor` fails on jsonschema/pyyaml** — run step 3 with `--install-deps`, or
   create a venv that has `pip` (`python -m venv .venv`) first.
+- **MCP servers missing after a fresh clone** — `.mcp.json` is gitignored now;
+  run `python .ai-playbook/scripts/mcp/render.py` once to regenerate it locally.
 - **Skills look stale after the bump** — step 2 was skipped; `bootstrap.py
   --update` is what re-materialises them, not the `git checkout`.
 - **Submodule shows dirty after enabling a feature** — feature state files

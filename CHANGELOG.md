@@ -2,6 +2,33 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.18] — 2026-06-18 — MCP rendered configs are local (gitignored) build artifacts
+
+Phase 1 of the agnostic-playbook plan: the playbook must never let a user's
+personal/tenant MCP servers land in a committed work artifact.
+
+### Changed
+- `.gitignore.tmpl` (playbook-patterns block) now ignores `.mcp.json` and
+  `.gemini/settings.json` — they are LOCAL build artifacts of the
+  personal>project>base render, regenerated per machine via
+  `scripts/mcp/render.py`. The committed source of truth stays
+  `mcp-servers.project.yaml` (no personal) + `~/.config/mcp-servers.yaml`
+  (personal, local-only, never committed). Fixes personal/tenant servers being
+  baked into committed `.mcp.json`/`.gemini/settings.json` in consumer repos.
+- `AGENTS.md.tmpl` §6 + the upgrade-playbook-pin runbook document the
+  local-render model, the one-time `git rm --cached` migration for repos that
+  committed these files before, and the fresh-clone render step.
+- Genericised the one personal-flavoured example in `mcp-servers-schema.md`
+  (`google-workspace-arturo` → `google-workspace-<you>`).
+
+### Added
+- Regression test: the shipped `.gitignore.tmpl` ignores both rendered MCP
+  outputs.
+
+### Deferred (later phases)
+- Lossless adoption (backup + absorb existing config into the layers; also fixes
+  the markerless-AGENTS.md render) and the generic personal `pack/unpack` bundle.
+
 ## [0.19.17] — 2026-06-17 — fix: bootstrap.py runnable by direct path
 
 ### Fixed
