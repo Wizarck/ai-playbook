@@ -2,6 +2,14 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.19] — 2026-06-18 — docs: idempotent MCP-untrack migration command
+
+### Fixed
+- `upgrade-playbook-pin.md` migration snippet: `git rm --cached` now uses
+  `--ignore-unmatch` so it no longer errors when a consumer never tracked
+  `.mcp.json`/`.gemini/settings.json`; tagged the fenced block `bash` (MD040).
+  (CodeRabbit on #123.)
+
 ## [0.19.18] — 2026-06-18 — MCP rendered configs are local (gitignored) build artifacts
 
 Phase 1 of the agnostic-playbook plan: the playbook must never let a user's
