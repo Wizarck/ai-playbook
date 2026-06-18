@@ -106,8 +106,8 @@ base+project+**personal** merge) and are gitignored by the playbook so personal/
 tenant servers never land in a committed file. If your repo committed them before
 v0.19.18, untrack them once (kept on disk) and re-render:
 
-```
-git rm --cached .mcp.json .gemini/settings.json
+```bash
+git rm --cached --ignore-unmatch .mcp.json .gemini/settings.json
 python .ai-playbook/scripts/mcp/render.py        # regenerate locally
 git commit -m "chore(mcp): untrack rendered MCP configs (now local build artifacts)"
 ```
