@@ -228,7 +228,7 @@ The summary output lists which layer contributed each server:
    hindsight          base
    guardrails-mcp     base
    skills-registry    base + project + personal
-   google-workspace-arturo  base + personal
+   google-workspace-<you>   base + personal
    ...
 ```
 

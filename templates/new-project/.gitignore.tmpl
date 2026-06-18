@@ -19,6 +19,14 @@
 .ai-playbook/dashboard-data.js
 .ai-playbook-state/
 
+# rendered MCP configs — LOCAL build artifacts (base+project+personal merge).
+# Personal/tenant servers must never land in a committed file, so the rendered
+# output is per-machine: regenerate with `python .ai-playbook/scripts/mcp/render.py`.
+# The COMMITTED source of truth is mcp-servers.project.yaml (no personal) +
+# ~/.config/mcp-servers.yaml (personal, local-only, never committed).
+.mcp.json
+.gemini/settings.json
+
 # apply_config backup files (default location is next-to-original; the
 # central layout under .ai-playbook-state/backups/ is covered above)
 *.bak

@@ -171,6 +171,20 @@ def test_agents_md_idempotent_when_bundle_unchanged() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_shipped_gitignore_ignores_rendered_mcp_outputs() -> None:
+    # Rendered MCP configs are LOCAL build artifacts (base+project+personal merge)
+    # — they must stay gitignored so personal/tenant servers never land in a
+    # committed file. Guards the playbook-patterns block in the shipped template.
+    from pathlib import Path
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / ".gitignore.tmpl"
+    ).read_text(encoding="utf-8")
+    out = render_gitignore(template=tmpl, substitutions={}, bundle={})
+    assert ".mcp.json" in out
+    assert ".gemini/settings.json" in out
+
+
 def test_gitignore_renders_marker_block_and_extras() -> None:
     template = (
         "# header\n\n"
