@@ -156,10 +156,19 @@ class ManagedFilesResult:
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 _KV_RE = re.compile(r"^([A-Za-z0-9_]+)\s*:\s*(.*?)\s*$")
+_LIST_ITEM_RE = re.compile(r"^\s*-\s*(.+?)\s*$")
 
 
 def _extract_agents_md_frontmatter(consumer_root: Path) -> dict[str, str]:
-    """Read project/owner from <consumer>/AGENTS.md frontmatter if present."""
+    """Read project/owner/inherits_from from <consumer>/AGENTS.md frontmatter.
+
+    Values may be inline scalars (``key: value``) OR YAML lists (a ``key:`` line
+    with an empty value, followed by ``- item`` lines). For a list the first item
+    is stored; for ``inherits_from`` an item carrying ``@`` (the pinned ref) is
+    preferred so the playbook pin survives regardless of item order. The template's
+    own frontmatter writes ``inherits_from`` as a list, so the scalar-only parse
+    would otherwise blank PLAYBOOK_PIN on every template-shaped consumer.
+    """
     p = consumer_root / "AGENTS.md"
     if not p.is_file():
         return {}
@@ -170,11 +179,34 @@ def _extract_agents_md_frontmatter(consumer_root: Path) -> dict[str, str]:
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}
+    lines = m.group(1).split("\n")
     out: dict[str, str] = {}
-    for line in m.group(1).split("\n"):
-        kv = _KV_RE.match(line)
-        if kv:
-            out[kv.group(1)] = kv.group(2)
+    i = 0
+    while i < len(lines):
+        kv = _KV_RE.match(lines[i])
+        if not kv:
+            i += 1
+            continue
+        key, value = kv.group(1), kv.group(2)
+        if value == "":
+            # Empty scalar — may be a YAML list: collect following "- item" lines.
+            items: list[str] = []
+            j = i + 1
+            while j < len(lines):
+                li = _LIST_ITEM_RE.match(lines[j])
+                if not li:
+                    break
+                items.append(li.group(1))
+                j += 1
+            if items:
+                if key == "inherits_from":
+                    out[key] = next((it for it in items if "@" in it), items[0])
+                else:
+                    out[key] = items[0]
+                i = j
+                continue
+        out[key] = value
+        i += 1
     return out
 
 
@@ -186,12 +218,22 @@ def compute_substitutions(consumer_root: Path) -> dict[str, str]:
     """
     fm = _extract_agents_md_frontmatter(consumer_root)
     project_name = fm.get("project") or consumer_root.name
+    inherits = fm.get("inherits_from") or ""
+    playbook_pin = inherits.split("@")[-1] if "@" in inherits else ""
+    if "inherits_from" in fm and not playbook_pin:
+        # inherits_from was present but no pin could be recovered — surface it
+        # rather than silently rendering a pinless pin (the markerless-pin bug).
+        print(
+            "warning: AGENTS.md inherits_from present but its pin could not be "
+            "parsed; rendered pin will be empty",
+            file=sys.stderr,
+        )
     return {
         "PROJECT_NAME": project_name,
         "PROJECT_BANK": fm.get("project", project_name).lower(),
         "OWNER_EMAIL": fm.get("owner") or "unknown@example.com",
         "TODAY": datetime.now(UTC).date().isoformat(),
-        "PLAYBOOK_PIN": fm.get("inherits_from", "").split("@")[-1] if fm.get("inherits_from") else "",
+        "PLAYBOOK_PIN": playbook_pin,
     }
 
 

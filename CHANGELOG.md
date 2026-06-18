@@ -2,6 +2,19 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.20] — 2026-06-18 — fix: AGENTS.md inherits_from list-form pin no longer blanked
+
+Slice A of the `lossless-adoption` change.
+
+### Fixed
+- `_extract_agents_md_frontmatter` now parses `inherits_from` as a YAML list (the
+  template's own shape) as well as an inline scalar, so `compute_substitutions`
+  recovers `PLAYBOOK_PIN` instead of blanking it on re-render. A multi-item list
+  prefers the `@`-bearing pin; a present-but-pinless `inherits_from` resolves to an
+  empty pin and emits one advisory stderr `warning:` so a future frontmatter-shape
+  regression is loud, not silent. Fixes `bootstrap --update` re-rendering a
+  template-shaped consumer's `inherits_from` without its pin.
+
 ## [0.19.19] — 2026-06-18 — docs: idempotent MCP-untrack migration command
 
 ### Fixed

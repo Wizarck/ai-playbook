@@ -116,6 +116,69 @@ def test_compute_substitutions_falls_back_to_dir_name(tmp_path: Path) -> None:
     assert subs["OWNER_EMAIL"] == "unknown@example.com"
 
 
+def test_compute_substitutions_recovers_list_form_pin(tmp_path: Path) -> None:
+    """The template writes inherits_from as a YAML list; the pin must survive."""
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "AGENTS.md", (
+        "---\n"
+        "project: myproj\n"
+        "inherits_from:\n"
+        "  - github.com/Wizarck/ai-playbook@v0.19.19\n"
+        "owner: dev@example.com\n"
+        "---\n\n# body\n"
+    ))
+    subs = _managed_files.compute_substitutions(consumer)
+    assert subs["PLAYBOOK_PIN"] == "v0.19.19"
+    assert subs["PROJECT_NAME"] == "myproj"
+    assert subs["OWNER_EMAIL"] == "dev@example.com"
+
+
+def test_compute_substitutions_recovers_inline_scalar_pin(tmp_path: Path) -> None:
+    """An inline scalar inherits_from keeps working (no regression)."""
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "AGENTS.md", (
+        "---\n"
+        "inherits_from: github.com/Wizarck/ai-playbook@v0.19.19\n"
+        "---\n\n# body\n"
+    ))
+    subs = _managed_files.compute_substitutions(consumer)
+    assert subs["PLAYBOOK_PIN"] == "v0.19.19"
+
+
+def test_compute_substitutions_prefers_at_bearing_list_item(tmp_path: Path) -> None:
+    """A multi-item inherits_from list resolves the pin regardless of order."""
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "AGENTS.md", (
+        "---\n"
+        "inherits_from:\n"
+        "  - some/other-spec\n"
+        "  - github.com/Wizarck/ai-playbook@v1.2.3\n"
+        "---\n\n# body\n"
+    ))
+    subs = _managed_files.compute_substitutions(consumer)
+    assert subs["PLAYBOOK_PIN"] == "v1.2.3"
+
+
+def test_compute_substitutions_warns_on_unparseable_pin(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """inherits_from present but pinless ⇒ empty pin + a single stderr warning."""
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "AGENTS.md", (
+        "---\n"
+        "inherits_from:\n"
+        "project: myproj\n"
+        "---\n\n# body\n"
+    ))
+    subs = _managed_files.compute_substitutions(consumer)
+    assert subs["PLAYBOOK_PIN"] == ""
+    assert "inherits_from" in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # apply_managed_files — no triggers
 # ---------------------------------------------------------------------------
