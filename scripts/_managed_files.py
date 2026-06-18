@@ -199,7 +199,10 @@ def _extract_agents_md_frontmatter(consumer_root: Path) -> dict[str, str]:
                 items.append(li.group(1))
                 j += 1
             if items:
-                out[key] = next((it for it in items if "@" in it), items[0])
+                if key == "inherits_from":
+                    out[key] = next((it for it in items if "@" in it), items[0])
+                else:
+                    out[key] = items[0]
                 i = j
                 continue
         out[key] = value
