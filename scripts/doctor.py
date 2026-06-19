@@ -25,9 +25,11 @@ CLI
 ---
     python -m scripts.doctor [--json] [--strict] [--install-deps]
 
-``--install-deps`` editable-installs the playbook (``pip install -e <root>``,
-with an ``ensurepip`` fallback) so the hard deps (pyyaml, jsonschema, …) resolve,
-then runs the checks. Self-heal for the common "venv lacks jsonschema" failure.
+``--install-deps`` resolves the hard deps (pyyaml, jsonschema, …) into the
+running interpreter, then runs the checks. Self-heal for the common "venv lacks
+jsonschema" failure: installs via ``uv pip install`` when ``uv`` is on PATH
+(handles pip-less uv venvs), else falls back to an editable ``pip install -e
+<root>`` with an ``ensurepip`` bootstrap.
 
 Exit codes
 ----------
@@ -433,12 +435,14 @@ def _ensure_pip() -> bool:
 
 
 def install_deps(root: Path | None = None) -> CheckResult:
-    """Editable-install the playbook so its hard deps resolve in this interpreter.
+    """Resolve the playbook's hard deps in this interpreter (self-heal).
 
-    Self-heal for the common consumer failure where the active venv lacks
+    For the common consumer failure where the active venv lacks
     ``jsonschema``/``pyyaml`` (they are not in every consumer's pyproject).
-    Reuses ``PLAYBOOK_ROOT`` (the pyproject that declares the deps + console
-    scripts). Best-effort: returns a single ``install-deps`` CheckResult.
+    Prefers ``uv pip install`` when ``uv`` is on PATH — covering pip-less uv
+    venvs — then falls back to an editable install of ``PLAYBOOK_ROOT`` (the
+    pyproject that declares the deps + console scripts) with an ``ensurepip``
+    bootstrap. Best-effort: returns a single ``install-deps`` CheckResult.
     """
     root = root or PLAYBOOK_ROOT
     # Fast path for uv-managed venvs (no pip, no ensurepip): install the hard
