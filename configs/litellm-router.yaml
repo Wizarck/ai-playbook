@@ -43,12 +43,16 @@ router_settings:
 model_list:
   # ---------- L (low) tier -----------------------------------------------
 
+  # Advisor decision 2026-06-17: L-tier base flips Haiku → Gemini Flash Lite
+  # (free quota). Haiku drops to a fallback so it stays reachable on Gemini
+  # quota/errors. Escalation to Sonnet stays in the Advisory-in-Python layer.
   - model_name: triage
     litellm_params:
-      model: anthropic/claude-haiku-4-5
-      api_key: os.environ/ANTHROPIC_API_KEY
+      model: gemini/gemini-2.5-flash-lite
+      api_key: os.environ/GEMINI_API_KEY
       fallbacks:
         - gemini/gemini-2.5-flash
+        - anthropic/claude-haiku-4-5
         - openrouter/meta-llama/llama-4-70b
         - ollama/gpt-oss-20b
       metadata:
@@ -58,10 +62,11 @@ model_list:
 
   - model_name: safety_judge
     litellm_params:
-      model: anthropic/claude-haiku-4-5
-      api_key: os.environ/ANTHROPIC_API_KEY_JUDGE
+      model: gemini/gemini-2.5-flash-lite
+      api_key: os.environ/GEMINI_API_KEY
       fallbacks:
         - gemini/gemini-2.5-flash
+        - anthropic/claude-haiku-4-5
         - openrouter/meta-llama/llama-4-70b
       metadata:
         task_class: safety_judge
@@ -70,10 +75,11 @@ model_list:
 
   - model_name: conversational_agent
     litellm_params:
-      model: anthropic/claude-haiku-4-5
-      api_key: os.environ/ANTHROPIC_API_KEY_HERMES
+      model: gemini/gemini-2.5-flash-lite
+      api_key: os.environ/GEMINI_API_KEY
       fallbacks:
         - gemini/gemini-2.5-flash
+        - anthropic/claude-haiku-4-5
         - openrouter/meta-llama/llama-4-70b
       metadata:
         task_class: conversational_agent
