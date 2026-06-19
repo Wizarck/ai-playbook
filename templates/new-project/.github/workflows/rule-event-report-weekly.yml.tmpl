@@ -1,0 +1,98 @@
+name: rule-event-report-weekly
+
+# Weekly aggregate of L1 rule-event telemetry. Renders both Markdown and JSON;
+# posts the Markdown into a tracking issue labelled `telemetry-report` (creates
+# the issue on first run with telemetry, updates it thereafter).
+#
+# OPT-IN: this workflow is seeded into a consumer only when the
+# `telemetry_weekly_issue` global flag is ON (config UI → Global flags tab, or
+# bundle.global_flags). `apply_config` seeds the file; `bootstrap` creates the
+# `telemetry-report` label. Turn it off by deleting this file.
+#
+# Source of events: <repo>/.ai-playbook-state/rule-events.jsonl (gitignored, so
+# a CI runner produces a "no data" report unless a separate job has committed an
+# aggregated log). An empty window (count: 0) is skipped — no issue is posted.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"  # Mondays 09:00 UTC
+  workflow_dispatch:
+    inputs:
+      window:
+        description: "Reporting window: weekly | monthly | custom"
+        required: false
+        default: weekly
+      window_days:
+        description: "If window=custom, days N>0"
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Pick window
+        id: window
+        run: |
+          case "${{ github.event.inputs.window || 'weekly' }}" in
+            weekly|monthly) echo "args=${{ github.event.inputs.window || 'weekly' }}" >> "$GITHUB_OUTPUT" ;;
+            custom)
+              days="${{ github.event.inputs.window_days || '7' }}"
+              echo "args=custom --window-days ${days}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "args=weekly" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Generate Markdown + JSON report
+        id: gen
+        run: |
+          python -m scripts.telemetry.report ${{ steps.window.outputs.args }} > report.md
+          python -m scripts.telemetry.report ${{ steps.window.outputs.args }} --json > report.json
+          echo "report.md head:" && head -n 5 report.md
+          # Parse the event count from the report header line
+          # (`> Events file: ... (count: N)`); skip the issue post when N == 0.
+          count=$(grep -oiP 'count:\s*\K[0-9]+' report.md | head -n1 || true)
+          echo "event_count=${count:-0}" >> "$GITHUB_OUTPUT"
+          echo "Parsed event_count=${count:-0}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: telemetry-report
+          path: |
+            report.md
+            report.json
+          retention-days: 30
+
+      - name: Post or update tracking issue
+        # Skip entirely when the window had no telemetry events — an empty
+        # "count: 0" digest is pure noise, and (when the label is missing) the
+        # create-fallback below would spawn a fresh unlabelled issue every run.
+        if: steps.gen.outputs.event_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --label "telemetry-report" --state open --json number --jq '.[0].number // empty')
+          title="Telemetry report — ${{ steps.window.outputs.args }} — $(date +%Y-%m-%d)"
+          if [ -n "$existing" ]; then
+            echo "Updating issue #$existing"
+            gh issue edit "$existing" --title "$title" --body-file report.md
+          else
+            echo "Creating new tracking issue"
+            gh issue create --title "$title" --body-file report.md \
+              --label "telemetry-report" || \
+            gh issue create --title "$title" --body-file report.md  # fall back if label missing
+          fi

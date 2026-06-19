@@ -11,6 +11,16 @@
       "value_on": "1",
       "value_off": "",
       "doc_path": "docs/concepts/model-routing.md"
+    },
+    {
+      "key": "telemetry_weekly_issue",
+      "label": "Weekly telemetry report issue",
+      "description": "Opt in to the weekly rule-event telemetry digest posted as a GitHub issue (label `telemetry-report`). When ON, apply_config seeds .github/workflows/rule-event-report-weekly.yml (seed-only — never clobbers your edits) and bootstrap creates the label. Empty windows (0 events) are skipped, so no noise. Turn off by deleting the workflow file. Default OFF.",
+      "env_var": "AIPLAYBOOK_TELEMETRY_WEEKLY_ISSUE",
+      "default": false,
+      "value_on": "1",
+      "value_off": "",
+      "doc_path": "docs/concepts/telemetry-design.md"
     }
   ]
 }

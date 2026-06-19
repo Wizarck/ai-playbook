@@ -635,3 +635,59 @@ def test_mcp_render_runs_with_mcps_enforce(tmp_path: Path) -> None:
 
     mock_render.assert_called_once()
     assert any((s.section_id or s.name) == "mcps_enforce.render" for s in report.sections)
+
+
+# ---------------------------------------------------------------------------
+# telemetry_weekly_issue global flag → seed the weekly workflow (opt-in)
+# ---------------------------------------------------------------------------
+
+_TELEMETRY_WF_REL = Path(".github") / "workflows" / "rule-event-report-weekly.yml"
+
+
+def test_telemetry_weekly_issue_seeds_when_flag_on(tmp_path: Path) -> None:
+    """Flag ON + no existing file → the workflow is seeded from the template."""
+    target = _fake_project(tmp_path)
+    bundle = {"schema": "ai-playbook-config/v1",
+              "global_flags": {"telemetry_weekly_issue": True}}
+    sr = apply_config.apply_telemetry_weekly_issue(target, bundle)
+    assert sr.ok
+    wf = target / _TELEMETRY_WF_REL
+    assert wf.is_file()
+    body = wf.read_text(encoding="utf-8")
+    assert "rule-event-report-weekly" in body
+    assert "event_count" in body  # carries the empty-skip guard
+
+
+def test_telemetry_weekly_issue_noop_when_flag_off(tmp_path: Path) -> None:
+    """Flag OFF or absent → no file written, reported as skipped."""
+    target = _fake_project(tmp_path)
+    for gf in ({"telemetry_weekly_issue": False}, {}):
+        bundle = {"schema": "ai-playbook-config/v1", "global_flags": gf}
+        sr = apply_config.apply_telemetry_weekly_issue(target, bundle)
+        assert sr.ok
+        assert "skipped" in sr.detail.lower()
+        assert not (target / _TELEMETRY_WF_REL).exists()
+
+
+def test_telemetry_weekly_issue_seed_only_keeps_existing(tmp_path: Path) -> None:
+    """Flag ON but the file already exists → never clobbered (consumer owns it)."""
+    target = _fake_project(tmp_path)
+    wf = target / _TELEMETRY_WF_REL
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text("# my custom schedule\n", encoding="utf-8")
+    bundle = {"schema": "ai-playbook-config/v1",
+              "global_flags": {"telemetry_weekly_issue": True}}
+    sr = apply_config.apply_telemetry_weekly_issue(target, bundle)
+    assert sr.ok
+    assert wf.read_text(encoding="utf-8") == "# my custom schedule\n"
+    assert "kept as-is" in sr.detail.lower()
+
+
+def test_telemetry_weekly_issue_dry_run_writes_nothing(tmp_path: Path) -> None:
+    target = _fake_project(tmp_path)
+    bundle = {"schema": "ai-playbook-config/v1",
+              "global_flags": {"telemetry_weekly_issue": True}}
+    sr = apply_config.apply_telemetry_weekly_issue(target, bundle, dry_run=True)
+    assert sr.ok
+    assert "would seed" in sr.detail.lower()
+    assert not (target / _TELEMETRY_WF_REL).exists()

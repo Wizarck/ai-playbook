@@ -176,6 +176,24 @@ A monthly aggregation over a 30-day window with 12,400 events might produce:
 | output-completeness   | claude-opus-4-7  | 312   | 311   | 0     | 1    | 99.68%    |
 ```
 
+## Weekly digest issue (opt-in)
+
+The weekly digest can be posted to a GitHub issue (label `telemetry-report`,
+updated in place) via the `rule-event-report-weekly.yml` workflow. It is **opt-in
+and OFF by default** — enable the `telemetry_weekly_issue` global flag (config UI
+→ Global flags, or `bundle.global_flags.telemetry_weekly_issue: true`):
+
+- `apply_config` **seeds** `.github/workflows/rule-event-report-weekly.yml` into
+  the consumer (seed-only — never clobbers your edits; delete the file to turn the
+  feature off or to re-seed an updated version).
+- `bootstrap` creates the `telemetry-report` label (best-effort `gh`; prints the
+  manual command if `gh` is unavailable). The label lets the workflow dedup to a
+  single rolling issue instead of one per run.
+- A window with **0 events is skipped** — no empty issue is ever posted.
+
+A scheduled workflow runs from the committed repo and cannot read the gitignored
+bundle, so the *presence* of the workflow file is the toggle.
+
 ## Academic foundations
 
 The design reuses methodology from five primary sources:

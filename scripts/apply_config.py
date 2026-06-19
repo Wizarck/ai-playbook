@@ -728,6 +728,7 @@ SECTION_ORDER = (
     "features.graphify",
     "features.ponytail",
     "global_flags",
+    "global_flags.telemetry_weekly_issue",
     "skills_enforce",
     "skills_enforce.materialise",
     "mcps_enforce",
@@ -766,6 +767,64 @@ def _skipped_mcp_render_section(*, dry_run: bool = False) -> SectionResult:
             "(mcps_enforce / mcp_project_servers absent)"
         ),
     )
+
+
+_TELEMETRY_WORKFLOW_REL = ".github/workflows/rule-event-report-weekly.yml"
+_TELEMETRY_WORKFLOW_TMPL = (
+    "templates/new-project/.github/workflows/rule-event-report-weekly.yml.tmpl"
+)
+
+
+def apply_telemetry_weekly_issue(
+    target: Path, bundle: dict[str, Any], *, dry_run: bool = False
+) -> SectionResult:
+    """Consequence of the ``telemetry_weekly_issue`` global flag.
+
+    When ON, **seed** the weekly telemetry-report workflow into the consumer's
+    ``.github/workflows/`` (the ``telemetry-report`` label is created at install
+    by ``bootstrap``). Seed-only: an existing file is never clobbered — the
+    consumer owns it once seeded (delete it to re-seed an updated version, or to
+    turn the feature off). When the flag is OFF/absent this is a no-op; removal of
+    an already-seeded file is a documented manual step (a scheduled workflow can't
+    read the gitignored bundle, so the file's presence IS the toggle).
+
+    Best-effort: a missing playbook root or a write failure is reported but never
+    flips the overall apply verdict.
+    """
+    sr = SectionResult(
+        name="global_flags.telemetry_weekly_issue",
+        section_id="global_flags.telemetry_weekly_issue",
+        ok=True,
+    )
+    enabled = bool((bundle.get("global_flags") or {}).get("telemetry_weekly_issue"))
+    prefix = "DRY-RUN: " if dry_run else ""
+    if not enabled:
+        sr.detail = f"{prefix}skipped — telemetry_weekly_issue flag off/absent"
+        return sr
+
+    dest = target / _TELEMETRY_WORKFLOW_REL
+    if dest.is_file():
+        sr.detail = f"{prefix}seed-only: {_TELEMETRY_WORKFLOW_REL} already present — kept as-is"
+        return sr
+
+    if dry_run:
+        sr.detail = f"DRY-RUN: would seed {_TELEMETRY_WORKFLOW_REL}"
+        return sr
+
+    try:
+        root = rules_toggle.find_playbook_root()
+        if root is None:
+            sr.detail = "skipped: playbook root not found — cannot seed workflow"
+            return sr
+        tmpl = root / _TELEMETRY_WORKFLOW_TMPL
+        content = tmpl.read_text(encoding="utf-8")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content, encoding="utf-8")
+        sr.detail = f"seeded {_TELEMETRY_WORKFLOW_REL} (telemetry-report label created at install)"
+        sr.changes.append(f"+ {_TELEMETRY_WORKFLOW_REL}")
+    except Exception as exc:  # noqa: BLE001 — never abort apply on a seed failure
+        sr.detail = f"skipped: seed raised {type(exc).__name__}: {exc}"
+    return sr
 
 
 def apply_skills_materialise(target: Path, *, dry_run: bool = False) -> SectionResult:
@@ -921,6 +980,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         sr2 = SectionResult(name="global_flags", ok=True)
         sr2.detail = f"DRY-RUN would write {len(bundle.get('global_flags') or {})} global flag entries"
         report.sections.append(sr2)
+        report.sections.append(apply_telemetry_weekly_issue(target, bundle, dry_run=True))
         report.sections.append(apply_skills_enforce(target, bundle, dry_run=True))
         report.sections.append(apply_skills_materialise(target, dry_run=True))
         report.sections.append(apply_mcps_enforce(target, bundle, dry_run=True))
@@ -1019,6 +1079,19 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         "action": "apply-config:global_flags",
         "ok": gf_sr.ok,
         "detail": gf_sr.detail,
+        "bundle": bundle_path.as_posix(),
+    })
+
+    # Section 3b: telemetry_weekly_issue — consequence of the global flag. Seeds
+    # the weekly telemetry-report workflow when ON (label created at install).
+    tw_sr = apply_telemetry_weekly_issue(target, bundle)
+    report.sections.append(tw_sr)
+    _audit_append(target, {
+        "ts": datetime.now(UTC).isoformat(),
+        "actor": _actor(),
+        "action": "apply-config:telemetry_weekly_issue",
+        "ok": tw_sr.ok,
+        "detail": tw_sr.detail,
         "bundle": bundle_path.as_posix(),
     })
 

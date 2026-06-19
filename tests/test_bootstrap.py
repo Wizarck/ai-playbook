@@ -698,3 +698,31 @@ def test_bootstrap_runnable_by_direct_path(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "usage:" in (proc.stdout + proc.stderr).lower()
+
+
+# ---------------------------------------------------------------------------
+# setup_telemetry_label — install-side label for the weekly-issue opt-in
+# ---------------------------------------------------------------------------
+
+
+def test_setup_telemetry_label_noop_when_disabled(tmp_path: Path, capsys) -> None:
+    """Flag OFF → nothing printed, no gh invocation."""
+    bs.setup_telemetry_label(tmp_path, enabled=False, dry_run=False)
+    assert "telemetry-report" not in capsys.readouterr().out
+
+
+def test_setup_telemetry_label_dry_run_announces(tmp_path: Path, capsys) -> None:
+    """Flag ON + dry-run → announces the label, never shells out."""
+    bs.setup_telemetry_label(tmp_path, enabled=True, dry_run=True)
+    out = capsys.readouterr().out
+    assert "telemetry-report" in out
+    assert "dry-run" in out.lower()
+
+
+def test_setup_telemetry_label_missing_gh_prints_manual(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """Flag ON but `gh` absent → graceful skip with the manual command."""
+    monkeypatch.setattr(bs.shutil, "which", lambda _name: None)
+    bs.setup_telemetry_label(tmp_path, enabled=True, dry_run=False)
+    assert "gh label create telemetry-report" in capsys.readouterr().out
