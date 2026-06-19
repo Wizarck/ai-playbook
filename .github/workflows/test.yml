@@ -6,7 +6,7 @@ name: test
 
 on:
   push:
-    branches: [main, baseline]
+    branches: [main]
   pull_request:
     branches: [main]
 
