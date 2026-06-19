@@ -483,6 +483,53 @@ def run_doctor(target_dir: Path, dry_run: bool) -> None:
     )
 
 
+def setup_telemetry_label(target_dir: Path, *, enabled: bool, dry_run: bool) -> None:
+    """Ensure the ``telemetry-report`` GitHub label when the weekly-issue flag is ON.
+
+    Part of install: the weekly telemetry workflow (seeded by apply_config) dedups
+    its tracking issue by this label, so the label must exist or each run spawns a
+    fresh unlabelled issue. Best-effort like ``install_pre_commit``: a missing /
+    unauthenticated ``gh`` prints the manual command instead of failing. Idempotent
+    (``gh label create --force``). No-op when the flag is OFF.
+    """
+    if not enabled:
+        return
+    manual = (
+        "gh label create telemetry-report --color BFD4F2 "
+        "--description 'Auto-posted weekly L1 rule-event telemetry digest'"
+    )
+    if dry_run:
+        print(f"(dry-run) Would ensure GitHub label `telemetry-report` ({manual}).")
+        return
+    if shutil.which("gh") is None:
+        print(
+            "⚠️  telemetry_weekly_issue is ON but `gh` was not found — create the "
+            f"label manually so the weekly issue dedups:\n    {manual}"
+        )
+        return
+    res = subprocess.run(
+        [
+            "gh", "label", "create", "telemetry-report", "--force",
+            "--color", "BFD4F2",
+            "--description", "Auto-posted weekly L1 rule-event telemetry digest",
+        ],
+        cwd=str(target_dir),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if res.returncode == 0:
+        print(
+            "✓ telemetry_weekly_issue ON → ensured GitHub label `telemetry-report` "
+            "(the weekly workflow was seeded into .github/workflows/)."
+        )
+    else:
+        print(
+            f"⚠️  could not create the `telemetry-report` label (gh rc={res.returncode}). "
+            f"Create it manually:\n    {manual}\n    detail: {res.stderr.strip()[:160]}"
+        )
+
+
 # Components the first reconcile turns on by default (the "everything ON"
 # defaults synthesised when no user bundle exists). response_style materialises
 # the AGENTS.md ruleset block, mcp_shrink wraps the rendered .mcp.json +
@@ -1041,6 +1088,14 @@ def reconcile(target_dir: Path, args: BootstrapArgs, *, first_run: bool) -> int:
         bundle_path, is_temp = _resolve_bundle_path(target_dir, args, first_run=first_run)
         if bundle_path is None:
             return 1
+        # Read the telemetry flag before the door call (the temp bundle is unlinked
+        # in the finally below) so install can create the GitHub label to match.
+        telemetry_on = False
+        try:
+            _b = json.loads(bundle_path.read_text(encoding="utf-8"))
+            telemetry_on = bool((_b.get("global_flags") or {}).get("telemetry_weekly_issue"))
+        except (OSError, ValueError):
+            pass
         try:
             report = _apply_through_door(target_dir, bundle_path, dry_run=dry)
         finally:
@@ -1063,6 +1118,9 @@ def reconcile(target_dir: Path, args: BootstrapArgs, *, first_run: bool) -> int:
     if args.check:
         # CI gate: any section drift / failure → non-zero exit.
         return 0 if report.ok else 1
+    # Install-side consequence of the telemetry_weekly_issue flag: ensure the
+    # GitHub label so the seeded workflow's issue dedups (best-effort).
+    setup_telemetry_label(target_dir, enabled=telemetry_on, dry_run=dry)
     if not report.ok:
         print(
             "⚠️ reconcile: one or more sections reported issues; see report above. "
