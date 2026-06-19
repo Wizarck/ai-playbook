@@ -589,3 +589,49 @@ def test_settings_rejects_unknown_hook_key() -> None:
     }
     with _pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(bad, schema)
+
+
+# ---------------------------------------------------------------------------
+# MCP render gate (a bundle with no MCP intent must not re-render .mcp.json)
+# ---------------------------------------------------------------------------
+
+
+def test_mcp_render_skipped_without_mcp_intent(tmp_path: Path) -> None:
+    """A bundle with no MCP section (e.g. a caveman-only toggle) must NOT run the
+    MCP render — that rewrites .mcp.json/.gemini + a global gemini config for an
+    unrelated change. The render slot is still reported, as a skipped no-op."""
+    target = _fake_project(tmp_path)
+    bundle = {"schema": "ai-playbook-config/v1", "features": {"caveman": {"enabled": False}}}
+    bp = _write_bundle(tmp_path, bundle)
+
+    from scripts.apply_config import SectionResult
+    with patch.object(apply_config, "apply_caveman") as mock_cv, \
+         patch.object(apply_config, "apply_mcp_render") as mock_render:
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        report = apply_config.apply(bp, target=target)
+
+    mock_render.assert_not_called()
+    render_sec = next(
+        s for s in report.sections if (s.section_id or s.name) == "mcps_enforce.render"
+    )
+    assert render_sec.ok
+    assert "skipped" in render_sec.detail.lower()
+
+
+def test_mcp_render_runs_with_mcps_enforce(tmp_path: Path) -> None:
+    """A bundle that declares mcps_enforce DOES drive the MCP render."""
+    target = _fake_project(tmp_path)
+    bundle = {"schema": "ai-playbook-config/v1", "mcps_enforce": {"disabled": []}}
+    bp = _write_bundle(tmp_path, bundle)
+
+    from scripts.apply_config import SectionResult
+    with patch.object(apply_config, "apply_caveman") as mock_cv, \
+         patch.object(apply_config, "apply_mcp_render") as mock_render:
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        mock_render.return_value = SectionResult(
+            name="mcps_enforce.render", section_id="mcps_enforce.render", ok=True,
+        )
+        report = apply_config.apply(bp, target=target)
+
+    mock_render.assert_called_once()
+    assert any((s.section_id or s.name) == "mcps_enforce.render" for s in report.sections)

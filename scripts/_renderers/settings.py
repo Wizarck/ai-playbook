@@ -79,7 +79,11 @@ def render(
     merged = merge_required_pretooluse(base)
     # Generic L1 dispatcher entry — ensures trigger-declaring rules auto-fire
     # without per-rule settings edits (runs alongside the bespoke enforce hook).
-    merged = merge_required_dispatcher(merged)
+    # Suppressed when the consumer's submodule pin lacks hook_dispatcher.py
+    # (DISPATCHER_AVAILABLE="0", set by _managed_files after an on-disk check) so
+    # an absent script is never wired into a blocking PreToolUse hook.
+    dispatcher_available = str(substitutions.get("DISPATCHER_AVAILABLE", "1")) != "0"
+    merged = merge_required_dispatcher(merged, available=dispatcher_available)
 
     settings_section = bundle.get("settings") or {}
     claude_hooks = _claude_hooks(settings_section)
