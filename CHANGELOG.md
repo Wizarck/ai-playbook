@@ -2,6 +2,22 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.22] — 2026-06-18 — feat: MCP absorb — migrate a pre-existing inline .mcp.json into the layers
+
+Slice B (final) of the `lossless-adoption` change.
+
+### Added
+- `scripts/mcp/absorb.py` + `render.py --absorb`: a repo adopting the playbook with
+  a hand-authored inline `.mcp.json` can migrate its servers into the source layers
+  (otherwise they vanish on the next render). **Safe-default contract:** tenant
+  instances (`<base-server-type>-<tenant-slug>`, e.g. `google-workspace-arturo`) are
+  auto-written to the LOCAL personal layer (`~/.config/mcp-servers.yaml`); every
+  other server is **reported, never auto-written**, so a misclassification can never
+  leak a personal server into the committed `mcp-servers.project.yaml`. Only env-var
+  NAMES are carried (no secret values); the personal layer is backed up + de-duped
+  (never clobbers a curated entry); the `.mcp.json` is captured as a BASE snapshot;
+  `--dry-run` previews. Opt-in (`--absorb`), idempotent.
+
 ## [0.19.21] — 2026-06-18 — feat: lossless adoption — pre-existing files preserved as BASE snapshots
 
 Slice C of the `lossless-adoption` change.

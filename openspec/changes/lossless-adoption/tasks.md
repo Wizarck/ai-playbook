@@ -39,14 +39,20 @@
   `restore_base` round-trips; fresh target captures none; capture idempotent;
   dry-run captures none. Note added to `docs/runbooks/onboard-new-project.md`.
 
-## 4. Slice B — MCP absorb (auto-classify + audit + idempotent, follow-up release)
+## 4. Slice B — MCP absorb (auto personal / project-by-hand) — v0.19.22
 
-- [ ] 4.1 `scripts/mcp/render.py`: pre-render `absorb_existing_mcp_json(consumer_root,
-  dry_run)` — `backup_once_mcp_json`, `parse_mcp_json_servers`,
-  `classify_server_layer` (base-key→project; `<base-id>-<tenant>`→personal;
-  unique→project), `write_absorbed_servers_to_files` (de-dupe by id, add `scope`).
-- [ ] 4.2 CLI: `--skip-absorption`, `--absorption-only`; audit trail in `_summary`;
+- [x] 4.1 `scripts/mcp/absorb.py` (`absorb_mcp_json`): parse inline `.mcp.json`,
+  classify each new server (`<base-id>-<tenant>` → personal; else project),
+  AUTO-WRITE only tenant instances to the personal layer (de-dupe by id, env NAMES
+  only — no secret values, backup + rollback-on-parse-fail), REPORT project
+  candidates (NEVER auto-write the committed project layer), and back up the
+  `.mcp.json` as a BASE snapshot. DEVIATION: safe-default per user decision — auto
+  only to personal, project by hand (the original "auto-write both layers" could
+  leak a personal server into the committed file). Separate module, not inline.
+- [x] 4.2 CLI: `--absorb` opt-in flag in `render.py` (runs before load_layers so
+  the absorbed personal servers are part of the render); audit trail printed;
   `--dry-run` previews without writing.
-- [ ] 4.3 Tests + fixtures (existing `.mcp.json` with base-override, tenant-named,
-  project-unique servers); idempotent re-run; docs `mcp-servers-schema.md` §10 +
-  `mcp-render.rule.md` (co-edit pair if a rule doc is added).
+- [x] 4.3 Tests (`tests/test_mcp_absorb.py`, 8): tenant→personal, project→reported-
+  not-written, env-names-not-values, idempotent, dry-run, no-clobber, classify,
+  to_layer_entry. CLI smoke green. Doc note in `onboard-new-project.md` (schema-doc
+  §10 deferred — its co-edit pair is `validate.py`, untouched here).

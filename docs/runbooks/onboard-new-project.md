@@ -33,6 +33,14 @@ A Claude Code session at the repo root then auto-recalls from Hindsight bank `<p
 > `python -m scripts.curate --dry-run` (then `--yes`) to absorb your prior prose
 > into `AGENTS.md` §1/§4/§8 — the renderer is template-authoritative, so consumer
 > prose is re-injected through `curate`/`project_meta`, not preserved in place.
+>
+> **Pre-existing `.mcp.json` (≥ v0.19.22).** If the repo already had an inline
+> `.mcp.json`, run `python .ai-playbook/scripts/mcp/render.py --absorb` once.
+> Tenant instances (`<server-type>-<tenant>`, e.g. `google-workspace-arturo`) are
+> migrated into your local personal layer (`~/.config/mcp-servers.yaml`); every
+> other server is **reported, not written** — add genuinely-shared ones to the
+> committed `mcp-servers.project.yaml` by hand. Nothing personal can land in a
+> committed file. Add `--dry-run` to preview first.
 
 ### Overview — bootstrap dependency graph
 
