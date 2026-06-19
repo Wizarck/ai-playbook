@@ -54,10 +54,16 @@ jobs:
           esac
 
       - name: Generate Markdown + JSON report
+        id: gen
         run: |
           python -m scripts.telemetry.report ${{ steps.window.outputs.args }} > report.md
           python -m scripts.telemetry.report ${{ steps.window.outputs.args }} --json > report.json
           echo "report.md head:" && head -n 5 report.md
+          # Parse the event count from the report header line
+          # (`> Events file: ... (count: N)`); skip the issue post when N == 0.
+          count=$(grep -oiP 'count:\s*\K[0-9]+' report.md | head -n1 || true)
+          echo "event_count=${count:-0}" >> "$GITHUB_OUTPUT"
+          echo "Parsed event_count=${count:-0}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -69,6 +75,10 @@ jobs:
           retention-days: 30
 
       - name: Post or update tracking issue
+        # Skip entirely when the window had no telemetry events — an empty
+        # "count: 0" digest is pure noise, and (when the label is missing) the
+        # create-fallback below would spawn a fresh unlabelled issue every run.
+        if: steps.gen.outputs.event_count != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
