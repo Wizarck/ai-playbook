@@ -2,6 +2,36 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.23] — 2026-06-19 — fix: reconcile-door footguns + L-tier model flip + 0.19.x doc sync
+
+### Fixed
+- **`apply_mcp_render` gated on MCP intent** (#129) — toggling a non-MCP feature
+  through the reconcile door no longer re-renders the consumer's entire MCP
+  surface (`.mcp.json` + `.gemini/settings.json` + the global gemini config). A
+  bundle with no `mcps_enforce` / `mcp_project_servers` section now reports the
+  render slot as a skipped no-op, in both the real and dry-run paths.
+- **Dispatcher PreToolUse hook hardened** (#129) — the generic L1
+  `hook_dispatcher.py` hook is now anchored to `$CLAUDE_PROJECT_DIR` (was a bare
+  relative path that resolved against the hook's cwd — possibly a sibling repo)
+  and is suppressed when the consumer's submodule pin lacks `hook_dispatcher.py`
+  (an absent script would `exit 2` and block every Edit/Write/Bash, gating its
+  own repair). Template updated to the anchored command.
+
+### Changed
+- **litellm L-tier base flips Haiku → Gemini Flash Lite** (#128) — `triage` /
+  `safety_judge` / `conversational_agent` now default to
+  `gemini/gemini-2.5-flash-lite` (free quota); Haiku drops to a fallback so it
+  stays reachable on Gemini quota/errors. Consumers call by task-class, so no
+  consumer change is required.
+
+### Docs
+- 0.19.x doc-drift sync (#130): corrected the README Dashboard tab (shipped
+  v0.19.6 — was marked "not shipped yet"); added a Graphify section to the README
+  + the AGENTS.md dispatcher index; added 0.19.x feature docs that were orphaned
+  from the mkdocs nav + a new Operations section.
+- Retired the `baseline` branch (commit preserved by tag `v0.1.0`); the rollback
+  pointer is now `git checkout v0.1.0`.
+
 ## [0.19.22] — 2026-06-18 — feat: MCP absorb — migrate a pre-existing inline .mcp.json into the layers
 
 Slice B (final) of the `lossless-adoption` change.
