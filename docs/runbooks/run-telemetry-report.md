@@ -4,7 +4,7 @@ slug: run-telemetry-report
 description: Generate the weekly or monthly telemetry report (obey-rate, cost, lifecycle) from the consumer's rule-events.jsonl log.
 audience: developer
 estimated_time: 1-3 min
-last_validated: "2026-05-19"
+last_validated: "2026-06-19"
 ---
 
 # Generate the telemetry report
@@ -116,6 +116,23 @@ Useful for regression testing the report against curated synthetic event logs.
 ```bash
 grep -v '<corrupted-fragment>' .ai-playbook-state/rule-events.jsonl > .tmp && mv .tmp .ai-playbook-state/rule-events.jsonl
 ```
+
+## Automate it as a GitHub issue (opt-in, v0.19.24+)
+
+Instead of running the report by hand, the weekly digest can be posted to a
+GitHub issue (label `telemetry-report`, updated in place) on a Monday cron. It is
+**opt-in and OFF by default** — enable the `telemetry_weekly_issue` global flag
+(config UI → Global flags, or `bundle.global_flags.telemetry_weekly_issue: true`),
+then re-apply / re-bootstrap:
+
+- `apply_config` seeds `.github/workflows/rule-event-report-weekly.yml` (seed-only
+  — it never clobbers your edits; delete the file to turn it off or to re-seed).
+- `bootstrap` creates the `telemetry-report` label (best-effort `gh`; prints the
+  manual command if `gh` is unavailable).
+- A window with **0 events is skipped**, so an idle repo never gets an empty
+  issue.
+
+Details: [Concept: telemetry-design → Weekly digest issue (opt-in)](../concepts/telemetry-design.md).
 
 ## Related
 
