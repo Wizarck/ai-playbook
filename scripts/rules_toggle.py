@@ -44,25 +44,11 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-try:
-    import jsonschema
-except ImportError:
-    print(
-        "❌ jsonschema is required for scripts.rules_toggle. "
-        "Install with: pip install jsonschema",
-        file=sys.stderr,
-    )
-    raise SystemExit(2) from None
+from scripts._ensure_deps import ensure_runtime_deps  # noqa: E402
 
-try:
-    import yaml
-except ImportError:
-    print(
-        "❌ pyyaml is required for scripts.rules_toggle (frontmatter parsing). "
-        "Install with: pip install pyyaml",
-        file=sys.stderr,
-    )
-    raise SystemExit(2) from None
+ensure_runtime_deps("jsonschema", "yaml")
+import jsonschema  # noqa: E402
+import yaml  # noqa: E402
 
 from scripts._project_root import find_project_root as _find_project_root_shared  # noqa: E402
 

@@ -303,9 +303,25 @@ def test_main_pretty_output_contains_sigils(
 # ---------------------------------------------------------------------------
 
 
+def test_install_deps_uv_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """uv present + deps resolve → installs via uv without touching pip."""
+    import subprocess as _sp
+
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
+    monkeypatch.setattr(
+        doctor.subprocess, "run",
+        lambda cmd, **kw: _sp.CompletedProcess(cmd, 0, "Installed", ""),
+    )
+    monkeypatch.setattr(doctor, "_import_check", lambda name: True)
+    r = doctor.install_deps()
+    assert r.status == doctor.STATUS_OK
+    assert "uv" in r.detail
+
+
 def test_install_deps_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     import subprocess as _sp
 
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: None)  # no uv → pip path
     monkeypatch.setattr(doctor, "_ensure_pip", lambda: True)
     monkeypatch.setattr(
         doctor.subprocess, "run",
@@ -319,6 +335,7 @@ def test_install_deps_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_install_deps_pip_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     import subprocess as _sp
 
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: None)  # no uv → pip path
     monkeypatch.setattr(doctor, "_ensure_pip", lambda: True)
     monkeypatch.setattr(
         doctor.subprocess, "run",
@@ -330,6 +347,7 @@ def test_install_deps_pip_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_install_deps_no_pip(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: None)  # no uv either
     monkeypatch.setattr(doctor, "_ensure_pip", lambda: False)
     r = doctor.install_deps()
     assert r.status == doctor.STATUS_FAIL
