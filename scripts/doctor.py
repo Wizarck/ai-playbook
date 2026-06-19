@@ -441,11 +441,26 @@ def install_deps(root: Path | None = None) -> CheckResult:
     scripts). Best-effort: returns a single ``install-deps`` CheckResult.
     """
     root = root or PLAYBOOK_ROOT
+    # Fast path for uv-managed venvs (no pip, no ensurepip): install the hard
+    # deps straight into this interpreter. Covers the common "uv venv lacks
+    # jsonschema" failure without needing pip at all.
+    if shutil.which("uv"):
+        try:
+            proc = subprocess.run(
+                ["uv", "pip", "install", "--python", sys.executable, "pyyaml", "jsonschema"],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=600, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            proc = None
+        if proc is not None and proc.returncode == 0 and _import_check("jsonschema") and _import_check("yaml"):
+            return CheckResult("install-deps", STATUS_OK, "installed pyyaml+jsonschema via uv")
     if not _ensure_pip():
         return CheckResult(
             "install-deps", STATUS_FAIL,
-            "pip unavailable and `ensurepip` failed — create a venv with pip "
-            "(`python -m venv .venv`) then re-run, or install pyyaml+jsonschema manually.",
+            "pip/uv unavailable and `ensurepip` failed — create a venv with pip "
+            "(`python -m venv .venv`) or install uv, then re-run; or install "
+            "pyyaml+jsonschema manually.",
         )
     cmd = [sys.executable, "-m", "pip", "install", "-e", str(root)]
     try:

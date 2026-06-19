@@ -68,15 +68,22 @@ are materialised but stay off until you enable them; default-on features
 cd .ai-playbook && python -m scripts.doctor
 ```
 
-Expect `0 fail`. If it reports `pyyaml`/`jsonschema` not importable (common when
-the consumer venv does not list them), self-heal in place:
+Expect `0 fail`. The hard deps (`jsonschema`, `pyyaml`) now **self-heal on first
+use** (≥ v0.19.25): any playbook script that needs them installs them into the
+running interpreter via `uv pip install` → `pip` → `ensurepip`, so a venv that
+lacks them no longer dies with `❌ jsonschema is required …`. If you want to
+pre-warm them explicitly (or the auto-heal couldn't reach a backend):
 
 ```
 cd .ai-playbook && python -m scripts.doctor --install-deps
 ```
 
-That editable-installs the playbook (`pip install -e`, with an `ensurepip`
-fallback) so the hard deps resolve, then re-runs the checks.
+That installs the hard deps via `uv` when available (handles pip-less uv venvs),
+falling back to an editable `pip install -e` with an `ensurepip` bootstrap.
+
+> File-path invocation also works from the consumer root (≥ v0.19.25) — e.g.
+> `python .ai-playbook/scripts/rules/update-playbook.rule.py validate` no longer
+> needs `PYTHONPATH` or `cd .ai-playbook && python -m …`.
 
 ## 4. (Optional) graphify
 

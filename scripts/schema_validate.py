@@ -48,17 +48,11 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-try:
-    import yaml
-except ImportError:
-    print("❌ PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    raise SystemExit(2) from None
+from scripts._ensure_deps import ensure_runtime_deps  # noqa: E402
 
-try:
-    import jsonschema
-except ImportError:
-    print("❌ jsonschema is required. Install with: pip install jsonschema", file=sys.stderr)
-    raise SystemExit(2) from None
+ensure_runtime_deps("yaml", "jsonschema")
+import jsonschema  # noqa: E402
+import yaml  # noqa: E402
 
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 

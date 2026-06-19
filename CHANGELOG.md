@@ -2,6 +2,37 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.25] — 2026-06-20 — fix: dependency self-heal + file-path invocation
+
+### Fixed
+- **Chicken-and-egg dependency guard** — guarded modules (`rules_toggle`,
+  `apply_config`, `schema_validate`, the caveman/ponytail/graphify toggles) used
+  to `raise SystemExit(2)` at import time when `jsonschema`/`pyyaml` were absent,
+  *before* any self-heal could run. They now call the new
+  `scripts/_ensure_deps.ensure_runtime_deps()`, which installs the missing deps
+  into the running interpreter (`uv pip install` → `pip` → `ensurepip`) and
+  continues. Fixes the common "uv venv lacks jsonschema" wall on install/update
+  in any consumer, including pip-less uv venvs.
+- **File-path invocation of rule scripts** — running any
+  `python .ai-playbook/scripts/rules/<name>.rule.py …` from a consumer root failed
+  with `ModuleNotFoundError: No module named 'scripts'` unless the package was
+  editable-installed. All 41 rule entrypoints now put the playbook root on
+  `sys.path` in their `__main__`, so the documented file-path form works without
+  `PYTHONPATH` or `cd .ai-playbook && python -m …`. (Also clears 31 pre-existing
+  test failures that only passed when the package happened to be installed.)
+- **`doctor --install-deps`** is now uv-aware: it installs `pyyaml`+`jsonschema`
+  via `uv` when available (handling pip-less uv venvs) before falling back to the
+  editable `pip install -e` + `ensurepip` path.
+
+### Added
+- `scripts/_ensure_deps.py` — stdlib-only, zero-cost-to-import self-heal helper
+  (`ensure_runtime_deps(*import_names)`), with tests in `tests/test_ensure_deps.py`.
+
+### Notes
+- Internal-only fix: no consumer-facing surface removed/renamed (no zombie-manifest
+  entry). Smoke-tested per §7 against a real consumer (file-path invocation, exit 0)
+  and a fresh pip-less uv venv (self-heal installed both deps, exit 0).
+
 ## [0.19.24] — 2026-06-19 — feat: opt-in weekly telemetry issue (UI-configurable)
 
 ### Added

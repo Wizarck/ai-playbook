@@ -103,5 +103,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # File-path invocation from a consumer root: put the playbook root on
+    # sys.path so `scripts.*` resolves without PYTHONPATH/`-m`.
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
     from scripts.rules._telemetry import cli_emit
     raise SystemExit(cli_emit("github-project-board-schema", main))
