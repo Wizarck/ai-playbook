@@ -2,6 +2,29 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.24] — 2026-06-19 — feat: opt-in weekly telemetry issue (UI-configurable)
+
+### Added
+- **`telemetry_weekly_issue` global flag** (#132) — config UI → Global flags tab,
+  **default OFF**. Opt in to the weekly rule-event digest posted as a GitHub issue.
+  When ON, `apply_config` **seeds** `.github/workflows/rule-event-report-weekly.yml`
+  into the consumer (seed-only — never clobbers a consumer edit; delete the file to
+  turn it off or re-seed) and `bootstrap` creates the `telemetry-report` label
+  (best-effort `gh`; prints the manual command if `gh` is unavailable, and reports
+  what it did). New workflow template under `templates/new-project/`. A scheduled
+  workflow can't read the gitignored bundle, so the file's presence is the toggle.
+
+### Fixed
+- **Weekly telemetry workflow no longer posts empty digests** (#131) — the run now
+  parses the event count and skips the issue when the window has 0 events. Removes
+  the noise (and the unlabelled-issue accumulation) on any repo without committed
+  telemetry. The `telemetry-report` label is now created at install rather than by
+  the workflow's create-fallback.
+
+### Docs
+- `telemetry-design.md` "Weekly digest issue (opt-in)" + README telemetry section +
+  `run-telemetry-report` runbook automation section (#132, #133).
+
 ## [0.19.23] — 2026-06-19 — fix: reconcile-door footguns + L-tier model flip + 0.19.x doc sync
 
 ### Fixed
