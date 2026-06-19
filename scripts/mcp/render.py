@@ -40,6 +40,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 from scripts._enforce_state import disabled_mcps as _disabled_mcps_state  # noqa: E402
+from scripts.mcp.absorb import absorb_mcp_json  # noqa: E402
 from scripts.mcp.validate import (  # noqa: E402
     CanonicalError,
     _apply_break_glass,
@@ -71,6 +72,10 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Print rendered files to stdout instead of writing them.")
     parser.add_argument("--only", choices=["claude", "gemini"], default=None,
                         help="Only render one target format.")
+    parser.add_argument("--absorb", action="store_true",
+                        help="Lossless adoption: migrate a pre-existing inline .mcp.json's "
+                             "servers into the layers (tenant instances → personal layer; "
+                             "others reported for manual project-layer add) before rendering.")
     parser.add_argument("--force-with-reason", dest="force_reason", default=None,
                         metavar="TEXT",
                         help="Break-glass: accept validation errors with audit trail (≥10 chars).")
@@ -293,11 +298,46 @@ def _summary(*, merged: dict[str, dict[str, Any]],
     return "\n".join(lines)
 
 
+def _run_absorb(
+    *, consumer_root: Path, playbook_root: Path, personal_file: Path | None, dry_run: bool,
+) -> None:
+    """Run the lossless-adoption absorb step and print its audit trail."""
+    res = absorb_mcp_json(
+        consumer_root=consumer_root, playbook_root=playbook_root,
+        personal_file=personal_file, dry_run=dry_run,
+    )
+    tag = "(dry-run) would absorb" if dry_run else "absorbed"
+    if res.detail:
+        print(f"# [absorb] {res.detail}")
+        return
+    if res.written_personal:
+        print(f"# [absorb] {tag} {len(res.written_personal)} tenant server(s) → personal "
+              f"layer ({_path_str(res.personal_path)}): {', '.join(res.written_personal)}")
+    if res.report_project:
+        print(f"# [absorb] {len(res.report_project)} server(s) look project-scoped — NOT "
+              f"written (add to mcp-servers.project.yaml by hand if shared): "
+              f"{', '.join(res.report_project)}")
+    if res.skipped:
+        print(f"# [absorb] {len(res.skipped)} already in a layer, skipped: {', '.join(res.skipped)}")
+    if res.backed_up_mcp:
+        print("# [absorb] backed up the pre-existing .mcp.json as a BASE snapshot.")
+
+
 def run(args: argparse.Namespace) -> int:
     cwd = Path.cwd()
     consumer_root = (args.consumer_root or cwd).expanduser().resolve()
     playbook_root = resolve_playbook_root(args.playbook_root, consumer_root)
     personal_file = resolve_personal_file(args.personal_file)
+
+    # Lossless adoption: migrate a pre-existing inline .mcp.json into the layers
+    # BEFORE load_layers, so the absorbed personal servers are part of this render.
+    if getattr(args, "absorb", False):
+        _run_absorb(
+            consumer_root=consumer_root,
+            playbook_root=playbook_root,
+            personal_file=personal_file,
+            dry_run=args.dry_run,
+        )
 
     try:
         base, project, personal = load_layers(
