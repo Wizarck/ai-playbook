@@ -54,15 +54,10 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-try:
-    import jsonschema
-except ImportError:
-    print(
-        "❌ jsonschema is required for scripts.apply_config. "
-        "Install with: pip install jsonschema",
-        file=sys.stderr,
-    )
-    raise SystemExit(2) from None
+from scripts._ensure_deps import ensure_runtime_deps  # noqa: E402
+
+ensure_runtime_deps("jsonschema")
+import jsonschema  # noqa: E402
 
 from scripts import (  # noqa: E402
     _enforce_state,  # noqa: E402
