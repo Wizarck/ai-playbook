@@ -144,6 +144,13 @@ nav:
       - "Ux track": concepts/ux-track.md
       - "V090 roadmap": concepts/v090-roadmap.md
       - "Zero touch automation": concepts/zero-touch-automation.md
+      - "Ai playbook config": concepts/ai-playbook-config.md
+      - "Bundle managed files": concepts/bundle-managed-files.md
+      - "Caveman mode": concepts/caveman-mode.md
+      - "Graphify": concepts/graphify.md
+      - "Ponytail mode": concepts/ponytail-mode.md
+      - "Skills mcps enforcement": concepts/skills-mcps-enforcement.md
+      - "Telemetry dashboard": concepts/telemetry-dashboard.md
   - Rules:
       - Index: rules/INDEX.md
       - "Verdict contract": rules/verdict-contract.rule.md
@@ -201,4 +208,13 @@ nav:
       - "Runbook key rotation emergency": runbooks/runbook-key-rotation-emergency.md
       - "Runbook secrets leak containment": runbooks/runbook-secrets-leak-containment.md
       - "Runbook vps down": runbooks/runbook-vps-down.md
+      - "Caveman toggle": runbooks/caveman-toggle.md
+      - "Graphify setup": runbooks/graphify-setup.md
+      - "Ponytail toggle": runbooks/ponytail-toggle.md
+      - "Use config ui": runbooks/use-config-ui.md
+      - "Upgrade to bash enforcement": runbooks/upgrade-to-bash-enforcement.md
+  - Operations:
+      - Index: operations/INDEX.md
+      - "Caveman architecture": operations/caveman-architecture.md
+      - "Ponytail architecture": operations/ponytail-architecture.md
   - "Telemetry report": concepts/telemetry-report.md

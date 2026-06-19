@@ -56,6 +56,8 @@ Agents editing this repo MUST:
 | Ponytail feature (concept) | [docs/concepts/ponytail-mode.md](docs/concepts/ponytail-mode.md) |
 | Ponytail toggle (runbook) | [docs/runbooks/ponytail-toggle.md](docs/runbooks/ponytail-toggle.md) |
 | Ponytail architecture + UI contract | [docs/operations/ponytail-architecture.md](docs/operations/ponytail-architecture.md) |
+| Graphify feature (concept) | [docs/concepts/graphify.md](docs/concepts/graphify.md) |
+| Graphify setup (runbook) | [docs/runbooks/graphify-setup.md](docs/runbooks/graphify-setup.md) |
 
 ## 3 Active work
 
@@ -78,7 +80,7 @@ Tracked in project plan outside repo. Current tag: see [`VERSION`](VERSION). Cor
 | Scan for leaked secrets | `python scripts/secrets_scan.py` |
 | Run pre-commit locally | `pre-commit run --all-files` |
 | Emit a trace event | `python scripts/log_event.py` (see `scripts/tracing/`) |
-| Rollback to pre-refactor state | `git checkout baseline` |
+| Rollback to pre-refactor state | `git checkout v0.1.0` (scaffold tag; the `baseline` branch was retired — tag preserves the commit) |
 | Discover local projects / populate registry | `python -m scripts.discover_projects` |
 | List current registry | `python -m scripts.discover_projects --list` |
 | Cut new playbook release | [docs/runbooks/release.md](docs/runbooks/release.md) |
