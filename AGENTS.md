@@ -118,6 +118,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [claude-settings](docs/rules/claude-settings.rule.md)
 - [cleanup-on-bump](docs/rules/cleanup-on-bump.rule.md)
 - [cleanup-zombies](docs/rules/cleanup-zombies.rule.md)
+- [confirm-before-termination](docs/rules/confirm-before-termination.rule.md)
 - [cross-slice-additive-extension](docs/rules/cross-slice-additive-extension.rule.md)
 - [delegated-shipping-prompt](docs/rules/delegated-shipping-prompt.rule.md)
 - [dispatcher-cursor](docs/rules/dispatcher-cursor.rule.md)
