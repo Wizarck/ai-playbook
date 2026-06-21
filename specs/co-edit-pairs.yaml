@@ -20,7 +20,7 @@
 # spec doc. Adding entries is additive (MINOR bump); changing tier of an
 # existing entry is BREAKING (MAJOR bump per `docs/concepts/migration-guide.md`).
 version: "1.0.0"
-manifest_version: "2026-05-19.2"
+manifest_version: "2026-06-21.1"
 pairs:
   - id: materialise-skills
     tier: 1
@@ -35,6 +35,13 @@ pairs:
     doc: "docs/rules/cleanup-zombies.rule.md"
     reason: "Consumer-side zombie cleanup script and its normative spec must move together."
     introduced_in: "v0.16.0"
+
+  - id: confirm-before-termination
+    tier: 1
+    code: "scripts/rules/confirm-before-termination.rule.py"
+    doc: "docs/rules/confirm-before-termination.rule.md"
+    reason: "PreToolUse veto on stopping/killing running work and its normative spec must move together; the kill-verb list and stop-tool set MUST match the rule's Trigger section."
+    introduced_in: "v0.19.26"
 
   - id: zombies-manifest
     tier: 1

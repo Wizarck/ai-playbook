@@ -1,5 +1,5 @@
 {
-  "_comment": "Project-level Claude Code settings. SessionStart hook auto-recalls Hindsight context per .ai-playbook/specs/memory-hierarchy.md §4. PreToolUse hook enforces apply-skill orchestration per .ai-playbook/specs/apply-skill-enforcement.md. Matcher includes Bash (v0.20.0+) for heuristic detection of terminal-side writes to declared write_paths; set AIPLAYBOOK_BASH_INSPECTION=0 to disable that branch only.",
+  "_comment": "Project-level Claude Code settings. SessionStart hook auto-recalls Hindsight context per .ai-playbook/specs/memory-hierarchy.md §4. PreToolUse hook enforces apply-skill orchestration per .ai-playbook/specs/apply-skill-enforcement.md. The dispatcher matcher includes Bash (v0.20.0+) for heuristic detection of terminal-side writes to declared write_paths (set AIPLAYBOOK_BASH_INSPECTION=0 to disable that branch only), and KillShell|TaskStop (v0.19.26+) so the confirm-before-termination rule can veto stopping a running task without explicit user confirmation.",
   "hooks": {
     "SessionStart": [
       {
@@ -24,7 +24,7 @@
         ]
       },
       {
-        "matcher": "Edit|Write|MultiEdit|Bash",
+        "matcher": "Edit|Write|MultiEdit|Bash|KillShell|TaskStop",
         "hooks": [
           {
             "type": "command",
