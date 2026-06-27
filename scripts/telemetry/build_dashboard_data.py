@@ -504,7 +504,7 @@ def _invoke_caveman_stats(consumer_root: Path, quiet: bool) -> dict | None:
 
     state = _read_caveman_json(consumer_root) or {}
     return {
-        "mode": state.get("mode", "full"),
+        "mode": state.get("mode", "ultra"),
         "components": state.get("components") or {},
         "activation_rate": 0.0 if session_stats.sessions == 0 else 1.0,
         "tokens_in_total": session_stats.input_tokens,
@@ -527,7 +527,7 @@ def _compute_caveman_panel(consumer_root: Path, quiet: bool) -> tuple[str, dict]
 
     panel = {
         "activation_rate": float(raw.get("activation_rate", 0.0)),
-        "mode": raw.get("mode", "full"),
+        "mode": raw.get("mode", "ultra"),
         "components": {k: bool(v) for k, v in (raw.get("components") or {}).items()},
         "tokens_in_delta": int(raw.get("tokens_in_delta", 0)),
         "tokens_out_delta": int(raw.get("tokens_out_delta", 0)),
@@ -582,7 +582,7 @@ def _compute_ponytail_panel(consumer_root: Path, since_iso: str) -> tuple[str, d
     raw = _read_ponytail_json(consumer_root) or {}
     panel = {
         "markers": int(scan.get("markers", 0)),
-        "mode": raw.get("mode", "full"),
+        "mode": raw.get("mode", "ultra"),
         "components": {k: bool(v) for k, v in (raw.get("components") or {}).items()},
     }
     # markers_window (cuts taken in the window, via git) is omitted when git

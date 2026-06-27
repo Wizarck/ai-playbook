@@ -8,7 +8,7 @@
 ## Default-on policy
 
 Like caveman, **new projects bootstrapped via `python -m scripts.bootstrap
-<name>` have ponytail ON by default** (mode `full`, all four components). The
+<name>` have ponytail ON by default** (mode `ultra`, all four components). The
 playbook itself also dogfoods ponytail ON (the `ponytail/ruleset:full` block is
 committed in this repo's `AGENTS.md`).
 
@@ -79,8 +79,8 @@ flags — they gate the `/ponytail-review`, `/ponytail-audit`, and
 
 ```bash
 python -m scripts.ponytail on --mode lite   # name the lazier alternative, user picks
-python -m scripts.ponytail on --mode full   # default — the ladder enforced
-python -m scripts.ponytail on --mode ultra  # YAGNI extremist, challenge the requirement
+python -m scripts.ponytail on --mode full   # the ladder enforced
+python -m scripts.ponytail on --mode ultra  # default — YAGNI extremist, challenge the requirement
 ```
 
 Changing modes is a single in-place rewrite of the AGENTS.md marker line +
