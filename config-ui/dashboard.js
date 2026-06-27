@@ -128,6 +128,7 @@
     renderHonestyPanel(root, payload.panels.honesty);
     renderFrictionPanel(root, payload.panels.friction);
     renderCavemanPanel(root, payload);
+    renderPonytailPanel(root, payload);
     renderFooter(root, payload);
   }
 
@@ -377,6 +378,52 @@
     root.appendChild(panel);
   }
 
+  function renderPonytailPanel(root, payload) {
+    // Pre-ponytail sidecars omit ponytail_state; render nothing rather than a
+    // broken panel (the field is additive on dashboard-data/v1).
+    if (payload.ponytail_state === undefined) return;
+    const state = payload.ponytail_state;
+    const data = (payload.panels || {}).ponytail || {};
+    const panel = el("div", { class: "dash-panel" });
+    panel.appendChild(el("h2", { text: "Ponytail discipline" }));
+
+    if (state === "off") {
+      panel.appendChild(el("div", { class: "sub", text:
+        "Ponytail is off in this consumer. Enable it in the Rules tab to track deliberate simplifications here.",
+      }));
+      root.appendChild(panel);
+      return;
+    }
+    if (state === "missing") {
+      panel.appendChild(el("div", { class: "sub", text:
+        "Ponytail is not installed for this consumer (.ai-playbook/ponytail.json absent). " +
+        "Once Ponytail is enabled, this panel counts the `ponytail:` simplifications in your tree.",
+      }));
+      root.appendChild(panel);
+      return;
+    }
+
+    // state === "on" — show cuts taken (a count, not a dollar figure: the
+    // savings are real but not measured in tokens here).
+    const components = data.components || {};
+    const componentList = Object.entries(components)
+      .map(([name, on]) => `${on ? "✓" : "✗"} ${name}`)
+      .join("  ·  ");
+    panel.appendChild(el("div", { class: "sub", text:
+      `mode: ${data.mode || "?"}` + (componentList ? `   ·   ${componentList}` : ""),
+    }));
+    const windowDays = (payload.window || {}).days;
+    const windowText = (typeof data.markers_window === "number" && windowDays)
+      ? `   ·   <strong>${data.markers_window.toLocaleString()}</strong> added (last ${windowDays}d)`
+      : "";
+    panel.appendChild(el("div", { html:
+      `deliberate simplifications: <strong>${(data.markers || 0).toLocaleString()}</strong> in tree` +
+      windowText +
+      ` <span class="sub">(<code>ponytail:</code> markers; run /ponytail-debt for the ledger)</span>`,
+    }));
+    root.appendChild(panel);
+  }
+
   function renderFooter(root, payload) {
     const ev = (payload.window || {});
     const skipped = ev.events_skipped || 0;
@@ -442,6 +489,7 @@
     renderHonestyPanel(root, payload.panels.honesty);
     renderFrictionPanel(root, payload.panels.friction);
     renderCavemanPanel(root, payload);
+    renderPonytailPanel(root, payload);
     renderFooter(root, payload);
   }
 

@@ -114,6 +114,31 @@ Claiming caveman saves N% vs baseline conflates the skill with generic
 terseness ("Answer concisely." already cuts ~30%). Same discipline
 used in the upstream JuliusBrussee/caveman `evals/` harness.
 
+## Cost methodology {#cost-methodology}
+
+The dashboard's **"Caveman cost saved (Nd)"** figure is computed offline by
+[scripts/caveman/stats.py](../../scripts/caveman/stats.py), not estimated by an
+LLM:
+
+1. **Measure.** `collect_stats()` sums the real `output_tokens` from the
+   consumer's session-usage logs over the window.
+2. **Extrapolate the counterfactual.** `extrapolated_savings(out)` estimates the
+   tokens that *would* have been emitted without caveman:
+   `out × SAVINGS_RATE / (1 − SAVINGS_RATE)`, with `SAVINGS_RATE = 0.65` (the
+   average output reduction). The saved tokens are the difference between that
+   counterfactual and the measured output.
+3. **Price.** Multiply saved tokens by `COST_PER_M_OUTPUT_USD = $15.0 / 1M`
+   (output-side only; caveman compresses output, not input).
+
+Honesty caveats:
+
+- `SAVINGS_RATE` is the **caveman-vs-terse** delta, not caveman-vs-baseline (see
+  *Honest evaluation discipline* above) — a single average, not per-session.
+- The number is an **extrapolation**, not a billed amount: it answers "what would
+  the un-caveman version of these sessions have cost on the output side."
+- If `caveman.json` is absent or stats collection fails, the panel reports
+  *missing* rather than fabricating a figure.
+
 ## What was deliberately NOT ported
 
 - **Wenyan (classical Chinese) modes.** Brand gimmick from the

@@ -70,6 +70,11 @@
       "enum": ["on", "off", "missing"],
       "description": "Detected state from caveman.json. Drives panels.caveman branching."
     },
+    "ponytail_state": {
+      "type": "string",
+      "enum": ["on", "off", "missing"],
+      "description": "Detected state from ponytail.json. Drives panels.ponytail branching. Additive on v1 and intentionally NOT in 'required': pre-ponytail sidecars omit it and must still validate; the renderer guards its absence. ponytail: keep additive until the contract hardens, then bump to dashboard-data/v2 and make it required."
+    },
     "panels": {
       "type": "object",
       "additionalProperties": false,
@@ -287,6 +292,49 @@
                 "cost_saved_usd": {
                   "type": "number",
                   "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["state"],
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": ["off", "missing"]
+                }
+              }
+            }
+          ]
+        },
+        "ponytail": {
+          "description": "Ponytail discipline panel (rung-1): count of `ponytail:` simplification markers in the consumer tree. Additive on v1 and intentionally NOT in panels' 'required' so pre-ponytail sidecars still validate; the renderer guards its absence.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["markers", "mode", "components"],
+              "properties": {
+                "markers": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count of `ponytail:` comment markers currently in the consumer tree (stock; one per matched line; mirrors the /ponytail-debt ledger)."
+                },
+                "markers_window": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count of `ponytail:` markers ADDED to git history within the dashboard window (flow). Optional: omitted when git is unavailable or the consumer is not a git repo — never faked to 0."
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["lite", "full", "ultra"]
+                },
+                "components": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  }
                 }
               }
             },

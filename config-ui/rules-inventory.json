@@ -1,6 +1,6 @@
 {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-06-16T15:08:03.534000+00:00",
+  "generated_at": "2026-06-27T19:02:13.284901+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -282,6 +282,23 @@
       "triggers": [],
       "description": "Consumer post-merge / post-checkout hooks MUST invoke `scripts/rules/cleanup-zombies.rule.py --apply --quiet` to remove fossils left by past playbook versions; the script consumes `specs/zombies-manifest.yaml`, writes a 3-channel report, and never exits non-zero in hook context.",
       "doc_path": "docs/rules/cleanup-zombies.rule.md"
+    },
+    {
+      "slug": "confirm-before-termination",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/confirm-before-termination.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": "AIPLAYBOOK_CONFIRM_BEFORE_TERMINATION_OVERRIDE",
+      "triggers": [],
+      "description": "Agent MUST get explicit user confirmation before stopping, killing, cancelling or discarding any running process, background task, job or long-running run, and before any irreversible/blast-radius action not explicitly requested; a request to check or investigate is NEVER authority to terminate.",
+      "doc_path": "docs/rules/confirm-before-termination.rule.md"
     },
     {
       "slug": "conflict-resolution-policy",

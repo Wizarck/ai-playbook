@@ -144,6 +144,33 @@ def test_features_inventory_shape() -> None:
     }
 
 
+def test_feature_modes_match_bundle_schema() -> None:
+    """A feature offers a Mode control in the UI iff the bundle schema allows a
+    `mode` key for it. Mismatch = the UI renders a Mode dropdown (or writes a
+    `mode`) that apply_config's schema rejects (regression: graphify showed an
+    empty Mode dropdown and exported `mode:"full"` into an additionalProperties:
+    false sub-schema with no `mode`)."""
+    inv = json.loads((UI_DIR / "features-inventory.json").read_text(encoding="utf-8"))
+    schema = json.loads((SCHEMAS / "schema-ai-playbook-config-v1.json").read_text(encoding="utf-8"))
+    feat_schemas = schema["properties"]["features"]["properties"]
+    for key, fdef in inv["features"].items():
+        inv_has_modes = bool(fdef.get("modes"))
+        schema_allows_mode = "mode" in (feat_schemas.get(key, {}).get("properties") or {})
+        assert inv_has_modes == schema_allows_mode, (
+            f"feature {key!r}: inventory modes={inv_has_modes} but bundle schema "
+            f"mode-allowed={schema_allows_mode} — the UI would offer/emit a mode "
+            f"the schema {'rejects' if inv_has_modes else 'requires'}."
+        )
+
+
+def test_app_js_gates_mode_control_on_modes() -> None:
+    """The feature renderer must only show the Mode <select> / write a mode when
+    the feature declares modes — guarding modeless features like graphify."""
+    text = (UI_DIR / "app.js").read_text(encoding="utf-8")
+    assert "hasModes" in text, "app.js must gate the Mode control on a hasModes check"
+    assert "if (hasModes)" in text, "app.js must conditionally attach mode to feature state/export"
+
+
 def test_global_flags_inventory_shape() -> None:
     inv = json.loads((UI_DIR / "global-flags-inventory.json").read_text(encoding="utf-8"))
     assert inv["schema"] == "global-flags-inventory/v1"

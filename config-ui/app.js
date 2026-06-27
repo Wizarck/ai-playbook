@@ -1307,7 +1307,8 @@
     entries.forEach(([key, def]) => {
       const stateF = (state.features && state.features[key]) || {};
       const enabled = !!stateF.enabled;
-      const mode = stateF.mode || def.default_mode || "full";
+      const hasModes = Array.isArray(def.modes) && def.modes.length > 0;
+      const mode = stateF.mode || def.default_mode || (hasModes ? def.modes[0] : "");
       const components = stateF.components || {};
       const div = document.createElement("div");
       div.className = "feature";
@@ -1317,11 +1318,11 @@
         ${anyHasSideEffects(def) ? `<div class="side-effects">⚠ Enabling this feature modifies files in the consumer (AGENTS.md, .mcp.json). All mutations are backed up under .ai-playbook/backups/ first.</div>` : ""}
         <div class="row">
           <label><input type="checkbox" data-feature-enabled="${key}" ${enabled ? "checked" : ""} /> Enabled</label>
-          <label>Mode:
+          ${hasModes ? `<label>Mode:
             <select data-feature-mode="${key}" ${enabled ? "" : "disabled"}>
-              ${(def.modes || []).map(m => `<option value="${m}" ${m === mode ? "selected" : ""}>${m}</option>`).join("")}
+              ${def.modes.map(m => `<option value="${m}" ${m === mode ? "selected" : ""}>${m}</option>`).join("")}
             </select>
-          </label>
+          </label>` : ""}
         </div>
         <div class="component-list">
           ${(def.components || []).map(c => `
@@ -1336,7 +1337,8 @@
         </div>
       `;
       div.querySelector(`[data-feature-enabled="${key}"]`).addEventListener("change", (e) => onFeatureEnabled(key, e.target.checked));
-      div.querySelector(`[data-feature-mode="${key}"]`).addEventListener("change", (e) => onFeatureMode(key, e.target.value));
+      const modeSel = div.querySelector(`[data-feature-mode="${key}"]`);
+      if (modeSel) modeSel.addEventListener("change", (e) => onFeatureMode(key, e.target.value));
       div.querySelectorAll(`[data-feature-component]`).forEach(cb => cb.addEventListener("change", (e) => {
         const [k, comp] = e.target.dataset.featureComponent.split(":");
         onFeatureComponent(k, comp, e.target.checked);
@@ -1464,11 +1466,15 @@
     state.features = state.features || {};
     if (!state.features[key]) {
       const def = inv.features[key];
-      state.features[key] = {
+      const hasModes = Array.isArray(def.modes) && def.modes.length > 0;
+      const entry = {
         enabled: false,
-        mode: def.default_mode || "full",
         components: Object.fromEntries((def.components || []).map(c => [c.key, c.default])),
       };
+      // Only moded features (caveman/ponytail) carry a mode; graphify et al.
+      // have none and the bundle schema forbids the key.
+      if (hasModes) entry.mode = def.default_mode || def.modes[0];
+      state.features[key] = entry;
     }
     return state.features[key];
   }
@@ -1536,15 +1542,20 @@
         if (!f) return;
         const def = inv.features[k];
         if (!def) return;
+        const hasModes = Array.isArray(def.modes) && def.modes.length > 0;
         const enabledNonDefault = !!f.enabled;  // default is false
-        const modeNonDefault = f.mode && f.mode !== (def.default_mode || "full");
+        const modeNonDefault = hasModes && f.mode && f.mode !== (def.default_mode || def.modes[0]);
         const compsNonDefault = (def.components || []).some(c => f.components && f.components[c.key] !== c.default);
         if (enabledNonDefault || modeNonDefault || compsNonDefault) {
-          featOut[k] = {
+          const out = {
             enabled: !!f.enabled,
-            mode: f.mode || def.default_mode || "full",
             components: { ...Object.fromEntries((def.components || []).map(c => [c.key, c.default])), ...f.components },
           };
+          // Mode only for moded features — graphify's bundle schema is
+          // additionalProperties:false with no `mode`, so emitting one would
+          // produce an invalid bundle apply_config rejects.
+          if (hasModes) out.mode = f.mode || def.default_mode || def.modes[0];
+          featOut[k] = out;
         }
       });
       if (Object.keys(featOut).length > 0) bundle.features = featOut;

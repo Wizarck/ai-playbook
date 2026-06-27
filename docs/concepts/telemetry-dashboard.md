@@ -114,6 +114,7 @@ Three modes, in priority order:
   },
   "empty_state_threshold": 100,
   "caveman_state": "on",
+  "ponytail_state": "on",
   "panels": {
     "hero": {
       "incidents_prevented_7d": 23,
@@ -121,7 +122,7 @@ Three modes, in priority order:
     },
     "secondary": {
       "obey_rate_7d": 0.94,
-      "cost_saved_usd": { "value": 38.20, "methodology": "docs/concepts/caveman-mode.md#cost-methodology" },
+      "cost_saved_usd": { "value": 38.20, "methodology": "../docs/concepts/caveman-mode.md#cost-methodology" },
       "health_emoji": "green"
     },
     "trend": {
@@ -159,12 +160,25 @@ Three modes, in priority order:
       "tokens_in_delta": -1230,
       "tokens_out_delta": -3140,
       "cost_saved_usd": 38.20
+    },
+    "ponytail": {
+      "markers": 12,
+      "mode": "full",
+      "components": { "code_style": true, "review_ponytail": false, "audit_ponytail": false, "debt_ponytail": true }
     }
   }
 }
 ```
 
 When `caveman_state` is `"off"` or `"missing"`, the `caveman` panel is replaced with `{ "state": "off" }` or `{ "state": "missing" }` and the renderer shows the explainer instead of charts.
+
+The **Ponytail discipline** panel (added after v1's initial five) is the
+code-minimalism twin of Caveman impact. `ponytail_state` and `panels.ponytail`
+are **additive on `dashboard-data/v1`** (not in the schema's `required`, so
+pre-ponytail sidecars still validate; the renderer guards their absence). It
+reports `markers` — the count of `ponytail:` simplification markers in the tree
+(rung-1; no dollar figure, by design) — and follows the same on/off/missing
+branching as Caveman. Methodology: [`ponytail-mode.md#discipline-methodology`](ponytail-mode.md#discipline-methodology).
 
 The JSON schema lands at `schemas/schema-dashboard-data-v1.json` and is validated by the aggregator on write. Aggregator writes are atomic (write-to-temp + rename); a crashed run never leaves a partial sidecar.
 
