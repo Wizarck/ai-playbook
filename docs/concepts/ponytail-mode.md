@@ -140,6 +140,58 @@ in this repo's `AGENTS.md`. Everything still stays visible in a `git diff`
 - **The promptfoo JS benchmark harness.** We add a ponytail arm to the
   playbook's own Python eval harness instead.
 
+## Discipline methodology {#discipline-methodology}
+
+The dashboard's **"Ponytail discipline"** panel reports a single honest number:
+the count of deliberate simplifications taken, measured by
+[scripts/ponytail/stats.py](../../scripts/ponytail/stats.py).
+
+1. **Measure (stock).** `count_markers()` walks the consumer tree and counts
+   lines carrying a `ponytail:` comment marker — the same `(#|//) ?ponytail:`
+   contract that [`/ponytail-debt`](../../skills/ponytail-debt/SKILL.md) harvests,
+   so the panel count and the debt ledger always agree. The vendored playbook
+   checkout (`.ai-playbook` / `.skills-sources`) is skipped so the count is the
+   *consumer's own* markers, not the playbook's.
+2. **Measure (flow).** When the dashboard window is set, `markers_added_since()`
+   counts markers ADDED in git within the window (a *flow* rate alongside the
+   *stock*), so the panel can show "N in tree · M added (last 7d)". Submodule
+   markers are excluded for free (the parent repo tracks submodules as pointers);
+   the field is omitted — never faked to 0 — when git can't answer.
+3. **Report.** The panel shows those counts plus the active mode/components. There
+   is **no dollar figure**: unlike caveman (which compresses *output tokens*, a
+   physical quantity measurable per session), ponytail's savings are "lines not
+   written", and attributing those to a session offline is not reliable. A count
+   of cuts taken is the honest signal; a fabricated `$` would not be.
+
+This is the **rung-1** instrument (the laziest measurement that actually works).
+
+### Rung 2 — design constraints (from a BMAD party review)
+
+A multi-SME review of a proposed rung-2 *considered-vs-built ratio* concluded it
+would be a **vanity metric**: both the numerator (`skipped`) and the denominator
+(`considered`) are self-authored by the same agent being scored, on the same
+turn, and `considered` has no external ground truth. It is **dropped** from any
+rung-2 v1. Hard constraints any future rung-2 must honour:
+
+1. **Observables-only headline.** Surface only transcript-observable signals
+   (e.g. build-rate, skips-per-build over *observed* builds, tally-emission-rate).
+   Defer any ratio to a v2 gated on an eval harness that proves the self-report
+   is stable and non-self-referential.
+2. **Do not read transcript bodies.** caveman reads only `message.usage` /
+   `message.model`, never `message.content`. Parsing response text is *new
+   collection* (C7) and can pull paths/secrets into the publishable sidecar.
+   Prefer an in-tree `.ai-playbook-state/ponytail-tallies.jsonl` (gitignored, in
+   `stats.py` `SKIP_DIRS`) carrying int-only fields; egress enforced by a leak test.
+3. **The schema change is not "silently additive".** Both `panels.ponytail`
+   `oneOf` branches set `additionalProperties: false` and the aggregator validates
+   on write, so a `discipline` block needs its **own explicitly declared branch**
+   (or a `dashboard-data/v2` bump) — it cannot just be appended.
+4. **Unit = a `message.id` group**, never a JSONL line (text and `tool_use`
+   blocks live in separate assistant events). Gate hard: arithmetic check
+   (`considered == built + skipped`), a one-sided `built ≤ distinct Edit/Write`
+   ceiling, a min-tally floor (~30), default-OFF, and never instruct unmined
+   agents (Codex/Gemini) to emit.
+
 ## See also
 
 - [docs/operations/ponytail-architecture.md](../operations/ponytail-architecture.md) — UI integration contract (the doc to read if you're building a UI for this).

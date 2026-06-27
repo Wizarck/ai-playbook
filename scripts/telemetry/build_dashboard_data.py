@@ -63,7 +63,10 @@ FRICTION_TOP_RULES = 5
 FRICTION_TOP_REASONS = 3
 
 # Cost methodology link (used by the renderer's cost panel tooltip).
-COST_METHODOLOGY_URL = "docs/concepts/caveman-mode.md#cost-methodology"
+# Relative to config-ui/index.html, which sits one level below the playbook
+# docs tree (<consumer>/.ai-playbook/config-ui/ → ../docs/...). Must match the
+# sibling TELEMETRY_DESIGN_DOC convention in config-ui/dashboard.js.
+COST_METHODOLOGY_URL = "../docs/concepts/caveman-mode.md#cost-methodology"
 
 # Health-emoji thresholds (driven by obey_rate_7d).
 HEALTH_GREEN_FLOOR = 0.95
@@ -534,6 +537,62 @@ def _compute_caveman_panel(consumer_root: Path, quiet: bool) -> tuple[str, dict]
 
 
 # ---------------------------------------------------------------------------
+# Ponytail panel (rung-1: count of `ponytail:` simplification markers).
+#
+# Caveman's twin measures a different axis: caveman saves output tokens (a
+# physical quantity); ponytail records *cuts taken* — the `ponytail:` markers
+# skills/ponytail-debt harvests. We show a count, not a dollar figure, because
+# the savings are real but not LLM-self-reported here. Cost extrapolation and a
+# considered-vs-built ratio are deferred (rung 2).
+# ---------------------------------------------------------------------------
+
+
+def _read_ponytail_json(consumer_root: Path) -> dict | None:
+    p = consumer_root / ".ai-playbook" / "ponytail.json"
+    if not p.is_file():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _resolve_ponytail_state(consumer_root: Path) -> str:
+    state = _read_ponytail_json(consumer_root)
+    if state is None:
+        return "missing"
+    if state.get("enabled"):
+        return "on"
+    return "off"
+
+
+def _compute_ponytail_panel(consumer_root: Path, since_iso: str) -> tuple[str, dict]:
+    state = _resolve_ponytail_state(consumer_root)
+    if state != "on":
+        return state, {"state": state}
+
+    try:
+        from scripts.ponytail import stats as ponytail_stats  # type: ignore
+
+        scan = ponytail_stats.collect(consumer_root, since_iso=since_iso)
+    except Exception:  # noqa: BLE001 — ponytail stats is best-effort.
+        # Treat scan failure as missing — better than fabricating a count.
+        return "missing", {"state": "missing"}
+
+    raw = _read_ponytail_json(consumer_root) or {}
+    panel = {
+        "markers": int(scan.get("markers", 0)),
+        "mode": raw.get("mode", "full"),
+        "components": {k: bool(v) for k, v in (raw.get("components") or {}).items()},
+    }
+    # markers_window (cuts taken in the window, via git) is omitted when git
+    # can't answer — never faked to 0.
+    if "markers_window" in scan:
+        panel["markers_window"] = int(scan["markers_window"])
+    return state, panel
+
+
+# ---------------------------------------------------------------------------
 # Top-level pipeline.
 # ---------------------------------------------------------------------------
 
@@ -600,6 +659,9 @@ def build_payload(
     caveman_state, caveman_panel = _compute_caveman_panel(consumer_root, quiet=quiet)
     payload["caveman_state"] = caveman_state
 
+    ponytail_state, ponytail_panel = _compute_ponytail_panel(consumer_root, _iso(window_start))
+    payload["ponytail_state"] = ponytail_state
+
     if events_seen < empty_state_threshold:
         # Empty-state branch: emit zero-filled panel scaffolds so the renderer
         # has a consistent shape; the renderer suppresses contents itself.
@@ -615,6 +677,7 @@ def build_payload(
             "honesty": {"rows": []},
             "friction": {"rows": []},
             "caveman": caveman_panel,
+            "ponytail": ponytail_panel,
         }
         return payload
 
@@ -637,6 +700,7 @@ def build_payload(
         "honesty": {"rows": _compute_honesty(in_window)},
         "friction": {"rows": _compute_friction(in_window)},
         "caveman": caveman_panel,
+        "ponytail": ponytail_panel,
     }
     return payload
 
