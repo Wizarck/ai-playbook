@@ -72,7 +72,7 @@ def test_on_default_writes_state(project: Path, capsys: pytest.CaptureFixture[st
     assert rc == 0
     state = toggle.read_state(project)
     assert state["enabled"] is True
-    assert state["mode"] == "full"
+    assert state["mode"] == "ultra"
     assert state["components"]["response_style"] is True
     # Other components stay false by default.
     assert state["components"]["mcp_shrink"] is False

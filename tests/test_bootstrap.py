@@ -510,7 +510,7 @@ def test_main_default_on_invokes_caveman(
     Post-collapse the activation runs as a SECTION of the single door
     (apply_config.apply_caveman), not the old inline enable_caveman_default. The
     door invokes caveman with cwd=<target> (no --project flag); the command shape
-    is otherwise the same: on --mode full --components <csv>.
+    is otherwise the same: on --mode ultra --components <csv>.
     """
     _stub_prereqs(monkeypatch)
     calls: list[list[str]] = []
@@ -524,10 +524,10 @@ def test_main_default_on_invokes_caveman(
     assert len(cav_calls) >= 1, f"expected a caveman invocation, got: {calls}"
     invoked = cav_calls[0]
     # Command shape (via apply_config.apply_caveman): python -m scripts.caveman
-    # on --mode full --components <csv>. cwd is the target; no --project flag.
+    # on --mode ultra --components <csv>. cwd is the target; no --project flag.
     assert "on" in invoked
     assert "--mode" in invoked
-    assert "full" in invoked
+    assert "ultra" in invoked
     assert "--components" in invoked
     csv = invoked[invoked.index("--components") + 1]
     for comp in bs.DEFAULT_CAVEMAN_COMPONENTS:

@@ -969,13 +969,13 @@ def _synthesize_defaults_bundle(args: BootstrapArgs) -> dict[str, Any]:
     if not args.no_caveman:
         features["caveman"] = {
             "enabled": True,
-            "mode": "full",
+            "mode": "ultra",
             "components": {c: True for c in DEFAULT_CAVEMAN_COMPONENTS},
         }
     if not args.no_ponytail:
         features["ponytail"] = {
             "enabled": True,
-            "mode": "full",
+            "mode": "ultra",
             "components": {c: True for c in DEFAULT_PONYTAIL_COMPONENTS},
         }
     if features:

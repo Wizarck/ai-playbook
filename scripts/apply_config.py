@@ -333,7 +333,7 @@ def apply_caveman(target: Path, caveman_intent: dict[str, Any] | None, *, dry_ru
         return sr
 
     enabled = bool(caveman_intent.get("enabled"))
-    mode = caveman_intent.get("mode", "full")
+    mode = caveman_intent.get("mode", "ultra")
     components_dict = caveman_intent.get("components") or {}
     requested = [k for k, v in components_dict.items() if v]
 
@@ -457,7 +457,7 @@ def apply_ponytail(target: Path, ponytail_intent: dict[str, Any] | None, *, dry_
         return sr
 
     enabled = bool(ponytail_intent.get("enabled"))
-    mode = ponytail_intent.get("mode", "full")
+    mode = ponytail_intent.get("mode", "ultra")
     components_dict = ponytail_intent.get("components") or {}
     requested = [k for k, v in components_dict.items() if v]
 

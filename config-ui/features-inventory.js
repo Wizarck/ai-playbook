@@ -12,7 +12,7 @@ window.FEATURES_INVENTORY = {
       "schema_path": "schemas/schema-caveman-toggle-v1.json",
       "cli_module": "scripts.caveman",
       "modes": ["lite", "full", "ultra"],
-      "default_mode": "full",
+      "default_mode": "ultra",
       "components": [
         {
           "key": "response_style",
@@ -95,7 +95,7 @@ window.FEATURES_INVENTORY = {
       "schema_path": "schemas/schema-ponytail-toggle-v1.json",
       "cli_module": "scripts.ponytail",
       "modes": ["lite", "full", "ultra"],
-      "default_mode": "full",
+      "default_mode": "ultra",
       "components": [
         {
           "key": "code_style",

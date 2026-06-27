@@ -61,12 +61,12 @@ def test_on_default_writes_state_and_materialises(project: Path) -> None:
     assert rc == 0
     state = toggle.read_state(project)
     assert state["enabled"] is True
-    assert state["mode"] == "full"
+    assert state["mode"] == "ultra"
     assert state["components"]["code_style"] is True
     # Other components stay false by default.
     assert state["components"]["review_ponytail"] is False
     # code_style materialises the block.
-    assert "BEGIN auto-managed: ponytail/ruleset:full" in (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "BEGIN auto-managed: ponytail/ruleset:ultra" in (project / "AGENTS.md").read_text(encoding="utf-8")
 
 
 def test_on_with_mode_and_components(project: Path) -> None:
