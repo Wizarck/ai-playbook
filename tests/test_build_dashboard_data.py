@@ -36,8 +36,14 @@ from scripts.telemetry import build_dashboard_data as bdd  # noqa: E402
 # --------------------------------------------------------------------------- #
 
 
-def _stage_consumer(tmp_path: Path, *, jsonl_src: Path | None, caveman_json: dict | None = None) -> Path:
-    """Create a fake consumer root with state dir + optional caveman.json."""
+def _stage_consumer(
+    tmp_path: Path,
+    *,
+    jsonl_src: Path | None,
+    caveman_json: dict | None = None,
+    ponytail_json: dict | None = None,
+) -> Path:
+    """Create a fake consumer root with state dir + optional caveman/ponytail.json."""
     consumer = tmp_path / "consumer"
     state_dir = consumer / ".ai-playbook-state"
     ai_dir = consumer / ".ai-playbook"
@@ -48,6 +54,10 @@ def _stage_consumer(tmp_path: Path, *, jsonl_src: Path | None, caveman_json: dic
     if caveman_json is not None:
         (ai_dir / "caveman.json").write_text(
             json.dumps(caveman_json, indent=2), encoding="utf-8"
+        )
+    if ponytail_json is not None:
+        (ai_dir / "ponytail.json").write_text(
+            json.dumps(ponytail_json, indent=2), encoding="utf-8"
         )
     return consumer
 
@@ -353,6 +363,50 @@ def test_caveman_state_off(tmp_path: Path):
     payload = _build(tmp_path, consumer, window_days=30)
     assert payload["caveman_state"] == "off"
     assert payload["panels"]["caveman"] == {"state": "off"}
+
+
+# --------------------------------------------------------------------------- #
+# 7.7b Ponytail branches (rung-1 marker count)
+# --------------------------------------------------------------------------- #
+
+
+def test_ponytail_state_missing(tmp_path: Path):
+    consumer = _stage_consumer(tmp_path, jsonl_src=FIXTURES_DIR / "rule-events-5k.jsonl")
+    payload = _build(tmp_path, consumer, window_days=30)
+    assert payload["ponytail_state"] == "missing"
+    assert payload["panels"]["ponytail"] == {"state": "missing"}
+
+
+def test_ponytail_state_off(tmp_path: Path):
+    consumer = _stage_consumer(
+        tmp_path,
+        jsonl_src=FIXTURES_DIR / "rule-events-5k.jsonl",
+        ponytail_json={"enabled": False, "mode": "full"},
+    )
+    payload = _build(tmp_path, consumer, window_days=30)
+    assert payload["ponytail_state"] == "off"
+    assert payload["panels"]["ponytail"] == {"state": "off"}
+
+
+def test_ponytail_state_on_counts_markers(tmp_path: Path):
+    consumer = _stage_consumer(
+        tmp_path,
+        jsonl_src=FIXTURES_DIR / "rule-events-5k.jsonl",
+        ponytail_json={"enabled": True, "mode": "ultra", "components": {"code_style": True}},
+    )
+    # Two real markers; the bare-prose mention (no comment prefix) must NOT count.
+    (consumer / "mod.py").write_text(
+        "x = 1  # ponytail: global lock, shard later\n"
+        "y = 2  // ponytail: not python but the prefix still matches\n"
+        "print('the word ponytail: in a string is not a marker')\n",
+        encoding="utf-8",
+    )
+    payload = _build(tmp_path, consumer, window_days=30)
+    assert payload["ponytail_state"] == "on"
+    panel = payload["panels"]["ponytail"]
+    assert panel["markers"] == 2
+    assert panel["mode"] == "ultra"
+    assert panel["components"] == {"code_style": True}
 
 
 # --------------------------------------------------------------------------- #
