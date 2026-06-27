@@ -8,7 +8,7 @@
 ## Default-on policy
 
 **New projects bootstrapped via `python -m scripts.bootstrap <name>`
-have caveman ON by default** (mode=`full`, all six components). The
+have caveman ON by default** (mode=`ultra`, all six components). The
 activation runs as step 4.6 of bootstrap, after templates are copied
 and before MCP configs are rendered — so the freshly-rendered
 `.mcp.json` / `.gemini/settings.json` get auto-wrapped via the
@@ -96,8 +96,8 @@ let `npx` resolve on first use) or run `mcp-restore` to undo.
 
 ```bash
 python -m scripts.caveman on --mode lite   # gentler, ~25% reduction
-python -m scripts.caveman on --mode full   # default, ~65%
-python -m scripts.caveman on --mode ultra  # telegraphic, ~80%
+python -m scripts.caveman on --mode full   # ~65%
+python -m scripts.caveman on --mode ultra  # default — telegraphic, ~80%
 ```
 
 Changing modes is a single in-place rewrite of the AGENTS.md marker

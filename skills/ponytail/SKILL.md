@@ -1,6 +1,6 @@
 ---
 name: ponytail
-description: Use when the user wants the laziest solution that actually works — types /ponytail, says "be lazy", "lazy mode", "simplest solution", "minimal solution", "yagni", "do less", or "shortest path", or complains about over-engineering, bloat, boilerplate, or unnecessary dependencies. Supports intensity levels lite, full (default), ultra. Pairs with caveman, which compresses prose, not code.
+description: Use when the user wants the laziest solution that actually works — types /ponytail, says "be lazy", "lazy mode", "simplest solution", "minimal solution", "yagni", "do less", or "shortest path", or complains about over-engineering, bloat, boilerplate, or unnecessary dependencies. Supports intensity levels lite, full, ultra (default). Pairs with caveman, which compresses prose, not code.
 license: MIT
 metadata:
   author: ai-playbook (ported from DietrichGebert/ponytail, MIT)
@@ -29,7 +29,7 @@ talk*. They are orthogonal and compose.
 ## Persistence
 
 ACTIVE EVERY RESPONSE. No drift back to over-building. Still active if unsure.
-Off only on "stop ponytail" / "normal mode" / `/ponytail off`. Default: **full**.
+Off only on "stop ponytail" / "normal mode" / `/ponytail off`. Default: **ultra**.
 Switch intensity: `/ponytail lite|full|ultra`.
 
 ## The ladder

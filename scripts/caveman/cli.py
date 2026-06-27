@@ -593,7 +593,7 @@ def _build_parser() -> argparse.ArgumentParser:
     s_status.set_defaults(func=cmd_status)
 
     s_on = sub.add_parser("on", help="Enable caveman for this project.", parents=[shared])
-    s_on.add_argument("--mode", default="full", help=f"Intensity: {', '.join(VALID_MODES)}. Default: full.")
+    s_on.add_argument("--mode", default="ultra", help=f"Intensity: {', '.join(VALID_MODES)}. Default: ultra.")
     s_on.add_argument(
         "--components",
         default="response_style",

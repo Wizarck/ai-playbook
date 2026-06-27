@@ -91,11 +91,11 @@ def _load_schema() -> dict[str, Any]:
 
 
 def default_state() -> dict[str, Any]:
-    """Return a fresh OFF-default state dict (all components false, mode full)."""
+    """Return a fresh OFF-default state dict (all components false, mode ultra)."""
     return {
         "schema": SCHEMA_VERSION,
         "enabled": False,
-        "mode": "full",
+        "mode": "ultra",
         "components": {
             "response_style": False,
             "compress_docs": False,

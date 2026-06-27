@@ -11,7 +11,7 @@ Public API
     STATE_DIR_NAME       — const, ``.ai-playbook``
     STATE_FILENAME       — const, ``ponytail.json``
     MODES                — const tuple of valid intensity modes
-    DEFAULT_MODE         — const, ``full``
+    DEFAULT_MODE         — const, ``ultra``
     COMPONENTS           — const tuple of component keys
     find_playbook_root() — locate the ai-playbook repo (for schema lookup)
     find_project_root()  — locate the consumer project root
@@ -52,7 +52,7 @@ SCHEMA_VERSION = "ponytail-toggle/v1"
 STATE_DIR_NAME = ".ai-playbook"
 STATE_FILENAME = "ponytail.json"
 MODES: tuple[str, ...] = ("lite", "full", "ultra")
-DEFAULT_MODE = "full"
+DEFAULT_MODE = "ultra"
 COMPONENTS: tuple[str, ...] = (
     "code_style",
     "review_ponytail",
@@ -99,7 +99,7 @@ def _load_schema() -> dict[str, Any]:
 
 
 def default_state() -> dict[str, Any]:
-    """Return a fresh OFF-default state dict (all components false, mode full)."""
+    """Return a fresh OFF-default state dict (all components false, mode ultra)."""
     return {
         "schema": SCHEMA_VERSION,
         "enabled": False,

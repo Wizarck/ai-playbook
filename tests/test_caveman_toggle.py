@@ -96,7 +96,7 @@ def test_default_state_shape() -> None:
     s = toggle.default_state()
     assert s["schema"] == "caveman-toggle/v1"
     assert s["enabled"] is False
-    assert s["mode"] == "full"
+    assert s["mode"] == "ultra"
     assert set(s["components"].keys()) == {
         "response_style",
         "compress_docs",
@@ -124,7 +124,7 @@ def test_default_state_passes_schema() -> None:
 def test_read_state_returns_default_when_missing(tmp_path: Path) -> None:
     state = toggle.read_state(tmp_path)
     assert state["enabled"] is False
-    assert state["mode"] == "full"
+    assert state["mode"] == "ultra"
     # File should NOT be created by read.
     assert not toggle.state_path(tmp_path).is_file()
 
