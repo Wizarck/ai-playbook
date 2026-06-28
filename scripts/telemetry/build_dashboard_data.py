@@ -537,13 +537,12 @@ def _compute_caveman_panel(consumer_root: Path, quiet: bool) -> tuple[str, dict]
 
 
 # ---------------------------------------------------------------------------
-# Ponytail panel (rung-1: count of `ponytail:` simplification markers).
+# Ponytail panel: count of `ponytail:` simplification markers (stock + window).
 #
 # Caveman's twin measures a different axis: caveman saves output tokens (a
 # physical quantity); ponytail records *cuts taken* — the `ponytail:` markers
 # skills/ponytail-debt harvests. We show a count, not a dollar figure, because
-# the savings are real but not LLM-self-reported here. Cost extrapolation and a
-# considered-vs-built ratio are deferred (rung 2).
+# the savings are real but not LLM-self-reported here.
 # ---------------------------------------------------------------------------
 
 
