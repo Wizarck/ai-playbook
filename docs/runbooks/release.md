@@ -129,7 +129,7 @@ git tag -a vX.Y.Z -m "vX.Y.Z — <one-liner>"
 git push origin main vX.Y.Z
 ```
 
-Pushing the tag does **not** auto-create a GitHub Release. `release.yml` is still a disabled skeleton (a `workflow_dispatch` no-op — "Release automation lands in T22"), and `docs-deploy.yml` triggers on the `v*.*.*` tag push only to deploy docs — neither opens a Release. Create it explicitly so the tag appears under *Releases* with notes:
+Pushing the tag triggers `release.yml`, which runs `scripts/release_cut` and **auto-creates** the GitHub Release from this version's CHANGELOG section. (`docs-deploy.yml` also fires on the tag push to deploy docs.) If that workflow ever fails, create the Release manually as a fallback — the tag itself is unaffected:
 
 ```bash
 gh release create vX.Y.Z --verify-tag \
@@ -138,7 +138,7 @@ gh release create vX.Y.Z --verify-tag \
 # inline alternative: --notes "<paste the CHANGELOG section for this version>"
 ```
 
-The CHANGELOG section for this version is the release-notes body. (If a future task wires real automation into `release.yml`, replace this manual step and re-validate.)
+The CHANGELOG section for this version is the release-notes body — `release_cut` extracts it automatically on the tag push; the command above is the manual fallback.
 
 ### 6. (Optional) Notify maintainers manually
 
