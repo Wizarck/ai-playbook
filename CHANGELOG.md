@@ -2,6 +2,54 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.27] — 2026-06-28 — feat: ponytail dashboard panel + caveman/ponytail default to ultra
+
+### Added
+- **Ponytail discipline dashboard panel** (#139) — the code-minimalism twin of the
+  Caveman panel. Counts real `ponytail:` markers in the consumer tree (stock) plus
+  markers added within the dashboard window via git (flow). Honest by construction:
+  no LLM self-report, no fabricated dollar figure. `ponytail_state` + `panels.ponytail`
+  are additive on `dashboard-data/v1` (optional; renderer guards absence — no version
+  bump). New `scripts/ponytail/stats.py`.
+
+### Changed
+- **Caveman + Ponytail now default to `ultra` intensity** (#140) — both already shipped
+  default-ON with all components at bootstrap; the only dial not at maximum was the
+  intensity mode, flipped `full → ultra` everywhere a mode is defaulted (bootstrap
+  bundle, toggle defaults, `caveman on --mode` default, apply_config fallback, config-UI
+  `default_mode`, dashboard display fallback, runbooks + ponytail SKILL). Explicit
+  settings still win; `caveman compress` keeps its own `full` default.
+- **Config UI Mode control** (#139) — only rendered for features that declare modes.
+  Modeless features (e.g. Graphify) no longer show an empty Mode dropdown or export a
+  schema-invalid `mode` into the bundle.
+
+### Fixed
+- **Dashboard cost-methodology link** (#139) — corrected to a valid relative path and
+  added the `#cost-methodology` anchor in `caveman-mode.md`.
+- **Rules inventory** (#139) — regenerated to include `confirm-before-termination`
+  (#137 shipped the rule without refreshing the inventory, leaving `check-rule-schemas`
+  red on `main`).
+
+### Notes
+- Internal/additive: no consumer-facing surface removed or renamed (no zombie-manifest
+  entry). Verified end-to-end — dashboard sidecar generated against a real git consumer
+  with ponytail ON surfaces `markers` + `markers_window`; full suite green on 3.11/3.12.
+
+## [0.19.26] — 2026-06-21 — feat: confirm-before-termination rule + doctor uv-aware docs
+
+### Added
+- **`confirm-before-termination` rule** (#137) — L2 doc + L1 PreToolUse hook (soft +
+  hard variants) that vetoes Bash commands which would terminate the agent/session
+  without an explicit confirmation.
+
+### Changed
+- **`doctor --install-deps` docstrings** (#136) — note the `uv` fast-path used when
+  installing `pyyaml`/`jsonschema` in uv-managed (pip-less) venvs.
+
+### Notes
+- Backfilled: this section was omitted when v0.19.26 was tagged; recorded here for a
+  coherent changelog.
+
 ## [0.19.25] — 2026-06-20 — fix: dependency self-heal + file-path invocation
 
 ### Fixed
