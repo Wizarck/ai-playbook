@@ -167,8 +167,8 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 
 Empty at v0.18.3. Deferred-hardrules allowlist file removed in Slice 7; strict-mode validator now exits 0 with no allowlist.
 
-<!-- BEGIN auto-managed: caveman/ruleset:full -->
-**Caveman mode: ON · intensity full**
+<!-- BEGIN auto-managed: caveman/ruleset:ultra -->
+**Caveman mode: ON · intensity ultra**
 
 Core rules:
 - Drop articles (a/an/the), filler (just/really/basically), pleasantries, hedging.
@@ -177,8 +177,8 @@ Core rules:
 - Not: "Sure! I'd be happy to help you with that."
 - Yes: "Bug in auth middleware. Fix:"
 
-Mode (full):
-Drop articles. Fragments OK. Short synonyms. Technical terms exact. Code unchanged. Pattern: `[thing] [action] [reason]. [next step].` Default mode — about 65% output reduction.
+Mode (ultra):
+Drop articles. Abbreviate prose words: DB, auth, cfg, env, repo, fn, ref, ptr, ctx, msg, req, res. Use arrows for causality: `inline obj → new ref → re-render`. Preserve code symbols and function names byte-for-byte. About 80% output reduction.
 
 Auto-clarity exceptions:
 Drop caveman mode and use normal prose when:
@@ -198,8 +198,8 @@ Boundaries:
 Toggle off: `python -m scripts.caveman off`. Full rule: [skills/caveman/SKILL.md](skills/caveman/SKILL.md).
 <!-- END auto-managed -->
 
-<!-- BEGIN auto-managed: ponytail/ruleset:full -->
-**Ponytail: ON · intensity full — laziest solution that actually works**
+<!-- BEGIN auto-managed: ponytail/ruleset:ultra -->
+**Ponytail: ON · intensity ultra — laziest solution that actually works**
 
 The ladder:
 Before writing any code, stop at the first rung that holds:
@@ -224,9 +224,9 @@ Rules:
 - Two stdlib options, same size? Take the one correct on edge cases. Lazy means writing less code, not picking the flimsier algorithm.
 - Mark deliberate simplifications with a `ponytail:` comment (`// ponytail: this exists`), so a shortcut reads as intent, not ignorance. A shortcut with a known ceiling (global lock, O(n²) scan, naive heuristic) names the ceiling and the upgrade path: `# ponytail: global lock, per-account locks if throughput matters`.
 
-Mode (full):
-The ladder enforced. Stdlib and native first. Shortest diff, shortest
-explanation. The default.
+Mode (ultra):
+YAGNI extremist. Deletion before addition. Ship the one-liner and challenge the
+rest of the requirement in the same breath ("No cache until a profiler says so").
 
 When NOT to be lazy:
 Never simplify away: input validation at trust boundaries, error handling that
