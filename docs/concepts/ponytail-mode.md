@@ -163,34 +163,9 @@ the count of deliberate simplifications taken, measured by
    written", and attributing those to a session offline is not reliable. A count
    of cuts taken is the honest signal; a fabricated `$` would not be.
 
-This is the **rung-1** instrument (the laziest measurement that actually works).
-
-### Rung 2 — design constraints (from a BMAD party review)
-
-A multi-SME review of a proposed rung-2 *considered-vs-built ratio* concluded it
-would be a **vanity metric**: both the numerator (`skipped`) and the denominator
-(`considered`) are self-authored by the same agent being scored, on the same
-turn, and `considered` has no external ground truth. It is **dropped** from any
-rung-2 v1. Hard constraints any future rung-2 must honour:
-
-1. **Observables-only headline.** Surface only transcript-observable signals
-   (e.g. build-rate, skips-per-build over *observed* builds, tally-emission-rate).
-   Defer any ratio to a v2 gated on an eval harness that proves the self-report
-   is stable and non-self-referential.
-2. **Do not read transcript bodies.** caveman reads only `message.usage` /
-   `message.model`, never `message.content`. Parsing response text is *new
-   collection* (C7) and can pull paths/secrets into the publishable sidecar.
-   Prefer an in-tree `.ai-playbook-state/ponytail-tallies.jsonl` (gitignored, in
-   `stats.py` `SKIP_DIRS`) carrying int-only fields; egress enforced by a leak test.
-3. **The schema change is not "silently additive".** Both `panels.ponytail`
-   `oneOf` branches set `additionalProperties: false` and the aggregator validates
-   on write, so a `discipline` block needs its **own explicitly declared branch**
-   (or a `dashboard-data/v2` bump) — it cannot just be appended.
-4. **Unit = a `message.id` group**, never a JSONL line (text and `tool_use`
-   blocks live in separate assistant events). Gate hard: arithmetic check
-   (`considered == built + skipped`), a one-sided `built ≤ distinct Edit/Write`
-   ceiling, a min-tally floor (~30), default-OFF, and never instruct unmined
-   agents (Codex/Gemini) to emit.
+This is the deliberately simple, fully observable instrument — the laziest
+measurement that actually works: it surfaces only what is written in the tree,
+never a model self-report.
 
 ## See also
 
