@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.SKILLS_INVENTORY = {
   "schema": "skills-inventory/v1",
-  "generated_at": "2026-06-16T15:08:03.307676+00:00",
+  "generated_at": "2026-07-13T02:03:46.959669+00:00",
   "skills": [
     {
       "slug": "ai-playbook-check",
