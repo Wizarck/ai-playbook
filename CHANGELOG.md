@@ -2,6 +2,26 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.28] — 2026-07-13 — feat: anti-drift gates (lint-parity-precommit + migrate-seed-smoke)
+
+### Added
+- **Rule `lint-parity-precommit`** (#143) — enforced, with `apply`. Linters that
+  gate CI must also run at pre-commit with the same pin (v1 scope: ruff).
+  `apply` appends the ruff-pre-commit block using the CI-detected pin
+  (append-only; refuses to invent a rev; warns on pin drift). Born from the
+  2026-07-13 geeplo incident: a wave merged with 41 ruff errors nobody saw
+  locally because pre-commit never ran ruff.
+- **Rule `migrate-seed-smoke`** (#143) — enforced, validate-only. Repos with an
+  alembic tree AND a DB seed script must exercise the migrate→seed contract in
+  CI: fresh database → `alembic upgrade head` → seed twice (idempotency).
+  Drop-in job at `templates/ci/migrate-seed-smoke.yml`. Kills the class where a
+  NOT NULL migration outruns the e2e seeder and explodes days later in an
+  unrelated PR's e2e job (geeplo 0070/0072 vs bootstrap-test-db.py).
+- **Concept `anti-drift-gates`** (#143) — the four-layer defense-in-depth model
+  (laptop / PR CI / merge lock / continuous), the breakage-class→layer map, and
+  ratchet-only-down guidance (baselines block growth AND demand lowering when
+  the count drops).
+
 ## [0.19.27] — 2026-06-28 — feat: ponytail dashboard panel + caveman/ponytail default to ultra
 
 ### Added
