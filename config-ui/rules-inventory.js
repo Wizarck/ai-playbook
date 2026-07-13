@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-06-27T19:02:13.284901+00:00",
+  "generated_at": "2026-07-13T02:04:07.070824+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -582,6 +582,23 @@ window.RULES_INVENTORY = {
       "doc_path": "docs/rules/link-integrity.rule.md"
     },
     {
+      "slug": "lint-parity-precommit",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/lint-parity-precommit.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [],
+      "description": "Linters that gate CI MUST also run at pre-commit with the same pin — a linter that only exists in CI is discovered post-push, and on repos without branch protection the red merges and becomes ambient debt (geeplo 2026-07-13 merged a wave with 41 ruff errors nobody saw locally); v1 scope is ruff, `apply` appends the ruff-pre-commit block pinned to the CI-detected version.",
+      "doc_path": "docs/rules/lint-parity-precommit.rule.md"
+    },
+    {
       "slug": "mcp-render",
       "status": "enforced",
       "paired_hardrule": "scripts/rules/mcp-render.rule.py",
@@ -597,6 +614,23 @@ window.RULES_INVENTORY = {
       "triggers": [],
       "description": "Consumer MCP configs (.mcp.json + .gemini/settings.json) MUST be regenerated from mcp-servers.yaml whenever the SSOT changes; stale rendered files leak deprecated server lists into CLI sessions.",
       "doc_path": "docs/rules/mcp-render.rule.md"
+    },
+    {
+      "slug": "migrate-seed-smoke",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/migrate-seed-smoke.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [],
+      "description": "Repos with BOTH an alembic migrations tree AND a DB seed script MUST have a CI job that applies migrations to a fresh database and runs the seed twice — otherwise a migration adding a NOT NULL column the seeder never learned about explodes days later in the e2e job of an unrelated PR (geeplo 2026-07-13, migrations 0070/0072 vs bootstrap-test-db.py) instead of failing the schema-changing PR in one minute; validate-only, drop-in job at templates/ci/migrate-seed-smoke.yml.",
+      "doc_path": "docs/rules/migrate-seed-smoke.rule.md"
     },
     {
       "slug": "migration-slot-reservation",

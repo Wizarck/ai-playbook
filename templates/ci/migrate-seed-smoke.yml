@@ -1,0 +1,45 @@
+# migrate-seed-smoke (ai-playbook): the migrate→seed contract, exercised per PR.
+#
+# Catches the breakage class where a migration adds a column/constraint the e2e
+# seed script never learned about (NOT NULL without seeder update, renamed
+# tables, tightened FKs). Runs in ~1 minute and fails the schema-changing PR
+# itself — not the 20-minute e2e job of an unrelated PR days later.
+#
+# Adapt: paths (backend/, scripts/bootstrap-test-db.py), postgres version, and
+# the `paths:` trigger filter. Runs the seed TWICE — idempotency is part of the
+# contract (re-seeding a half-seeded DB happens in real e2e retries).
+
+  migrate-seed-smoke:
+    name: Migrate + seed smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app_test
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install migration deps
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Apply all migrations to a FRESH database
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://app:app@localhost:5433/app_test
+        run: python -m alembic upgrade head
+      - name: Seed twice (idempotency is part of the contract)
+        env:
+          TEST_DATABASE_URL: postgresql://app:app@localhost:5433/app_test
+        run: |
+          python scripts/bootstrap-test-db.py
+          python scripts/bootstrap-test-db.py
