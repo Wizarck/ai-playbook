@@ -40,6 +40,17 @@ repos:
         pass_filenames: false
         files: ^mcp-servers\.yaml$|^mcp-servers\.project\.yaml$
 
+      # No-op until the project declares a `wiring.yaml`. `always_run` is
+      # deliberate: the population is any source file, so there is no useful
+      # `files:` filter — and the bug this catches is "capability changed,
+      # registry untouched", which a filter on the registry would hide.
+      - id: capability-wiring
+        name: Capability is wired into its registry (code-entropy axis 4)
+        entry: bash -c '[ -f wiring.yaml ] && python .ai-playbook/scripts/rules/capability-wiring.rule.py check --changed-only || exit 0'
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: verdict-lint
         name: Lint review/verify verdict shape (verdict-contract.md)
         entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/verdict_lint.py --shape artifact || exit 0'

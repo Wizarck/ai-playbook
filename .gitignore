@@ -85,3 +85,8 @@ _bmad-output/
 # analyses, exploratory write-ups, anything that's "thinking out loud" and
 # would otherwise rot in the repo or leak personal context if shipped.
 .temp/
+
+# Per-run report written by `cleanup-zombies.rule.py` into the consumer tree.
+# When the playbook dogfoods on itself the consumer tree IS this repo, so the
+# report lands here. Regenerated on every `--apply`; never a source artefact.
+zombie-report.md

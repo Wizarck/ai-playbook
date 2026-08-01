@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-08-01T12:21:38.633098+00:00",
+  "generated_at": "2026-08-01T16:58:16.063332+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -213,6 +213,23 @@ window.RULES_INVENTORY = {
       "triggers": [],
       "description": "Every blocking playbook script MUST support `--force-with-reason=\"<text>\"` with a ≥10-char reason, an OTel span, an append to overrides.log, and the original error printed unchanged before exit 0 — except when the script declares OVERRIDE none.\n",
       "doc_path": "docs/rules/break-glass.rule.md"
+    },
+    {
+      "slug": "capability-wiring",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/capability-wiring.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [],
+      "description": "Every capability in a class covered by a `wiring.yaml` assertion MUST be referenced in its registry in the same commit — built-but-unregistered code imports cleanly, type-checks, passes its own tests and is silently dead in production; the L1 hardrule statically expands each assertion's `every` glob into a population, interpolates its `by` regex per item, and fails on any item that no `referenced_in` file matches.",
+      "doc_path": "docs/rules/capability-wiring.rule.md"
     },
     {
       "slug": "caveman-reinforce",
