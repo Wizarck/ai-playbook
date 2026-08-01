@@ -1,0 +1,293 @@
+# wiring-example-geeplo.yaml — worked instantiation for the `geeplo` consumer
+#
+# Contract: `wiring-assertions.schema.yaml`. Severity semantics:
+# `docs/rules/verdict-contract.rule.md` §Severity levels.
+#
+# Every `by` regex below was executed against the real files at geeplo `main`
+# (3b58f687, 2026-08-01) before this file was written. Each carries a
+# `# verified against:` comment quoting the actual registry line it matched,
+# and a `# result:` line with the measured population / findings. No regex here
+# is aspirational.
+#
+# Coverage measured at authoring time:
+#   blueprint-router-included           16 routers,   14 wired,  2 allowed,  0 findings
+#   celery-task-routed                 107 tasks,     99 wired,  8 allowed,  0 findings
+#   sync-entries-module-registered       6 modules,    6 wired,  0 allowed,  0 findings
+#   ops-channel-module-labeled           5 modules,    3 wired,  0 allowed,  2 FINDINGS (S3)
+#   alembic-single-head-chain          108 revisions,107 wired,  1 head,     0 findings
+#   transfer-adapter-in-type-registry    9 adapters,   9 wired,  0 allowed,  0 findings
+
+schema: ai-playbook/wiring-assertions/v1
+schema_version: "1.0.0"
+root: "."
+
+defaults:
+  flags: "m"
+  status: enforced
+
+assertions:
+
+  # =========================================================================
+  # 1. FastAPI blueprint routers -> app.include_router() in main.py
+  # =========================================================================
+  - id: blueprint-router-included
+    description: >-
+      Every blueprint that ships a `router.py` must be mounted on the FastAPI
+      app in `main.py`; an unmounted blueprint's endpoints 404 in production
+      while its tests (which build their own app) stay green.
+    every: backend/app/blueprints/*/router.py
+    referenced_in: backend/app/main.py
+    # `{dir}` is the blueprint directory name (`auth`, `naming_patterns`), which
+    # is also the exported APIRouter alias `<dir>_bp`. `\s*` spans the newline
+    # in the multi-line call form, so both single- and multi-line registrations
+    # match under the default `m` flag.
+    by: |-
+      include_router\(\s*{dir}_bp\b
+    # verified against: `app.include_router(auth_bp, prefix="/auth", tags=["auth"])`   (main.py:329)
+    # verified against: `app.include_router(\n    datashield_bp,\n    prefix=...` (main.py:375-380, multi-line form)
+    # result: 16 matched routers; 14 referenced; 2 unreferenced, both allowed below.
+    severity: S1
+    evidence: "geeplo backend/app/main.py:329-551"
+    allow:
+      - match: backend/app/blueprints/sam/router.py
+        reason: >-
+          `sam_bp` is the aggregate tenant-scoped router, imported in main.py
+          only to keep test imports resolving (`# noqa: F401 — kept for test
+          imports`). The live SAM surface is mounted per sub-router
+          (`sam_webhooks_router`, `sam_audit_router`, `sam_aliases_router`,
+          `sam_delegations_router`, `sam_directory_sync_router`,
+          `sam_service_accounts_router`), each with its own prefix; mounting the
+          aggregate as well would double-register those paths.
+        evidence: "backend/app/main.py:304 + 544-551"
+      - match: backend/app/blueprints/transfer/router.py
+        reason: >-
+          Same shape as SAM. `transfer_bp` is imported `# noqa: F401 — kept for
+          test imports`; the live Transfer surface is mounted from
+          `app.blueprints.transfer.routers` (`sources_router`, `user_pools_router`,
+          `inventory_router`, `migration_jobs_router`, `events_router`,
+          `schemas_router`, `admin_dlq_router`).
+        evidence: "backend/app/main.py:294-303 + 462-493"
+
+  # =========================================================================
+  # 2. Celery tasks -> celery_app.conf.task_routes   (THE PRECEDENT BUG)
+  # =========================================================================
+  - id: celery-task-routed
+    description: >-
+      Every Celery task must have an explicit `task_routes` entry; a task
+      without one silently falls back to `task_default_queue` ("default"), so
+      its intended queue has no producer and the `realtime` queue can starve
+      under load.
+    # `task_routes` lives in `backend/app/celery_app.py` — a single ~950-line
+    # module that is BOTH the Celery app factory and the routing registry. The
+    # entries are spread across ~30 slice-marked blocks, which is exactly why a
+    # slice can add a task and forget the route.
+    every: backend/app/tasks/*_tasks.py::@celery_app.task* def:*
+    referenced_in: backend/app/celery_app.py
+    # Celery's default task name is `<module-path>.<func>`, so `{stem}` +
+    # `{symbol}` reconstruct it. The trailing alternation is what makes this
+    # regex actually catch the bug: it demands the name appear in ENTRY
+    # position, i.e. followed by `] =` (subscript assignment), `:` (dict-literal
+    # key) or `,` (tuple element in the `for _task in (...)` loops). The
+    # negative lookbehind excludes `"task": "<name>"` — the `beat_schedule`
+    # shape. A bare-name regex would have PASSED on 47717de3^, because the
+    # heartbeat slice added the beat entry and the import but no route.
+    by: |-
+      (?<!"task": )["\x27]app\.tasks\.{stem}\.{symbol}["\x27]\s*(?:\]\s*=|:|,)
+    # verified against: `celery_app.conf.task_routes["app.tasks.heartbeat_tasks.emit_liveness_heartbeat"] = {"queue": "scheduled"}`  (celery_app.py:729)
+    # verified against: `        "app.tasks.sync_tasks.sync_all_groups_task": {"queue": "default"},`  (celery_app.py:75, dict-literal form)
+    # verified against: `    "app.tasks.spine_tasks.collect_observed_state",`  (celery_app.py:801, for-loop tuple form)
+    # REGRESSION PROOF: run against `git show 47717de3^:backend/app/celery_app.py`
+    #   this regex returns no match for `emit_liveness_heartbeat`; against HEAD it
+    #   matches celery_app.py:729. It reproduces the precedent bug exactly.
+    # result: 107 decorated tasks; 99 referenced; 8 unreferenced, all allowed below.
+    severity: S1
+    evidence: "geeplo 47717de3 (restore missing heartbeat task_routes entry); Jira GPLO-890 routing audit; backend/tests/integration/test_celery_routing.py::test_all_tasks_have_explicit_route"
+    # The allow list is exactly the set of tasks whose decorator passes an
+    # explicit `name=` that DIFFERS from the module-path default. Each was
+    # verified to be routed under its custom name in celery_app.py. Tasks whose
+    # explicit `name=` equals the default need no exemption — the regex finds
+    # them unchanged.
+    allow:
+      - match: backend/app/tasks/connectivity_tasks.py::sync_source_all
+        reason: 'Explicit `name="connectivity.sync_source_all"`; routed under that name at celery_app.py:597.'
+      - match: backend/app/tasks/connectivity_tasks.py::fan_out_connectivity_source_syncs
+        reason: 'Explicit `name="connectivity.fan_out_connectivity_source_syncs"`; routed at celery_app.py:598.'
+      - match: backend/app/tasks/revalidation_bulk_tasks.py::process_bulk_job
+        reason: 'Explicit `name="revalidation.process_bulk_job"`; routed at celery_app.py:156.'
+      - match: backend/app/tasks/revalidation_bulk_tasks.py::cleanup_revalidation_bulk_jobs
+        reason: 'Explicit `name="revalidation.cleanup_revalidation_bulk_jobs"`; routed at celery_app.py:157.'
+      - match: backend/app/tasks/revalidation_engine_tasks.py::revalidation_runner_task
+        reason: 'Explicit bare `name="revalidation_runner_task"` (no module prefix); routed at celery_app.py:528.'
+      - match: backend/app/tasks/revalidation_engine_tasks.py::run_discover_for_plugin
+        reason: 'Explicit bare `name="run_discover_for_plugin"`; routed at celery_app.py:529.'
+      - match: backend/app/tasks/revalidation_engine_tasks.py::revalidation_deadline_processor_task
+        reason: 'Explicit bare `name="revalidation_deadline_processor_task"`; routed at celery_app.py:530.'
+      - match: backend/app/tasks/revalidation_engine_tasks.py::process_deadlines_for_tenant
+        reason: 'Explicit bare `name="process_deadlines_for_tenant"`; routed at celery_app.py:531.'
+    # KNOWN SCOPE LIMIT (not a defect of this assertion, a deliberate boundary):
+    # `every` covers `backend/app/tasks/*_tasks.py` only. Tasks defined inside
+    # blueprints — e.g. `app.blueprints.notifications.tasks.notification_email_tasks`
+    # — are out of population; they are routed under `notifications.*` custom
+    # names via the late-binding block at celery_app.py:470-499. Covering them
+    # needs a second assertion with its own name derivation, deliberately not
+    # bundled here.
+
+  # =========================================================================
+  # 3. Sync entry modules -> the package __init__ that imports them
+  # =========================================================================
+  - id: sync-entries-module-registered
+    description: >-
+      Every `*_entries.py` sync module must be imported by the sync package
+      `__init__`; registration happens as an import-time side effect
+      (`register(SyncEntry(...))` at module scope), so an unimported module
+      leaves its sync cards absent from the dashboard and its "Run now" façade
+      unroutable, with no error anywhere.
+    every: backend/app/blueprints/_shared/sync/*_entries.py
+    referenced_in: backend/app/blueprints/_shared/sync/__init__.py
+    # The `__init__` uses a single parenthesised `from ... import (...)` block,
+    # one module per line, trailing comma on every entry. `(?m)^` via the
+    # default `m` flag anchors to the line so a mention inside the docstring
+    # does not count as a registration.
+    by: |-
+      ^\s*{stem}\s*,
+    # verified against: `    workspace_entries,`  (_shared/sync/__init__.py:7)
+    # result: 6 matched modules (workspace, datashield, transfer, revalidation,
+    #         sam, system); all 6 referenced; 0 findings.
+    severity: S1
+    evidence: "backend/app/blueprints/_shared/sync/__init__.py:6-13; runtime half-check at backend/app/main.py:35-62 (_verify_sync_registry)"
+    # NOTE ON THE ADJACENT ASSERTION THAT IS **NOT** ENCODED HERE.
+    # The literal form "a sync task has no SyncEntry" is NOT expressible as a
+    # regex assertion in this repo, and encoding it would be a false detector.
+    # Measured: of the 26 `@celery_app.task` functions in sync_tasks.py,
+    # drive_tasks.py and channel_tasks.py, only 8 carry a `celery_task_name`
+    # in any `*_entries.py` — and that is CORRECT. The other 18
+    # (`fan_out_user_sync`, `sync_group_members_task`, `renew_single_channel_task`,
+    # `execute_archive_batch_task`, ...) are internal fan-out / per-item worker
+    # tasks with no user-facing sync card, and no static marker distinguishes
+    # them from the 8 entry-point tasks. An assertion over that population would
+    # be ~69% false positive and would be silenced with an 18-entry allow list —
+    # i.e. fiction. The module-import direction above is the same wiring bug in
+    # its statically decidable form; the task->entry direction is covered at
+    # runtime instead by `_verify_sync_registry()` (main.py:35), which resolves
+    # `entry.celery_task_name` against `celery_app.tasks` at app startup.
+
+  # =========================================================================
+  # 4. Realtime channel modules -> MODULE_LABELS in the ops Channels page
+  # =========================================================================
+  - id: ops-channel-module-labeled
+    description: >-
+      Every realtime channel family in the backend's `KNOWN_MODULES` must have a
+      `MODULE_LABELS` entry on the ops Channels page; without one the group
+      header renders the raw module id and the description line disappears.
+    # `member:` walks the string literals inside the named tuple, so `{symbol}`
+    # is the module id itself. Note the literal parentheses in the Next.js
+    # route-group path — matched literally, not as glob metacharacters.
+    every: backend/app/blueprints/_shared/ops_events.py::member:KNOWN_MODULES
+    referenced_in: frontend/app/(ops)/ops/channels/ChannelsPageClient.tsx
+    # Anchored inside the MODULE_LABELS object literal so an identically-named
+    # key in a sibling map (STATUS_LABELS) cannot satisfy it. `[^=]*` crosses the
+    # TS type annotation `: Record<string, { name: string; description: string }>`
+    # (which contains `;` but no `=`); `[^;]*?` then stays inside the object body,
+    # which holds no `;` until its closing `};`.
+    by: |-
+      MODULE_LABELS[^=]*=\s*\{[^;]*?\b{symbol}\b\s*:
+    # verified against: `  datashield_drive_changes: {`  (ChannelsPageClient.tsx:59)
+    # verified against: `  admin: {`                      (ChannelsPageClient.tsx:43)
+    # result: KNOWN_MODULES = (admin, datashield_drive_changes, admin_reports_drive,
+    #         transfer_migration_events, datashield_sync_progress).
+    #         3 referenced; 2 UNREFERENCED -> this assertion FIRES TODAY on
+    #         `transfer_migration_events` and `datashield_sync_progress`.
+    #         (Both are also absent from the sibling MODULE_LABELS in
+    #         frontend/app/(ops)/ops/events/EventsPageClient.tsx:23-27.)
+    # S3, not S1: the page degrades gracefully — `moduleInfo?.name ?? application`
+    # (ChannelsPageClient.tsx:348) renders the raw id and `{moduleInfo && (...)}`
+    # (:358) drops the description. A reader pays a tax; nothing breaks.
+    severity: S3
+    # Landing state: the two open findings are real and pre-existing, so the
+    # assertion ships advisory and flips to `enforced` in the PR that adds the
+    # two labels. Per the consumer's ledger rule, that flip needs a row in
+    # `docs/operations/deferred-items.md`.
+    status: advisory
+    evidence: "backend/app/blueprints/_shared/ops_events.py:29-35 (KNOWN_MODULES); frontend/app/(ops)/ops/channels/ChannelsPageClient.tsx:42-67"
+
+  # =========================================================================
+  # 5. Alembic migrations -> the single-head chain
+  # =========================================================================
+  - id: alembic-single-head-chain
+    description: >-
+      Every Alembic revision except the single chain tip must be named as a
+      `down_revision` by another migration; a revision nobody parents is a
+      second head, and `alembic upgrade head` then aborts with "Multiple head
+      revisions are present" — breaking deploys, the CI migrate step, and any
+      container entrypoint that runs `alembic upgrade head`.
+    every: backend/alembic/versions/*.py
+    # The registry IS the migration corpus: a chain-shaped registry where each
+    # file registers its parent. `referenced_in` therefore globs the same set.
+    referenced_in: backend/alembic/versions/*.py
+    # `exclude_self` (default true) keeps a file's own `revision = "X"` line
+    # from satisfying itself.
+    exclude_self: true
+    # Identity is the declared revision id, not the filename — they diverge
+    # (`001_initial_schema.py` declares `revision: str = "001"`). The optional
+    # `(?:\s*:[^=\n]*)?` absorbs the annotated forms `revision: str = "..."`.
+    capture: |-
+      ^revision(?:\s*:[^=\n]*)?\s*=\s*["\x27](?P<value>[^"\x27]+)["\x27]
+    # `down_revision` is written four ways in this tree — bare string, annotated
+    # string (`down_revision: str | None = "..."`), `Union[str, None]`, and merge
+    # tuples that span lines (`down_revision: tuple[str, str] = (\n "a",\n "b",\n)`).
+    # The bounded `[\s\S]{0,300}?` lazily crosses the annotation and the tuple
+    # body without running past the statement into unrelated code.
+    by: |-
+      \bdown_revision\b[\s\S]{0,300}?["\x27]{capture}["\x27]
+    # verified against: `down_revision = "0017_module_name_per_tenant_unique"`  (0018_revalid_asset_state_and_audit.py)
+    # verified against: `down_revision: str | None = "016b_widen_alembic_version"`  (0017_module_name_per_tenant_unique.py)
+    # verified against: `down_revision: tuple[str, str] = (`  (0020_notification_intent_queue.py, merge-node form)
+    # result: 108 migrations, 108 revision ids captured (0 capture failures);
+    #         exactly 1 unreferenced -> `0090_org_unit_dimension_expand`, the
+    #         legitimate single head. 0 findings.
+    # A second head makes unreferenced == 2 and emits 1 finding.
+    unreferenced_max: 1
+    severity: S1
+    evidence: ".ai-playbook/docs/rules/alembic-single-head.rule.md"
+    # SCOPE NOTE: this is the STATIC, corpus-local half of the invariant and is
+    # blind to the cross-branch fork — a sibling head already merged into the
+    # base that your non-rebased working tree does not contain. The playbook's
+    # `alembic-single-head.rule.py validate --base auto` after `git fetch` is the
+    # enforcer for that case; this assertion does not replace it.
+
+  # =========================================================================
+  # 6. Transfer adapters -> the job_type plugin registry
+  # =========================================================================
+  - id: transfer-adapter-in-type-registry
+    description: >-
+      Every per-`job_type` transfer adapter module must have an entry in
+      `type_registry.REGISTRY`; the migration dispatcher looks the adapter up by
+      `job.job_type` and fails the job permanently with "unknown job_type" when
+      the lookup misses, so an unregistered adapter is fully-built dead code.
+    every: backend/app/blueprints/transfer/adapters/*.py
+    # Private helpers shared by the adapters are never registry members. This is
+    # `exclude`, not `allow`: they are out of scope by construction rather than
+    # reviewed exceptions, and a new `_helper.py` must not need an allow entry.
+    exclude:
+      - backend/app/blueprints/transfer/adapters/_*.py
+      - backend/app/blueprints/transfer/adapters/__init__.py
+    referenced_in: backend/app/blueprints/transfer/type_registry.py
+    # The registry imports each adapter as `<stem> as <stem>_adapter` and every
+    # RegistryEntry carries a `"module"` key pointing at that alias. Anchoring on
+    # `"module":` rather than on the bare alias is what makes this a wiring check
+    # and not an import check — the import alone would satisfy a looser regex
+    # while the REGISTRY entry stayed absent, which is precisely the bug.
+    by: |-
+      ["\x27]module["\x27]\s*:\s*{stem}_adapter\b
+    # verified against: `        "module": shared_drive_adapter,`  (type_registry.py:93)
+    # verified against: `        "module": my_drive_copy_adapter,`  (type_registry.py:148)
+    # result: 14 files in adapters/; 5 excluded (__init__, _common, _error_messages,
+    #         _large_file, _metadata); 9 adapters in population (shared_drive,
+    #         my_drive, my_drive_copy, copy, gmail, keep_notes, groups, calendar,
+    #         contacts); all 9 referenced; 0 findings.
+    # `exactly_one`: two REGISTRY entries pointing at the same adapter module
+    # would mean two job_types share one adapter, which this codebase does not do
+    # and which would make the schema_path/type_config mapping ambiguous.
+    expect: exactly_one
+    severity: S1
+    evidence: "backend/app/blueprints/transfer/type_registry.py:83-180; dispatcher lookup at backend/app/tasks/migration_tasks.py:548-556"

@@ -1,0 +1,480 @@
+# wiring-assertions.schema.yaml — contract for a consumer's `wiring.yaml`
+#
+# Shipped with the ai-playbook submodule and consumed by
+# `scripts/rules/capability-wiring.rule.py` at pre-commit (L1) and on PR (L3).
+#
+# WHAT THIS DETECTS
+# A capability that was BUILT but never WIRED into the registry that makes it
+# reachable. The code exists, imports cleanly, type-checks, and is dead. Real
+# precedent (geeplo `47717de3`): `app.tasks.heartbeat_tasks.emit_liveness_heartbeat`
+# existed and had a `beat_schedule` entry, but no `task_routes` entry — so Beat
+# published it to the `default` queue instead of `scheduled`, and the GPLO-890
+# routing-audit test went latently red on `main`. Nothing was missing. Nothing
+# was broken. One line of registry was absent.
+#
+# THE INSIGHT THIS FILE ENCODES
+# Every assertion of that class is the SAME sentence with different holes:
+#
+#     "every <file-or-symbol matching X> MUST be referenced in <registry Z>
+#      by <pattern Y>"
+#
+#   X -> `every`          (+ optional `exclude`, + optional `::symbol-pattern`)
+#   Z -> `referenced_in`
+#   Y -> `by`             (a regex, with `{...}` tokens interpolated per item)
+#
+# The engine is generic and ships once. The holes are per-consumer data and live
+# in `<consumer>/wiring.yaml`. A consumer adds a detector by adding six lines of
+# YAML, never by writing code.
+#
+# This is a SCHEMA, not a manifest. It documents the fields; it declares no
+# assertions of its own. A worked instantiation is `wiring-example-geeplo.yaml`.
+#
+# NOT WHAT THIS DETECTS
+#   - Dead code with no registry (that is `docs/rules/cleanup-zombies.rule.md`).
+#   - Registry entries pointing at code that no longer exists (the INVERSE
+#     direction; see `orphan_direction` below — opt-in per assertion).
+#   - Anything requiring the app to import or a live DB. The engine is STATIC:
+#     glob + parse + regex. It runs identically in pre-commit, CI, and an agent
+#     self-check, with no venv, no broker, and no database.
+
+schema: ai-playbook/wiring-assertions/v1
+
+# Semver of THIS schema, format `^\d+\.\d+\.\d+$` (MAJOR.MINOR.PATCH).
+#   MAJOR — a field was removed/renamed, or an existing field's semantics
+#           changed. The engine REFUSES to run a consumer file whose
+#           `schema_version` MAJOR exceeds the MAJOR it was built against, and
+#           exits 2 (config error) rather than silently mis-evaluating.
+#   MINOR — a new optional field, or a new enum member. Backward compatible;
+#           an older engine ignores unknown optional fields with a WARNING.
+#   PATCH — doc/comment-only change; no engine behaviour change.
+# If wrong (missing, non-semver, or MAJOR ahead of the engine): exit 2 with
+# `wiring: unsupported schema_version <v> (engine supports <n>.x)`. Never a
+# silent pass — an unparseable contract must not read as "zero findings".
+schema_version: "1.0.0"
+
+# ---------------------------------------------------------------------------
+# Top-level shape of a consumer `wiring.yaml`
+# ---------------------------------------------------------------------------
+top_level:
+
+  # Literal discriminator. Lets the engine reject a file that is YAML but is
+  # not a wiring file at all. If wrong: exit 2, `not a wiring-assertions file`.
+  schema:
+    type: string
+    required: true
+    const: ai-playbook/wiring-assertions/v1
+
+  # The consumer's own version of ITS assertion set — same semver format as
+  # above, but independent of it. Bump MINOR when adding an assertion, MAJOR
+  # when deleting or re-scoping one (so a stale CI cache is detectable).
+  # If wrong: exit 2. If absent: exit 2. It is the audit handle for "which
+  # ruleset produced this verdict".
+  schema_version:
+    type: string
+    required: true
+    pattern: '^\d+\.\d+\.\d+$'
+
+  # Base directory all globs resolve against, relative to the repo root.
+  # If wrong (path does not exist): exit 2 — every glob would match nothing and
+  # every assertion would trivially pass, which is the failure mode this whole
+  # rule exists to prevent.
+  root:
+    type: string
+    required: false
+    default: "."
+
+  # Values merged into every assertion that does not set the key itself.
+  # Only `severity`, `status`, `flags`, `expect`, `exclude_self` may be
+  # defaulted; defaulting `by` or `every` is refused (exit 2) because a silent
+  # global pattern is unreviewable.
+  defaults:
+    type: mapping
+    required: false
+    default: {}
+
+  # The assertion list. MUST be non-empty. An empty list is exit 2, not a pass:
+  # a consumer that wired the engine but declared nothing has a broken adoption,
+  # not a clean repo.
+  assertions:
+    type: list<assertion>
+    required: true
+    min_items: 1
+
+# ---------------------------------------------------------------------------
+# Per-assertion fields
+# ---------------------------------------------------------------------------
+assertion:
+
+  # Stable kebab-case handle. Appears in every finding line, in `allow` audits,
+  # and in break-glass env names. MUST be unique within the file and SHOULD
+  # outlive refactors (name the invariant, not the current file path).
+  # If wrong (duplicate / bad pattern): exit 2. Renaming one silently voids
+  # every `allow` entry that targets it — treat a rename as a MAJOR bump.
+  id:
+    type: string
+    required: true
+    pattern: '^[a-z][a-z0-9-]{2,63}$'
+
+  # One sentence naming the invariant AND the consequence of breaking it.
+  # Reviewers read this, not the regex. If wrong (vague, or restates the
+  # regex): no engine failure, but the finding becomes unactionable — the
+  # reader cannot tell a real bug from a stale assertion.
+  description:
+    type: string
+    required: true
+
+  # THE POPULATION. A POSIX glob relative to `root`, optionally suffixed with
+  # `::<symbol-pattern>` to descend into each matched file and yield symbols
+  # instead of whole files. `*` does not cross `/`; `**` does.
+  # Literal `(` `)` `[` `]` in real paths (Next.js route groups such as
+  # `app/(ops)/...`) are matched literally, NOT as glob metacharacters.
+  # Without `::`, one item per matched file. With `::`, one item per matched
+  # symbol — a file contributing zero symbols contributes zero items.
+  # If wrong (glob matches nothing): exit 2 with
+  # `wiring: '<id>' matched 0 items — dead assertion`. A detector that silently
+  # inspects nothing is worse than no detector; it reports green forever.
+  every:
+    type: string
+    required: true
+
+  # Globs subtracted from `every` BEFORE symbol expansion. Use for private
+  # helper modules that live beside the real capabilities and are never
+  # registry members (`_*.py`, `__init__.py`, `*.test.ts`, `conftest.py`).
+  # Prefer `exclude` over widening `allow`: `exclude` says "never in scope",
+  # `allow` says "in scope, known exception" — they audit differently.
+  # If wrong (over-broad): real capabilities vanish from the population and the
+  # assertion reports green while the bug ships.
+  exclude:
+    type: list<string>
+    required: false
+    default: []
+
+  # Regex with exactly one named group `value`, applied to each matched file to
+  # extract the identity token the registry refers to, when that token is NOT
+  # derivable from the path (e.g. an Alembic `revision` id, a plugin `slug`).
+  # First match wins. Binds `{capture}`.
+  # If wrong (no match in a matched file): that file is reported as
+  # `capture-failed` at the assertion's severity — never skipped. A file whose
+  # identity cannot be read is exactly the file most likely to be unwired.
+  capture:
+    type: regex
+    required: false
+    named_group: value
+
+  # THE REGISTRY. A path or glob, relative to `root`, of the file(s) that MUST
+  # contain the reference. A glob is legal and means "referenced by ANY file in
+  # this set" (used for chain-shaped registries such as Alembic, where the
+  # registry is the migration corpus itself).
+  # If wrong (resolves to zero files): exit 2. A missing registry file makes
+  # every item unreferenced, which would fire the whole population at once —
+  # a config error, not N findings.
+  referenced_in:
+    type: string
+    required: true
+
+  # THE PROOF. A regex searched against the FULL TEXT of each `referenced_in`
+  # file. Interpolation tokens (see `interpolation` below) are substituted
+  # per item and `re.escape`d first, so a token can never inject metacharacters.
+  # Write it to match the REGISTRATION, not merely the name: the heartbeat bug
+  # is invisible to a bare-name regex, because the task name also appeared in
+  # `beat_schedule`. Anchor on the registry construct (`task_routes[`,
+  # `include_router(`, `"module":`) or on the syntactic shape of an entry
+  # (`"<name>"] =`, `"<name>":`).
+  # If wrong (too loose): false green — the assertion passes on the very bug it
+  # was written for. If wrong (too tight): false findings, which get papered
+  # over with `allow` entries and rot the ruleset. Every `by` MUST be validated
+  # against the real registry lines before merge, and the verified line quoted
+  # in a `# verified against:` comment beside it.
+  by:
+    type: regex
+    required: true
+
+  # Regex flags applied to `by` and `capture`. Subset only — `i` (IGNORECASE),
+  # `m` (MULTILINE, so `^`/`$` bind to lines), `s` (DOTALL). `x` is refused
+  # (verbose mode silently eats the spaces that matter inside a `by`).
+  # Default is multiline, because registry entries are line-shaped. If wrong:
+  # exit 2 on an unknown flag character.
+  flags:
+    type: string
+    required: false
+    default: "m"
+    allowed: "ims"
+
+  # Reference cardinality demanded per item.
+  #   at_least_one — >=1 `referenced_in` file matches. The default; correct for
+  #                  every ordinary registry.
+  #   exactly_one  — exactly 1 match across the whole registry set. Use when a
+  #                  duplicate registration is itself a bug (a second
+  #                  `include_router` double-mounts the routes).
+  # If wrong (`exactly_one` on a registry that legitimately repeats an entry):
+  # steady-state false findings.
+  expect:
+    type: enum
+    required: false
+    default: at_least_one
+    allowed: [at_least_one, exactly_one]
+
+  # How many items in the population may legitimately have ZERO references
+  # before any finding is emitted. Default 0 — every capability is wired.
+  # Set to 1 for chain-shaped registries where exactly one item is the tip
+  # (an Alembic single-head chain has exactly one revision nobody names as a
+  # parent). The engine reports `len(unreferenced) - unreferenced_max` findings
+  # and lists the unreferenced items either way, so the tip is visible without
+  # being a failure.
+  # If wrong (set > 0 on an ordinary registry): the engine tolerates that many
+  # genuinely-unwired capabilities — it hides real bugs by construction.
+  unreferenced_max:
+    type: integer
+    required: false
+    default: 0
+    minimum: 0
+
+  # When `referenced_in` overlaps `every`, whether an item may satisfy itself.
+  # Default true = a file's own text does NOT count as its registration.
+  # If wrong (false on a self-overlapping set): every item trivially references
+  # itself and the assertion is permanently green.
+  exclude_self:
+    type: boolean
+    required: false
+    default: true
+
+  # Direction of the check.
+  #   forward — capability -> registry. "Built but never wired." The default,
+  #             and the class of bug this rule exists for.
+  #   both    — additionally, every entry in the registry that LOOKS like a
+  #             reference (i.e. matches `by` with the token slot replaced by
+  #             `[A-Za-z0-9_.-]+`) must correspond to some item in the
+  #             population. Catches the stale-registry mirror bug: the
+  #             capability was deleted and the registry entry outlived it.
+  # If wrong (`both` on an assertion whose `by` also matches unrelated lines):
+  # a burst of phantom orphan findings.
+  orphan_direction:
+    type: enum
+    required: false
+    default: forward
+    allowed: [forward, both]
+
+  # Severity of a finding, per `docs/rules/verdict-contract.rule.md` §Severity
+  # levels. Verbatim semantics from that table — do not paraphrase here:
+  #   S1 — correctness / safety; wrong, unsafe, breaks an invariant, leaks a
+  #        secret, or corrupts data.        BLOCKS PROGRESSION, unconditionally.
+  #   S2 — scope / architecture; in-scope but crosses a boundary defined in
+  #        AGENTS.md, an ADR, or the OpenSpec proposal.
+  #                                          BLOCKS PROGRESSION, unconditionally.
+  #   S3 — style / readability; works and is in-scope, but a reader downstream
+  #        pays a tax.                       Does not block; batched.
+  #   S4 — nit; subjective polish.           Does not block; batched or ignored.
+  # `S0` is retro-only and is REJECTED here (exit 2) exactly as
+  # verdict-contract rejects it outside `--audit`.
+  # Calibrate on the CONSEQUENCE OF THE MISSING WIRE, not on the size of the
+  # fix — every fix here is one line. An unrouted Celery task starves a queue
+  # in production (S1); an unlabelled UI module renders its raw id (S3).
+  # If wrong (S1 inflation): the gate gets disabled wholesale, and the S1s that
+  # mattered go with it.
+  severity:
+    type: enum
+    required: true
+    allowed: [S1, S2, S3, S4]
+
+  # Enforcement posture, independent of severity.
+  #   enforced  — findings count toward the exit code per `severity`.
+  #   advisory  — findings are printed and NEVER affect the exit code. The
+  #               landing state for a new assertion, and the parking state for
+  #               one with a known backlog.
+  # If wrong (left advisory forever): the assertion is decoration. Pair every
+  # `advisory` with a row in the consumer's deferred-items ledger.
+  status:
+    type: enum
+    required: false
+    default: enforced
+    allowed: [enforced, advisory]
+
+  # Legitimate, reviewed exceptions. NOT a backlog — each entry asserts "this
+  # item is deliberately absent from the registry and that is correct". Adding
+  # an entry to silence a real finding is the failure mode this field invites;
+  # `reason` is required precisely so that misuse is visible in review.
+  # If wrong (unmatched `match`): exit 2 with `stale allow entry` — a rotting
+  # exception must break the build, or the ruleset drifts into fiction.
+  allow:
+    type: list<allow_entry>
+    required: false
+    default: []
+
+  # Provenance: the commit, PR, ticket, or ADR that motivated the assertion.
+  # Free text; the engine only prints it. Cite the ORIGINAL source (`GH: #N`,
+  # `Jira: GPLO-N`, a commit sha), never an intermediary summary.
+  # If wrong (absent): no engine failure, but a future reader cannot tell
+  # whether the assertion encodes a real outage or someone's hunch.
+  evidence:
+    type: string
+    required: false
+
+# ---------------------------------------------------------------------------
+# `allow` entry shape
+# ---------------------------------------------------------------------------
+allow_entry:
+
+  # Item identity to exempt, in the engine's canonical item-id form:
+  #   file items   -> the repo-relative path, e.g. `backend/app/x/router.py`
+  #   symbol items -> `<path>::<symbol>`, e.g. `backend/app/tasks/y.py::run`
+  #   member items -> `<path>::<container>::<literal-value>`
+  # A trailing `*` is permitted for a prefix match; no other globbing, so an
+  # exception cannot quietly widen. If wrong: exit 2 (`stale allow entry`).
+  match:
+    type: string
+    required: true
+
+  # WHY this item is correctly absent from the registry. MUST state the
+  # alternative wiring, not the symptom. "the CI check is noisy" is not a
+  # reason; "aggregate router kept for test imports only, real routes are
+  # mounted per sub-router" is. If wrong: nothing breaks technically, and the
+  # allow list becomes a graveyard nobody can prune.
+  reason:
+    type: string
+    required: true
+
+  # Optional ISO-8601 date after which the exemption expires. Past the date the
+  # engine emits the finding at the assertion's severity with `expired
+  # exemption` appended. Use for genuinely temporary exceptions; permanent
+  # architectural ones (an aggregate router that will never be mounted) omit it.
+  expires:
+    type: string
+    required: false
+    pattern: '^\d{4}-\d{2}-\d{2}$'
+
+  # Commit / PR / ticket that reviewed and accepted the exception.
+  evidence:
+    type: string
+    required: false
+
+# ---------------------------------------------------------------------------
+# Symbol-pattern grammar (the `::` suffix on `every`)
+# ---------------------------------------------------------------------------
+#
+#   <symbol-pattern> ::= [ "@" <decorator-glob> WS ] <kind> ":" <name-glob>
+#
+# Parsed statically (Python `ast`; TS/JS via a line-shaped declaration scan).
+# The engine never imports the file — an unwired capability is frequently a
+# capability that cannot be imported in isolation.
+symbol_pattern:
+
+  kinds:
+    # Top-level function declarations (`def`, `async def`, `function`, and
+    # exported arrow consts). `{symbol}` = the function name.
+    def: "top-level function declarations"
+
+    # Top-level class declarations. `{symbol}` = the class name.
+    class: "top-level class declarations"
+
+    # Top-level constant bindings (module-level assignment targets; `const`).
+    # `{symbol}` = the binding name.
+    const: "top-level constant bindings"
+
+    # Each STRING LITERAL ELEMENT of the named tuple/list/set, or each string
+    # KEY of the named dict / member of the named Enum.
+    # `{symbol}` = the literal VALUE, not the container name. This is how a
+    # hand-maintained enumeration (a `KNOWN_MODULES` tuple) becomes a
+    # population whose members must each appear in a downstream registry.
+    # If the named container is absent or holds non-literals, the file reports
+    # `symbol-selector-empty` at the assertion severity — never a silent skip.
+    member: "string-literal members of the named container"
+
+    # Named exports of a JS/TS module (`export const|function|class X`,
+    # `export { X }`). `{symbol}` = the exported name.
+    export: "named JS/TS exports"
+
+    # Union of def | class | const.
+    any: "any top-level declaration"
+
+  # Optional `@<decorator-glob> ` prefix filters to symbols carrying a matching
+  # decorator. The glob is fnmatch'd against the decorator's source text with
+  # whitespace collapsed, so `@celery_app.task*` matches both bare
+  # `@celery_app.task` and `@celery_app.task(bind=True, max_retries=2)`.
+  # Python only; ignored (with a WARNING) for non-Python files.
+  # If wrong (glob too broad): symbols that were never meant to be registry
+  # members enter the population and must be papered over with `allow`.
+  decorator_filter: "optional `@<glob> ` prefix, fnmatch on collapsed decorator source"
+
+# ---------------------------------------------------------------------------
+# Interpolation tokens usable inside `by`
+# ---------------------------------------------------------------------------
+# Every expansion is `re.escape`d before substitution: a path containing `.`
+# or `(` can never alter the regex's meaning. An unknown token, or `{symbol}` /
+# `{capture}` used without the field that binds it, is exit 2 — not an empty
+# string. Substituting empty would produce a regex that matches far too much
+# and reports a permanent, silent green.
+interpolation:
+
+  # Repo-relative POSIX path of the matched file, `root`-relative, forward
+  # slashes on every platform.
+  # `backend/app/blueprints/auth/router.py` -> `backend/app/blueprints/auth/router.py`
+  "{path}": "matched file's root-relative POSIX path"
+
+  # Basename WITH extension.
+  # `backend/app/blueprints/auth/router.py` -> `router.py`
+  "{name}": "matched file's basename, extension included"
+
+  # Basename WITHOUT the final extension. The workhorse for module-name
+  # registries (Python imports, `<stem>_adapter` aliases).
+  # `.../workspace_entries.py` -> `workspace_entries`
+  # `.../my_drive_copy.py`     -> `my_drive_copy`
+  # Note: only the LAST extension is stripped — `a.test.ts` -> `a.test`.
+  "{stem}": "matched file's basename minus the final extension"
+
+  # Basename of the matched file's IMMEDIATE parent directory — not the full
+  # parent path, and not the grandparent. The workhorse for
+  # `<dir>/<fixed-filename>` layouts (one directory per capability).
+  # `backend/app/blueprints/auth/router.py` -> `auth`
+  # `backend/app/blueprints/naming_patterns/router.py` -> `naming_patterns`
+  "{dir}": "basename of the matched file's immediate parent directory"
+
+  # Name of the selected symbol. Bound ONLY when `every` carries a `::`
+  # suffix. For `kind: member` this is the string literal's VALUE (e.g.
+  # `datashield_drive_changes`), not the container's name.
+  # Using `{symbol}` with no `::` suffix is exit 2.
+  "{symbol}": "selected symbol's name; for `member`, the literal value"
+
+  # Value of the `value` named group from `capture`, read from the matched
+  # file. Bound ONLY when `capture` is set; using it otherwise is exit 2.
+  # Alembic: `revision = "0090_org_unit_dimension_expand"` -> `0090_org_unit_dimension_expand`
+  "{capture}": "the `capture` regex's `value` group, read from the matched file"
+
+# ---------------------------------------------------------------------------
+# Engine semantics
+# ---------------------------------------------------------------------------
+engine:
+
+  # 1. Resolve `root`. 2. Expand `every` minus `exclude` -> file set.
+  # 3. If `::` present, parse each file and expand to symbol items; else one
+  #    item per file. 4. If `capture` present, bind `{capture}` per file.
+  # 5. Expand `referenced_in` -> registry file set; read each once.
+  # 6. Per item: interpolate `by`, search every registry file (minus itself if
+  #    `exclude_self`), count matches, compare against `expect`.
+  # 7. Subtract `allow` matches, then `unreferenced_max`. Remainder = findings.
+  evaluation_order: "expand -> expand-symbols -> capture -> search -> allow -> unreferenced_max"
+
+  # Findings are one line each, greppable, path first so editors linkify them:
+  #   <path>[::<symbol>]: <severity> [<id>] not referenced in <registry> — <description>
+  finding_format: "<item>: <severity> [<id>] not referenced in <registry> — <description>"
+
+  # 0 — no findings at a blocking severity.
+  # 1 — at least one S1/S2 finding from an `enforced` assertion. S3/S4 and every
+  #     `advisory` assertion print but never reach exit 1.
+  # 2 — CONFIG ERROR: bad schema_version, empty glob, missing registry file,
+  #     unknown token, stale `allow`, unparseable regex. Distinct from 1 on
+  #     purpose: a broken contract must never be reported as a clean repo.
+  exit_codes: {0: clean, 1: blocking findings, 2: config error}
+
+  # Per `docs/rules/break-glass.rule.md`, the `AIPLAYBOOK_*` namespace:
+  #   AIPLAYBOOK_WIRING_SKIP=1        — skip the whole run, exit 0.
+  #   AIPLAYBOOK_WIRING_SKIP=<id,...> — skip only the listed assertion ids.
+  # Both log a WARNING naming what was skipped. Never silent.
+  break_glass:
+    env: AIPLAYBOOK_WIRING_SKIP
+
+  # Adding or editing an assertion requires proving the `by` regex against the
+  # real registry: `capability-wiring.rule.py explain <id>` prints, per item,
+  # the interpolated regex and the matched registry line. A `by` merged without
+  # a quoted verified line is unreviewable — the reviewer cannot distinguish a
+  # regex that works from one that matches nothing forever.
+  authoring_gate: "explain <id> must show a real matched line for every non-allowed item"

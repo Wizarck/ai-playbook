@@ -31,6 +31,29 @@ it wrong costs an edit rather than a rewrite.
   `unwired-capability`. Registries are project-specific but the assertion is not:
   every case is *every artefact matching X is referenced in Z by pattern Y*. The
   playbook ships the engine, the consumer ships its own `wiring.yaml`.
+  Interpolation tokens: `{dir}` `{stem}` `{name}` `{symbol}` `{path}` `{capture}`.
+- **`specs/wiring-assertions.example.yaml`** — six assertions measured against a
+  real consumer tree rather than illustrated. Every `by` regex round-trips out
+  of the YAML, compiles, and matches a quoted real line.
+  - **The precedent is regression-proven.** `celery-task-routed` run against the
+    commit that introduced the missing-route bug produces the finding; against
+    its fix and against HEAD it matches the route. The load-bearing detail is a
+    negative lookbehind on `"task": ` requiring the task name in *entry*
+    position — a bare-name regex passes on the buggy commit, because that slice
+    did add the `beat_schedule` entry and only the route was missing. Precision
+    in the pattern is the whole assertion.
+  - **One assertion ships `advisory`, not enforced**, because it has two live
+    findings in the consumer today (two channel modules with no label entry).
+    The page degrades to the raw identifier rather than breaking, so the grade
+    is S3; it flips to enforced in the PR that adds the labels.
+  - **One requested assertion was not encodable and was not faked.** "A sync
+    task has no registry entry" is not statically decidable there: only 8 of 26
+    task functions are user-facing entry points and no static marker separates
+    them, so the assertion would run ~69% false-positive and be silenced by its
+    own allow list. Substituted by the decidable half of the same bug — every
+    `*_entries.py` must be imported, since registration is an import-time side
+    effect — with the runtime check that already covers the other direction
+    named in the file.
 - **`schemas/schema-sweep-manifest-v1.json`** — the findings ledger. Tier,
   action and safety enums are exactly the `cleanup-zombies` executor's, and the
   tier×action and tier×safety matrices are reproduced as conditional blocks, so
