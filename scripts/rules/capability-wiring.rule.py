@@ -45,9 +45,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
-import os
 import re
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import date
@@ -61,115 +59,40 @@ except ImportError as exc:  # pragma: no cover - environment guard
     print("FATAL: pyyaml not installed. Run `pip install pyyaml`.", file=sys.stderr)
     raise SystemExit(2) from exc
 
+# This file is executed by PATH (pre-commit, CI) and loaded by
+# `spec_from_file_location` (tests). Neither puts the playbook root on
+# `sys.path`, so make the sibling helper importable by its own directory rather
+# than by package path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _rule_kit import (  # noqa: E402  (deliberate: needs the sys.path line above)
+    BLOCKING,
+    SEVERITIES,
+    TOKEN_RE as _TOKEN_RE,
+    ConfigError,
+    allow_matches as _allow_matches,
+    changed_files as _changed_files,
+    compile_flags,
+    emit_error as _emit_error,
+    expand_glob,
+    find_consumer_root as _find_consumer_root,
+    interpolate,
+    line_of,
+    resolve_config as _resolve_config,
+    skip_directive as _skip_directive,
+    used_tokens,
+)
+
 SKIP_ENV = "AIPLAYBOOK_WIRING_SKIP"
 SCHEMA_CONST = "ai-playbook/wiring-assertions/v1"
 ENGINE_MAJOR = 1
+CONFIG_NAME = "wiring.yaml"
 
 # Interpolation tokens. Deliberately a closed set: an unknown `{token}` is a
 # config error, never an empty substitution. Substituting empty would widen the
 # regex enormously and report a permanent, silent green — the exact failure this
 # rule exists to prevent.
 TOKENS = ("path", "name", "stem", "dir", "symbol", "capture")
-
-# Only lowercase identifiers are candidate tokens, so regex quantifiers survive
-# untouched: `{0,300}` and `{3}` are not matched here. That is why this engine
-# never uses `str.format` — a `by` regex is full of braces that mean quantifier.
-_TOKEN_RE = re.compile(r"\{([a-z_]+)\}")
-
-_PRUNE_DIRS = {
-    ".git", "node_modules", "__pycache__", ".venv", "venv", ".next",
-    "dist", "build", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox",
-}
-
-SEVERITIES = ("S1", "S2", "S3", "S4")
-BLOCKING = ("S1", "S2")
-
-
-class ConfigError(Exception):
-    """Anything that makes the contract unevaluable. Always exit 2."""
-
-
-# ---------------------------------------------------------------------------
-# Error shape — docs/rules/error-message-standard.rule.md
-# ---------------------------------------------------------------------------
-
-
-def _emit_error(why: str, where: str, fix: str, override: str = "none") -> None:
-    print(f"❌ {why} at {where}", file=sys.stderr)
-    print(f"   FIX: {fix}", file=sys.stderr)
-    print(f"   OVERRIDE: {override}", file=sys.stderr)
-
-
-# ---------------------------------------------------------------------------
-# Glob expansion
-# ---------------------------------------------------------------------------
-
-
-def _glob_to_regex(pattern: str) -> re.Pattern[str]:
-    """Translate a POSIX-ish glob to a regex.
-
-    Only `*`, `**` and `?` are metacharacters; everything else — crucially
-    `(`, `)`, `[`, `]` — is escaped and matched literally. Python's own
-    `Path.glob` treats `[seq]` as a character class, which would silently
-    mangle real paths such as Next.js route groups (`app/(ops)/...`) or any
-    path containing a bracket. `*` does not cross `/`; `**` does.
-    """
-    out: list[str] = []
-    i, n = 0, len(pattern)
-    while i < n:
-        char = pattern[i]
-        if char == "*":
-            if pattern.startswith("**", i):
-                i += 2
-                if pattern.startswith("/", i):
-                    # `a/**/b` must also match `a/b` — the zero-directory case.
-                    out.append("(?:.*/)?")
-                    i += 1
-                else:
-                    out.append(".*")
-            else:
-                out.append("[^/]*")
-                i += 1
-        elif char == "?":
-            out.append("[^/]")
-            i += 1
-        else:
-            out.append(re.escape(char))
-            i += 1
-    return re.compile("^" + "".join(out) + "$")
-
-
-def _walk_root(pattern: str) -> str:
-    """Longest literal directory prefix of `pattern`, so we never walk the repo."""
-    positions = [p for p in (pattern.find("*"), pattern.find("?")) if p != -1]
-    if not positions:
-        return pattern
-    head = pattern[: min(positions)]
-    slash = head.rfind("/")
-    return head[:slash] if slash != -1 else ""
-
-
-def expand_glob(root: Path, pattern: str) -> list[str]:
-    """Return root-relative POSIX paths matching `pattern`, sorted."""
-    if "*" not in pattern and "?" not in pattern:
-        # Literal path: no globbing at all. This is what keeps `(ops)` and any
-        # bracketed directory working, and it is also the fast path.
-        return [pattern] if (root / pattern).is_file() else []
-
-    base = root / _walk_root(pattern)
-    if not base.is_dir():
-        return []
-    rx = _glob_to_regex(pattern)
-    found: list[str] = []
-    for dirpath, dirnames, filenames in os.walk(base):
-        dirnames[:] = [d for d in dirnames if d not in _PRUNE_DIRS]
-        rel_dir = Path(dirpath).relative_to(root).as_posix()
-        prefix = "" if rel_dir == "." else rel_dir + "/"
-        for fname in filenames:
-            rel = prefix + fname
-            if rx.match(rel):
-                found.append(rel)
-    return sorted(found)
 
 
 # ---------------------------------------------------------------------------
@@ -365,45 +288,6 @@ class Item:
         return out
 
 
-def used_tokens(pattern: str) -> list[str]:
-    return list(dict.fromkeys(_TOKEN_RE.findall(pattern)))
-
-
-def interpolate(pattern: str, bindings: dict[str, str]) -> str:
-    """Substitute `{token}`s, `re.escape`ing every value first.
-
-    Escaping is what makes a token incapable of injecting metacharacters: a path
-    containing `.` or `(` can never alter the meaning of the surrounding regex.
-    """
-    def _sub(match: re.Match[str]) -> str:
-        token = match.group(1)
-        if token not in bindings:
-            raise ConfigError(f"unknown or unbound interpolation token {{{token}}}")
-        return re.escape(bindings[token])
-
-    return _TOKEN_RE.sub(_sub, pattern)
-
-
-def compile_flags(spec: str) -> int:
-    flags = re.NOFLAG
-    for char in spec:
-        if char == "i":
-            flags |= re.IGNORECASE
-        elif char == "m":
-            flags |= re.MULTILINE
-        elif char == "s":
-            flags |= re.DOTALL
-        else:
-            # `x` is refused on purpose: verbose mode silently eats the spaces
-            # that carry meaning inside a `by`.
-            raise ConfigError(f"unsupported regex flag {char!r} (allowed: i, m, s)")
-    return flags
-
-
-def line_of(text: str, pos: int) -> int:
-    return text.count("\n", 0, pos) + 1
-
-
 # ---------------------------------------------------------------------------
 # Config loading + validation
 # ---------------------------------------------------------------------------
@@ -559,16 +443,6 @@ class AssertionResult:
     allowed: list[str] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
-
-
-def _allow_matches(pattern: str, item_id: str) -> bool:
-    """Exact match, or prefix match when the pattern ends in `*`.
-
-    No other globbing: an exemption must not be able to quietly widen.
-    """
-    if pattern.endswith("*"):
-        return item_id.startswith(pattern[:-1])
-    return item_id == pattern
 
 
 def build_population(
@@ -773,42 +647,19 @@ def _orphan_registry_entries(
 
 
 def find_consumer_root(start: Path) -> Path:
-    start = start.resolve()
-    for candidate in [start, *start.parents]:
-        if (candidate / ".ai-playbook").is_dir() or (candidate / "wiring.yaml").is_file():
-            return candidate
-    return start
+    return _find_consumer_root(start, CONFIG_NAME)
 
 
 def resolve_config(explicit: str | None) -> Path | None:
-    if explicit:
-        return Path(explicit)
-    candidate = find_consumer_root(Path.cwd()) / "wiring.yaml"
-    return candidate if candidate.is_file() else None
+    return _resolve_config(explicit, CONFIG_NAME)
 
 
 def changed_files(root: Path) -> set[str]:
-    """Staged plus unstaged paths, root-relative POSIX."""
-    out: set[str] = set()
-    for args in (["diff", "--name-only", "--cached"], ["diff", "--name-only"]):
-        try:
-            proc = subprocess.run(
-                ["git", *args], cwd=str(root), capture_output=True, text=True, check=False, timeout=30
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        if proc.returncode == 0:
-            out.update(line.strip() for line in proc.stdout.splitlines() if line.strip())
-    return out
+    return _changed_files(root)
 
 
 def _skipped_ids() -> tuple[bool, set[str]]:
-    raw = os.environ.get(SKIP_ENV, "").strip()
-    if not raw:
-        return False, set()
-    if raw in ("1", "true", "TRUE", "yes"):
-        return True, set()
-    return False, {part.strip() for part in raw.split(",") if part.strip()}
+    return _skip_directive(SKIP_ENV)
 
 
 # ---------------------------------------------------------------------------

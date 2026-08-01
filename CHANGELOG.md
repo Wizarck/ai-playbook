@@ -2,6 +2,56 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.1] — 2026-08-02 — feat: repo-hygiene (code-entropy axes 3 + 5, reporting)
+
+### Added
+- **`repo-hygiene` rule + hardrule — the F2 engine of the code-entropy
+  campaign.** Covers the two remaining DECIDABLE axes: `unused-dependency` (3)
+  and `disk-residue` (5). As with `capability-wiring`, the engine ships once and
+  the holes are per-consumer data in `repo-hygiene.yaml`; adding a detector is
+  YAML, never a code change.
+
+  Both halves were MEASURED against a real tree before a line was written, and
+  both naive detectors failed:
+
+  - **Axis 3.** `declared − imported` produced 16 candidates and **all 16 were
+    false positives**, in five categories: console script (`uvicorn`, `flower`),
+    plugin entry point (`pytest-timeout`), driver chosen by DSN (`psycopg`),
+    feature extra (`email-validator`), and implicit at deserialisation
+    (`scikit-learn`, loaded only when `joblib.load()` reads a vendored
+    pipeline). So "used" is modelled as a **disjunction of declared channels**:
+    an `import` channel (Python `ast` / TS specifier parsing) plus any number of
+    `search` channels over a declared corpus.
+  - **Axis 5.** The artefact's own mtime produced a **permanent false STALE**,
+    because a well-behaved generator leaves unchanged output untouched to avoid
+    churn and preserve caches. So "fresh" is a **declared signal**, pointed at
+    the file the generator rewrites unconditionally, compared against declared
+    inputs with a `grace` window for checkout skew.
+
+  Where `capability-wiring` fails by going falsely GREEN, this one fails by
+  going falsely RED — worse, because a confident wrong finding invites a
+  destructive fix. Hence: **the engine has no delete path**, not even behind a
+  flag, and a test asserts the source contains none. Verdicts are `unused`,
+  `stale`, `committable`, `tracked` — never `deletable`.
+
+  Two guards against self-inflicted false greens: a `search` `by` with no
+  interpolation token is a config error (it would evaluate identically for every
+  declaration and mark a whole manifest used), and imports record every dotted
+  prefix so that importing one member of a namespace family
+  (`opentelemetry.instrumentation.celery`) does not prove its siblings used.
+
+  56 tests, whose two load-bearing cases are negative controls reproducing both
+  measurements.
+
+### Changed
+- **`scripts/rules/_rule_kit.py`** — the glob expansion, `{token}`
+  interpolation, `allow` semantics, break-glass parsing and error shape shared
+  by the two manifest-driven rules now live in one module instead of being
+  copied into the second engine. Behaviour-identical: the 69 `capability-wiring`
+  tests pass unchanged. Each rule keeps its own `Finding` dataclass — their
+  fields and rendered lines differ, and merging them would buy a shared name at
+  the cost of a union type nobody can read.
+
 ## [0.22.0] — 2026-08-01 — feat: capability-wiring (code-entropy axis 4, enforced)
 
 ### Added
