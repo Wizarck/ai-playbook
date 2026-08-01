@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-08-01T16:58:16.063332+00:00",
+  "generated_at": "2026-08-01T23:02:50.001701+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -856,6 +856,23 @@ window.RULES_INVENTORY = {
       "triggers": [],
       "description": "Consumer repo must be registered in the developer's local playbook registry at ~/.ai-playbook/projects.yaml so dispatchers resolve via path lookup.",
       "doc_path": "docs/rules/registry-entry.rule.md"
+    },
+    {
+      "slug": "repo-hygiene",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/repo-hygiene.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [],
+      "description": "Every dependency declared in a manifest covered by a `repo-hygiene.yaml` check MUST be provable as used by at least one declared channel, and every declared generated artefact MUST be git-ignored and fresh against its declared signal — the L1 hardrule parses each manifest into a population, proves each declaration through the consumer's declared usage channels, compares each artefact's freshness signal against its inputs, and reports; it never deletes anything.",
+      "doc_path": "docs/rules/repo-hygiene.rule.md"
     },
     {
       "slug": "secrets-handling",
