@@ -2,6 +2,31 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.20.1] — 2026-08-01 — feat: stacked-pr-guard (pre-merge dependent check)
+
+### Added
+- **Rule `stacked-pr-guard`** — enforced, with paired hardrule. A PR whose head
+  branch is the base of another open PR has dependents; merging it orphans
+  them. GitHub closes a PR whose base branch is deleted, and that close is
+  **terminal**: `gh pr reopen` answers *"Could not open the pull request"* and
+  `gh pr edit --base` answers *"Cannot change the base branch of a closed pull
+  request"*. The commits survive on the head branch; the PR does not, and must
+  be replaced — losing its review thread, CI history, and approvals.
+
+  Born from this repo: #145 was stacked on #144, #144 merged with
+  `--delete-branch`, #145 closed with no path back, and the work had to be
+  reopened as #146.
+
+  `validate --pr <n>` exits 0 (no dependents), 1 (dependents found — the error
+  names each one and the exact `gh pr edit … --base <base>` command to retarget
+  it), or **2** when it could not determine the answer. That third code is the
+  point: a guard that reports "all clear" because `gh` was missing or
+  unauthenticated is worse than no guard. 11 tests. Break-glass
+  `AIPLAYBOOK_STACKED_PR_GUARD_SKIP`.
+
+  On-demand rather than hook-fired — there is no pre-merge git hook to attach
+  to, which is the same shape `auto-merge-discipline` already uses.
+
 ## [0.20.0] — 2026-08-01 — feat: code-entropy taxonomy + sweep contracts (F0, spec-only)
 
 Phase 0 of the code-entropy work: taxonomy and contracts, no detector yet. Ships
