@@ -115,6 +115,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [bare-layout](docs/rules/bare-layout.rule.md)
 - [bootstrap-directive](docs/rules/bootstrap-directive.rule.md)
 - [break-glass](docs/rules/break-glass.rule.md)
+- [capability-wiring](docs/rules/capability-wiring.rule.md)
 - [claude-settings](docs/rules/claude-settings.rule.md)
 - [cleanup-on-bump](docs/rules/cleanup-on-bump.rule.md)
 - [cleanup-zombies](docs/rules/cleanup-zombies.rule.md)
