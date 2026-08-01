@@ -2,6 +2,59 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.0] — 2026-08-01 — feat: capability-wiring (code-entropy axis 4, enforced)
+
+### Added
+- **`capability-wiring` rule + hardrule — the F1 engine of the code-entropy
+  campaign.** Detects a capability that was BUILT but never WIRED into the
+  registry that makes it reachable: code that exists, imports cleanly,
+  type-checks, passes its own tests, and is dead.
+
+  The generalisation the engine encodes is that every assertion of this class is
+  the same sentence with different holes — *"every &lt;file-or-symbol matching X&gt;
+  must be referenced in &lt;registry Z&gt; by &lt;pattern Y&gt;"*. The engine ships once;
+  the holes are per-consumer data in `wiring.yaml`. Adding a detector is six
+  lines of YAML, never a code change.
+
+  Static by construction — glob + Python `ast` + regex, no import, no venv, no
+  broker, no database — because an unwired capability is frequently one that
+  cannot be imported in isolation. It runs identically in pre-commit, in CI and
+  in an agent self-check.
+
+  Acceptance gate: the engine reproduces geeplo `47717de3`, where
+  `emit_liveness_heartbeat` was imported AND present in `beat_schedule` but
+  absent from `task_routes`. Run against that commit's parent it exits 1 naming
+  the task; run against the fix it exits 0. A negative-control test asserts that
+  the naive bare-name regex **passes** on the buggy tree — which is exactly why
+  the anchored `by` is mandatory.
+
+  Measured against the real geeplo tree, the six assertions in
+  `specs/wiring-assertions.example.yaml` reproduce their documented counts
+  exactly: 251 items across 6 registries, 2 live S3 findings.
+
+- `specs/wiring-assertions.schema.yaml` gains its executor; `check`, `explain`
+  and `validate` subcommands, `--json`, `--changed-only`, `--assertion`.
+  `explain` is the **authoring gate**: it prints the interpolated regex and the
+  real registry line it matched, per item. A `by` merged without that proof is
+  unreviewable — a regex that works and one that matches nothing forever both
+  read as a green run.
+- `capability-wiring` pre-commit hook in the consumer template. A no-op until
+  the project declares a `wiring.yaml`.
+
+### Changed
+- `--changed-only` narrows the **population** to the staged set but always reads
+  every registry in full. The asymmetry is the point: the bug class is
+  "capability changed, registry untouched", so narrowing the registries too
+  would skip precisely the commit that introduces it.
+- Findings print to stdout uniformly (one greppable line each); only the
+  diagnostic block goes to stderr, and it names the blocking items so a log that
+  captured stderr alone stays actionable.
+
+### Fixed
+- `zombie-report.md` — the per-run report `cleanup-zombies.rule.py` writes into
+  the consumer tree — is gitignored. When the playbook dogfoods on itself the
+  consumer tree IS this repo, so the report was landing as untracked residue.
+
 ## [0.21.0] — 2026-08-01 — feat: rules-gate (one always-on, requireable CI gate)
 
 ### Changed
