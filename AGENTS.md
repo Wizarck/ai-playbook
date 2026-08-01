@@ -144,6 +144,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [registry-entry](docs/rules/registry-entry.rule.md)
 - [secrets-handling](docs/rules/secrets-handling.rule.md)
 - [skills-sync](docs/rules/skills-sync.rule.md)
+- [stacked-pr-guard](docs/rules/stacked-pr-guard.rule.md)
 - [subagent-envelope-schema](docs/rules/subagent-envelope-schema.rule.md)
 - [update-documentation](docs/rules/update-documentation.rule.md)
 - [update-playbook](docs/rules/update-playbook.rule.md)

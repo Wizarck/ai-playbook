@@ -1,6 +1,6 @@
 {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-07-13T02:04:07.070824+00:00",
+  "generated_at": "2026-08-01T12:21:38.633098+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -890,6 +890,23 @@
       "triggers": [],
       "description": "Before the first task commit on `slice/<change-id>`, the worker MUST run the openspec preflight checklist — `openspec_validate.py`, `validate_pairing.py`, marker `start` record, slot-reservation lookup, anti-collision contract read — and confirm exit 0 for each.",
       "doc_path": "docs/rules/slice-preflight.rule.md"
+    },
+    {
+      "slug": "stacked-pr-guard",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/stacked-pr-guard.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": "AIPLAYBOOK_STACKED_PR_GUARD_SKIP",
+      "triggers": [],
+      "description": "A PR that is the base of another open PR MUST have its dependents retargeted onto its own base before it is merged; merging first orphans them, and GitHub closes a PR whose base branch is deleted with no path to reopen or retarget it.",
+      "doc_path": "docs/rules/stacked-pr-guard.rule.md"
     },
     {
       "slug": "subagent-envelope-schema",
