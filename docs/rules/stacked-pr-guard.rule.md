@@ -3,7 +3,7 @@ schema: rule/v1
 slug: stacked-pr-guard
 description: A PR that is the base of another open PR MUST have its dependents retargeted onto its own base before it is merged; merging first orphans them, and GitHub closes a PR whose base branch is deleted with no path to reopen or retarget it.
 paired_hardrule: scripts/rules/stacked-pr-guard.rule.py
-activation: on-demand
+activation: agent
 status: enforced
 applies_to: all
 break_glass:
