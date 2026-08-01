@@ -2,6 +2,38 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.21.0] — 2026-08-01 — feat: rules-gate (one always-on, requireable CI gate)
+
+### Changed
+- **Five paths-filtered rule workflows consolidated into one always-on job.**
+  `check-link-integrity`, `check-doc-language`, `check-agents-md-size`,
+  `validate-pairing` and `check-rule-schemas` each carried its own `paths:`
+  filter, which made every one of them **unrequireable**: a required status
+  check whose workflow is paths-filtered never reports on a PR that misses the
+  filter, and GitHub then blocks that PR forever waiting for a check that will
+  not arrive. The consequence was that the branch ruleset could require none of
+  them, and pytest was the only enforced gate.
+
+  `rules-gate.rule.yml` runs all eight checks on every PR as steps of a single
+  job. One job rather than five plus an aggregator: the job name IS the stable
+  required context, so there is no aggregation logic to get wrong and no second
+  place where a renamed job silently drops out of the gate. Every step carries
+  `if: ${{ !cancelled() }}`, so one failure still reports the rest — a gate that
+  stops at the first error costs a full round trip per finding.
+
+  Verified check-for-check: 8 commands in the five old workflows, 8 in the new
+  gate, none lost.
+
+  Cost: ~40s on one hosted runner per PR, against 15–21s each for the five it
+  replaces. On a PR touching docs and rules it is roughly a wash.
+- `rule-use-cases-matrix` L3 column now reads `rules-gate (shared)` for the 38
+  rules that rode the old shared workflow.
+
+### Notes
+- The branch ruleset gains `rules-gate` as a required status check alongside
+  `pytest (3.11)` and `pytest (3.12)`. That is the point of the change: five
+  quality gates that existed but could never be enforced now can be.
+
 ## [0.20.1] — 2026-08-01 — feat: stacked-pr-guard (pre-merge dependent check)
 
 ### Added
