@@ -16,7 +16,9 @@ test ever goes green with a loose `by`, this rule has become decoration.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import sys
 import textwrap
@@ -549,9 +551,6 @@ def test_orphan_direction_both_catches_a_stale_registry_entry(repo: Path, capsys
 
 
 def _json_of(repo: Path, entry: dict) -> dict:
-    import io
-    import contextlib
-
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         wiring.main(["check", "--config", str(make_config(repo, entry)), "--json"])
@@ -572,7 +571,7 @@ def test_doc_and_hardrule_agree_on_the_cli_surface() -> None:
 def test_schema_spec_and_engine_agree_on_the_token_set() -> None:
     spec = (REPO_ROOT / "specs" / "wiring-assertions.schema.yaml").read_text(encoding="utf-8")
     for token in wiring.TOKENS:
-        assert "{%s}" % token in spec, f"token {token!r} is implemented but not in the schema"
+        assert f"{{{token}}}" in spec, f"token {token!r} is implemented but not in the schema"
 
 
 def test_schema_spec_and_engine_agree_on_the_symbol_kinds() -> None:
