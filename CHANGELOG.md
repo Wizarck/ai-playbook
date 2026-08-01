@@ -31,11 +31,21 @@ it wrong costs an edit rather than a rewrite.
   `unwired-capability`. Registries are project-specific but the assertion is not:
   every case is *every artefact matching X is referenced in Z by pattern Y*. The
   playbook ships the engine, the consumer ships its own `wiring.yaml`.
-- **`schemas/schema-sweep-manifest-v1.json`** — the findings ledger. Tiers are
-  inherited from `zombies-manifest` so the existing executor consumes it
-  unchanged. Findings carry typed evidence (a finding without evidence is
-  schema-invalid), and adjudication may downgrade a deterministic finding only
-  with a recorded rationale.
+- **`schemas/schema-sweep-manifest-v1.json`** — the findings ledger. Tier,
+  action and safety enums are exactly the `cleanup-zombies` executor's, and the
+  tier×action and tier×safety matrices are reproduced as conditional blocks, so
+  a ledger row projects onto an executor entry with one field lift
+  (`adjudication.tier` → `tier`) and no translation. The authoritative tier sits
+  under `adjudication` on purpose: authority travels with its attribution rather
+  than existing twice.
+  Enforced structurally: evidence is mandatory (a finding without it, or with
+  zero locations, is schema-invalid), and adjudication cannot erase a finding —
+  there is no `delete` decision, the weakest outcome is `dismiss`, which keeps
+  the row, is pinned to Tier 3 and demands a rationale. An LLM may not escalate
+  into Tier 1; delete authority is reserved for `human`. For `disk-residue`,
+  regeneration cost and value are separate dimensions, so `expensive` or
+  `irreproducible` can never be `DELETABLE` and a cheap-but-valuable artefact
+  lands on `STALE` with a rebuild command.
 - **`enforcement-status` row** for `code-entropy` at 📋 spec-only, with the
   per-axis landing targets and the triggers that flip it 🟡 and ✅.
 
