@@ -47,6 +47,8 @@ After editing the manifest or the script, run `python .ai-playbook/scripts/rules
 
 Tier × action × safety triples are validated against the matrix in the script. A safety failure downgrades a Tier 1 / 2 entry to Tier 3 advisory.
 
+**Tier governs mutation; safety governs detection.** The two were coupled 1:1 until v0.19.29, which forced any entry wanting real detection to also claim auto-delete rights — that is how `auto-managed-orphan-blocks` shipped as Tier 1. A Tier 3 entry MAY now carry a detection safety (`auto_managed_orphan`) so its advisory can name specific findings; `_process_entry` enforces the no-mutation half structurally, returning before the action dispatch for every Tier 3 entry regardless of the safety outcome or `--apply`. Before that guard existed the Tier 3 guarantee held only by accident, because `report_only` always failed its safety and short-circuited earlier.
+
 ## Channels (3-channel report)
 
 When any non-empty run occurs the script writes:
@@ -76,7 +78,7 @@ When any non-empty run occurs the script writes:
 
 - [break-glass](break-glass.rule.md) — `AIPLAYBOOK_*` env namespace.
 - [error-message-standard](error-message-standard.rule.md) — `validate` subcommand error shape.
-- [../concepts/auto-managed-sections.md](../concepts/auto-managed-sections.md) — orphan-block detection delegated to by safety `auto_managed_orphan`.
+- [../concepts/auto-managed-sections.md](../concepts/auto-managed-sections.md) — the marker contract. Safety `auto_managed_orphan` MUST parse via `scripts/auto_managed.find_sections` (full trimmed lines, fenced code skipped, raises on nested/unterminated markers) and MUST NOT re-implement it: a second parser that disagreed with the canonical one is what let documentation *about* the markers be read as live blocks and deleted to EOF. A block is an orphan only when its namespace has a known owner that is demonstrably absent — `specs/*` resolved through `compute_expected`, `caveman/*` and `ponytail/*` through their toggle state files. An unrecognised namespace is never an orphan.
 - [../concepts/enforcement-status.md](../concepts/enforcement-status.md) — wiring status row.
 - [../concepts/memory-hierarchy.md](../concepts/memory-hierarchy.md) — hindsight queue rationale for `hindsight-queue-rotation`.
 - [../concepts/dispatcher-chain.md](../concepts/dispatcher-chain.md) — `inherits_from` semantics.

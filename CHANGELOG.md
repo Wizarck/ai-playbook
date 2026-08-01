@@ -2,6 +2,45 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.19.29] — 2026-08-01 — fix: cleanup-zombies stops eating docs that document it
+
+### Fixed
+- **`auto-managed-orphan-blocks` demoted Tier 1 → Tier 3** (report-only). Three
+  subsystems materialise auto-managed blocks — `auto_managed.py` for `specs/*`,
+  plus the caveman and ponytail toggles for their own prefixes — so "this block
+  has no owner" is a judgement across three state files, not a safe basis for
+  auto-deletion. Detected in geeplo, where the entry destroyed **623 lines
+  across 7 files** of the playbook's own tree, truncating several mid-sentence
+  and removing a `verdict-contract` FOOTER (an instructional-defense control).
+- **Safety `auto_managed_orphan` now delegates to `auto_managed.find_sections`**
+  instead of re-implementing the parser. The hand-rolled version matched BEGIN
+  markers with `re.search` (so prose *documenting* the syntax parsed as a live
+  block), never reset its skip state when no END followed (so it deleted from
+  the false BEGIN to end of file), and resolved `<source>` against the consumer
+  root (so every live `caveman/*` and `ponytail/*` block read as an orphan).
+  The canonical parser anchors on full trimmed lines, skips fenced code blocks,
+  and raises on nested/unterminated markers — "cannot parse" now means "report
+  nothing", never "delete the rest of the file".
+- **Orphan classification is namespace-aware.** `specs/*` resolves through
+  `compute_expected`; `caveman/*` and `ponytail/*` through their toggle state
+  files; an unrecognised namespace is never an orphan.
+- **`**/*.md` no longer walks the playbook submodule.** A glob from the consumer
+  root reached into `.ai-playbook/`, i.e. this repo's own documentation. All
+  observed damage was confined there.
+- **Tier 3's no-mutation guarantee is now structural.** `_process_entry` returns
+  before the action dispatch for every Tier 3 entry regardless of safety outcome
+  or `--apply`. Previously the documented guarantee held only by accident,
+  because `report_only` always failed its safety and short-circuited earlier; a
+  Tier 3 entry with a passing safety would have mutated.
+
+### Changed
+- **Tier and safety decoupled in `TIER_SAFETY_MATRIX`.** Tier governs mutation,
+  safety governs detection. The 1:1 coupling forced any entry wanting real
+  detection to also claim auto-delete rights — the root cause of the incident
+  above. Tier 3 may now carry `auto_managed_orphan` so its advisory names
+  specific findings.
+- `manifest_version` → `2026-08-01.1`.
+
 ## [0.19.28] — 2026-07-13 — feat: anti-drift gates (lint-parity-precommit + migrate-seed-smoke)
 
 ### Added
