@@ -1,0 +1,437 @@
+# repo-hygiene.schema.yaml — contract for a consumer's `repo-hygiene.yaml`
+#
+# Shipped with the ai-playbook submodule and consumed by
+# `scripts/rules/repo-hygiene.rule.py` at pre-commit (L1) and on PR (L3).
+#
+# WHAT THIS DETECTS — code-entropy axes 3 and 5
+#   axis 3 `unused-dependency` — a package declared in a manifest that nothing
+#          in the tree actually uses. It inflates the image, widens the CVE
+#          surface, and slows every install.
+#   axis 5 `disk-residue`      — a generated artefact that is STALE (consulted
+#          with confidence while describing a tree that no longer exists) or
+#          COMMITTABLE (untracked and unignored, so the next `git add -A`
+#          commits it).
+#
+# WHY THE OBVIOUS DETECTOR IS THE WRONG ONE
+# Both axes were MEASURED against geeplo before this contract was designed, and
+# both naive detectors failed:
+#
+#   axis 3: `declared − imported` produced 16 candidates. All 16 were FALSE
+#           POSITIVES — five distinct legitimate reasons a package is used
+#           without ever being imported by name (see `channels` below). Acting
+#           on that output would have deleted `scikit-learn`, which no line of
+#           the repo imports: it loads when `joblib.load()` deserialises the
+#           vendored pipeline in the piracy detector. The break would surface
+#           only when that code path runs, as an ImportError buried inside
+#           joblib.
+#
+#   axis 5: the artefact's own mtime produced a PERMANENT FALSE STALE.
+#           `graphify update .` re-reads 3810 files, finds no topology change,
+#           and deliberately leaves `graph.json` untouched to avoid churn and
+#           preserve caches. Only `manifest.json` moves. An mtime check on the
+#           payload would have shouted STALE forever at a perfectly fresh graph.
+#
+# The lesson both times: the surface signal is wrong and the real one is a level
+# below. That is why `channels` and `freshness.signal` are DATA — a consumer
+# declares how usage and freshness are really provable in ITS tree, and the
+# engine ships once.
+#
+# THIS RULE NEVER DELETES ANYTHING.
+# There is no delete path in the engine, not even behind a flag. The verdict
+# vocabulary is `UNUSED`, `STALE`, `COMMITTABLE`, `TRACKED` — deliberately never
+# `DELETABLE`. The ledger is the deliverable; a human decides. Precedent:
+# `cleanup-zombies` v0.19.29 shipped a Tier-1 auto-delete and destroyed 623
+# lines of live code.
+#
+# NOT WHAT THIS DETECTS
+#   - A capability built but never wired (that is `capability-wiring.rule.md`).
+#   - Orphan files / dead symbols. Those need judgement, not facts, and are the
+#     `sweep` skill's job — see docs/concepts/code-entropy.md on decidability.
+#   - Fossils from past playbook versions (that is `cleanup-zombies.rule.md`).
+#   - Playbook-managed `.gitignore` entries (that is `gitignore-entries.rule.md`).
+
+schema: ai-playbook/repo-hygiene/v1
+
+# Semver of THIS schema. The engine REFUSES to run a consumer file whose MAJOR
+# exceeds the MAJOR it was built against, and exits 2 rather than silently
+# mis-evaluating. An unparseable contract must never read as "zero findings".
+schema_version: "1.0.0"
+
+# ---------------------------------------------------------------------------
+# Top-level shape of a consumer `repo-hygiene.yaml`
+# ---------------------------------------------------------------------------
+top_level:
+
+  # Literal discriminator, so a YAML file that is not a hygiene contract is
+  # rejected rather than half-read. If wrong: exit 2.
+  schema:
+    type: string
+    required: true
+    const: ai-playbook/repo-hygiene/v1
+
+  # The consumer's own version of ITS checks, same format, independent value.
+  # Bump MINOR when adding a check, MAJOR when deleting or re-scoping one.
+  schema_version:
+    type: string
+    required: true
+    pattern: '^\d+\.\d+\.\d+$'
+
+  # Base directory every path and glob resolves against, relative to the repo
+  # root. If it does not exist: exit 2 — every glob would match nothing and
+  # every check would trivially pass.
+  root:
+    type: string
+    required: false
+    default: "."
+
+  # Values merged into every `dependencies` / `artifacts` entry that does not
+  # set the key itself. Only `severity` and `status` may be defaulted;
+  # defaulting anything that carries meaning (`manifest`, `channels`, `path`,
+  # `freshness`) is refused (exit 2) because a silent global is unreviewable.
+  defaults:
+    type: mapping
+    required: false
+    default: {}
+
+  # Axis 3 checks. Optional — a consumer may adopt one axis at a time — but the
+  # file MUST declare at least one entry across `dependencies` + `artifacts`.
+  # An empty contract is exit 2, not a pass: a consumer that wired the engine
+  # and declared nothing has a broken adoption, not a clean repo.
+  dependencies:
+    type: list<dependency_check>
+    required: false
+    default: []
+
+  # Axis 5 checks. Same optionality, same combined non-empty requirement.
+  artifacts:
+    type: list<artifact_check>
+    required: false
+    default: []
+
+# ---------------------------------------------------------------------------
+# Axis 3 — `unused-dependency`
+# ---------------------------------------------------------------------------
+dependency_check:
+
+  # Stable kebab-case handle. Appears in every finding line and in break-glass
+  # env values. Unique across BOTH lists. If wrong: exit 2.
+  id:
+    type: string
+    required: true
+    pattern: '^[a-z][a-z0-9-]{2,63}$'
+
+  # One sentence naming the invariant AND the consequence. Reviewers read this,
+  # not the channel regexes.
+  description:
+    type: string
+    required: true
+
+  # The manifest whose declarations form the POPULATION. If it does not exist:
+  # exit 2. If it parses to zero declarations: exit 2 (`0 declarations — dead
+  # check`), because a check that inspects nothing reports green forever.
+  manifest:
+    type: string
+    required: true
+
+  # How to parse `manifest`.
+  #   requirements-txt — one requirement per line; `#` comments, `-r`/`-c`/`-e`
+  #                      lines and environment markers stripped; extras
+  #                      (`pkg[extra]`) reduced to `pkg`.
+  #   package-json     — the `sections` listed below.
+  #   pyproject        — `[project] dependencies` + `[project.optional-dependencies]`.
+  # If wrong: exit 2 on an unknown format.
+  format:
+    type: enum
+    required: true
+    allowed: [requirements-txt, package-json, pyproject]
+
+  # `package-json` / `pyproject` only: which sections contribute to the
+  # population. Defaults to runtime dependencies alone, because a dev tool is
+  # legitimately invoked by name from a script rather than imported.
+  sections:
+    type: list<string>
+    required: false
+    default: [dependencies]
+
+  # DISTRIBUTION NAME -> IMPORT NAME(S). The mapping is arbitrary and cannot be
+  # derived: `markdown-it-py` imports as `markdown_it`, `beautifulsoup4` as
+  # `bs4`, `python-jose` as `jose`. Before consulting this table the engine
+  # already tries `dist`, `dist` with `-`->`_`, and `dist` with `-` removed, so
+  # only genuinely irregular names need an entry.
+  # If INCOMPLETE: false positives — the failure mode that makes a hygiene rule
+  # get disabled wholesale. Prefer an alias over an `allow` entry: an alias says
+  # "this IS used, under another name", `allow` says "this is unused and that is
+  # correct". They audit differently.
+  aliases:
+    type: mapping<string, list<string>>
+    required: false
+    default: {}
+
+  # THE PROOF, and the heart of this check. A dependency counts as USED when ANY
+  # channel proves it. The list exists because "imported by name" is only one of
+  # the ways a package is legitimately used; the geeplo measurement found five
+  # more, and every one of them was a false positive under the naive detector:
+  #   - console script      -> `uvicorn` in a Dockerfile CMD, `flower` in compose
+  #   - plugin entry point  -> `pytest-timeout`, `opentelemetry-instrumentation-*`
+  #   - driver chosen by DSN-> `psycopg` behind `postgresql+psycopg://`
+  #   - feature extra       -> `email-validator` via pydantic's `EmailStr`
+  #   - implicit at load    -> `scikit-learn` via `joblib.load()`
+  # The first four are provable by a `search` channel over the right corpus. The
+  # fifth is not provable statically at all and belongs in `allow`, with the
+  # deserialisation site named.
+  # MUST be non-empty: a check with no channels marks every dependency unused.
+  channels:
+    type: list<channel>
+    required: true
+    min_items: 1
+
+  # Reviewed exceptions. Each entry asserts "this dependency is genuinely not
+  # provable statically, and that is correct". NOT a backlog.
+  # If a `match` matches no declaration: exit 2 (`stale allow entry`) — a
+  # rotting exception must break the build, or the contract drifts into fiction.
+  allow:
+    type: list<allow_entry>
+    required: false
+    default: []
+
+  # See `severity` / `status` under `shared_fields`.
+  severity: {ref: shared_fields.severity}
+  status: {ref: shared_fields.status}
+  evidence: {ref: shared_fields.evidence}
+
+channel:
+
+  # Kebab-case handle, unique within the check. Named in `explain` output so a
+  # reader can see WHICH channel proved a given dependency.
+  id:
+    type: string
+    required: true
+    pattern: '^[a-z][a-z0-9-]{2,63}$'
+
+  # How this channel proves use.
+  #   import — parse the corpus and collect imported module names. Python via
+  #            `ast` (top-level module of `import x.y` and `from x.y import z`);
+  #            TS/JS via the specifier of `import`/`require`/dynamic `import()`,
+  #            reduced to its package name (`@scope/pkg` keeps both segments).
+  #            Accurate where a regex is not: a name inside a comment or a
+  #            docstring does not count as an import.
+  #   search — the `by` regex, interpolated per candidate name, searched against
+  #            the full text of each corpus file. This is how a console script,
+  #            a DSN, or a plugin declaration is proved.
+  kind:
+    type: enum
+    required: true
+    allowed: [import, search]
+
+  # `import` only. Selects the parser. If wrong: the file is parsed by the wrong
+  # grammar and contributes zero imports — silently widening the unused set.
+  language:
+    type: enum
+    required: false
+    default: python
+    allowed: [python, typescript]
+
+  # The files this channel reads. A string or a list of strings; globs per
+  # `capability-wiring`'s grammar (`*` does not cross `/`, `**` does, brackets
+  # are literal). If it resolves to ZERO files: exit 2 (`channel '<id>' matched
+  # 0 files`). A channel that reads nothing proves nothing, and would quietly
+  # push every dependency toward `unused`.
+  corpus:
+    type: string | list<string>
+    required: true
+
+  # `search` only. Regex searched against each corpus file. Interpolation
+  # tokens are `re.escape`d before substitution, so a package name containing
+  # `.` or `-` can never alter the regex's meaning.
+  #   {dist}   — the distribution name exactly as declared in the manifest
+  #   {module} — one import-name candidate; the channel matches if ANY candidate
+  #              does, so `{module}` is searched once per candidate
+  # Anchor it. A bare `{dist}` matches the package name inside an unrelated
+  # comment or a lockfile hash and reports a permanent false green — the same
+  # false-green failure that `capability-wiring`'s `by` guards against.
+  # Every `search` channel MUST be validated with `explain <id>` before merge,
+  # and the matched line quoted in a `# verified against:` comment beside it.
+  by:
+    type: regex
+    required: false   # required when kind == search; exit 2 if absent there
+
+  # Regex flags for `by`; subset `ims`, default `m`. `x` is refused — verbose
+  # mode silently eats the spaces that carry meaning.
+  flags:
+    type: string
+    required: false
+    default: "m"
+    allowed: "ims"
+
+# ---------------------------------------------------------------------------
+# Axis 5 — `disk-residue`
+# ---------------------------------------------------------------------------
+artifact_check:
+
+  id: {ref: dependency_check.id}
+  description: {ref: dependency_check.description}
+
+  # The generated artefact: a file or a directory, relative to `root`.
+  # If it DOES NOT EXIST the check is skipped entirely, with a note. A fresh
+  # clone has not built its artefacts yet, and that is not a hygiene problem.
+  path:
+    type: string
+    required: true
+
+  # Assert the artefact is excluded from version control (`git check-ignore`).
+  # Two distinct findings, because the remedies differ:
+  #   COMMITTABLE — exists, untracked, NOT ignored. The next `git add -A`
+  #                 commits it. This is the footgun: geeplo's `graph.json` is
+  #                 ~762k lines and churns on every change.
+  #   TRACKED     — already in the index. Ignoring it now changes nothing; it
+  #                 has to be `git rm --cached`ed first.
+  # If wrong (`true` on an artefact that is deliberately committed): a
+  # permanent finding that trains readers to ignore this rule.
+  must_be_ignored:
+    type: boolean
+    required: false
+    default: true
+
+  # Staleness. Omit when the artefact has no meaningful freshness (a log dir).
+  freshness:
+    type: mapping
+    required: false
+
+  # THE FRESHNESS SIGNAL — the file whose mtime means "the generator ran".
+  # This is NOT necessarily the payload. Point it at the file the tool rewrites
+  # unconditionally (a manifest, a stamp, a lockfile), never at one the tool
+  # skips rewriting when nothing changed. Getting this wrong is the measured
+  # failure: graphify leaves `graph.json` untouched on a no-op run, so a signal
+  # of `graph.json` reports STALE forever.
+  # If the artefact exists but the signal file does not: finding
+  # `signal-missing`. The artefact is there and its freshness is UNKNOWABLE,
+  # which is worse than absent — a stale map is consulted with confidence.
+  freshness.signal:
+    type: string
+    required: true   # within `freshness`
+
+  # The inputs whose mtime means "the world moved". Globs. If the newest input
+  # is newer than the signal (beyond `grace`), the artefact is STALE.
+  # If it resolves to zero files: exit 2.
+  freshness.inputs:
+    type: list<string>
+    required: true   # within `freshness`
+
+  # Seconds of tolerance, absorbing checkout order and clock skew — a `git
+  # checkout` stamps every touched file with the current time, which would
+  # otherwise show as staleness on every branch switch. Default 0.
+  freshness.grace:
+    type: integer
+    required: false
+    default: 0
+    minimum: 0
+
+  allow: {ref: dependency_check.allow}
+  severity: {ref: shared_fields.severity}
+  status: {ref: shared_fields.status}
+  evidence: {ref: shared_fields.evidence}
+
+# ---------------------------------------------------------------------------
+# Shared fields
+# ---------------------------------------------------------------------------
+shared_fields:
+
+  # Per docs/rules/verdict-contract.rule.md §Severity levels. S1/S2 block; S3/S4
+  # print and are batched. `S0` is retro-only and REJECTED here (exit 2).
+  # Calibrate on the CONSEQUENCE, not the size of the fix. An unused dependency
+  # that ships a native CVE surface into the runtime image is not the same as an
+  # unused dev formatter, and a stale graph that agents navigate by is not the
+  # same as a stale coverage report. S1 inflation gets the whole gate disabled.
+  severity:
+    type: enum
+    required: true
+    allowed: [S1, S2, S3, S4]
+
+  # `enforced` — findings count toward the exit code per `severity`.
+  # `advisory` — findings print and NEVER affect the exit code. The correct
+  #              landing state for a new check. Pair every `advisory` with a row
+  #              in the consumer's deferred-items ledger, or it is decoration.
+  status:
+    type: enum
+    required: false
+    default: enforced
+    allowed: [enforced, advisory]
+
+  # Provenance: the commit, PR, ticket or ADR that motivated the check. Cite the
+  # ORIGINAL source (`GH: #N`, `Jira: GPLO-N`, a sha), never an intermediary.
+  evidence:
+    type: string
+    required: false
+
+allow_entry:
+
+  # Exact declaration name (axis 3) or artefact id (axis 5). A trailing `*` is
+  # permitted for a prefix match; no other globbing, so an exemption cannot
+  # quietly widen. `opentelemetry-instrumentation-*` is the motivating case.
+  match:
+    type: string
+    required: true
+
+  # WHY this is correctly exempt. MUST name the mechanism, not the symptom.
+  # "not imported anywhere" is not a reason; "loaded by `joblib.load()` when
+  # deserialising the vendored pipeline in
+  # backend/app/blueprints/datashield/piracy_detector.py" is.
+  reason:
+    type: string
+    required: true
+
+  # Optional ISO-8601 expiry. Past it, the engine emits the finding with
+  # `expired exemption` appended. Use for temporary exceptions; permanent
+  # structural ones omit it.
+  expires:
+    type: string
+    required: false
+    pattern: '^\d{4}-\d{2}-\d{2}$'
+
+  evidence:
+    type: string
+    required: false
+
+# ---------------------------------------------------------------------------
+# Engine semantics
+# ---------------------------------------------------------------------------
+engine:
+
+  # axis 3, per declaration:
+  #   1. candidates = aliases[dist] if present, else [dist, dist-with-_,
+  #      dist-without-separators], all casefolded.
+  #   2. USED if any `import` channel saw a candidate, or any `search` channel
+  #      matched `by` for `{dist}` or for any `{module}` candidate.
+  #   3. otherwise UNUSED, minus `allow`.
+  # axis 5, per artefact:
+  #   1. path absent -> skip with a note.
+  #   2. `must_be_ignored` -> COMMITTABLE / TRACKED via `git check-ignore` and
+  #      `git ls-files`.
+  #   3. `freshness` -> signal absent -> `signal-missing`; else newest input
+  #      mtime > signal mtime + grace -> STALE.
+  evaluation_order: "population -> channels/probes -> allow -> findings"
+
+  # One greppable line each, path or name first so editors linkify it:
+  #   <item>: <severity> [<id>] <verdict> — <detail>
+  finding_format: "<item>: <severity> [<id>] <verdict> — <detail>"
+
+  # 0 — no findings at a blocking severity.
+  # 1 — at least one S1/S2 finding from an `enforced` check.
+  # 2 — CONFIG ERROR: bad schema_version, missing manifest, empty corpus,
+  #     unknown format, stale `allow`, unparseable regex. Distinct from 1 on
+  #     purpose — a broken contract must never be reported as a clean repo.
+  exit_codes: {0: clean, 1: blocking findings, 2: config error}
+
+  # Per docs/rules/break-glass.rule.md:
+  #   AIPLAYBOOK_HYGIENE_SKIP=1        — skip the whole run, exit 0.
+  #   AIPLAYBOOK_HYGIENE_SKIP=<id,...> — skip only the listed check ids.
+  # Both log a WARNING naming what was skipped. Never silent.
+  break_glass:
+    env: AIPLAYBOOK_HYGIENE_SKIP
+
+  # `repo-hygiene.rule.py explain <id>` prints, per item, which channel proved
+  # it and the line that did — or, for an artefact, the signal and input mtimes
+  # it compared. A channel merged without a quoted verified line is
+  # unreviewable: the reader cannot distinguish a regex that works from one that
+  # has matched nothing since the day it landed.
+  authoring_gate: "explain <id> must show the proving channel and line for every used item"

@@ -51,6 +51,17 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # No-op until the project declares a `repo-hygiene.yaml`. `--changed-only`
+      # narrows on the MANIFEST, so the ordinary commit that touches no manifest
+      # pays only the artefact probes (a few stat calls) and skips the corpus
+      # walk entirely.
+      - id: repo-hygiene
+        name: Dependencies are used, artefacts are ignored and fresh (code-entropy axes 3+5)
+        entry: bash -c '[ -f repo-hygiene.yaml ] && python .ai-playbook/scripts/rules/repo-hygiene.rule.py check --changed-only || exit 0'
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: verdict-lint
         name: Lint review/verify verdict shape (verdict-contract.md)
         entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/verdict_lint.py --shape artifact || exit 0'
