@@ -241,6 +241,56 @@ def test_package_json_sections_are_selectable(tmp_path) -> None:
     assert both == ["react", "vitest"]
 
 
+def test_a_namespace_package_is_resolved_without_an_alias(tmp_path) -> None:
+    """`opentelemetry-sdk` ships into `opentelemetry.sdk`. The `-` -> `.` guess
+    resolves the whole family without an alias table to keep in sync."""
+    basic_tree(tmp_path, "opentelemetry-sdk==1.40\n",
+               "from opentelemetry.sdk.trace import TracerProvider\n")
+    assert run_json(make_config(tmp_path, dependencies=[dep_check()]))["checks"][0]["findings"] == []
+
+
+def test_importing_one_namespace_sibling_does_not_prove_the_others(tmp_path, capsys) -> None:
+    """The false green this engine must not produce.
+
+    Four distributions ship into the single `opentelemetry` namespace. Recording
+    only the ROOT module would make importing any one of them prove all four
+    used — and would have hidden the genuinely unwired instrumentor that this
+    check found in geeplo.
+    """
+    basic_tree(
+        tmp_path,
+        "opentelemetry-instrumentation-celery==0.61b0\n"
+        "opentelemetry-instrumentation-sqlalchemy==0.61b0\n",
+        "from opentelemetry.instrumentation.celery import CeleryInstrumentor\n",
+    )
+    run(make_config(tmp_path, dependencies=[dep_check()]))
+    out = capsys.readouterr().out
+    assert "opentelemetry-instrumentation-sqlalchemy" in out
+    assert "opentelemetry-instrumentation-celery" not in out
+
+
+def test_a_lazily_imported_optional_dependency_counts_as_used(tmp_path) -> None:
+    """`import dns.resolver` inside a function is still a use — several of
+    geeplo's feature-gated dependencies are exactly that shape."""
+    basic_tree(tmp_path, "dnspython==2.6\n", """\
+        def check():
+            import dns.resolver  # lazy
+            return dns.resolver
+    """)
+    config = make_config(tmp_path, dependencies=[dep_check(aliases={"dnspython": ["dns"]})])
+    assert run_json(config)["checks"][0]["findings"] == []
+
+
+def test_a_by_with_no_interpolation_token_is_a_config_error(tmp_path) -> None:
+    """A constant `by` evaluates identically for every declaration, so one match
+    would mark the WHOLE manifest used — the false green in its purest form."""
+    basic_tree(tmp_path, "fastapi==0.1\nleftpad==1.0\n")
+    config = make_config(tmp_path, dependencies=[dep_check(channels=[
+        {"id": "flag", "kind": "search", "corpus": "src/**/*.py", "by": "--timeout"},
+    ])])
+    assert run(config) == 2
+
+
 def test_a_tsconfig_path_alias_is_not_a_package(tmp_path) -> None:
     """`@/app/x` is a path alias. Reading it as a scoped package would invent a
     dependency named `@/app` on nearly every file in a Next.js tree."""

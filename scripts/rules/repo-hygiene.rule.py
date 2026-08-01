@@ -172,25 +172,39 @@ def parse_manifest(path: Path, fmt: str, sections: list[str]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _dotted_prefixes(module: str) -> set[str]:
+    """`a.b.c` -> {`a`, `a.b`, `a.b.c`}.
+
+    Namespace packages need every prefix, not just the root. Four distributions
+    in geeplo's backend ship into the single `opentelemetry` namespace
+    (`opentelemetry-sdk` -> `opentelemetry.sdk`,
+    `opentelemetry-instrumentation-celery` -> `opentelemetry.instrumentation.celery`,
+    ...). Recording only the root would make importing any ONE of them prove all
+    four used — a false green that hides a genuinely unused instrumentor, which
+    is exactly what this measurement found.
+    """
+    parts = module.split(".")
+    return {".".join(parts[: i + 1]) for i in range(len(parts))}
+
+
 def python_imports(text: str) -> set[str]:
-    """Top-level module names imported by `text`.
+    """Module names imported by `text`, each with all of its dotted prefixes.
 
     `ast`, not regex, on purpose: a package name inside a comment, a docstring
     or a log message is not an import, and counting it would prove use that does
-    not exist.
+    not exist. `ast.walk` rather than `tree.body` on purpose too: a lazily
+    imported optional dependency lives inside a function, and that is still a
+    use — several of geeplo's are exactly that shape.
     """
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        # A file that does not parse cannot prove anything. Reported by the
-        # caller as a note, never silently treated as "imports nothing".
-        raise
+    tree = ast.parse(text)  # SyntaxError propagates: the caller notes it, never silently skips
     out: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            out.update(a.name.split(".")[0] for a in node.names)
+            for alias in node.names:
+                out |= _dotted_prefixes(alias.name)
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            out.add(node.module.split(".")[0])
+            # Only the module path — the imported names may be symbols, not modules.
+            out |= _dotted_prefixes(node.module)
     return out
 
 
@@ -229,16 +243,26 @@ def typescript_imports(text: str) -> set[str]:
 def module_candidates(dist: str, aliases: dict[str, list[str]]) -> list[str]:
     """Import names a distribution might present as.
 
-    The declared alias wins outright. Otherwise three mechanical guesses cover
-    the regular cases (`python-dotenv` -> `python_dotenv` is wrong, but
-    `pyyaml` -> `pyyaml` and `msgpack` -> `msgpack` are right); genuinely
-    irregular names (`beautifulsoup4` -> `bs4`) need an alias entry.
+    The declared alias wins outright. Otherwise four mechanical guesses cover the
+    regular cases; genuinely irregular names (`beautifulsoup4` -> `bs4`) need an
+    alias entry.
+
+    The `-` -> `.` guess is what resolves namespace packages without an alias
+    table: `opentelemetry-sdk` -> `opentelemetry.sdk`,
+    `google-cloud-kms` -> `google.cloud.kms`. It is also PRECISE where an alias
+    to the bare root would not be — mapping `google-auth` to `google` would let
+    any `google.*` import prove it used.
     """
     declared = aliases.get(dist) or aliases.get(dist.casefold())
     if declared:
         return [a.casefold() for a in declared]
     low = dist.casefold()
-    return list(dict.fromkeys([low, low.replace("-", "_"), low.replace("-", "")]))
+    return list(dict.fromkeys([
+        low,
+        low.replace("-", "_"),
+        low.replace("-", ""),
+        low.replace("-", "."),
+    ]))
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +424,14 @@ def _validate_dependency(entry: dict[str, Any], index: int, seen: set[str]) -> N
             by = chan.get("by")
             if not isinstance(by, str) or not by:
                 raise ConfigError(f"'{cid}/{chid}': a `search` channel requires `by`")
-            unknown = [t for t in used_tokens(by) if t not in TOKENS]
+            present = used_tokens(by)
+            if not present:
+                raise ConfigError(
+                    f"'{cid}/{chid}': `by` contains no interpolation token, so it evaluates "
+                    f"identically for every declaration — one match would mark the WHOLE "
+                    f"manifest used. Anchor it on {{dist}} or {{module}}."
+                )
+            unknown = [t for t in present if t not in TOKENS]
             if unknown:
                 raise ConfigError(
                     f"'{cid}/{chid}': unknown interpolation token(s) {', '.join(unknown)} "
