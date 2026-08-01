@@ -143,6 +143,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [pr-tracker-reference](docs/rules/pr-tracker-reference.rule.md)
 - [pre-commit-hooks](docs/rules/pre-commit-hooks.rule.md)
 - [registry-entry](docs/rules/registry-entry.rule.md)
+- [repo-hygiene](docs/rules/repo-hygiene.rule.md)
 - [secrets-handling](docs/rules/secrets-handling.rule.md)
 - [skills-sync](docs/rules/skills-sync.rule.md)
 - [stacked-pr-guard](docs/rules/stacked-pr-guard.rule.md)
