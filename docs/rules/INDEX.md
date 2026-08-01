@@ -54,6 +54,7 @@
 | [secrets-handling.rule.md](secrets-handling.rule.md) | Secrets MUST live under SOPS-encrypted files or .env.local; literals MUST NOT be committed. |
 | [skills-sync.rule.md](skills-sync.rule.md) | Consumer repos that use Claude Code skills must reflect at least one playbook skill under .claude/skills/ (via materialise_skills.py mirror or platform-native symlink). |
 | [slice-preflight.rule.md](slice-preflight.rule.md) | Before the first task commit on `slice/<change-id>`, the worker MUST run the openspec preflight checklist — `openspec_validate.py`, `validate_pairing.py`, marker `start` record, slot-reservation look… |
+| [stacked-pr-guard.rule.md](stacked-pr-guard.rule.md) | A PR that is the base of another open PR MUST have its dependents retargeted onto its own base before it is merged; merging first orphans them, and GitHub closes a PR whose base branch is deleted wit… |
 | [subagent-envelope-schema.rule.md](subagent-envelope-schema.rule.md) | Every `Task`-tool subagent invocation MUST send a spawn envelope matching `schemas/schema-agent-contract.json` and the child MUST return a single JSON document matching the same schema's return shape… |
 | [update-documentation.rule.md](update-documentation.rule.md) | Enforce co-edit-pairs when a PR touches code; the paired documentation MUST move together. |
 | [update-playbook.rule.md](update-playbook.rule.md) | Bump the .ai-playbook submodule pin in a consumer repository to a newer semver tag. |

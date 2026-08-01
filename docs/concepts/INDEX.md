@@ -15,6 +15,7 @@
 | [bmad-openspec-bridge.md](bmad-openspec-bridge.md) | The hybrid BMAD+OpenSpec workflow has a seam between phases: - Phase 2 ends at Gate C — the human-led, agent-assisted slicing produces a list of change IDs each with scope, dependencies, and FR cover… |
 | [bundle-managed-files.md](bundle-managed-files.md) | Re-running `python -m scripts.bootstrap <project>` on an already-bootstrapped |
 | [caveman-mode.md](caveman-mode.md) | Caveman mode makes coding agents respond in a compressed, telegraphic |
+| [code-entropy.md](code-entropy.md) | The curative half of code discipline. Ponytail gates what gets written; nothing gates what quietly stops being used. This defines the five axes of accumulated entropy, splits them by decidability (wh… |
 | [cross-language-tooling.md](cross-language-tooling.md) | Most ai-playbook consumer projects are single-language by primary intent (TypeScript monorepo, Python monorepo, Go monorepo, …). Reality intrudes: - consumer-e (Python primary) needs an OpenBB sideca… |
 | [cross-llm-activation.md](cross-llm-activation.md) | Cursor defines a 4-mode activation framework (always / auto / agent / manual). Other LLMs do not implement all four. This doc maps each mode to the closest mechanism per LLM and the degradation that… |
 | [data-retention.md](data-retention.md) | Retention is a safety surface. Too little retention makes audits impossible; too much creates a GDPR liability. This spec names the defaults and the deletion paths. |
