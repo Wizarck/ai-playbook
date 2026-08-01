@@ -1,34 +1,65 @@
-name: check-rule-schemas.rule
+# Single always-on gate for the cheap repo-hygiene checks.
+#
+# WHY THIS EXISTS. These checks used to live in five separate workflows, each
+# with its own `paths:` filter. That made them unrequireable: a required status
+# check whose workflow is paths-filtered never reports on a PR that misses the
+# filter, and GitHub blocks such a PR forever waiting for a check that will not
+# come. So the branch ruleset could require none of them, and the only enforced
+# gate was pytest.
+#
+# One job rather than five jobs plus an aggregator: the job name IS the stable
+# context, so there is no aggregation logic to get wrong, and no second place
+# where a renamed job silently drops out of the gate. Every step carries
+# `if: ${{ !cancelled() }}` so one failure still reports the rest — a gate that
+# stops at the first error makes you pay a full round trip per finding.
+#
+# Cost is ~40s on one hosted runner per PR. The five filtered workflows were
+# 15-21s each, so on a PR touching docs and rules this is roughly a wash.
+name: rules-gate.rule
+
 on:
   pull_request:
-    paths:
-      - "docs/rules/**/*.rule.md"
-      - "docs/concepts/**/*.md"
-      - "schemas/schema-rule-v1.json"
-      - "schemas/schema-concept-v1.json"
-      - "scripts/rules/**"
-      - ".github/workflows/**/*.rule.yml"
-      - "config-ui/*-inventory.json"
-      - "config-ui/defaults.json"
-      - "config-ui/*.js"
-      - "scripts/build_ui_sidecars.py"
-      - "templates/new-project/.claude/settings.json.tmpl"
-      - ".github/workflows/check-rule-schemas.rule.yml"
 
 permissions:
   contents: read
 
 jobs:
-  check-rule-schemas:
+  rules-gate:
+    name: rules-gate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+
+      # Union of what the five workflows each installed separately.
       - name: Install
-        run: pip install -e . jsonschema pyyaml
+        run: pip install -e . jsonschema pyyaml langdetect
+
+      - name: Broken-link detector
+        if: ${{ !cancelled() }}
+        run: python -m scripts.check_link_integrity docs/
+
+      - name: ENGLISH-only docs lint
+        if: ${{ !cancelled() }}
+        run: python -m scripts.check_doc_language docs/
+
+      - name: AGENTS.md size (D14, ≤500 lines)
+        if: ${{ !cancelled() }}
+        run: python -m scripts.check_agents_md_size
+
+      - name: Rule/hardrule pairing
+        if: ${{ !cancelled() }}
+        run: python -m scripts.validate_pairing
+
+      - name: Pairing shell oracle (D12 tripwire)
+        if: ${{ !cancelled() }}
+        run: bash scripts/validate_pairing_oracle.sh
+
       - name: Validate docs/rules/*.rule.md against schema-rule-v1.json
+        if: ${{ !cancelled() }}
         run: |
           python - <<'PY'
           import json, sys
@@ -68,7 +99,9 @@ jobs:
               sys.exit(2)
           print("rule-schema: OK")
           PY
+
       - name: Validate docs/concepts/*.md against schema-concept-v1.json
+        if: ${{ !cancelled() }}
         run: |
           python - <<'PY'
           import json, sys
@@ -111,7 +144,11 @@ jobs:
               sys.exit(2)
           print("concept-schema: OK")
           PY
+
       - name: Rules inventory is fresh + no dangling hooks
+        if: ${{ !cancelled() }}
         run: python -m scripts.rules_toggle inventory --check
+
       - name: config-ui .js sidecars match their .json
+        if: ${{ !cancelled() }}
         run: python -m scripts.build_ui_sidecars --check
