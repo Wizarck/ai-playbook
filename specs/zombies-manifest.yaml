@@ -20,7 +20,7 @@
 #     (not playbook-driven).
 
 version: 1
-manifest_version: "2026-05-19.4"
+manifest_version: "2026-08-01.1"
 
 # NOTE (v0.19.0): the push-pipeline retirement deleted PLAYBOOK-INTERNAL
 # files (consumers.yaml, consumers.yaml.example, propagate_bump.py,
@@ -65,16 +65,18 @@ entries:
     evidence: github.com/consumer-a/consumer-a/pull/125
 
   - id: auto-managed-orphan-blocks
-    tier: 1
-    action: prune_blocks
+    tier: 3
+    action: report
     safety: auto_managed_orphan
     path: "**/*.md"
     introduced_in: v0.2.0
     removed_in: deprecation_only
     reason: >
       `<!-- BEGIN auto-managed: <source> -->` blocks whose `<source>` no longer
-      resolves to a playbook anchor. Detected by `scripts/auto_managed.py
-      --prune-orphans`.
+      resolves to a live owner. Report-only: three subsystems materialise these
+      blocks (auto_managed.py for `specs/*`, plus the caveman and ponytail
+      toggles for their own prefixes), so "no owner" is a judgement call across
+      three state files and not a safe basis for auto-deletion.
     evidence: docs/concepts/auto-managed-sections.md
 
   - id: hindsight-queue-rotation

@@ -81,11 +81,15 @@ TIER_SAFETY_MATRIX = {
     1: {
         "check_gitmodules_first",
         "directory_orphan",
-        "auto_managed_orphan",
         "file_mtime_and_drained",
     },
     2: {"yaml_literal_rename"},
-    3: {"report_only"},
+    # Tier governs mutation; safety governs detection. Coupling them 1:1 forced
+    # any entry that wanted real detection to also claim auto-delete rights —
+    # which is how `auto-managed-orphan-blocks` shipped as Tier 1. A Tier 3
+    # entry may run a detection safety to make its advisory specific; the
+    # structural guard in `_process_entry` keeps it from ever mutating.
+    3: {"report_only", "auto_managed_orphan"},
 }
 
 
@@ -259,30 +263,90 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
     return SafetyResult(True, "no tracked files under directory")
 
 
+# Namespaces that own auto-managed blocks, and the toggle state file that says
+# whether the owning feature is currently ON. `auto_managed.py` owns `specs/*`
+# (whitelisted in its `_SUPPORTED_SOURCES`); the caveman and ponytail toggles
+# own their own prefixes and materialise a block whenever the feature is
+# enabled. A block whose namespace is not listed here has an owner this script
+# cannot reason about, and is therefore NEVER an orphan — silence beats a
+# confident deletion.
+_BLOCK_OWNERS = {
+    "caveman/": "caveman.json",
+    "ponytail/": "ponytail.json",
+}
+
+
+def _feature_enabled(state_path: Path) -> bool:
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    return bool(state.get("enabled"))
+
+
+def _consumer_markdown(consumer_root: Path, glob: str) -> Iterable[Path]:
+    """`_iter_glob`, minus the playbook submodule's own tree.
+
+    A `**/*.md` glob from the consumer root otherwise walks into
+    `.ai-playbook/`, i.e. this playbook's own documentation — files that are
+    not the consumer's to clean and that legitimately discuss marker syntax.
+    """
+    submodule = (consumer_root / ".ai-playbook").resolve()
+    for md in _iter_glob(consumer_root, glob):
+        try:
+            md.resolve().relative_to(submodule)
+        except ValueError:
+            yield md
+
+
+def _auto_managed_orphans(md: Path, consumer_root: Path) -> list[str]:
+    """Sources of genuinely-orphan auto-managed blocks in one markdown file.
+
+    Parsing delegates to `auto_managed.find_sections` — the canonical parser,
+    which anchors on full trimmed lines and skips fenced code blocks, so prose
+    that *documents* the marker syntax is never mistaken for a live block. It
+    raises on nested/unterminated markers; that means "cannot analyse", and we
+    report zero orphans rather than guess.
+    """
+    from scripts.auto_managed import compute_expected, find_sections
+
+    try:
+        text = md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    try:
+        sections = find_sections(text)
+    except ValueError:
+        return []
+
+    playbook_root = consumer_root / ".ai-playbook"
+    orphans: list[str] = []
+    for section in sections:
+        source = section.source
+        owner_state = next(
+            (state for prefix, state in _BLOCK_OWNERS.items() if source.startswith(prefix)),
+            None,
+        )
+        if owner_state is not None:
+            if not _feature_enabled(playbook_root / owner_state):
+                orphans.append(source)
+        elif source.startswith("specs/"):
+            try:
+                compute_expected(source, playbook_root)
+            except (ValueError, FileNotFoundError, LookupError):
+                orphans.append(source)
+    return orphans
+
+
 def _safety_auto_managed_orphan(target: Path, entry: dict[str, Any], consumer_root: Path) -> SafetyResult:
-    # The auto_managed.py prune logic is delegated; this safety only signals
-    # presence of at least one orphan block somewhere under `path`. The pruning
-    # itself happens in the action handler.
     auto_managed = consumer_root / ".ai-playbook" / "scripts" / "auto_managed.py"
     if not auto_managed.is_file():
         return SafetyResult(False, "auto_managed.py not available in submodule")
-    # Cheap detection: scan markdown files under consumer_root matching path glob,
-    # look for orphan BEGIN markers (one whose source file doesn't exist).
-    glob = entry["path"]
-    begin_re = re.compile(r"<!--\s*BEGIN auto-managed:\s*([^\s>][^>]*?)\s*-->")
-    orphans = 0
-    for md in _iter_glob(consumer_root, glob):
-        try:
-            text = md.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        for match in begin_re.finditer(text):
-            source = match.group(1).strip()
-            source_path = consumer_root / source
-            if not source_path.exists():
-                orphans += 1
-    if orphans:
-        return SafetyResult(True, f"{orphans} orphan auto-managed block(s) detected")
+    hits: list[str] = []
+    for md in _consumer_markdown(consumer_root, entry["path"]):
+        hits.extend(f"{md.relative_to(consumer_root).as_posix()}: {src}" for src in _auto_managed_orphans(md, consumer_root))
+    if hits:
+        return SafetyResult(True, f"{len(hits)} orphan auto-managed block(s): {'; '.join(hits[:5])}")
     return SafetyResult(False, "no orphan blocks")
 
 
@@ -418,36 +482,37 @@ def _do_rename(entry: dict[str, Any], consumer_root: Path) -> str:
 
 
 def _do_prune_blocks(entry: dict[str, Any], consumer_root: Path) -> str:
-    glob = entry["path"]
-    begin_re = re.compile(r"<!--\s*BEGIN auto-managed:\s*([^\s>][^>]*?)\s*-->")
-    end_re = re.compile(r"<!--\s*END auto-managed\s*-->")
+    """Remove genuinely-orphan auto-managed blocks, marker lines included.
+
+    Fixed rather than deleted: `prune_blocks` stays in the action schema, so a
+    future manifest entry can still reach it. It now shares the canonical
+    parser and the orphan test with the safety check above — those two having
+    drifted apart is precisely what let a false positive be both detected and
+    executed.
+    """
+    from scripts.auto_managed import find_sections
+
     pruned = 0
-    for md in _iter_glob(consumer_root, glob):
-        try:
-            lines = md.read_text(encoding="utf-8").splitlines(keepends=True)
-        except (OSError, UnicodeDecodeError):
+    for md in _consumer_markdown(consumer_root, entry["path"]):
+        orphan_sources = set(_auto_managed_orphans(md, consumer_root))
+        if not orphan_sources:
             continue
-        out: list[str] = []
-        skipping = False
-        changed = False
-        for line in lines:
-            m = begin_re.search(line)
-            if m and not skipping:
-                source = m.group(1).strip()
-                source_path = consumer_root / source
-                if not source_path.exists():
-                    skipping = True
-                    pruned += 1
-                    changed = True
-                    continue
-            if skipping and end_re.search(line):
-                skipping = False
-                continue
-            if skipping:
-                continue
-            out.append(line)
-        if changed:
-            md.write_text("".join(out), encoding="utf-8", newline="")
+        text = md.read_text(encoding="utf-8")
+        lines = text.replace("\r\n", "\n").split("\n")
+        try:
+            sections = find_sections(text)
+        except ValueError:
+            continue
+        drop: set[int] = set()
+        for section in sections:
+            if section.source in orphan_sources:
+                # start_line/end_line are 1-indexed and name the marker lines.
+                drop.update(range(section.start_line - 1, section.end_line))
+                pruned += 1
+        if not drop:
+            continue
+        kept = [line for idx, line in enumerate(lines) if idx not in drop]
+        md.write_text("\n".join(kept), encoding="utf-8", newline="")
     return f"pruned {pruned} orphan auto-managed block(s)"
 
 
@@ -510,6 +575,20 @@ def _process_entry(entry: dict[str, Any], consumer_root: Path, apply: bool) -> E
             action_taken="advisory",
             path=str(entry["path"]),
             detail=f"downgraded: {safety_result.reason}",
+        )
+
+    if entry["tier"] == 3:
+        # Structural guard for the documented Tier 3 contract ("never modifies
+        # the filesystem regardless of flags"). Until now that held only by
+        # accident, because `report_only` always failed its safety check and
+        # short-circuited above; a Tier 3 entry with a *passing* safety would
+        # have fallen straight through to the action dispatch below.
+        return EntryOutcome(
+            entry_id=entry["id"],
+            tier=3,
+            action_taken="advisory",
+            path=str(entry["path"]),
+            detail=f"{entry['reason']} — {safety_result.reason}",
         )
 
     action = entry["action"]
