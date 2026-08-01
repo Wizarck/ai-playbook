@@ -1,0 +1,1015 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wizarck/ai-playbook/schemas/schema-sweep-manifest-v1.json",
+  "title": "sweep-manifest v1",
+  "description": "Ledger emitted by `sweep`, the curative repo-entropy detector. Sweep scans a consumer repo across five axes (orphan-file, dead-symbol, unused-dependency, unwired-capability, disk-residue) and writes ONE finding row per candidate. Sweep NEVER deletes, renames, or rewrites anything: producing this document is the whole of its job, and execution is a separate, explicit step performed by `scripts/rules/cleanup-zombies.rule.py` (or a human) against the ledger. Tier semantics are inherited verbatim from `specs/zombies-manifest.yaml` + `docs/rules/cleanup-zombies.rule.md` §3 — Tier 1 = safe-delete, Tier 2 = textual change, Tier 3 = report-only — so a finding projects onto a zombies-manifest entry with no translation: `id`->`id`, `adjudication.tier`->`tier`, `action`->`action`, `safety`->`safety`, `path`->`path`, `reason`->`reason`, `evidence`->`evidence`. The `action` and `safety` vocabularies are deliberately restricted to the executor's existing ALLOWED_ACTIONS / ALLOWED_SAFETIES sets; adding a value here without adding it there produces a ledger the executor rejects. Design premise: deterministic scanners produce candidates and typed evidence; an LLM only ADJUDICATES that evidence as a prior, never re-derives it and never rewrites it. Invariants a validator MUST enforce that JSON Schema cannot express: (1) `manifest_version` is strictly monotonic across successive emissions; (2) `adjudication` MUST NOT mutate any field under `evidence` — evidence is written once, by the detector; (3) adjudication MUST NOT drop a row — the only way to neutralise a deterministic finding is `decision: dismiss`, which keeps the row, forces Tier 3, and demands a rationale; (4) `decision: downgrade` requires `adjudication.tier` > `evidence.detector_tier`, `escalate` requires `adjudication.tier` < `evidence.detector_tier`, and `confirm` requires them equal (JSON Schema has no cross-property comparison). Forward-compatible additions land as v2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "manifest_version",
+    "generated_at",
+    "scan",
+    "findings"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "sweep-manifest/v1",
+      "description": "Schema version literal. Consumers MUST refuse an unknown value rather than best-effort parse it, because a silently mis-parsed ledger could authorise a deletion the emitting version never intended."
+    },
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Document format generation, mirroring the `version: 1` key of `specs/zombies-manifest.yaml`. Kept alongside `schema` so the executor's existing `data.get('version') != 1` guard works unchanged on either document."
+    },
+    "manifest_version": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}\\.\\d+$",
+      "description": "Emission stamp in `YYYY-MM-DD.N` form — the exact convention `cleanup-zombies.rule.py` validates via MANIFEST_VERSION_RE for `zombies-manifest.yaml`. `N` is the 1-based ordinal of the sweep run on that date. MUST be strictly monotonic across emissions so a reviewer can tell a fresh ledger from a stale one, and so `first_seen_manifest_version` on a finding is comparable."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp at which this document was written. Distinct from `manifest_version` (which is an ordering token, not a clock) and from `scan.started_at` (which is when scanning began, before adjudication)."
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_version", "commit", "axes_scanned"],
+      "description": "Provenance of the run. Exists so a finding can be judged for FALSE NEGATIVES as well as false positives: an empty `findings` array means 'clean' only for the axes listed in `axes_scanned` and only outside `excluded_globs`.",
+      "properties": {
+        "tool_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$",
+          "description": "Semver of the sweep tool that produced this ledger. Lets a reviewer correlate a wave of new findings with a detector change rather than with real repo drift."
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Git SHA of HEAD when the scan started. Findings are only meaningful against the tree they were computed on; an executor SHOULD refuse to apply a Tier 1 action if HEAD has moved."
+        },
+        "dirty_worktree": {
+          "type": "boolean",
+          "description": "True when uncommitted changes were present at scan time. A dirty tree lowers trust in reachability results (a half-written import can make a live file look orphan), so reviewers use this to discount Tier 1 candidates."
+        },
+        "axes_scanned": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Which of the five axes actually ran. Required because absence of findings on an axis that never ran is not evidence of cleanliness, and conflating the two is how a curative tool starts lying.",
+          "items": {
+            "$ref": "#/$defs/axis"
+          }
+        },
+        "excluded_globs": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Repo-relative globs the scan deliberately skipped (vendored trees, generated clients, fixtures). Published so a reviewer can see the blind spots that produced a clean report.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "One repo-relative glob, forward-slash separated."
+          }
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 UTC timestamp at which scanning began. Optional; useful for correlating a long scan with CI job logs."
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Wall-clock milliseconds spent scanning. Optional; a sudden jump usually means a detector started walking an unexcluded vendored tree."
+        },
+        "detectors": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Inventory of the deterministic scanners that ran. Optional but strongly recommended: it is the only way to tell 'no finding because the detector said clean' from 'no finding because the detector crashed and was skipped'.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "axis"],
+            "description": "One deterministic scanner participating in this run.",
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/detector_name",
+                "description": "Detector identifier, matching the `evidence.detector` value it stamps on the findings it produces."
+              },
+              "axis": {
+                "$ref": "#/$defs/axis",
+                "description": "The axis this detector contributes candidates to."
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Version of the underlying tool (e.g. the ruff/deptry/graphify release). Optional; lets a reviewer attribute a verdict change to a tool upgrade."
+              }
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 0,
+      "description": "The ledger body: one row per candidate, in no significant order. An empty array is a valid and meaningful result — it asserts 'clean across `scan.axes_scanned`'. Rows are never removed by adjudication; a rejected candidate stays here as a Tier 3 `dismiss` row so the next sweep can see it was already considered.",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "axis": {
+      "type": "string",
+      "enum": [
+        "orphan-file",
+        "dead-symbol",
+        "unused-dependency",
+        "unwired-capability",
+        "disk-residue"
+      ],
+      "description": "The entropy axis a finding belongs to. `orphan-file` = a file reachable from nothing (no import, include, template render, config reference, or entrypoint). `dead-symbol` = an exported or defined symbol with no consumer. `unused-dependency` = a dependency declared in a manifest that nobody imports. `unwired-capability` = code that was built but never registered in the registry that would activate it (the most expensive axis: it is silent, tests pass, and the feature simply never runs). `disk-residue` = caches, build output, and scratch files."
+    },
+    "detector_name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,60}$",
+      "description": "Stable kebab-case identifier of a deterministic scanner (e.g. `graphify-reachability`, `celery-route-diff`, `deptry-import-graph`). Named rather than free-text so findings can be grouped, suppressed, and trust-weighted per detector."
+    },
+    "tier": {
+      "type": "integer",
+      "enum": [1, 2, 3],
+      "description": "Execution authority, inherited verbatim from `docs/rules/cleanup-zombies.rule.md` §Tier semantics. Tier 1 = safe-delete (the executor may remove the path under `--apply` once the safety check passes). Tier 2 = textual change (rename/rewrite; idempotent; safety check must pass). Tier 3 = report-only (NEVER modifies the filesystem regardless of flags; always reported). Same numbers, same meanings, so `scripts/rules/cleanup-zombies.rule.py` can consume a projection of this ledger without a translation layer."
+    },
+    "action": {
+      "type": "string",
+      "enum": ["delete", "rename", "prune_blocks", "rotate", "report"],
+      "description": "What executing this finding would do. Values are exactly the executor's ALLOWED_ACTIONS set; the tier x action matrix below mirrors its TIER_ACTION_MATRIX so a ledger that validates here cannot be rejected there."
+    },
+    "safety": {
+      "type": "string",
+      "enum": [
+        "check_gitmodules_first",
+        "directory_orphan",
+        "auto_managed_orphan",
+        "file_mtime_and_drained",
+        "yaml_literal_rename",
+        "report_only"
+      ],
+      "description": "The deterministic pre-flight the executor runs before mutating anything. Values are exactly the executor's ALLOWED_SAFETIES set. Tier governs mutation, safety governs detection: a Tier 3 finding may still name a real detection safety (e.g. `auto_managed_orphan`) to make its advisory specific, and the executor's structural guard keeps it from mutating anyway. A safety failure at execution time downgrades a Tier 1/2 finding to a Tier 3 advisory."
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role"],
+      "description": "One concrete place in the repo that the detector actually looked at. Locations are what make evidence typed rather than prose: an adjudicator can re-open the exact line instead of trusting a sentence.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "Repo-relative path, forward-slash separated. No absolute paths and no `..` traversal, so a ledger produced on one machine is reviewable on another."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based start line. Optional: file-level and directory-level findings have no line."
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based inclusive end line for a multi-line span. Optional."
+        },
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Fully-qualified symbol or key at this location (e.g. `app.tasks.quotas.reconcile_transfer_quotas`). Optional; required in practice for `dead-symbol` subjects."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["subject", "declaration", "registry", "expected-consumer", "entrypoint"],
+          "description": "Why this location is in the evidence. `subject` = the thing the finding is about. `declaration` = where it is defined or declared. `registry` = the registry that was searched and did not contain it. `expected-consumer` = a place a reference would plausibly have appeared. `entrypoint` = a reachability root the search started from."
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["detector", "verdict", "detector_tier", "locations"],
+      "description": "Typed output of the deterministic scanner, written ONCE by that scanner. This is the prior the adjudicator consumes instead of re-deriving the analysis; it is deliberately machine-shaped (identifiers, counts, scopes, locations) rather than prose, and adjudication must never edit it. A finding without evidence is schema-invalid by construction — that is the point.",
+      "properties": {
+        "detector": {
+          "$ref": "#/$defs/detector_name",
+          "description": "Which deterministic scanner produced this candidate. Attribution is required so a systematically noisy detector can be identified and tuned instead of the noise being blamed on the repo."
+        },
+        "detector_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Version of the detector or its underlying tool at scan time. Optional; makes a verdict reproducible."
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "unreachable",
+            "no-consumer",
+            "not-imported",
+            "not-registered",
+            "residue",
+            "inconclusive"
+          ],
+          "description": "The detector's RAW verdict, unsoftened by adjudication. `unreachable` = no path from any entrypoint (orphan-file). `no-consumer` = zero references outside the defining module (dead-symbol). `not-imported` = declared dependency with zero resolving imports (unused-dependency). `not-registered` = capability absent from its registry (unwired-capability). `residue` = path matched a residue classifier (disk-residue). `inconclusive` = the detector ran but could not decide — dynamic import, reflection, plugin entry point, string-built name; an inconclusive verdict can never carry execution authority and is pinned to Tier 3 below."
+        },
+        "verdict_detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "Verbatim excerpt of the detector's own output backing `verdict` (the tool line, the diff, the query result). Optional. This is quoted machine output, not the author's narration — narration belongs in `reason`."
+        },
+        "detector_tier": {
+          "$ref": "#/$defs/tier",
+          "description": "The tier the DETECTOR proposed before any adjudication, recorded so a downgrade or escalation is visible as a delta rather than as a silent rewrite. Compare with `adjudication.tier`: unequal values mean a judgement was applied and `adjudication.rationale` explains it."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Detector's own self-reported confidence in [0,1]. Optional and advisory only: it informs triage order, and never substitutes for the safety check that actually gates mutation."
+        },
+        "consumers_found": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of references the detector found to the subject. Required for the reference-counting axes (orphan-file, dead-symbol, unused-dependency) because 0 is the entire deterministic basis of those verdicts, and a non-zero value on such a finding is a contradiction a reviewer must be able to see."
+        },
+        "search_scope": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The globs actually searched when counting consumers. Required for the reference-counting axes: 'nothing references it' is only as strong as where you looked, and publishing the scope is what converts a grep result into evidence.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "One repo-relative glob included in the reference search."
+          }
+        },
+        "locations": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The specific place(s) the verdict rests on. At least one is mandatory: a finding that cannot point at a line is prose, not evidence, and is rejected here.",
+          "items": {
+            "$ref": "#/$defs/location"
+          }
+        }
+      }
+    },
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decided_by", "decision", "tier", "decided_at"],
+      "description": "Who or what turned a candidate into a ledger row with a given authority, and why. Adjudication is additive: it can lower authority, raise it (within limits), or leave it alone, but it can NEVER remove the row — there is no `delete` decision, and the weakest outcome (`dismiss`) still keeps a Tier 3 row on the record with a rationale. This is what stops an LLM from silently erasing a deterministic finding.",
+      "properties": {
+        "decided_by": {
+          "type": "string",
+          "enum": ["detector", "llm", "human"],
+          "description": "The adjudicating authority. `detector` = no judgement was applied; the deterministic verdict stands as-is. `llm` = a model reviewed the typed evidence and ruled. `human` = a person ruled, which is the only way to authorise a Tier 1 escalation."
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["confirm", "downgrade", "escalate", "dismiss"],
+          "description": "What the adjudicator did to the detector's proposal. `confirm` = keep `evidence.detector_tier` unchanged. `downgrade` = reduce authority (e.g. 1 -> 3) because the evidence is weaker than it looks. `escalate` = raise authority because context the detector lacked makes the finding stronger. `dismiss` = judged a false positive; the row REMAINS in the ledger at Tier 3 with a rationale, so the next sweep can see it was already considered instead of re-raising it blind."
+        },
+        "tier": {
+          "$ref": "#/$defs/tier",
+          "description": "The RESULTING execution authority after adjudication — the field an executor reads and the one that projects onto `tier` in a zombies-manifest entry. Constrained below against `action`, `safety`, `decision`, `decided_by`, and `evidence.verdict`."
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 UTC timestamp of the ruling. Required for auditability: it separates adjudications made during this run from ones carried over from a previous ledger."
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 4000,
+          "description": "Why the adjudicator departed from the detector. MANDATORY whenever `decision` is anything other than `confirm` — a downgrade, escalation, or dismissal without a written reason is exactly the silent erasure this schema exists to prevent. The minimum length is a deliberate floor against one-word non-answers."
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Model identifier that adjudicated (e.g. `claude-opus-5`). Required when `decided_by` is `llm`, so a wave of bad rulings can be traced to a specific model rather than to 'the AI'."
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Human identifier that adjudicated. Required when `decided_by` is `human`, because a human ruling is the only path to Tier 1 escalation and must be attributable."
+        }
+      }
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry_path", "registry_kind", "expected_key"],
+      "description": "For `unwired-capability` findings: the registry that was searched and the key that was missing. Required on that axis because 'built but never registered' is only actionable if the ledger names WHERE the registration belongs — otherwise the reader has to rediscover the wiring convention.",
+      "properties": {
+        "registry_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "Repo-relative path of the file that holds the registry the capability should appear in."
+        },
+        "registry_kind": {
+          "type": "string",
+          "enum": [
+            "celery-task-routes",
+            "dict-literal",
+            "decorator-registry",
+            "python-entrypoint",
+            "json-manifest",
+            "yaml-manifest",
+            "cli-subcommand",
+            "hook-dispatcher",
+            "route-table",
+            "index-doc",
+            "other"
+          ],
+          "description": "Mechanical shape of the registry, which determines how the missing key would be added and how confidently absence can be proven. Closed enum: a registry shape nobody modelled is more likely to produce a false positive, so it must be declared `other` and adjudicated rather than silently assumed."
+        },
+        "expected_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "The exact key, dotted path, or literal that was absent from the registry (e.g. `app.tasks.quotas.reconcile_transfer_quotas`). This is what makes the finding executable by a human in one edit."
+        },
+        "sibling_example": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "An existing key in the same registry that IS wired, proving the convention the subject failed to follow. Optional but the single most useful field for adjudication: it converts 'I think this should be registered' into 'here is the peer that is'."
+        }
+      }
+    },
+    "regeneration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["disposition", "cost", "value", "size_bytes"],
+      "description": "For `disk-residue` findings: what it would cost to rebuild this artefact and whether anything still gets value from it. Required on that axis because reclaiming disk is only sane when rebuild cost is known — deleting a zero-cost cache is free, deleting an expensive one converts a disk problem into a time problem, and deleting a cheap-but-useful one is a self-inflicted outage. Cost and value are modelled as SEPARATE dimensions precisely so a cheap-to-regenerate artefact that still provides value is reported as STALE rather than as deletable.",
+      "properties": {
+        "disposition": {
+          "type": "string",
+          "enum": ["DELETABLE", "STALE", "KEEP"],
+          "description": "The recommendation. `DELETABLE` = nothing reads it and rebuilding is zero/cheap, so removal is pure reclaim (only this value may carry Tier 1). `STALE` = it is still consumed, and it is cheap to rebuild, but its inputs have moved on — the correct remedy is REGENERATE, not delete, so this is pinned to Tier 3 report-only. `KEEP` = leave it alone; either rebuilding is expensive/irreproducible or it is actively current. Also Tier 3."
+        },
+        "cost": {
+          "type": "string",
+          "enum": ["zero", "cheap", "expensive", "irreproducible"],
+          "description": "Regeneration cost. `zero` = deterministic local rebuild from repo contents, no network and no paid API, seconds to a couple of minutes (e.g. `__pycache__`, a knowledge-graph build output). `cheap` = scriptable rebuild that needs the network but no human decisions. `expensive` = long, bandwidth-heavy, or paid (e.g. `node_modules`, a virtualenv, an LLM-derived index) — never auto-deletable, because the reclaim is real but the rebuild is a felt cost. `irreproducible` = cannot be rebuilt from repo contents at all (the only copy of something); forces KEEP."
+        },
+        "value": {
+          "type": "string",
+          "enum": ["active", "stale", "worthless"],
+          "description": "Whether anything still gets value from the artefact, independent of cost. `active` = currently consumed by tooling or humans and up to date. `stale` = still consumed, but its inputs changed since it was built, so it now answers questions about a tree that no longer exists — the dangerous state, because a stale artefact is worse than an absent one. `worthless` = nothing reads it."
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Bytes on disk for the path or tree. Required because it is the entire payoff figure: without it a reviewer cannot rank residue findings, and a 4 KB cache and a 2 GB tree read identically."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "The exact command that rebuilds the artefact. MANDATORY when `cost` is `zero` or `cheap` — a cheap-regeneration claim is only credible if the ledger can name the command, and this is also the remedy a STALE finding is telling the reader to run."
+        },
+        "staleness_reason": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 2000,
+          "description": "What input moved on. MANDATORY when `disposition` is `STALE`: 'stale' is a claim about a delta (built at commit X, HEAD is Y, N inputs changed since), and without naming the delta the reader cannot tell a genuinely stale artefact from a detector that simply distrusts old mtimes."
+        },
+        "last_built_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 UTC timestamp the artefact was last written, from filesystem mtime. Optional; supports the staleness claim."
+        },
+        "gitignored": {
+          "type": "boolean",
+          "description": "True when the path is covered by `.gitignore`. Optional. Residue that is already ignored is safe to remove without touching history; residue that is TRACKED is a different and more serious finding, because deleting it is a commit."
+        }
+      },
+      "allOf": [
+        {
+          "description": "A DELETABLE recommendation requires both dimensions to agree: nothing may still be getting value from it, and rebuilding must not be a felt cost. This is the rule that keeps a useful-but-cheap artefact out of the delete pile.",
+          "if": {
+            "required": ["disposition"],
+            "properties": {"disposition": {"const": "DELETABLE"}}
+          },
+          "then": {
+            "properties": {
+              "cost": {"enum": ["zero", "cheap"]},
+              "value": {"const": "worthless"}
+            }
+          }
+        },
+        {
+          "description": "Expensive or irreproducible artefacts can never be recommended for deletion, whatever their value; the worst they can be is STALE (regenerate deliberately) or KEEP.",
+          "if": {
+            "required": ["cost"],
+            "properties": {"cost": {"enum": ["expensive", "irreproducible"]}}
+          },
+          "then": {
+            "properties": {"disposition": {"enum": ["STALE", "KEEP"]}}
+          }
+        },
+        {
+          "description": "Claiming zero/cheap regeneration obliges the ledger to name the rebuild command, so the claim is falsifiable and the remedy is executable.",
+          "if": {
+            "required": ["cost"],
+            "properties": {"cost": {"enum": ["zero", "cheap"]}}
+          },
+          "then": {"required": ["command"]}
+        },
+        {
+          "description": "A STALE recommendation obliges the ledger to name the delta that made it stale.",
+          "if": {
+            "required": ["disposition"],
+            "properties": {"disposition": {"const": "STALE"}}
+          },
+          "then": {"required": ["staleness_reason"]}
+        }
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "axis",
+        "path",
+        "action",
+        "safety",
+        "reason",
+        "evidence",
+        "adjudication"
+      ],
+      "description": "One ledger row. Carries the executor-facing triple (`action`, `safety`, plus `adjudication.tier`) so it projects onto a zombies-manifest entry, the typed `evidence` the detector produced, and the `adjudication` that granted its authority.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{2,80}$",
+          "description": "Stable kebab-case identifier for this finding, derived from axis + subject so the SAME entropy gets the SAME id across runs. Stability is what makes suppression, `first_seen_manifest_version`, and 'already dismissed once' possible; a run-scoped random id would make the ledger amnesiac."
+        },
+        "axis": {
+          "$ref": "#/$defs/axis",
+          "description": "Which of the five entropy axes this finding belongs to. Selects which axis-specific object is mandatory (`registry` for unwired-capability, `regeneration` for disk-residue) and which detector verdicts are legal."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "The primary subject: repo-relative path (or glob, for residue that spans a tree), forward-slash separated. Mirrors `path` in a zombies-manifest entry and is the value the executor's safety checks resolve against. No absolute paths, no `..` traversal."
+        },
+        "action": {
+          "$ref": "#/$defs/action",
+          "description": "What executing this finding would do. Constrained by tier below: Tier 1 may delete/prune/rotate, Tier 2 may only rename, Tier 3 may only report."
+        },
+        "safety": {
+          "$ref": "#/$defs/safety",
+          "description": "The deterministic pre-flight the executor must run before acting. Constrained by tier below, matching the executor's TIER_SAFETY_MATRIX exactly."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 4000,
+          "description": "Human-readable explanation of why this is entropy and what the reader should do about it. This is the ONE place prose is welcome — it is written for the reviewer, and it is explicitly NOT a substitute for `evidence`, which the adjudicator consumes instead."
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence",
+          "description": "Typed detector output backing the finding. Mandatory: a row without it cannot exist in this schema."
+        },
+        "adjudication": {
+          "$ref": "#/$defs/adjudication",
+          "description": "Who ruled, what they ruled, and the resulting execution authority. Mandatory: authority must always be attributable."
+        },
+        "registry": {
+          "$ref": "#/$defs/registry",
+          "description": "Registry the capability should have been wired into. Mandatory when `axis` is `unwired-capability`, forbidden otherwise."
+        },
+        "regeneration": {
+          "$ref": "#/$defs/regeneration",
+          "description": "Rebuild cost, value, and disposition of the artefact. Mandatory when `axis` is `disk-residue`, forbidden otherwise."
+        },
+        "first_seen_manifest_version": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}\\.\\d+$",
+          "description": "The `manifest_version` of the ledger this finding first appeared in. Optional. A finding that has survived many sweeps unchanged is more trustworthy than a first-sighting, and this is how a reviewer sees that without diffing old ledgers."
+        },
+        "seen_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many consecutive sweeps have produced this finding. Optional; 1 means first sighting. Used for triage ordering, never for authority."
+        },
+        "related_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Ids of other findings in this ledger that share a root cause (e.g. an orphan file whose every symbol is also reported dead). Optional. Prevents a single mistake from reading as ten independent problems, and lets a reviewer resolve a cluster in one decision.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,80}$",
+            "description": "The `id` of another finding in this same ledger."
+          }
+        }
+      },
+      "allOf": [
+        {
+          "description": "Tier 1 (safe-delete) x action x safety, mirroring TIER_ACTION_MATRIX[1] and TIER_SAFETY_MATRIX[1] in scripts/rules/cleanup-zombies.rule.py. `report_only` is absent by design: a finding that only knows how to report can never carry delete authority.",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["tier"],
+                "properties": {"tier": {"const": 1}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {"enum": ["delete", "prune_blocks", "rotate"]},
+              "safety": {
+                "enum": [
+                  "check_gitmodules_first",
+                  "directory_orphan",
+                  "file_mtime_and_drained"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "description": "Tier 2 (textual change) x action x safety, mirroring TIER_ACTION_MATRIX[2] and TIER_SAFETY_MATRIX[2].",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["tier"],
+                "properties": {"tier": {"const": 2}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {"const": "rename"},
+              "safety": {"const": "yaml_literal_rename"}
+            }
+          }
+        },
+        {
+          "description": "Tier 3 (report-only) x action x safety, mirroring TIER_ACTION_MATRIX[3] and TIER_SAFETY_MATRIX[3]. A Tier 3 finding may still name the `auto_managed_orphan` detection safety to make its advisory specific; the executor's structural guard keeps it from mutating.",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["tier"],
+                "properties": {"tier": {"const": 3}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {"const": "report"},
+              "safety": {"enum": ["report_only", "auto_managed_orphan"]}
+            }
+          }
+        },
+        {
+          "description": "Any departure from the detector's proposal must be written down. Downgrade, escalate, and dismiss all require a rationale; only `confirm` may be silent, because confirming changes nothing.",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["decision"],
+                "properties": {
+                  "decision": {"enum": ["downgrade", "escalate", "dismiss"]}
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "adjudication": {"required": ["rationale"]}
+            }
+          }
+        },
+        {
+          "description": "An LLM ruling must name its model, so a systematic misjudgement is attributable to a specific model rather than absorbed as ambient noise.",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["decided_by"],
+                "properties": {"decided_by": {"const": "llm"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "adjudication": {"required": ["model"]}
+            }
+          }
+        },
+        {
+          "description": "A human ruling must name the human, for the same reason.",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["decided_by"],
+                "properties": {"decided_by": {"const": "human"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "adjudication": {"required": ["actor"]}
+            }
+          }
+        },
+        {
+          "description": "An LLM may never ESCALATE a finding into delete authority. It adjudicates evidence it did not produce, so it can confirm what a deterministic safety check already proved, or lower authority, but minting Tier 1 out of judgement is reserved for `human`. Escalation by an LLM is capped at Tier 2/3.",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["decided_by", "decision"],
+                "properties": {
+                  "decided_by": {"const": "llm"},
+                  "decision": {"const": "escalate"}
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "adjudication": {
+                "properties": {"tier": {"enum": [2, 3]}}
+              }
+            }
+          }
+        },
+        {
+          "description": "A dismissal cannot delete the row, only neutralise it: the finding stays in the ledger, pinned to Tier 3 (report-only, never mutates) and carrying the rationale required above. This is the structural guarantee that adjudication cannot silently erase a deterministic finding.",
+          "if": {
+            "required": ["adjudication"],
+            "properties": {
+              "adjudication": {
+                "required": ["decision"],
+                "properties": {"decision": {"const": "dismiss"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "adjudication": {
+                "properties": {"tier": {"const": 3}}
+              }
+            }
+          }
+        },
+        {
+          "description": "A detector that could not decide cannot authorise a mutation. An `inconclusive` verdict is pinned to Tier 3 regardless of who adjudicated it; raising it requires a NEW deterministic verdict, not a confident opinion about an old inconclusive one.",
+          "if": {
+            "required": ["evidence"],
+            "properties": {
+              "evidence": {
+                "required": ["verdict"],
+                "properties": {"verdict": {"const": "inconclusive"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "adjudication": {
+                "properties": {"tier": {"const": 3}}
+              }
+            }
+          }
+        },
+        {
+          "description": "Axis `orphan-file`: the verdict must be a reachability verdict, the reference count and the searched scope are mandatory (they ARE the evidence), and the axis-specific objects of other axes are forbidden.",
+          "if": {
+            "required": ["axis"],
+            "properties": {"axis": {"const": "orphan-file"}}
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "required": ["consumers_found", "search_scope"],
+                "properties": {
+                  "verdict": {"enum": ["unreachable", "inconclusive"]}
+                }
+              },
+              "registry": false,
+              "regeneration": false
+            }
+          }
+        },
+        {
+          "description": "Axis `dead-symbol`: same reference-counting obligations as orphan-file, with a symbol-scoped verdict.",
+          "if": {
+            "required": ["axis"],
+            "properties": {"axis": {"const": "dead-symbol"}}
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "required": ["consumers_found", "search_scope"],
+                "properties": {
+                  "verdict": {"enum": ["no-consumer", "inconclusive"]}
+                }
+              },
+              "registry": false,
+              "regeneration": false
+            }
+          }
+        },
+        {
+          "description": "Axis `unused-dependency`: same reference-counting obligations, with an import-resolution verdict.",
+          "if": {
+            "required": ["axis"],
+            "properties": {"axis": {"const": "unused-dependency"}}
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "required": ["consumers_found", "search_scope"],
+                "properties": {
+                  "verdict": {"enum": ["not-imported", "inconclusive"]}
+                }
+              },
+              "registry": false,
+              "regeneration": false
+            }
+          }
+        },
+        {
+          "description": "Axis `unwired-capability`: the `registry` object is mandatory, because the finding is only actionable if the ledger names the registry and the missing key.",
+          "if": {
+            "required": ["axis"],
+            "properties": {"axis": {"const": "unwired-capability"}}
+          },
+          "then": {
+            "required": ["registry"],
+            "properties": {
+              "evidence": {
+                "properties": {
+                  "verdict": {"enum": ["not-registered", "inconclusive"]}
+                }
+              },
+              "regeneration": false
+            }
+          }
+        },
+        {
+          "description": "Axis `disk-residue`: the `regeneration` object is mandatory, because reclaiming disk without knowing the rebuild cost is how a disk problem becomes a time problem.",
+          "if": {
+            "required": ["axis"],
+            "properties": {"axis": {"const": "disk-residue"}}
+          },
+          "then": {
+            "required": ["regeneration"],
+            "properties": {
+              "evidence": {
+                "properties": {
+                  "verdict": {"enum": ["residue", "inconclusive"]}
+                }
+              },
+              "registry": false
+            }
+          }
+        },
+        {
+          "description": "Residue that is STALE or KEEP is report-only. STALE means REGENERATE (the remedy is `regeneration.command`, not removal) and KEEP means leave it alone; neither may carry mutation authority, so both are pinned to Tier 3. Only a DELETABLE disposition can reach Tier 1.",
+          "if": {
+            "required": ["axis", "regeneration"],
+            "properties": {
+              "axis": {"const": "disk-residue"},
+              "regeneration": {
+                "required": ["disposition"],
+                "properties": {"disposition": {"enum": ["STALE", "KEEP"]}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "adjudication": {
+                "properties": {"tier": {"const": 3}}
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "schema": "sweep-manifest/v1",
+      "version": 1,
+      "manifest_version": "2026-08-01.1",
+      "generated_at": "2026-08-01T09:14:02Z",
+      "scan": {
+        "tool_version": "0.1.0",
+        "commit": "3b58f687",
+        "dirty_worktree": false,
+        "axes_scanned": ["unwired-capability"],
+        "excluded_globs": ["backend/alembic/versions/**", "frontend/node_modules/**"],
+        "started_at": "2026-08-01T09:13:48Z",
+        "duration_ms": 13980,
+        "detectors": [
+          {
+            "name": "celery-route-diff",
+            "axis": "unwired-capability",
+            "version": "0.1.0"
+          }
+        ]
+      },
+      "findings": [
+        {
+          "id": "unwired-celery-reconcile-transfer-quotas",
+          "axis": "unwired-capability",
+          "path": "backend/app/tasks/quotas.py",
+          "action": "report",
+          "safety": "report_only",
+          "reason": "`reconcile_transfer_quotas` is decorated as a Celery shared_task and is covered by unit tests, but it has no entry in the `task_routes` table, so the broker has no queue binding for it and the task is never executed in any environment. Tests pass because they call the function directly. Remedy is a one-line registry edit, not a deletion: add the routing entry next to the `heartbeat` sibling.",
+          "evidence": {
+            "detector": "celery-route-diff",
+            "detector_version": "0.1.0",
+            "verdict": "not-registered",
+            "verdict_detail": "defined_tasks - routed_tasks = {'app.tasks.quotas.reconcile_transfer_quotas'}",
+            "detector_tier": 3,
+            "confidence": 0.95,
+            "consumers_found": 0,
+            "search_scope": ["backend/app/**/*.py", "backend/app/core/celery_app.py"],
+            "locations": [
+              {
+                "path": "backend/app/tasks/quotas.py",
+                "line": 41,
+                "end_line": 68,
+                "symbol": "app.tasks.quotas.reconcile_transfer_quotas",
+                "role": "declaration"
+              },
+              {
+                "path": "backend/app/core/celery_app.py",
+                "line": 88,
+                "symbol": "task_routes",
+                "role": "registry"
+              }
+            ]
+          },
+          "adjudication": {
+            "decided_by": "llm",
+            "decision": "confirm",
+            "tier": 3,
+            "decided_at": "2026-08-01T09:14:01Z",
+            "model": "claude-opus-5",
+            "rationale": "Evidence is a set difference over a static route table with no dynamic routing in this codebase, and the named sibling proves the convention. Wiring is a deliberate code edit, so this stays report-only."
+          },
+          "registry": {
+            "registry_path": "backend/app/core/celery_app.py",
+            "registry_kind": "celery-task-routes",
+            "expected_key": "app.tasks.quotas.reconcile_transfer_quotas",
+            "sibling_example": "app.tasks.heartbeat.emit_heartbeat"
+          },
+          "first_seen_manifest_version": "2026-07-28.1",
+          "seen_count": 4
+        }
+      ]
+    },
+    {
+      "schema": "sweep-manifest/v1",
+      "version": 1,
+      "manifest_version": "2026-08-01.2",
+      "generated_at": "2026-08-01T10:02:31Z",
+      "scan": {
+        "tool_version": "0.1.0",
+        "commit": "3b58f687",
+        "dirty_worktree": false,
+        "axes_scanned": ["disk-residue"],
+        "excluded_globs": [".git/**"],
+        "started_at": "2026-08-01T10:02:19Z",
+        "duration_ms": 7420,
+        "detectors": [
+          {
+            "name": "residue-walker",
+            "axis": "disk-residue",
+            "version": "0.1.0"
+          }
+        ]
+      },
+      "findings": [
+        {
+          "id": "residue-graphify-out-stale",
+          "axis": "disk-residue",
+          "path": "graphify-out",
+          "action": "report",
+          "safety": "report_only",
+          "reason": "The knowledge-graph build output is gitignored residue by classification, but it is NOT junk: `graphify query` and the codebase-question workflow read it on every session. It was built 214 commits ago, so it answers questions about a tree that no longer exists — which is worse than having no graph at all, because the answers look authoritative. Regenerate it; do not delete it.",
+          "evidence": {
+            "detector": "residue-walker",
+            "detector_version": "0.1.0",
+            "verdict": "residue",
+            "verdict_detail": "classifier=gitignored-build-output; tracked_files=0; graph_head=1c01d233; repo_head=3b58f687",
+            "detector_tier": 3,
+            "confidence": 1,
+            "locations": [
+              {
+                "path": "graphify-out",
+                "role": "subject"
+              },
+              {
+                "path": "graphify-out/graph.json",
+                "role": "subject"
+              },
+              {
+                "path": "CLAUDE.md",
+                "line": 21,
+                "role": "expected-consumer"
+              }
+            ]
+          },
+          "adjudication": {
+            "decided_by": "detector",
+            "decision": "confirm",
+            "tier": 3,
+            "decided_at": "2026-08-01T10:02:29Z"
+          },
+          "regeneration": {
+            "disposition": "STALE",
+            "cost": "zero",
+            "value": "stale",
+            "size_bytes": 198443008,
+            "command": "graphify update .",
+            "staleness_reason": "Graph was built at commit 1c01d233; HEAD is 3b58f687, 214 commits and 611 changed files later. Rebuild is AST-only with no API cost, so the correct action is regeneration rather than reclaim.",
+            "last_built_at": "2026-07-19T22:41:07Z",
+            "gitignored": true
+          },
+          "first_seen_manifest_version": "2026-08-01.2",
+          "seen_count": 1
+        },
+        {
+          "id": "residue-backend-pycache",
+          "axis": "disk-residue",
+          "path": "backend/app/**/__pycache__",
+          "action": "delete",
+          "safety": "directory_orphan",
+          "reason": "Bytecode caches under the backend package. Nothing reads them across processes, they are recreated automatically on the next import, and none of them are tracked by git. Pure reclaim with no rebuild cost worth naming.",
+          "evidence": {
+            "detector": "residue-walker",
+            "detector_version": "0.1.0",
+            "verdict": "residue",
+            "verdict_detail": "classifier=python-bytecode-cache; matched_dirs=317; tracked_files=0",
+            "detector_tier": 1,
+            "confidence": 1,
+            "locations": [
+              {
+                "path": "backend/app/tasks/__pycache__",
+                "role": "subject"
+              },
+              {
+                "path": "backend/app/core/__pycache__",
+                "role": "subject"
+              },
+              {
+                "path": ".gitignore",
+                "line": 12,
+                "role": "declaration"
+              }
+            ]
+          },
+          "adjudication": {
+            "decided_by": "detector",
+            "decision": "confirm",
+            "tier": 1,
+            "decided_at": "2026-08-01T10:02:30Z"
+          },
+          "regeneration": {
+            "disposition": "DELETABLE",
+            "cost": "zero",
+            "value": "worthless",
+            "size_bytes": 41238528,
+            "command": "python -m compileall -q backend/app",
+            "last_built_at": "2026-07-31T18:12:44Z",
+            "gitignored": true
+          },
+          "first_seen_manifest_version": "2026-08-01.2",
+          "seen_count": 1
+        }
+      ]
+    }
+  ]
+}
