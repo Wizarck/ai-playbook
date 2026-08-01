@@ -2,6 +2,43 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.20.0] — 2026-08-01 — feat: code-entropy taxonomy + sweep contracts (F0, spec-only)
+
+Phase 0 of the code-entropy work: taxonomy and contracts, no detector yet. Ships
+the vocabulary every later phase references, in the cheap artefact where getting
+it wrong costs an edit rather than a rewrite.
+
+### Added
+- **Concept `code-entropy`** — the curative half of code discipline, alongside
+  ponytail's preventive half. Defines five axes (`orphan-file`, `dead-symbol`,
+  `unused-dependency`, `unwired-capability`, `disk-residue`) and three design
+  positions that shape everything downstream:
+  - **Decidability picks the enforcement mode.** Three axes are facts a machine
+    settles alone and belong in rules with paired hardrules; two need judgement
+    and belong in a skill. Only two of five axes need a model at all, so most of
+    the system runs continuously at zero marginal cost.
+  - **Preventive and curative are one loop, closed by a ratchet.** A sweep that
+    emits only a report is a campaign and recurs; one that emits a ratchet
+    cannot be undone by inattention. Per finding, the follow-up question is
+    whether it can become a preventive assertion.
+  - **Never auto-delete.** The ledger is the deliverable; execution is separate.
+    Justified by this repo's own v0.19.29 incident, where a tier 1 entry whose
+    safety shared a bug with its action destroyed 623 lines across 7 files.
+  - Axis 5 is classified by **regeneration cost × value**, not size — a cheap-to-
+    rebuild artefact that provides value is reported *stale*, never *deletable*.
+    A stale map is worse than no map, because it is consulted with confidence.
+- **`specs/wiring-assertions.schema.yaml`** — the assertion contract for
+  `unwired-capability`. Registries are project-specific but the assertion is not:
+  every case is *every artefact matching X is referenced in Z by pattern Y*. The
+  playbook ships the engine, the consumer ships its own `wiring.yaml`.
+- **`schemas/schema-sweep-manifest-v1.json`** — the findings ledger. Tiers are
+  inherited from `zombies-manifest` so the existing executor consumes it
+  unchanged. Findings carry typed evidence (a finding without evidence is
+  schema-invalid), and adjudication may downgrade a deterministic finding only
+  with a recorded rationale.
+- **`enforcement-status` row** for `code-entropy` at 📋 spec-only, with the
+  per-axis landing targets and the triggers that flip it 🟡 and ✅.
+
 ## [0.19.29] — 2026-08-01 — fix: cleanup-zombies stops eating docs that document it
 
 ### Fixed
