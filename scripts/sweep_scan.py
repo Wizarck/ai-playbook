@@ -260,16 +260,22 @@ def load_config(path: Path) -> dict[str, Any]:
     if not isinstance(allow, list):
         raise ConfigError("`allow` must be a list of {path, reason} entries")
     for i, entry in enumerate(allow):
-        if not isinstance(entry, dict) or not entry.get("path"):
-            raise ConfigError(f"`allow[{i}]`: `path` is required")
+        # Typed, not merely truthy: `path: 1` would pass a truthiness check and
+        # then reach `glob_to_regex`, which calls `len()` and raises a bare
+        # TypeError — a config mistake surfacing as a crash instead of as the
+        # ConfigError every other malformed field produces.
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) \
+                or not entry["path"].strip():
+            raise ConfigError(f"`allow[{i}]`: `path` is required and must be a non-empty string")
         # A reason is mandatory, and this is the whole difference between an
         # exception and a suppression. "alive by webpack resolve.alias in
         # next.config.js:110" is a fact the next reader can check; an unexplained
         # path is a file someone silenced, indistinguishable a year later from
         # one that genuinely rotted.
-        if not str(entry.get("reason", "")).strip():
+        if not isinstance(entry.get("reason"), str) or not entry["reason"].strip():
             raise ConfigError(
-                f"`allow[{i}]` ({entry['path']}): `reason` is required. Name the MECHANISM "
+                f"`allow[{i}]` ({entry['path']}): `reason` is required and must be a "
+                "non-empty string. Name the MECHANISM "
                 "that reaches this file — a build alias, a container COPY, a dynamic import. "
                 "An exception nobody can re-verify is a suppression wearing an exception's name."
             )
@@ -844,6 +850,11 @@ def cmd_check(args: argparse.Namespace) -> int:
         print("no sweep.yaml in this consumer — nothing to check")
         return 0
     config_path, root, config = loaded
+    if args.max < 0:
+        # A negative ceiling can never be met, so the gate would be red forever
+        # and then switched off. Refusing is kinder than a permanently failing job.
+        raise ConfigError(f"`--max {args.max}` is negative; a baseline is a count, and counts start at 0")
+
     started = datetime.now(UTC)
     results, entry_globs = _scan_all(root, config)
     duration_ms = int((datetime.now(UTC) - started).total_seconds() * 1000)

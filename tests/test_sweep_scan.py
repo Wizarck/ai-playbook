@@ -277,6 +277,26 @@ def test_an_allow_entry_without_a_reason_is_a_config_error(tmp_path, capsys) -> 
     assert "reason` is required" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("entry", [
+    {"path": 1, "reason": "a number is not a glob"},
+    {"path": "fe/vendor/*.js", "reason": 1},
+])
+def test_a_non_string_allow_field_is_a_config_error_not_a_crash(tmp_path, entry) -> None:
+    """Truthiness is not enough: `path: 1` would reach `glob_to_regex`, which
+    calls `len()` and raises a bare TypeError — a config mistake surfacing as a
+    crash instead of as the ConfigError every other malformed field produces."""
+    _allow_tree(tmp_path)
+    assert scan(_allow_config(tmp_path, [entry])) == 2
+
+
+def test_a_negative_max_is_refused(tmp_path, capsys) -> None:
+    """A ceiling that can never be met is a job that is red forever, and a job
+    that is red forever gets switched off."""
+    ts_tree(tmp_path)
+    assert sweep.main(["check", "--config", str(ts_config(tmp_path)), "--max", "-1"]) == 2
+    assert "counts start at 0" in capsys.readouterr().err
+
+
 def test_a_stale_allow_entry_breaks_the_build(tmp_path, capsys) -> None:
     """An exception that stopped covering anything must fail loudly.
 

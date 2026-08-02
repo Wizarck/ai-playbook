@@ -18,7 +18,8 @@ often than it changes is how a detector gets disabled. That applies to
 **adjudication** — which needs a model and a human — and not to **counting**,
 which is deterministic and takes 27 seconds on a 1674-file consumer.
 
-So the ratchet counts on every pull request and adjudicates never. Catching a new
+So the ratchet counts on every pull request and adjudicates on none of them; the
+monthly and on-demand adjudication is unchanged. Catching a new
 orphan on the PR that creates it is worth far more than catching it a month
 later: the author still remembers why the file is there, and the fix is usually
 to finish wiring it rather than to delete it.

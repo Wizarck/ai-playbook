@@ -30,7 +30,11 @@ All notable changes to `ai-playbook` are documented here. Semver.
   quarantine directory would have been, except this one silently shrinks what the
   scan can see.
 
-  45 tests.
+  48 tests. From review: `allow.path` and `allow.reason` are validated as
+  non-empty STRINGS rather than merely truthy (`path: 1` would otherwise reach
+  `glob_to_regex` and raise a bare TypeError), and a negative `--max` is refused —
+  a ceiling that can never be met is a job that is red forever, and a job that is
+  red forever gets switched off.
 
 ## [0.22.3] — 2026-08-02 — feat: sweep-execute (remove an orphan, leave a tombstone)
 
