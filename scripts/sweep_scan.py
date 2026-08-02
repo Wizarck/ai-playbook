@@ -84,6 +84,7 @@ from _rule_kit import (  # noqa: E402  (deliberate: needs the sys.path line abov
     emit_error,
     expand_glob,
     find_consumer_root,
+    glob_to_regex,
     resolve_config,
 )
 
@@ -254,6 +255,30 @@ def load_config(path: Path) -> dict[str, Any]:
     raw.setdefault("root", ".")
     raw.setdefault("presets", [])
     raw.setdefault("entrypoints", [])
+
+    allow = raw.setdefault("allow", [])
+    if not isinstance(allow, list):
+        raise ConfigError("`allow` must be a list of {path, reason} entries")
+    for i, entry in enumerate(allow):
+        # Typed, not merely truthy: `path: 1` would pass a truthiness check and
+        # then reach `glob_to_regex`, which calls `len()` and raises a bare
+        # TypeError — a config mistake surfacing as a crash instead of as the
+        # ConfigError every other malformed field produces.
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) \
+                or not entry["path"].strip():
+            raise ConfigError(f"`allow[{i}]`: `path` is required and must be a non-empty string")
+        # A reason is mandatory, and this is the whole difference between an
+        # exception and a suppression. "alive by webpack resolve.alias in
+        # next.config.js:110" is a fact the next reader can check; an unexplained
+        # path is a file someone silenced, indistinguishable a year later from
+        # one that genuinely rotted.
+        if not isinstance(entry.get("reason"), str) or not entry["reason"].strip():
+            raise ConfigError(
+                f"`allow[{i}]` ({entry['path']}): `reason` is required and must be a "
+                "non-empty string. Name the MECHANISM "
+                "that reaches this file — a build alias, a container COPY, a dynamic import. "
+                "An exception nobody can re-verify is a suppression wearing an exception's name."
+            )
     return raw
 
 
@@ -618,10 +643,17 @@ def build_ledger(
     dirty = bool(_git(root, ["status", "--porcelain"]))
     now = datetime.now(UTC)
 
+    allow_specs = [(e["path"], e["reason"], glob_to_regex(e["path"])) for e in config["allow"]]
+    allow_used: set[str] = set()
+
     findings: list[dict[str, Any]] = []
     for rid, (_root_obj, res) in results.items():
         scope = list(next(s["include"] for s in config["roots"] if s["id"] == rid))
         for rel in sorted(res.all_files - res.reachable):
+            hit = next((p for p, _r, rx in allow_specs if rx.match(rel)), None)
+            if hit is not None:
+                allow_used.add(hit)
+                continue
             findings.append({
                 "id": _finding_id(rel),
                 "axis": "orphan-file",
@@ -653,6 +685,20 @@ def build_ledger(
                     "decided_at": now.isoformat().replace("+00:00", "Z"),
                 },
             })
+
+    # A rotting exception must break the build, or the allow list drifts into
+    # fiction — it becomes the same unvisited graveyard a quarantine directory
+    # would have been, except that this one silently shrinks what the scan can
+    # see. An entry that stopped covering anything means the file was deleted,
+    # renamed, or has been wired up properly; all three deserve an edit here.
+    stale = [p for p, _r, _rx in allow_specs if p not in allow_used]
+    if stale:
+        raise ConfigError(
+            f"stale `allow` entr{'y' if len(stale) == 1 else 'ies'}: {', '.join(stale)} — "
+            "no longer matches an unreachable file. Delete the entry: the exception it "
+            "records has expired, and an exception nobody re-checks is how a suppression "
+            "list outlives the thing it was suppressing."
+        )
 
     return {
         "schema": "sweep-manifest/v1",
@@ -788,6 +834,78 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check(args: argparse.Namespace) -> int:
+    """The ratchet: fail when the orphan count rises above a committed baseline.
+
+    Scanning is cheap (deterministic, no model) and ADJUDICATING is not. That
+    split is what lets this run on every pull request while the `sweep` skill
+    stays monthly: counting does not require anyone to rule on anything.
+
+    Catching a new orphan on the PR that creates it is worth much more than
+    catching it a month later — the author still remembers why the file is there,
+    and the fix is usually to finish wiring it rather than to delete it.
+    """
+    loaded = _load(args.config)
+    if loaded is None:
+        print("no sweep.yaml in this consumer — nothing to check")
+        return 0
+    config_path, root, config = loaded
+    if args.max < 0:
+        # A negative ceiling can never be met, so the gate would be red forever
+        # and then switched off. Refusing is kinder than a permanently failing job.
+        raise ConfigError(f"`--max {args.max}` is negative; a baseline is a count, and counts start at 0")
+
+    started = datetime.now(UTC)
+    results, entry_globs = _scan_all(root, config)
+    duration_ms = int((datetime.now(UTC) - started).total_seconds() * 1000)
+
+    failed = run_probes(config, results)
+    if failed:
+        emit_error(
+            why=f"{len(failed)} probe(s) declared live read as unreachable: {'; '.join(failed)}",
+            where=str(config_path),
+            fix="the RESOLVER is wrong, not the repo. No count from a broken scan is a baseline.",
+            override="none",
+        )
+        return 1
+
+    ledger = build_ledger(root, config, results, entry_globs, started, duration_ms)
+    count = len(ledger["findings"])
+
+    if count > args.max:
+        emit_error(
+            why=(
+                f"{count} unexplained orphan file(s), baseline {args.max} — "
+                "entropy went UP. A cleanup campaign with no ratchet undoes itself "
+                "quietly, which is why this is a gate and not a report"
+            ),
+            where=str(config_path),
+            fix=(
+                "wire the new file in, delete it (`sweep_execute.py`, see "
+                "docs/runbooks/remove-dead-code.md), or — if it is alive by a mechanism "
+                "no import graph can see — add an `allow` entry NAMING that mechanism. "
+                "Raising the baseline is not on this list."
+            ),
+            override="none",
+        )
+        for f in ledger["findings"]:
+            print(f"  orphan  {f['path']}", file=sys.stderr)
+        return 1
+
+    if count < args.max:
+        # Ratchets only ratchet if someone lowers them, and nobody lowers a number
+        # they were never told had slack. Saying it here is what turns a passing
+        # gate into a tightening one.
+        print(
+            f"sweep: {count} orphan(s), baseline {args.max} — LOWER THE BASELINE to {count} "
+            "in this same PR; that is what locks the improvement in."
+        )
+        return 0
+
+    print(f"sweep: {count} orphan(s), at the baseline of {args.max}")
+    return 0
+
+
 def cmd_probe(args: argparse.Namespace) -> int:
     loaded = _load(args.config)
     if loaded is None:
@@ -828,6 +946,12 @@ def main(argv: list[str] | None = None) -> int:
     scan.add_argument("--out", help="Write the sweep-manifest JSON here.")
     scan.add_argument("--json", dest="as_json", action="store_true")
     scan.set_defaults(func=cmd_scan)
+
+    check = sub.add_parser("check", help="Ratchet: fail if the orphan count exceeds --max.")
+    check.add_argument("--config")
+    check.add_argument("--max", type=int, required=True,
+                       help="Committed baseline. Ratchets only go DOWN.")
+    check.set_defaults(func=cmd_check)
 
     probe = sub.add_parser("probe", help="Run the probe gate alone.")
     probe.add_argument("--config")
