@@ -2,6 +2,35 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.7] — 2026-08-02 — docs: the entropy gate is enforced, and what a green gate does not mean
+
+### Changed
+- **`code-entropy.md` flips 🟡 partial → ✅ enforced** in
+  [`enforcement-status.md`](docs/concepts/enforcement-status.md). The row has only
+  ever claimed what was measured, and the condition it named — "no consumer has
+  frozen a number with it yet" — is now met: geeplo runs all three detectors in an
+  always-on `entropy-gate` job on every PR, froze `SWEEP_ORPHAN_BASELINE` at 10 and
+  then at 0, and `sweep_execute.py` performed its first real deletions (8 files,
+  each with a restore command).
+
+### Recorded
+- **What ✅ does not mean.** Of the ten files that scan confirmed as orphans, **two
+  were alive** — a router auto-mounted by a `pkgutil.iter_modules` loop serving five
+  authenticated production endpoints, and a module invoked as `python -m ...` by five
+  separate documents. Both were adjudicated, confirmed, and one human authorisation
+  away from deletion.
+
+  The probe gate was green for every run that reported them, and it was not broken:
+  every probe reached its target through an ordinary import, so the gate proved the
+  resolver works **for import-shaped paths and nothing else**. A discovery loop is
+  not an import; a runbook is not a path.
+
+  So ✅ means *the gate runs and the number cannot rise silently*. It does not mean a
+  confirmed finding is safe to delete unread. This is the seventh time the surface
+  signal has been wrong one level below where it was read, and it is the reason
+  Tier 1 authority is human-only and `sweep_execute` refuses any file carrying
+  `unfinished_commitments`.
+
 ## [0.22.6] — 2026-08-02 — feat: markdown reachability, and the obligation nobody is watching
 
 ### Added
