@@ -55,6 +55,15 @@ table is the honest map, including what it does not cover:
 | Human in the Jira UI | None in-repo | Detected by `check`; a Jira Automation backstop is the follow-up |
 | claude.ai web session, or `curl` with the sync credentials | **None. Not gateable from this repo.** | Detected by `check` only |
 
+**The hook only fires if the consumer routes those tools to the dispatcher.** A
+rule with a `pretooluse()` is inert until `.claude/settings.json` sends the event
+to `hook_dispatcher.py` with a matcher that covers the tool. Claude Code matchers
+are regexes over the tool NAME, so the entry needs
+`mcp__.*__(create|edit)JiraIssue` — the alias between the `mcp__` prefix and the
+tool name varies per client configuration. `templates/new-project` ships this;
+consumers created before v0.22.9 must add it by hand, and a consumer that does
+not is protected by `check` alone.
+
 Run:
 
 ```
