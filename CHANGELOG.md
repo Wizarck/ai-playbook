@@ -2,6 +2,29 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.9] — 2026-08-02 — fix: route the MCP Jira tools to the hook dispatcher
+
+### Fixed
+- **The `jira-ticket-standard` hook could never fire.** v0.22.8 shipped a
+  `pretooluse()` that denies a non-conformant `createJiraIssue`, but a rule's hook
+  entrypoint is inert until the consumer's `.claude/settings.json` routes the event
+  to `hook_dispatcher.py` with a matcher covering the tool — and the consumer
+  template's matcher was `Edit|Write|MultiEdit|Bash|KillShell|TaskStop`, which
+  names no MCP tool at all. The preventive half of the standard was built,
+  registered, tested, and wired to nothing.
+
+  `templates/new-project/.claude/settings.json.tmpl` now also matches
+  `mcp__.*__(create|edit)JiraIssue`. The rule doc states the dependency explicitly,
+  because a consumer created before this version still has the old matcher and is
+  covered by `check` alone until someone adds the entry.
+
+### Notes
+- Found by asking "does this actually fire in the repo it polices?" rather than by
+  a failing test — the unit tests call `pretooluse()` directly, so they pass whether
+  or not anything ever calls it. That gap is the same shape `capability-wiring`
+  exists to catch: built-but-unregistered code imports cleanly and passes its own
+  tests.
+
 ## [0.22.8] — 2026-08-02 — feat: enforce the ticket-authoring standard (GPLO-1350)
 
 ### Added
