@@ -232,6 +232,119 @@ def test_a_tree_outside_git_still_scans(tmp_path) -> None:
     assert [f["path"] for f in ledger_of(config, tmp_path)["findings"]] == ["fe/app/Orphan.tsx"]
 
 
+# ---------------------------------------------------------------------------
+# The ratchet, and its allow list
+# ---------------------------------------------------------------------------
+
+
+def _allow_tree(tmp_path) -> None:
+    ts_tree(tmp_path)
+    write(tmp_path, "fe/vendor/stub.js", "export default {};\n")
+
+
+def _allow_config(tmp_path, allow: list[dict]):
+    return make_config(
+        tmp_path,
+        presets=["next-app-router"],
+        roots=[{
+            "id": "frontend", "language": "typescript",
+            "include": ["fe/**/*.ts", "fe/**/*.tsx", "fe/**/*.js"],
+            "resolve_from": "fe/tsconfig.json",
+        }],
+        probes=["fe/app/components/Layout.tsx"],
+        allow=allow,
+    )
+
+
+def test_an_allowed_path_is_not_a_finding(tmp_path) -> None:
+    """Some files are alive by a mechanism no import graph can see — a build
+    alias, a container COPY. Re-reporting them every month trains the reader to
+    skim past real findings."""
+    _allow_tree(tmp_path)
+    config = _allow_config(tmp_path, [
+        {"path": "fe/vendor/*.js", "reason": "webpack resolve.alias in next.config.js"},
+    ])
+    paths = [f["path"] for f in ledger_of(config, tmp_path)["findings"]]
+    assert paths == ["fe/app/components/Orphan.tsx"]
+
+
+def test_an_allow_entry_without_a_reason_is_a_config_error(tmp_path, capsys) -> None:
+    """A reason is the whole difference between an exception and a suppression:
+    a named mechanism can be re-verified, a bare path cannot."""
+    _allow_tree(tmp_path)
+    config = _allow_config(tmp_path, [{"path": "fe/vendor/*.js"}])
+    assert scan(config) == 2
+    assert "reason` is required" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("entry", [
+    {"path": 1, "reason": "a number is not a glob"},
+    {"path": "fe/vendor/*.js", "reason": 1},
+])
+def test_a_non_string_allow_field_is_a_config_error_not_a_crash(tmp_path, entry) -> None:
+    """Truthiness is not enough: `path: 1` would reach `glob_to_regex`, which
+    calls `len()` and raises a bare TypeError — a config mistake surfacing as a
+    crash instead of as the ConfigError every other malformed field produces."""
+    _allow_tree(tmp_path)
+    assert scan(_allow_config(tmp_path, [entry])) == 2
+
+
+def test_a_negative_max_is_refused(tmp_path, capsys) -> None:
+    """A ceiling that can never be met is a job that is red forever, and a job
+    that is red forever gets switched off."""
+    ts_tree(tmp_path)
+    assert sweep.main(["check", "--config", str(ts_config(tmp_path)), "--max", "-1"]) == 2
+    assert "counts start at 0" in capsys.readouterr().err
+
+
+def test_a_stale_allow_entry_breaks_the_build(tmp_path, capsys) -> None:
+    """An exception that stopped covering anything must fail loudly.
+
+    Otherwise the allow list becomes the unvisited graveyard a quarantine
+    directory would have been — except this one silently shrinks what the scan
+    can see, which is strictly worse.
+    """
+    ts_tree(tmp_path)                       # note: no fe/vendor/ in this tree
+    config = _allow_config(tmp_path, [
+        {"path": "fe/vendor/*.js", "reason": "webpack alias that no longer exists"},
+    ])
+    assert scan(config) == 2
+    assert "stale `allow`" in capsys.readouterr().err
+
+
+def test_check_passes_at_the_baseline(tmp_path, capsys) -> None:
+    ts_tree(tmp_path)
+    assert sweep.main(["check", "--config", str(ts_config(tmp_path)), "--max", "1"]) == 0
+    assert "at the baseline" in capsys.readouterr().out
+
+
+def test_check_fails_when_entropy_rises(tmp_path, capsys) -> None:
+    """The gate. Without it a cleanup campaign undoes itself quietly."""
+    ts_tree(tmp_path)
+    write(tmp_path, "fe/app/components/Second.tsx", "export default function S() { return null; }\n")
+    rc = sweep.main(["check", "--config", str(ts_config(tmp_path)), "--max", "1"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "entropy went UP" in err
+    assert "Raising the baseline is not on this list" in err
+
+
+def test_check_says_so_when_the_baseline_can_be_lowered(tmp_path, capsys) -> None:
+    """Ratchets only ratchet if someone lowers them, and nobody lowers a number
+    they were never told had slack."""
+    ts_tree(tmp_path)
+    assert sweep.main(["check", "--config", str(ts_config(tmp_path)), "--max", "5"]) == 0
+    assert "LOWER THE BASELINE to 1" in capsys.readouterr().out
+
+
+def test_check_refuses_to_publish_a_number_from_a_broken_resolver(tmp_path, capsys) -> None:
+    """A count from a scan whose probes fail is not a baseline, it is noise with
+    an integer attached."""
+    ts_tree(tmp_path)
+    assert sweep.main(["check", "--config", str(ts_config(tmp_path, resolve=False)), "--max", "99"]) == 1
+    assert "No count from a broken scan" in capsys.readouterr().err
+
+
 def test_probes_are_mandatory(tmp_path) -> None:
     """A reachability scan nobody validated is an opinion with a schema."""
     ts_tree(tmp_path)
