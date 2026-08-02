@@ -577,6 +577,25 @@ def validate_description(
             result.na_sections.append(canonical)
             continue
 
+        # The structural check runs FIRST, and when a section has one it fully
+        # replaces the word count. A section that satisfies its own contract is
+        # substantive by the standard's own definition, however few words it
+        # took: `## Test de regresión` asks for a test path, `tests/test_x.py`
+        # is the ideal answer, and it is exactly one word. Counting first
+        # rejected the most precise reply the section can receive — and each
+        # checker already catches its own empty case (no bullets, no test
+        # reference, no A/B/C), so nothing is lost by skipping the count.
+        requires = section.get("requires")
+        if requires == "metric_lines":
+            result.findings.extend(_check_metrics(body, spec, norm, content, canonical))
+            continue
+        if requires == "abc":
+            result.findings.extend(_check_abc(body, content, canonical))
+            continue
+        if requires == "test_reference":
+            result.findings.extend(_check_test_reference(body, content, canonical))
+            continue
+
         if len(body.split()) < min_words:
             result.findings.append(Finding(
                 EMPTY_SECTION, canonical,
@@ -584,15 +603,6 @@ def validate_description(
                 f"{section.get('prompt', '')} Si de verdad no aplica, escribe "
                 "`N/A — <razón>`; queda registrado y se cuenta.",
             ))
-            continue
-
-        requires = section.get("requires")
-        if requires == "metric_lines":
-            result.findings.extend(_check_metrics(body, spec, norm, content, canonical))
-        elif requires == "abc":
-            result.findings.extend(_check_abc(body, content, canonical))
-        elif requires == "test_reference":
-            result.findings.extend(_check_test_reference(body, content, canonical))
 
     return result
 

@@ -160,6 +160,41 @@ def test_short_but_real_prose_is_not_treated_as_empty():
     assert K.validate_description(body, "Subtask").ok
 
 
+def _bug_with_regression_body(body: str) -> str:
+    return (
+        "## Contexto / Problema\nEl hook corrompe los acentos al leer stdin.\n"
+        "## Repro\n1. Enviar el evento. 2. Leer el veredicto que devuelve.\n"
+        "## Esperado vs Actual\nEsperado pasar limpio, actual quejarse de algo presente.\n"
+        f"## Test de regresión\n{body}\n"
+        "## Métricas\n- secciones mal reportadas como ausentes → calidad / exactitud\n"
+    )
+
+
+def test_a_bare_test_path_satisfies_the_regression_section():
+    """The most precise possible answer must not be rejected for being short.
+
+    `min_words_per_section` used to run BEFORE the structural check and `continue`
+    on failure, so `tests/test_x.py` — exactly what the section asks for, and
+    exactly one word — was refused as "prácticamente vacía". A section that
+    satisfies its own contract is substantive however few words it took.
+    """
+    result = K.validate_description(
+        _bug_with_regression_body("tests/test_hook_dispatcher_stdin_encoding.py"), "Bug"
+    )
+    assert result.ok, [f.what for f in result.findings]
+
+
+def test_an_empty_regression_section_is_still_caught():
+    """The negative control for the reordering above.
+
+    Skipping the word count is only safe because each structural checker catches
+    its own empty case. If that ever stops being true, this goes red rather than
+    the gate going quiet.
+    """
+    result = K.validate_description(_bug_with_regression_body(""), "Bug")
+    assert K.NO_TEST_REFERENCE in kinds(result)
+
+
 def test_surviving_template_sentinel_is_rejected(conformant):
     assert K.SENTINEL_LEFT in kinds(
         K.validate_description("<<rellenar esto>>\n" + conformant, FEATURE)

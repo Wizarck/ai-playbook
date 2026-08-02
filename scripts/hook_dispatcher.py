@@ -36,6 +36,36 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
+def _force_utf8_streams() -> None:
+    """Hook payloads are UTF-8 JSON. Windows consoles are not.
+
+    `sys.stdin.read()` decodes with the platform default encoding — cp1252 on
+    Windows — so every non-ASCII byte in a hook payload is corrupted before any
+    rule sees it. The failure is silent and looks like a rule bug: with
+    `jira-ticket-standard`, a ticket carrying `## Métricas` and
+    `## Test de regresión` was reported as MISSING both, because those are the
+    only two canonical section names with accents. A gate that refuses the
+    compliant author is worse than no gate — it teaches people the override.
+
+    stdout/stderr get the same treatment: findings are Spanish prose containing
+    `→`, which raises `UnicodeEncodeError` on a cp1252 console and turns a
+    refusal into a crash.
+
+    No in-process test can catch this. Every one of them builds `str` objects
+    and calls the validator directly, never crossing the byte boundary where the
+    corruption happens — which is exactly why the regression test for it spawns
+    a subprocess.
+    """
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):  # pragma: no cover - captured streams
+            pass
+
+
+_force_utf8_streams()
+
+
 class Rule:
     __slots__ = ("slug", "doc_path", "hardrule_path", "triggers", "frontmatter")
 

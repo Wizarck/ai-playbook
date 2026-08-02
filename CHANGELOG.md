@@ -2,6 +2,43 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.10] — 2026-08-02 — fix: the dispatcher mangled every non-ASCII hook payload
+
+### Fixed
+- **`hook_dispatcher.py` read stdin with the platform default encoding**, which is
+  cp1252 on Windows, so every non-ASCII byte in a hook payload was corrupted
+  before any rule saw it. Found the first time `jira-ticket-standard` was used to
+  file a real ticket: a description carrying `## Métricas` and
+  `## Test de regresión` was refused for MISSING both. Those are the only two of
+  the five canonical section names with accents — a fingerprint, not a
+  coincidence.
+
+  This is the worst failure mode a gate has. It did not let bad tickets through;
+  it refused the compliant author and told them to add sections they had already
+  written, which is precisely how a team learns to set the override. On Windows
+  the standard was unusable for its intended purpose from the moment it shipped.
+
+  `stdin`, `stdout` and `stderr` are now reconfigured to UTF-8 at import.
+  stdout/stderr matter too: findings are Spanish prose containing `→`, which
+  raises `UnicodeEncodeError` on a cp1252 console and turns a refusal into a
+  crash.
+
+  **Why 54 tests missed it.** Every one builds `str` objects and calls the
+  validator or `pretooluse()` in-process, never crossing the byte boundary where
+  the corruption happens. The regression test therefore spawns a subprocess with
+  `PYTHONIOENCODING=cp1252` — without forcing the encoding it would pass on a
+  UTF-8 CI host whatever the dispatcher did, and would have shipped green beside
+  the broken code. Same shape as the v0.22.9 wiring gap: the bug lived at a
+  boundary no test crossed.
+
+- **The word count rejected the most precise possible answer.**
+  `min_words_per_section` ran BEFORE a section's structural check and `continue`d
+  on failure, so `## Test de regresión` — which asks for a test path — refused
+  `tests/test_x.py` as "prácticamente vacía". It is one word and it is exactly
+  what the section asks for. The structural check now runs first and fully
+  replaces the count for any section that has one; each checker already catches
+  its own empty case, and there is a negative control asserting that.
+
 ## [0.22.9] — 2026-08-02 — fix: route the MCP Jira tools to the hook dispatcher
 
 ### Fixed
