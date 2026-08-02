@@ -93,12 +93,61 @@ SCHEMA_CONST = "ai-playbook/sweep-config/v1"
 CONFIG_NAME = "sweep.yaml"
 ENGINE_MAJOR = 1
 
-LANGUAGES = ("python", "typescript")
+LANGUAGES = ("python", "typescript", "markdown")
 _SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{2,63}$")
 
 TS_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
 PY_EXTS = (".py", ".pyi")
+MD_EXTS = (".md", ".markdown")
+
+# A document is reached by a LINK, never by an import, so `markdown` gets its own
+# resolver rather than being bolted onto one of the code ones. Two consequences
+# are worth stating up front, because they bound what this can honestly claim:
+#
+#   - A prose file is legitimately unlinked far more often than a module is
+#     legitimately unimported. Notes, reports and operator artefacts are written
+#     to be read once. So a markdown root belongs behind its own baseline, and
+#     `allow` earns its keep here more than anywhere else.
+#   - A document can also be reached from CODE — a template loaded by id, a file
+#     rendered by path. No link graph sees that. Those belong in `entrypoints`,
+#     exactly like an Alembic migration: loaded by convention, never referenced.
+#     Measured on the first consumer: 57 of its 58 backend markdown files are
+#     notification templates resolved from a `template_id`.
+
+# Case-insensitive because a link may point at `./Docs/Index.md` on a
+# case-insensitive filesystem and still be the same file.
+_MD_LINK_RE = re.compile(
+    r"""
+      \]\(\s*<?([^)>\s]+)          # [text](target)  and  [text](<target with spaces>)
+    | ^\s*\[[^\]]+\]:\s*<?(\S+)    # [label]: target      (reference definition)
+    | href\s*=\s*["']([^"']+)      # <a href="target">    (raw HTML in markdown)
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
+
+# Markers that turn "this file is unreferenced" into something sharper: an
+# obligation nobody is watching. Deliberately NOT RFC-2119 `MUST`, which is
+# normative prose in every spec and would fire on all of them.
+#
+# The unchecked checkbox is the strongest of these and the most markdown-native:
+# somebody wrote a list of things to do and did not tick them.
+#
+# This is a HEURISTIC, and its job is to make an adjudicator LOOK, never to
+# decide. Precedent from the first consumer: `PROGRESS.md` sat unreferenced at
+# the repo root for four weeks carrying "Prod source teardown still required" for
+# artefacts seeded into a live customer Workspace. Deleting that file as an
+# orphan would have deleted the only record of the obligation.
+_COMMITMENT_RE = re.compile(
+    r"""
+      ^\s*[-*]\s\[\s\]              # - [ ]   an unticked task
+    | \bTODO\b | \bFIXME\b
+    | \bstill\s+required\b
+    | \bMUST\s+(?:TEAR\s+DOWN|DELETE|ROTATE|PURGE|REVOKE)\b
+    | \bnot\s+yet\s+done\b
+    """,
+    re.IGNORECASE | re.MULTILINE | re.VERBOSE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +209,15 @@ PRESETS: dict[str, dict[str, Any]] = {
             ),
             _JS_TS,
         ),
+    },
+    "docs-index": {
+        "why": (
+            "A documentation tree is entered at its index, never linked from "
+            "outside it. `README.md` is the repo's front door and an `INDEX.md` "
+            "is the front door of its directory — both are reached by a human "
+            "or a build, not by a link from a sibling."
+        ),
+        "entrypoints": ["README.md", "**/INDEX.md", "**/README.md"],
     },
     "node-tooling": {
         "why": "Config files are read by their tool by filename, not imported.",
@@ -309,6 +367,61 @@ _TS_SPEC_RE = re.compile(
 
 def ts_specifiers(text: str) -> list[str]:
     return [m.group(1) for m in _TS_SPEC_RE.finditer(text)]
+
+
+def md_links(text: str) -> list[str]:
+    """Every in-repo link target in a markdown document.
+
+    External schemes and pure anchors are dropped: `https://…` leaves the repo,
+    and `#section` is a jump inside the same file. Anchors and query strings are
+    stripped from what remains, so `../ops/deploy.md#rollback` resolves to the
+    file it names.
+    """
+    out: list[str] = []
+    for match in _MD_LINK_RE.finditer(text):
+        target = next((g for g in match.groups() if g), "")
+        target = target.split("#", 1)[0].split("?", 1)[0].strip().strip("<>")
+        if not target or "://" in target or target.startswith(("mailto:", "tel:", "#")):
+            continue
+        out.append(target)
+    return out
+
+
+def unfinished_commitments(text: str) -> int:
+    """How many undischarged obligations this document appears to record."""
+    return len(_COMMITMENT_RE.findall(text))
+
+
+def resolve_md(target: str, importer: str, known: set[str]) -> str | None:
+    """Resolve one link to a repo-relative path, or None if it leaves the tree.
+
+    Both relative (`../ops/x.md`) and root-absolute (`/docs/x.md`) forms appear
+    in real documents, and a link to a directory conventionally means its index.
+    """
+    if target.startswith("/"):
+        candidate = target.lstrip("/")
+    else:
+        parts: list[str] = []
+        for part in (Path(importer).parent / target).as_posix().split("/"):
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if parts:
+                    parts.pop()
+                continue
+            parts.append(part)
+        candidate = "/".join(parts)
+
+    if candidate in known:
+        return candidate
+    for ext in MD_EXTS:                      # `[see](../ops/deploy)` with the suffix elided
+        if candidate + ext in known:
+            return candidate + ext
+    for name in ("INDEX", "README", "index", "readme"):
+        for ext in MD_EXTS:
+            if f"{candidate}/{name}{ext}" in known:
+                return f"{candidate}/{name}{ext}"
+    return None
 
 
 def py_imported_modules(text: str) -> list[tuple[str, int]]:
@@ -511,6 +624,7 @@ class ScanResult:
     all_files: set[str]
     unparseable: list[str]
     ignored: int = 0
+    commitments: dict[str, int] = field(default_factory=dict)
 
 
 def git_versioned(root: Path) -> set[str] | None:
@@ -569,6 +683,7 @@ def scan_root(root: Path, spec: dict[str, Any], entry_globs: list[str]) -> tuple
     known = set(files)
     edges: dict[str, set[str]] = {f: set() for f in files}
     unparseable: list[str] = []
+    commitments: dict[str, int] = {}
 
     py_index = build_py_index(files, base) if spec["language"] == "python" else {}
 
@@ -585,6 +700,14 @@ def scan_root(root: Path, spec: dict[str, Any], entry_globs: list[str]) -> tuple
                         edges[rel].add(hit)
             except SyntaxError:
                 unparseable.append(rel)
+        elif spec["language"] == "markdown":
+            for target in md_links(text):
+                hit = resolve_md(target, rel, known)
+                if hit and hit != rel:
+                    edges[rel].add(hit)
+            count = unfinished_commitments(text)
+            if count:
+                commitments[rel] = count
         else:
             for s in ts_specifiers(text):
                 hit = resolve_ts(s, rel, root_obj, known)
@@ -604,7 +727,7 @@ def scan_root(root: Path, spec: dict[str, Any], entry_globs: list[str]) -> tuple
                 reachable.add(nxt)
                 stack.append(nxt)
 
-    return root_obj, ScanResult(reachable, edges, known, unparseable, ignored)
+    return root_obj, ScanResult(reachable, edges, known, unparseable, ignored, commitments)
 
 
 # ---------------------------------------------------------------------------
@@ -677,6 +800,13 @@ def build_ledger(
                     "consumers_found": 0,
                     "search_scope": scope,
                     "locations": [{"path": rel, "role": "subject"}],
+                    # Present only when the file appears to record work nobody
+                    # discharged. It changes what the finding MEANS: not "this
+                    # file is dead" but "this obligation is unwatched", and the
+                    # correct action is to extract the obligation somewhere it
+                    # will be seen — never to delete it quietly.
+                    **({"unfinished_commitments": res.commitments[rel]}
+                       if res.commitments.get(rel) else {}),
                 },
                 "adjudication": {
                     "decided_by": "detector",

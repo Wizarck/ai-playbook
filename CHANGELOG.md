@@ -2,6 +2,49 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.6] — 2026-08-02 — feat: markdown reachability, and the obligation nobody is watching
+
+### Added
+- **A `markdown` language for `sweep_scan.py`.** A document is reached by a LINK,
+  never by an import, so it gets its own resolver rather than being bolted onto a
+  code one: inline `[x](y)`, reference definitions, raw `href=`, anchors stripped,
+  directory links resolving to the section index. The `docs-index` preset makes
+  `README.md` and `**/INDEX.md` entry points, because a documentation tree is
+  entered at its index.
+
+  Two honest limits ship with it. A prose file is legitimately unlinked far more
+  often than a module is legitimately unimported, so a markdown root belongs
+  behind its own baseline and starts report-only. And a document can be reached
+  from CODE — a template resolved by id — which no link graph sees; those belong
+  in `entrypoints`, exactly like an Alembic migration. Measured on the first
+  consumer: 57 of its 58 backend markdown files are notification templates.
+
+- **`evidence.unfinished_commitments`** — and this is the part that matters. A
+  stranded document that records undischarged work is not entropy; it is an
+  obligation with no watcher, and deleting it destroys the only record that the
+  work exists. The detector counts unticked task boxes, `TODO`/`FIXME`, "still
+  required" and "MUST TEAR DOWN" — deliberately NOT RFC-2119 `MUST`, which is
+  normative prose in every spec and would fire on all of them.
+
+  `sweep_execute.py` REFUSES to delete such a file even when a human authorised
+  it. That is the one refusal a signature cannot override: the debt has to move
+  somewhere it will be seen first, and once it has, the marker goes with it and a
+  re-scan clears the row honestly.
+
+  Measured on the first consumer — 111 documents, 41 unreferenced, 10 owing work,
+  and two of those were live: a `PROGRESS.md` unreferenced at the repo root for
+  four weeks owing a teardown of seed data in a customer's PRODUCTION Google
+  Workspace, and a security remediation checklist with eight unticked P0 items
+  including credential rotation. Neither was reachable from any index in the repo.
+
+  80 sweep tests.
+
+### Changed
+- `skills/sweep/SKILL.md` — adjudication must never confirm a commitment-bearing
+  row for removal; the finding to report is the unowned obligation, not the file.
+- `schemas/schema-sweep-manifest-v1.json` — optional `unfinished_commitments` on
+  `evidence`. Additive; existing ledgers validate unchanged.
+
 ## [0.22.5] — 2026-08-02 — feat: a count ratchet for repo-hygiene, separate from severity
 
 ### Added

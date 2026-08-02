@@ -336,6 +336,37 @@ def cmd_apply(args: argparse.Namespace) -> int:
         )
         return 2
 
+    owing = [f for f in ready if (f.get("evidence") or {}).get("unfinished_commitments")]
+    if owing:
+        # Structural, not advisory. A file that records work nobody discharged is
+        # not entropy — it is an obligation with no watcher, and deleting it
+        # deletes the only record. Precedent: a consumer's PROGRESS.md sat
+        # unreferenced at the repo root for four weeks owing a teardown on a live
+        # customer Workspace.
+        #
+        # `authorize` cannot wave this through either: the point is that the
+        # obligation must MOVE somewhere it will be seen — a ticket, a runbook,
+        # the deferred-items ledger — and once it has, the marker goes with it and
+        # a re-scan clears the row honestly.
+        detail = "; ".join(
+            f"{f['path']} ({(f['evidence'])['unfinished_commitments']})" for f in owing[:4]
+        )
+        emit_error(
+            why=(
+                f"{len(owing)} authorised file(s) still record undischarged work: {detail} — "
+                "deleting them would delete the only record of an obligation nobody is "
+                "watching, which is strictly worse than leaving the file"
+            ),
+            where=str(root),
+            fix=(
+                "move each obligation somewhere it will be seen — a ticket, a runbook, "
+                "the deferred-items ledger — then remove the marker from the file and "
+                "re-scan. The row clears honestly once the debt has an owner."
+            ),
+            override="none",
+        )
+        return 2
+
     absent = [f["path"] for f in ready if not (root / f["path"]).is_file()]
     if absent:
         emit_error(

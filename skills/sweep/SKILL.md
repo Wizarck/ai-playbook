@@ -72,6 +72,35 @@ this; the point of restating it is that you should not want to do it either.
   must name the MECHANISM, not the feeling. "Looks unused" is not a rationale.
   "Loaded by `next/dynamic` in `app/(ops)/page.tsx:26`" is.
 
+## When a finding carries `unfinished_commitments`
+
+Stop. This row does not mean what the others mean.
+
+`evidence.unfinished_commitments` is a count of undischarged obligations the
+scanner found in the file — unticked task boxes, `TODO`, "still required", "MUST
+TEAR DOWN". A stranded document that owes work is not entropy. It is **an
+obligation with no watcher**, and it is more dangerous than a dead file, because
+deleting it destroys the only record that the work exists.
+
+Measured on a real repository, two of these were live: a `PROGRESS.md`
+unreferenced at the repo root for four weeks, owing a teardown of seed data in a
+customer's production Google Workspace; and a security remediation checklist with
+eight unticked P0 items including credential rotation.
+
+So:
+
+- **Never `confirm` such a row for removal.** The executor refuses it anyway, but
+  you should not want to: your recommendation would be to delete a promise.
+- **Read the commitments and report them as the finding.** The interesting output
+  is not "this file is unreferenced", it is "these N obligations are unowned, and
+  here is what they are". Quote them.
+- **The fix is to MOVE the obligation**, not the file — into a ticket, a runbook,
+  or the deferred-items ledger, wherever this project actually watches work. Once
+  it has an owner, the marker leaves with it and the next scan clears the row
+  honestly.
+- An unticked box that is genuinely done and was never ticked is still a finding:
+  the record is wrong, and a record nobody maintains is one nobody can trust.
+
 ## How to adjudicate one finding
 
 Work from the evidence, then look for the thing the scanner structurally cannot
