@@ -158,6 +158,80 @@ def test_the_same_tree_scans_clean_once_the_resolver_reads_tsconfig(tmp_path) ->
     assert paths == ["fe/app/components/Orphan.tsx"]
 
 
+def test_a_javascript_route_roots_the_typescript_files_below_it(tmp_path) -> None:
+    """The SECOND acceptance gate, from the second real false-positive cluster.
+
+    geeplo's frontend is half-migrated: `page.js` -> `Modals.js` -> ten `.tsx`
+    modals. The `next-app-router` preset originally listed `page.tsx`/`page.ts`
+    and no `.js` variant, so the route was not an entry point, the whole chain
+    below it was rootless, and the scan reported an entire directory of live
+    components as orphans.
+
+    A whole directory reading as dead is the signature of a broken resolver, not
+    of ten developers abandoning ten files on the same day. Next.js routes any
+    of four script extensions; the preset must too.
+    """
+    write(tmp_path, "fe/app/page.js", "import M from '../components/Modals';\nexport default M;\n")
+    write(tmp_path, "fe/components/Modals.js", "import Thing from './modals/Thing';\nexport default Thing;\n")
+    write(tmp_path, "fe/components/modals/Thing.tsx", "export default function Thing() { return null; }\n")
+
+    config = make_config(
+        tmp_path,
+        presets=["next-app-router"],
+        roots=[{
+            "id": "frontend",
+            "language": "typescript",
+            "include": ["fe/**/*.ts", "fe/**/*.tsx", "fe/**/*.js", "fe/**/*.jsx"],
+        }],
+        probes=["fe/components/modals/Thing.tsx"],
+    )
+
+    assert scan(config) == 0
+    assert ledger_of(config, tmp_path)["findings"] == []
+
+
+def test_a_gitignored_file_is_not_repo_entropy(tmp_path) -> None:
+    """A build artefact cannot rot in a repository it was never committed to.
+
+    Measured on geeplo: two gitignored Playwright report directories supplied 10
+    of 24 candidates, every one of them bundled vendor JavaScript. Reporting
+    them invites a human to "clean up" a tree that regenerates on the next test
+    run — cost with no benefit, and it buries the real findings.
+    """
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    write(tmp_path, ".gitignore", "fe/report/\n")
+    write(tmp_path, "fe/app/page.tsx", "export default function Page() { return null; }\n")
+    write(tmp_path, "fe/report/bundle.js", "export const x = 1;\n")
+    write(tmp_path, "fe/app/Orphan.tsx", "export default function Orphan() { return null; }\n")
+
+    config = make_config(
+        tmp_path,
+        presets=["next-app-router"],
+        roots=[{
+            "id": "frontend",
+            "language": "typescript",
+            "include": ["fe/**/*.ts", "fe/**/*.tsx", "fe/**/*.js"],
+        }],
+        probes=["fe/app/page.tsx"],
+    )
+
+    paths = [f["path"] for f in ledger_of(config, tmp_path)["findings"]]
+    assert paths == ["fe/app/Orphan.tsx"], "the ignored bundle must not be a candidate"
+
+
+def test_a_tree_outside_git_still_scans(tmp_path) -> None:
+    """The ignore filter is an optimisation, not a dependency. No git, no filter."""
+    write(tmp_path, "fe/app/page.tsx", "export default function Page() { return null; }\n")
+    write(tmp_path, "fe/app/Orphan.tsx", "export default function Orphan() { return null; }\n")
+    config = make_config(
+        tmp_path,
+        presets=["next-app-router"],
+        roots=[{"id": "frontend", "language": "typescript", "include": ["fe/**/*.tsx"]}],
+        probes=["fe/app/page.tsx"],
+    )
+    assert [f["path"] for f in ledger_of(config, tmp_path)["findings"]] == ["fe/app/Orphan.tsx"]
+
+
 def test_probes_are_mandatory(tmp_path) -> None:
     """A reachability scan nobody validated is an opinion with a schema."""
     ts_tree(tmp_path)
@@ -317,6 +391,88 @@ def test_a_root_matching_no_files_is_a_config_error(tmp_path) -> None:
         probes=["fe/app/components/Layout.tsx"],
     )
     assert scan(config) == 2
+
+
+def test_aliases_declared_in_an_extended_tsconfig_still_resolve(tmp_path) -> None:
+    """`paths` commonly lives in a shared base config, not the file you name.
+
+    TypeScript merges `compilerOptions` along the `extends` chain. Reading only
+    the named file makes `paths` come back empty in that layout — which is the
+    89-false-positive bug arriving through a different door.
+    """
+    write(tmp_path, "fe/tsconfig.base.json", json.dumps(
+        {"compilerOptions": {"paths": {"@components/*": ["./app/components/*"]}}}))
+    write(tmp_path, "fe/tsconfig.json", json.dumps({"extends": "./tsconfig.base.json"}))
+    write(tmp_path, "fe/app/page.tsx", "import L from '@components/Layout';\nexport default L;\n")
+    write(tmp_path, "fe/app/components/Layout.tsx", "export default function L() { return null; }\n")
+
+    config = ts_config(tmp_path)
+    assert scan(config) == 0
+    assert ledger_of(config, tmp_path)["findings"] == []
+
+
+def test_every_alias_target_is_tried_not_only_the_first(tmp_path) -> None:
+    """TypeScript tries a key's targets in order; keeping only the first reports
+    anything reached through a fallback as an orphan."""
+    write(tmp_path, "fe/tsconfig.json", json.dumps(
+        {"compilerOptions": {"paths": {"@x/*": ["./missing/*", "./app/real/*"]}}}))
+    write(tmp_path, "fe/app/page.tsx", "import T from '@x/Thing';\nexport default T;\n")
+    write(tmp_path, "fe/app/real/Thing.tsx", "export default function T() { return null; }\n")
+
+    config = ts_config(tmp_path, probes=["fe/app/real/Thing.tsx"])
+    assert scan(config) == 0
+    assert ledger_of(config, tmp_path)["findings"] == []
+
+
+def test_a_string_exclude_is_normalised_not_iterated_by_character(tmp_path) -> None:
+    """Left unwrapped, `exclude: "fe/gen/**"` excludes nothing and the generated
+    tree it was meant to suppress lands in the ledger looking like a finding."""
+    ts_tree(tmp_path)
+    write(tmp_path, "fe/gen/Built.tsx", "export default function B() { return null; }\n")
+    config = make_config(
+        tmp_path,
+        presets=["next-app-router"],
+        roots=[{
+            "id": "frontend", "language": "typescript",
+            "include": ["fe/**/*.ts", "fe/**/*.tsx"],
+            "exclude": "fe/gen/**",
+            "resolve_from": "fe/tsconfig.json",
+        }],
+        probes=["fe/app/components/Layout.tsx"],
+    )
+    paths = [f["path"] for f in ledger_of(config, tmp_path)["findings"]]
+    assert paths == ["fe/app/components/Orphan.tsx"]
+
+
+def test_a_python_root_spanning_two_package_bases_is_refused(tmp_path) -> None:
+    """One root, one dotted-module index. Modules under a second base would be
+    indexed under the wrong name and read as unreachable — so refuse the config
+    rather than emit findings derived from it."""
+    write(tmp_path, "src/app/main.py", "x = 1\n")
+    write(tmp_path, "lib/other/thing.py", "y = 1\n")
+    config = make_config(
+        tmp_path,
+        roots=[{"id": "be", "language": "python", "include": ["src/**/*.py", "lib/**/*.py"]}],
+        probes=["src/app/main.py"],
+    )
+    assert scan(config) == 2
+
+
+def test_finding_ids_survive_paths_that_slugify_identically(tmp_path) -> None:
+    """`app/b.ts` and `app-b.ts` collapse to the same slug. Ids drive suppression
+    downstream, so a collision silences the wrong file."""
+    write(tmp_path, "fe/app/page.tsx", "export default function P() { return null; }\n")
+    write(tmp_path, "fe/x/b.ts", "export const a = 1;\n")
+    write(tmp_path, "fe/x-b.ts", "export const b = 1;\n")
+    config = make_config(
+        tmp_path,
+        presets=["next-app-router"],
+        roots=[{"id": "frontend", "language": "typescript",
+                "include": ["fe/**/*.ts", "fe/**/*.tsx"]}],
+        probes=["fe/app/page.tsx"],
+    )
+    ids = [f["id"] for f in ledger_of(config, tmp_path)["findings"]]
+    assert len(ids) == len(set(ids)) == 2
 
 
 # ---------------------------------------------------------------------------

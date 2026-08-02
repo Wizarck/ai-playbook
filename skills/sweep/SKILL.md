@@ -33,11 +33,24 @@ scan at all?"**
 - The scanner refuses to emit a ledger unless the consumer's declared `probes` —
   files known to be live — all read as reachable. If you are holding a ledger,
   that gate passed.
+- **A passed gate is not a clean bill of health.** It proves the resolver works
+  for the paths the probes exercise, and nothing more. On the same repository, a
+  second run reported ten live modals in one directory as orphans: the framework
+  preset listed `page.tsx` but not `page.js`, so the routes above them were not
+  entry points. All six probes were `.tsx` files reached through `.tsx`
+  importers, so every one of them passed. If the repo is half-migrated, or spans
+  languages, ask whether the probes actually cover the mechanism a cluster
+  depends on.
 - If findings cluster suspiciously (an entire directory, every file of one
   extension, a whole framework's worth of components), suspect the RESOLVER
   before you suspect the repo. Say so, and stop. A missing preset or an unread
   path alias explains a cluster; twenty independent developers abandoning one
   directory does not.
+
+The mechanisms that have actually produced false orphans, in order of how often
+they bite: an unread path alias, a missing entry-point extension, an importer
+the config never parsed, a resolution rule outside the language (a webpack
+`resolve.alias`, a `COPY` in a Dockerfile, a dynamic `import()`).
 
 ## What you may and may not do
 

@@ -1,4 +1,8 @@
-"""Deterministic scanner for code-entropy axes 1 (`orphan-file`) and 2 (`dead-symbol`).
+"""Deterministic scanner for code-entropy axis 1, `orphan-file`.
+
+Axis 2 (`dead-symbol`) is in the same undecidable family and is served by the
+same skill, but nothing here detects it: `build_ledger` declares `axes_scanned`
+as `orphan-file` alone, and an empty ledger must only claim the axis that ran.
 
 Emits a ledger validating against `schemas/schema-sweep-manifest-v1.json`.
 Taxonomy: `docs/concepts/code-entropy.md`.
@@ -57,6 +61,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import re
 import subprocess
@@ -83,7 +88,6 @@ from _rule_kit import (  # noqa: E402  (deliberate: needs the sys.path line abov
 )
 
 TOOL_VERSION = "0.1.0"
-SKIP_ENV = "AIPLAYBOOK_SWEEP_SKIP"
 SCHEMA_CONST = "ai-playbook/sweep-config/v1"
 CONFIG_NAME = "sweep.yaml"
 ENGINE_MAJOR = 1
@@ -102,9 +106,26 @@ PY_EXTS = (".py", ".pyi")
 #
 # Each preset is a set of globs whose matches are ENTRY POINTS: reachable by
 # definition, because a framework loads them by filename rather than by import.
-# Measured on geeplo: these four presets account for 762 of 779 naive candidates.
+# Measured on geeplo: these six presets account for 762 of 779 naive candidates.
 # They are framework facts, so they ship here rather than in every consumer's
 # config.
+
+
+def _by_ext(stems: tuple[str, ...], exts: tuple[str, ...]) -> list[str]:
+    """Every stem × every extension, as `**/`-anchored globs.
+
+    Hand-enumerating this product is how a preset ends up covering `page.tsx`
+    but not `page.js`. Measured on geeplo: that exact omission left three live
+    Next routes rootless and reported the 10 modals below them — a whole
+    directory — as orphans. Generating the product makes "we support this
+    extension" a single edit that cannot apply to some stems and not others.
+    """
+    return [f"**/{stem}{ext}" for stem in stems for ext in exts]
+
+
+# Next.js resolves route files in any of its four script extensions; so do
+# Vitest and Playwright for specs. Neither framework privileges TypeScript.
+_JS_TS = (".js", ".jsx", ".ts", ".tsx")
 
 PRESETS: dict[str, dict[str, Any]] = {
     "python-pytest": {
@@ -129,14 +150,15 @@ PRESETS: dict[str, dict[str, Any]] = {
             "entry points by convention and are never imported. On geeplo this "
             "one preset alone explains 118 candidates."
         ),
-        "entrypoints": [
-            "**/page.tsx", "**/page.ts", "**/layout.tsx", "**/layout.ts",
-            "**/route.ts", "**/route.tsx", "**/loading.tsx", "**/error.tsx",
-            "**/not-found.tsx", "**/template.tsx", "**/default.tsx",
-            "**/global-error.tsx", "**/middleware.ts", "**/instrumentation.ts",
-            "**/sitemap.ts", "**/robots.ts", "**/opengraph-image.tsx",
-            "**/icon.tsx", "**/apple-icon.tsx",
-        ],
+        "entrypoints": _by_ext(
+            (
+                "page", "layout", "route", "loading", "error", "not-found",
+                "template", "default", "global-error", "middleware",
+                "instrumentation", "sitemap", "robots", "opengraph-image",
+                "twitter-image", "icon", "apple-icon",
+            ),
+            _JS_TS,
+        ),
     },
     "node-tooling": {
         "why": "Config files are read by their tool by filename, not imported.",
@@ -147,10 +169,8 @@ PRESETS: dict[str, dict[str, Any]] = {
     },
     "js-test": {
         "why": "Vitest/Playwright collect spec files by filename.",
-        "entrypoints": [
-            "**/*.spec.ts", "**/*.spec.tsx", "**/*.test.ts", "**/*.test.tsx",
-            "**/tests/**/*.ts", "**/tests/**/*.tsx",
-        ],
+        "entrypoints": _by_ext(("*.spec", "*.test"), _JS_TS)
+        + [f"**/tests/**/*{ext}" for ext in _JS_TS],
     },
 }
 
@@ -206,7 +226,22 @@ def load_config(path: Path) -> dict[str, Any]:
         # grammar has no `{ts,tsx}` alternation on purpose (brackets and braces
         # are literal, so real paths like `app/(ops)/` survive).
         entry["include"] = [include] if isinstance(include, str) else list(include)
-        entry.setdefault("exclude", [])
+        exclude = entry.get("exclude") or []
+        # Same normalisation as `include`, and for a sharper reason: a bare string
+        # left unwrapped iterates CHARACTER by character, silently excluding
+        # nothing, and the generated tree it was meant to suppress lands in the
+        # ledger looking like a finding.
+        entry["exclude"] = [exclude] if isinstance(exclude, str) else list(exclude)
+
+        bases = {_glob_base(p) for p in entry["include"]}
+        if entry["language"] == "python" and len(bases) > 1:
+            raise ConfigError(
+                f"'{rid}': `include` patterns span more than one package base "
+                f"({', '.join(sorted(repr(b) for b in bases))}), but a Python root has a "
+                "single dotted-module index. Modules outside the first base would be "
+                "indexed under the wrong name and read as unreachable. Declare one root "
+                "per base instead."
+            )
 
     probes = raw.get("probes")
     if not isinstance(probes, list) or not probes:
@@ -220,6 +255,13 @@ def load_config(path: Path) -> dict[str, Any]:
     raw.setdefault("presets", [])
     raw.setdefault("entrypoints", [])
     return raw
+
+
+def _glob_base(pattern: str) -> str:
+    """The fixed directory prefix of a glob — `src/**/*.py` -> `src`, `**/*.py` -> ``."""
+    cut = min([p for p in (pattern.find("*"), pattern.find("?")) if p != -1] or [len(pattern)])
+    head = pattern[:cut]
+    return head.rsplit("/", 1)[0] if "/" in head else ""
 
 
 def preset_entrypoints(names: list[str]) -> list[str]:
@@ -287,6 +329,47 @@ def _strip_comments(text: str) -> str:
     return re.sub(r"^\s*//.*$", "", text, flags=re.MULTILINE)
 
 
+def _read_tsconfig(path: Path, seen: set[Path]) -> tuple[dict[str, list[str]], Path]:
+    """One tsconfig's `paths`, merged through its `extends` chain.
+
+    TypeScript resolves `extends` before `paths`, and a great many projects keep
+    aliases in a shared `tsconfig.base.json`. Reading only the named file makes
+    `paths` come back empty in that layout — and an empty alias table is the
+    89-false-positive bug this scanner was built around, just arriving by a
+    different door.
+
+    Returns the merged table and the directory `paths` is relative to: TypeScript
+    anchors on `baseUrl`, which is itself relative to the file that declares it,
+    so the anchor travels with the config that won.
+    """
+    if path in seen:                       # a cyclic `extends` is the user's bug, not ours
+        return {}, path.parent
+    seen.add(path)
+    try:
+        data = json.loads(_strip_comments(path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"cannot parse {path.name}: {exc}") from exc
+
+    merged: dict[str, list[str]] = {}
+    anchor = path.parent
+    parent = data.get("extends")
+    if isinstance(parent, str) and not parent.startswith("@"):
+        base = (path.parent / parent).resolve()
+        if base.suffix != ".json":
+            base = base.with_suffix(".json")
+        if base.is_file():
+            merged, anchor = _read_tsconfig(base, seen)
+
+    opts = data.get("compilerOptions") or {}
+    own = opts.get("paths")
+    if own:
+        merged = {**merged, **own}         # the nearer config wins, key by key
+        anchor = path.parent
+    if opts.get("baseUrl"):
+        anchor = (anchor / opts["baseUrl"]).resolve()
+    return merged, anchor
+
+
 def load_ts_aliases(root: Path, tsconfig_rel: str) -> list[tuple[str, str]]:
     """`compilerOptions.paths` -> [(prefix, target), ...], longest prefix first.
 
@@ -294,6 +377,11 @@ def load_ts_aliases(root: Path, tsconfig_rel: str) -> list[tuple[str, str]]:
     project's own module-resolution config is the ground truth for what an import
     specifier means; a resolver that guesses instead of reading it will report a
     live component tree as dead.
+
+    A key may map to SEVERAL targets and TypeScript tries them in order, so every
+    target is emitted. Keeping only the first would leave any import that resolves
+    through a fallback reading as unresolved — the same false-orphan outcome,
+    one layer down.
     """
     path = root / tsconfig_rel
     if not path.is_file():
@@ -302,24 +390,23 @@ def load_ts_aliases(root: Path, tsconfig_rel: str) -> list[tuple[str, str]]:
             "path aliases every aliased import resolves to nothing and the whole tree "
             "reads as unreachable"
         )
+    paths, anchor = _read_tsconfig(path, set())
     try:
-        data = json.loads(_strip_comments(path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ConfigError(f"cannot parse {tsconfig_rel}: {exc}") from exc
-
-    base_dir = path.parent.relative_to(root).as_posix()
+        base_dir = anchor.relative_to(root).as_posix()
+    except ValueError:                     # `baseUrl` escaping the root resolves nothing
+        base_dir = "."
     prefix = "" if base_dir == "." else base_dir + "/"
-    paths = (data.get("compilerOptions") or {}).get("paths") or {}
+
     out: list[tuple[str, str]] = []
     for key, targets in paths.items():
-        if not targets:
-            continue
         src = key[:-1] if key.endswith("*") else key
-        dst = targets[0][:-1] if targets[0].endswith("*") else targets[0]
-        if dst.startswith("./"):
-            dst = dst[2:]
-        out.append((src, (prefix + dst).replace("//", "/")))
-    # Longest prefix wins, so `@components/` is tried before a bare `@`.
+        for target in targets or []:
+            dst = target[:-1] if target.endswith("*") else target
+            if dst.startswith("./"):
+                dst = dst[2:]
+            out.append((src, (prefix + dst).replace("//", "/")))
+    # Longest prefix wins, so `@components/` is tried before a bare `@`. Ties keep
+    # declaration order, which is the order TypeScript itself tries the targets.
     out.sort(key=lambda kv: -len(kv[0]))
     return out
 
@@ -339,22 +426,27 @@ def resolve_ts(spec: str, importer: str, root_obj: Root, known: set[str]) -> str
                     parts.pop()
                 continue
             parts.append(part)
-        candidate = "/".join(parts)
+        candidates = ["/".join(parts)]
     else:
-        candidate = None
-        for prefix, dst in root_obj.aliases:
-            if spec.startswith(prefix):
-                candidate = (dst + spec[len(prefix):]).replace("//", "/")
-                break
-        if candidate is None:
+        # One key can map to several targets and TypeScript tries them in order,
+        # so gather every match and let the extension probe below pick the first
+        # that exists. Stopping at the first PREFIX would resolve nothing whenever
+        # the file lives behind a fallback target.
+        candidates = [
+            (dst + spec[len(prefix):]).replace("//", "/")
+            for prefix, dst in root_obj.aliases
+            if spec.startswith(prefix)
+        ]
+        if not candidates:
             return None          # bare package name — external, not our problem
 
-    for ext in ("",) + TS_EXTS:
-        if candidate + ext in known:
-            return candidate + ext
-    for ext in TS_EXTS:                      # directory with an index file
-        if f"{candidate}/index{ext}" in known:
-            return f"{candidate}/index{ext}"
+    for candidate in candidates:
+        for ext in ("",) + TS_EXTS:
+            if candidate + ext in known:
+                return candidate + ext
+        for ext in TS_EXTS:                  # directory with an index file
+            if f"{candidate}/index{ext}" in known:
+                return f"{candidate}/index{ext}"
     return None
 
 
@@ -393,6 +485,31 @@ class ScanResult:
     edges: dict[str, set[str]]
     all_files: set[str]
     unparseable: list[str]
+    ignored: int = 0
+
+
+def git_versioned(root: Path) -> set[str] | None:
+    """Paths git tracks, or would track — `None` when this is not a git tree.
+
+    A file git ignores cannot be repo entropy: it is a local build artifact
+    that regenerates. Measured on geeplo: two gitignored Playwright report
+    directories contributed 10 of 24 candidates, all of them bundled vendor
+    JavaScript. Reporting them is worse than noise — it invites someone to
+    "clean up" a directory that comes back on the next test run.
+
+    `--cached --others --exclude-standard` is tracked files plus untracked ones
+    that are NOT ignored, which is exactly "everything a commit could contain".
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            capture_output=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return {p for p in out.stdout.decode("utf-8", "replace").split("\0") if p}
 
 
 def scan_root(root: Path, spec: dict[str, Any], entry_globs: list[str]) -> tuple[Root, ScanResult]:
@@ -403,15 +520,21 @@ def scan_root(root: Path, spec: dict[str, Any], entry_globs: list[str]) -> tuple
     for pattern in spec["exclude"]:
         excluded = set(expand_glob(root, pattern))
         files = [f for f in files if f not in excluded]
+
+    ignored = 0
+    versioned = git_versioned(root)
+    if versioned is not None:
+        kept = [f for f in files if f in versioned]
+        ignored = len(files) - len(kept)
+        files = kept
+
     if not files:
         raise ConfigError(
             f"'{spec['id']}': `include` matched 0 files — a root that inspects nothing "
             "reports a clean repo forever"
         )
 
-    first = spec["include"][0]
-    cut = min([p for p in (first.find("*"), first.find("?")) if p != -1] or [len(first)])
-    base = first[:cut].rsplit("/", 1)[0] if "/" in first[:cut] else ""
+    base = _glob_base(spec["include"][0])
 
     aliases: list[tuple[str, str]] = []
     if spec["language"] == "typescript" and spec.get("resolve_from"):
@@ -456,7 +579,7 @@ def scan_root(root: Path, spec: dict[str, Any], entry_globs: list[str]) -> tuple
                 reachable.add(nxt)
                 stack.append(nxt)
 
-    return root_obj, ScanResult(reachable, edges, known, unparseable)
+    return root_obj, ScanResult(reachable, edges, known, unparseable, ignored)
 
 
 # ---------------------------------------------------------------------------
@@ -474,8 +597,17 @@ def _git(root: Path, args: list[str]) -> str:
 
 
 def _finding_id(rel: str) -> str:
+    """A stable, collision-free id for one path.
+
+    The slug alone is neither: it collapses every non-alphanumeric run to `-`
+    (`app/b.ts` and `app-b.ts` both become `app-b-ts`) and it is truncated, so
+    two deep paths sharing a prefix converge. Ids drive suppression and
+    `seen_count` downstream, and a collision there silences the wrong file.
+    The digest is of the FULL path, so truncation cannot reach it.
+    """
     slug = re.sub(r"[^a-z0-9]+", "-", rel.lower()).strip("-")
-    return f"orphan-{slug}"[:81]
+    digest = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:8]
+    return f"orphan-{slug}"[:72] + f"-{digest}"
 
 
 def build_ledger(
@@ -621,7 +753,21 @@ def cmd_scan(args: argparse.Namespace) -> int:
     ledger = build_ledger(root, config, results, entry_globs, started, duration_ms)
 
     if args.out:
-        Path(args.out).write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+        out = Path(args.out)
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+        except OSError as exc:
+            # Loud, and exit 2: a scan whose ledger never landed must not read as
+            # a completed scan to whatever runs next.
+            emit_error(
+                what=f"cannot write the ledger to {args.out}",
+                why=str(exc),
+                where=str(args.out),
+                fix="choose a writable path, or drop --out to print the summary only.",
+                override="none",
+            )
+            return 2
     if args.as_json:
         print(json.dumps(ledger, indent=2))
     else:
@@ -630,8 +776,9 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print(f"sweep: {len(config['probes'])} probe(s) OK — resolver validated")
         for rid, (_ro, res) in results.items():
             orphans = len(res.all_files - res.reachable)
+            skipped = f"  ({res.ignored} gitignored)" if res.ignored else ""
             print(f"  {rid:12} {len(res.all_files):5} files  {len(res.reachable):5} reachable  "
-                  f"{orphans:4} candidate(s)")
+                  f"{orphans:4} candidate(s){skipped}")
         for rel in unparseable:
             print(f"  ℹ unparseable, imports not counted: {rel}")
         print(f"sweep: {len(ledger['findings'])} candidate(s) over {total} file(s) "
@@ -698,7 +845,10 @@ def main(argv: list[str] | None = None) -> int:
             why=f"sweep config error: {exc}",
             where=str(args.config or CONFIG_NAME),
             fix="fix the contract. An unevaluable config must never be reported as a clean repo.",
-            override=f"{SKIP_ENV}=1",
+            # `none`, deliberately: this scanner never gates a commit, so there is
+            # nothing for a skip switch to unblock. Advertising one that no code
+            # reads is worse than having none — the user sets it and sees exit 2.
+            override="none",
         )
         return 2
 
