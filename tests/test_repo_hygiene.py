@@ -669,6 +669,52 @@ def test_validate_accepts_a_good_contract(tmp_path, capsys) -> None:
     assert "is valid" in capsys.readouterr().out
 
 
+# ---------------------------------------------------------------------------
+# The ratchet — separate from severity, on purpose
+# ---------------------------------------------------------------------------
+
+
+def test_a_finding_can_be_s3_forever_and_still_be_gated(tmp_path, capsys) -> None:
+    """THE point of `--max`.
+
+    Every check here is S3 on the merits: an unused dependency widens the CVE
+    surface, but it is not a correctness defect. Relabelling it S2 so the step
+    fails would buy a gate at the cost of the severity scale meaning anything.
+    "How bad is this" and "has it got worse" are separate questions, and a
+    finding can be legitimately S3 forever while never being allowed to grow.
+    """
+    basic_tree(tmp_path, "fastapi==0.1\nunused-pkg==1.0\n")
+    config = make_config(tmp_path, dependencies=[dep_check(severity="S3")])
+
+    assert run(config) == 0                      # S3 alone never blocks
+    assert run(config, "--max", "1") == 0         # at the baseline
+    assert run(config, "--max", "0") == 1         # ...and still gated
+    assert "this got WORSE" in capsys.readouterr().err
+
+
+def test_the_ratchet_says_when_it_can_be_lowered(tmp_path, capsys) -> None:
+    """Ratchets only ratchet if somebody lowers them, and nobody lowers a number
+    they were never told had slack."""
+    basic_tree(tmp_path, "fastapi==0.1\n")
+    config = make_config(tmp_path, dependencies=[dep_check()])
+    assert run(config, "--max", "3") == 0
+    assert "LOWER IT to 0" in capsys.readouterr().out
+
+
+def test_a_negative_max_is_refused(tmp_path) -> None:
+    """A ceiling that can never be met is a job that is red forever, and a job
+    that is red forever gets switched off."""
+    basic_tree(tmp_path, "fastapi==0.1\n")
+    assert run(make_config(tmp_path, dependencies=[dep_check()]), "--max", "-1") == 2
+
+
+def test_without_max_the_behaviour_is_unchanged(tmp_path) -> None:
+    """The ratchet is opt-in: a consumer that has not adopted it must see exactly
+    what it saw before."""
+    basic_tree(tmp_path, "fastapi==0.1\nunused-pkg==1.0\n")
+    assert run(make_config(tmp_path, dependencies=[dep_check(severity="S3")])) == 0
+
+
 def test_the_engine_exposes_no_delete_path(tmp_path) -> None:
     """Structural guard. `cleanup-zombies` v0.19.29 shipped a Tier-1 auto-delete
     and destroyed 623 lines of live code. This engine reports; a human decides."""
