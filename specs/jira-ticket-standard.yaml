@@ -7,12 +7,26 @@
 #
 # Tracked by GPLO-1350.
 #
-# WHY THE LITERALS ARE SPANISH
+# WHY THE LITERALS ARE BILINGUAL
 # The headings below are DATA, not prose: they are the exact strings an author
-# types into a Jira description, and GPLO tickets are written in Spanish. A form
-# speaks the language of whoever fills it in. All explanation stays English, per
-# `docs/rules/english-only-docs.rule.md` — whose globs cover docs/, schemas/,
-# templates/ and tests/, but not specs/.
+# types into a Jira description. A form speaks the language of whoever fills it
+# in — and for GPLO that stopped being one language.
+#
+# The standard shipped Spanish-canonical because GPLO tickets were written in
+# Spanish. Four sections happened to carry English aliases (`Test plan`,
+# `Steps to reproduce`, `Expected vs actual`, `Regression test`) and three did
+# not, which is not a decision anyone made: it is what the first author reached
+# for. Measured 2026-08-02 while drafting a 15-ticket backlog in English — a
+# fully English ticket was rejected on exactly those three sections, so the
+# standard was quietly forcing bilingual tickets rather than allowing either
+# language.
+#
+# Both languages are now accepted for every section. Canonical stays Spanish so
+# nothing already written moves, and the addition is purely additive: no ticket
+# that validated before this change stops validating after it.
+#
+# All explanation stays English, per `docs/rules/english-only-docs.rule.md` —
+# whose globs cover docs/, schemas/, templates/ and tests/, but not specs/.
 
 schema: ai-playbook/jira-ticket-standard/v1
 schema_version: "1.0.0"
@@ -80,12 +94,14 @@ metric_types:
 sections:
   contexto:
     canonical: "Contexto / Problema"
-    aliases: ["Contexto", "Problema", "Contexto/Problema", "Contexto y problema"]
+    aliases: ["Contexto", "Problema", "Contexto/Problema", "Contexto y problema",
+              "Context / Problem", "Context", "Problem", "Context/Problem"]
     prompt: "Qué está roto o falta hoy, y qué pasa si nadie lo arregla. Cita la evidencia: fichero:línea, una medición, un ticket."
 
   alcance:
     canonical: "Alcance / Entregables"
-    aliases: ["Alcance", "Entregables", "Alcance/Entregables"]
+    aliases: ["Alcance", "Entregables", "Alcance/Entregables",
+              "Scope / Deliverables", "Scope", "Deliverables", "Scope/Deliverables"]
     prompt: "Qué se entrega de verdad. Nombra los artefactos: rutas, endpoints, jobs. Si algo queda fuera de alcance, dilo aquí."
 
   plan_prueba:
@@ -98,7 +114,8 @@ sections:
 
   metricas:
     canonical: "Métricas"
-    aliases: ["Metricas", "Métricas (métrica → tipo)", "Métricas y tipos"]
+    aliases: ["Metricas", "Métricas (métrica → tipo)", "Métricas y tipos",
+              "Metrics", "Metrics (metric → type)"]
     prompt: "Una línea por métrica: `- <qué mides> → <tipo de la lista cerrada>`."
     requires: metric_lines
 
