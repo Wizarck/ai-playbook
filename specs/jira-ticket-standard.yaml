@@ -1,0 +1,228 @@
+# jira-ticket-standard — the ONE source of truth for what a ticket must contain.
+#
+# Consumed by: scripts/rules/_ticket_kit.py, and through it by the PreToolUse
+# hook, `create_jira_issue()`, the `/jira-ticket` skill and the ratchet. Four
+# consumers, one file. A closed list that lives in two places is the drift this
+# standard exists to stop.
+#
+# Tracked by GPLO-1350.
+#
+# WHY THE LITERALS ARE SPANISH
+# The headings below are DATA, not prose: they are the exact strings an author
+# types into a Jira description, and GPLO tickets are written in Spanish. A form
+# speaks the language of whoever fills it in. All explanation stays English, per
+# `docs/rules/english-only-docs.rule.md` — whose globs cover docs/, schemas/,
+# templates/ and tests/, but not specs/.
+
+schema: ai-playbook/jira-ticket-standard/v1
+schema_version: "1.0.0"
+
+# ---------------------------------------------------------------------------
+# Heading matching
+# ---------------------------------------------------------------------------
+# Exact string matching is the wrong default and this project already proves it:
+# GPLO-1350, the ticket that ASKED for this standard, writes both `## Métricas`
+# and `## Métricas (métrica → tipo)`. A matcher that accepts only one of those
+# measures its own brittleness and calls it non-compliance.
+#
+# Every rule here is applied to BOTH the candidate heading and the canonical one
+# before comparison, so the comparison is symmetric.
+normalization:
+  # `MÉTRICAS` == `Métricas`.
+  casefold: true
+  # `Metricas` == `Métricas`. Humans typing in a Jira field skip accents, and a
+  # missing tilde is not a missing test plan.
+  strip_accents: true
+  # `## 2. Métricas` and `## 2) Métricas` == `## Métricas`.
+  strip_numeric_prefix: true
+  # `## Métricas (métrica → tipo)` == `## Métricas`. The parenthetical is a hint
+  # to the author, not part of the contract.
+  strip_trailing_parenthetical: true
+  # h2 is canonical; h3 is accepted because sub-sectioned tickets are legitimate
+  # and rejecting them teaches authors to fight the tool.
+  heading_levels: [2, 3]
+
+# ---------------------------------------------------------------------------
+# Metric types — the closed list (Deliverable 0 of GPLO-1350)
+# ---------------------------------------------------------------------------
+# Confirmed by Arturo on 2026-08-02. Reconstructed from the 2026-08-01 taxonomy
+# audit. Adding a sixth type is a deliberate edit here, reviewed like any other
+# contract change — never an ad-hoc string in one ticket.
+metric_types:
+  - id: coverage
+    canonical: "cobertura / compliance"
+    aliases: ["cobertura", "compliance", "cobertura/compliance"]
+    means: "What fraction of X satisfies Y."
+
+  - id: quality
+    canonical: "calidad / exactitud"
+    aliases: ["calidad", "exactitud", "calidad/exactitud", "precision", "precisión"]
+    means: "How often the thing is RIGHT — false positives, accuracy."
+
+  - id: trend
+    canonical: "tendencia / burn-down"
+    aliases: ["tendencia", "burn-down", "burndown", "tendencia/burn-down"]
+    means: "A count moving over time, in the direction you claimed."
+
+  - id: performance
+    canonical: "rendimiento / eficiencia"
+    aliases: ["rendimiento", "eficiencia", "rendimiento/eficiencia", "throughput", "latencia"]
+    means: "Time, throughput, resource use."
+
+  - id: cost
+    canonical: "coste"
+    aliases: ["coste", "costo", "cost"]
+    means: "Money, tokens, CI minutes."
+
+# ---------------------------------------------------------------------------
+# Sections
+# ---------------------------------------------------------------------------
+sections:
+  contexto:
+    canonical: "Contexto / Problema"
+    aliases: ["Contexto", "Problema", "Contexto/Problema", "Contexto y problema"]
+    prompt: "Qué está roto o falta hoy, y qué pasa si nadie lo arregla. Cita la evidencia: fichero:línea, una medición, un ticket."
+
+  alcance:
+    canonical: "Alcance / Entregables"
+    aliases: ["Alcance", "Entregables", "Alcance/Entregables"]
+    prompt: "Qué se entrega de verdad. Nombra los artefactos: rutas, endpoints, jobs. Si algo queda fuera de alcance, dilo aquí."
+
+  plan_prueba:
+    canonical: "Plan de prueba (A/B/C)"
+    aliases: ["Plan de prueba", "Plan de prueba A/B/C", "Test plan"]
+    prompt: "A baseline · B control negativo · C regresión. B es la mitad que demuestra que el gate muerde."
+    # The only section with structure beyond "has content", because B is the one
+    # that rots. See `abc` below.
+    requires: abc
+
+  metricas:
+    canonical: "Métricas"
+    aliases: ["Metricas", "Métricas (métrica → tipo)", "Métricas y tipos"]
+    prompt: "Una línea por métrica: `- <qué mides> → <tipo de la lista cerrada>`."
+    requires: metric_lines
+
+  repro:
+    canonical: "Repro"
+    aliases: ["Reproducción", "Pasos para reproducir", "Steps to reproduce"]
+    prompt: "Los pasos exactos desde un estado conocido. Un bug que nadie puede reproducir es un rumor."
+
+  esperado_actual:
+    canonical: "Esperado vs Actual"
+    aliases: ["Esperado vs actual", "Esperado/Actual", "Expected vs actual"]
+    prompt: "Las dos mitades. «se rompe» no es el comportamiento actual: pon el mensaje, código o estado real."
+
+  test_regresion:
+    canonical: "Test de regresión"
+    aliases: ["Test de regresion", "Regresión", "Regression test"]
+    prompt: "Nombra una ruta o id de test existente, o escribe `ninguno aún — <por qué>`."
+    requires: test_reference
+
+# ---------------------------------------------------------------------------
+# Which sections each issue type owes
+# ---------------------------------------------------------------------------
+# Matched by NAME here for readability; `_ticket_kit` resolves names to ids at
+# runtime against `GET /rest/api/3/project/{key}` and fails loudly on an unknown
+# name. Team-managed issue types are renameable with one click, so a name is a
+# label, never a key.
+#
+# The carve-outs are decided here, up front, rather than after the first false
+# positive teaches someone that the tool is wrong about their work.
+issue_types:
+  "Feature / Big Improvement":
+    sections: [contexto, alcance, plan_prueba, metricas]
+
+  "Small Improvement":
+    sections: [contexto, alcance, plan_prueba, metricas]
+
+  "Bug":
+    # A bug's natural shape is not A/B/C. Forcing one makes authors invent a
+    # "baseline" for behaviour that is simply broken. The regression test IS the
+    # C of the A/B/C, which is why it survives into this variant.
+    sections: [contexto, repro, esperado_actual, test_regresion, metricas]
+
+  "Subtask":
+    # A subtask inherits its parent's test plan. Asking a ten-minute chore for
+    # its own A/B/C is how a standard teaches people to file the wrong type.
+    sections: [contexto, alcance]
+
+  "Epic":
+    # Epics do not have test plans. Their children do.
+    sections: [contexto, alcance]
+
+# ---------------------------------------------------------------------------
+# Content checks — presence of a heading proves nothing
+# ---------------------------------------------------------------------------
+# The failure mode this guards is header stuffing: every required heading
+# present, every body empty or "TBD". A checker that counts headings rewards
+# exactly that.
+content:
+  # Template example text is wrapped in <<...>>. A ticket that still contains a
+  # sentinel was never filled in, so the placeholder both teaches AND enforces:
+  # leaving it is a hard failure, not silent boilerplate.
+  #
+  # NOT `{{...}}`, which was the first choice and was wrong: that is Jira's own
+  # inline-monospace markup. Measured against sixteen real tickets, it matched 29
+  # times and every single hit was legitimate content — file paths, shell
+  # commands, commit SHAs, a GUID, and Helm templating in a ticket that was
+  # ABOUT Helm templating. A sentinel has to be a shape the host renderer does
+  # not already use, or the check fires hardest on the most detailed tickets.
+  sentinel_pattern: '(?s)<<.{3,400}?>>'
+
+  # Backstop for DEGENERATE bodies only: "TBD", "pendiente", "?", "-".
+  #
+  # This started at 12, which rejected four legitimate tickets on its first run,
+  # then 6, which rejected "Ampliar el walker de ADF" — a perfectly good scope
+  # line. Each retune was the same mistake: a word count cannot distinguish terse
+  # from empty, and every notch upward buys a few padded sections at the cost of
+  # rejecting correct writing, which teaches authors to pad. Three catches the
+  # non-answers and never argues with real prose. Judging substance is the
+  # structural checks' job below, and the skill's.
+  min_words_per_section: 3
+
+  # Per-section escape hatch. NEVER whole-ticket: a ticket-level opt-out becomes
+  # the default path within a week. `_ticket_kit` counts how often this is used
+  # and reports the rate — a high rate means the template does not fit the work,
+  # which is information, not an infraction.
+  na_pattern: '^\s*N/?A\s*[—:-]\s*\S+'
+
+  # `- <metric> → <type>`; `->` is normalised to `→` first, because a human
+  # typing in the Jira UI will not reach for the arrow character.
+  metric_line_pattern: '^\s*[-*]\s*(?P<metric>.+?)\s*(?:→|->)\s*(?P<type>.+?)\s*$'
+
+  # A/B/C: all three labels present, each with a body. B additionally must not
+  # be boilerplate — see `abc_negative_control_banned` below.
+  abc_labels: ["A", "B", "C"]
+
+  # Measured failure: "B — negative control" degenerates into "revierto y falla"
+  # everywhere. B must name the concrete assertion that flips. These phrases are
+  # the observed boilerplate, rejected by exact-ish match so the author is
+  # pushed to write what actually gets inverted.
+  abc_negative_control_banned:
+    - "verificar que no funciona"
+    - "comprobar que falla"
+    - "revertir y ver que falla"
+    - "probar el caso contrario"
+
+  # `Test de regresión` must point at something real: a path, a test id, or an
+  # explicit admission with a reason. A field that demands a repo referent
+  # cannot be satisfied with boilerplate.
+  test_reference_pattern: '(?:[\w./-]+\.(?:py|ts|tsx|js|spec\.ts)|::\w+|test_\w+|ninguno\s+a[úu]n\s*[—:-]\s*\S+)'
+
+# ---------------------------------------------------------------------------
+# Exemptions
+# ---------------------------------------------------------------------------
+exempt:
+  # Tracker stubs created by scripts/issue_sync.py. Their description is two
+  # auto-generated lines pointing at an OpenSpec proposal, and the PROPOSAL is
+  # the content of record — duplicating an A/B/C into the stub would create a
+  # second copy that immediately drifts from the first.
+  #
+  # This exemption is load-bearing: `create_jira_issue()` has exactly one caller
+  # and it produces these stubs, so without it the gate either breaks the sync
+  # on day one or gets a silent bypass and becomes decorative.
+  - labels: ["ai-playbook-managed"]
+    reason: >-
+      OpenSpec tracker stub. The proposal at openspec/changes/<id>/proposal.md is
+      the content of record; the Jira issue is a pointer. Reported as its own
+      cohort by `check`, never as a failure.

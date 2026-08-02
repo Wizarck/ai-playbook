@@ -1,6 +1,6 @@
 {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-08-01T23:02:50.001701+00:00",
+  "generated_at": "2026-08-02T04:33:15.863493+00:00",
   "rules": [
     {
       "slug": "agentic-failure-catalog-schema",
@@ -574,6 +574,25 @@
       "triggers": [],
       "description": "Consumer one-time bootstrap of the .ai-playbook submodule with a pinned semver tag.",
       "doc_path": "docs/rules/install-playbook.rule.md"
+    },
+    {
+      "slug": "jira-ticket-standard",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/jira-ticket-standard.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [
+        "PreToolUse"
+      ],
+      "description": "Every Jira ticket an agent creates MUST carry the sections its issue type owes — an A/B/C test plan and typed metrics for features, repro plus expected-vs-actual plus a regression test for bugs — with every metric declaring one of exactly five types from a closed list.",
+      "doc_path": "docs/rules/jira-ticket-standard.rule.md"
     },
     {
       "slug": "link-integrity",
