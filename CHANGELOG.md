@@ -2,6 +2,75 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.2] — 2026-08-02 — feat: sweep (code-entropy axes 1 + 2, on-demand)
+
+### Added
+- **`scripts/sweep_scan.py` + `skills/sweep` — the F3 half of the code-entropy
+  campaign.** Covers the two axes that are NOT decidable by a rule: `orphan-file`
+  and `dead-symbol`. It never runs at pre-commit, never gates a commit, and has
+  no delete path — it emits a ledger validating against the
+  `schema-sweep-manifest-v1.json` contract published in v0.20.0, and a human
+  decides.
+
+  Measured against a real consumer before it was written: a naive "not imported"
+  scan produced **779 candidates, of which 17 were real (2.2%)**. Crucially, the
+  two failures that mattered were not judgement calls but mechanical resolver
+  bugs — ignoring `tsconfig.json` path aliases (89 false positives, including the
+  app's own layout and auth provider), and counting references by NAME rather
+  than by PATH (a falsely reassuring negative where two directories held
+  same-named files).
+
+  Two design consequences follow, and both are departures from how F1/F2 were
+  built:
+
+  - **The probe gate.** The consumer declares files it KNOWS are live, and the
+    scanner REFUSES to emit a ledger if any of them reads as unreachable. An
+    adjudicating model fed a broken scan writes fluent, confident, wrong
+    rationales — laundering a resolver bug into reasoned ledger rows. The value
+    is in the scanner's fidelity, not in the adjudication.
+  - **Entry-point conventions ship as framework PRESETS, not consumer data.**
+    That pytest collects `test_*.py`, that Alembic loads `versions/*.py`, and
+    that Next.js routes `page.tsx` are facts about the framework, not choices of
+    the project; making every consumer redeclare them would be the duplication
+    this campaign exists to remove. Six presets account for 762 of the 779 naive
+    candidates.
+
+  38 tests, whose central case is the negative control: drop `resolve_from` and
+  the probe gate must fail with no ledger written.
+
+  **What the first real adoption changed.** Running this against the consumer
+  produced a SECOND false-positive cluster — ten live modals in one directory —
+  from three layered causes, and the fixes are the more interesting output:
+
+  - The consumer's `include` listed only `.ts`/`.tsx`, leaving 69 legacy `.js`
+    files unparsed, so anything imported solely from one had no importer at all.
+    `include` decides which files are READ, not only which are reported; the
+    consumer config now says so.
+  - The `next-app-router` preset listed `page.tsx` and no `page.js`. Preset
+    extension lists are now GENERATED as stem × extension — hand-writing that
+    product is exactly how one stem gets an extension the others do not.
+  - Gitignored files are now excluded by construction. Two Playwright report
+    trees supplied 10 of 24 candidates, all vendored bundle code. A file git
+    never tracked cannot be repo entropy, and reporting it invites cleanup of a
+    tree that regenerates.
+  - **The gate's own limit is now documented.** It would have caught the preset
+    bug immediately, but all six probes were `.tsx` files reached through `.tsx`
+    importers, so every one passed. A probe set must span each resolution
+    mechanism the repo uses, not merely each root.
+
+  Also, from review: tsconfig `extends` chains are followed and every target of
+  a multi-target `paths` key is tried (both otherwise resolve to nothing and
+  report live files as dead); a Python root whose `include` spans two package
+  bases is refused rather than mis-indexed; a string `exclude` is normalised
+  instead of iterated character by character; finding ids carry a digest of the
+  full path so two paths that slugify alike cannot suppress each other.
+
+### Changed
+- `docs/concepts/enforcement-status.md` — the code-entropy row moves
+  `📋 spec-only` → `🟡 partial`. All five axes now have a detector that runs;
+  it stays 🟡 because no axis publishes a ratchet number CI freezes yet, and
+  without that a cleanup campaign can silently undo itself.
+
 ## [0.22.1] — 2026-08-02 — feat: repo-hygiene (code-entropy axes 3 + 5, reporting)
 
 ### Added
