@@ -345,6 +345,117 @@ def test_check_refuses_to_publish_a_number_from_a_broken_resolver(tmp_path, caps
     assert "No count from a broken scan" in capsys.readouterr().err
 
 
+# ---------------------------------------------------------------------------
+# Markdown — reached by a LINK, never by an import
+# ---------------------------------------------------------------------------
+
+
+def md_tree(root: Path) -> None:
+    write(root, "docs/INDEX.md", "# Docs\n\n- [Ops](operations/deploy.md)\n- [Design](design/)\n")
+    write(root, "docs/operations/deploy.md", "# Deploy\n\nBack to [index](../INDEX.md).\n")
+    write(root, "docs/design/INDEX.md", "# Design\n\nSee [the spec](spec.md).\n")
+    write(root, "docs/design/spec.md", "# Spec\n")
+    write(root, "docs/stranded.md", "# Notes\n\nNobody links here.\n")
+
+
+def md_config(root: Path, *, probes=None, allow=None, entrypoints=None):
+    return make_config(
+        root,
+        presets=["docs-index"],
+        entrypoints=entrypoints or [],
+        roots=[{"id": "docs", "language": "markdown", "include": ["docs/**/*.md"]}],
+        probes=probes or ["docs/operations/deploy.md"],
+        allow=allow or [],
+    )
+
+
+def test_a_document_is_reached_through_its_index(tmp_path) -> None:
+    """The whole premise: `README.md`/`INDEX.md` are entered by a human, and
+    everything else must be linked from one of them."""
+    md_tree(tmp_path)
+    paths = [f["path"] for f in ledger_of(md_config(tmp_path), tmp_path)["findings"]]
+    assert paths == ["docs/stranded.md"]
+
+
+def test_a_link_to_a_directory_resolves_to_its_index(tmp_path) -> None:
+    """`[Design](design/)` is how humans link a section, and it must count."""
+    md_tree(tmp_path)
+    findings = [f["path"] for f in ledger_of(md_config(tmp_path), tmp_path)["findings"]]
+    assert "docs/design/INDEX.md" not in findings
+    assert "docs/design/spec.md" not in findings, "reached transitively through the section index"
+
+
+@pytest.mark.parametrize("link", [
+    "[x](../INDEX.md)", "[x](../INDEX.md#anchor)", "[x]: ../INDEX.md", '<a href="../INDEX.md">x</a>',
+])
+def test_every_link_form_counts(tmp_path, link) -> None:
+    """Inline, anchored, reference-style and raw HTML all reach the same file.
+    Missing one form would report a linked document as stranded."""
+    md_tree(tmp_path)
+    write(tmp_path, "docs/operations/deploy.md", f"# Deploy\n\n{link}\n")
+    assert scan(md_config(tmp_path)) == 0
+
+
+def test_an_external_url_is_not_an_edge(tmp_path) -> None:
+    md_tree(tmp_path)
+    write(tmp_path, "docs/INDEX.md", "# Docs\n\n[out](https://example.com/INDEX.md)\n")
+    # Nothing in the tree is linked now, so the probe on deploy.md must fail.
+    assert scan(md_config(tmp_path)) == 1
+
+
+def test_a_template_loaded_by_code_belongs_in_entrypoints(tmp_path) -> None:
+    """A document can be reached from CODE — a template resolved by id — and no
+    link graph sees that. Measured on the first consumer: 57 of 58 backend
+    markdown files are exactly this."""
+    md_tree(tmp_path)
+    write(tmp_path, "docs/templates/welcome.en.md", "# Welcome\n")
+    config = md_config(tmp_path, entrypoints=["docs/templates/**/*.md"])
+    paths = [f["path"] for f in ledger_of(config, tmp_path)["findings"]]
+    assert paths == ["docs/stranded.md"]
+
+
+# ---------------------------------------------------------------------------
+# The obligation nobody is watching
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("marker", [
+    "- [ ] rotate the superadmin password",
+    "TODO: tear this down",
+    "Prod source teardown still required.",
+    "These artefacts MUST TEAR DOWN before close.",
+])
+def test_a_stranded_file_that_owes_work_says_so(tmp_path, marker) -> None:
+    """THE finding this detector exists for.
+
+    A consumer's `PROGRESS.md` sat unreferenced at the repo root for four weeks
+    carrying a teardown owed on a LIVE customer Workspace. As a bare orphan it
+    reads as clutter; the only thing that distinguishes it is that it records
+    work nobody discharged.
+    """
+    md_tree(tmp_path)
+    write(tmp_path, "docs/stranded.md", f"# Notes\n\n{marker}\n")
+    finding = ledger_of(md_config(tmp_path), tmp_path)["findings"][0]
+    assert finding["path"] == "docs/stranded.md"
+    assert finding["evidence"]["unfinished_commitments"] >= 1
+
+
+def test_rfc_2119_prose_is_not_a_commitment(tmp_path) -> None:
+    """`MUST` is normative language in every spec ever written. Counting it would
+    fire on all of them and the signal would be worth nothing."""
+    md_tree(tmp_path)
+    write(tmp_path, "docs/stranded.md", "# Rule\n\nEvery consumer MUST declare a probe.\n")
+    finding = ledger_of(md_config(tmp_path), tmp_path)["findings"][0]
+    assert "unfinished_commitments" not in finding["evidence"]
+
+
+def test_a_ticked_box_is_not_a_commitment(tmp_path) -> None:
+    md_tree(tmp_path)
+    write(tmp_path, "docs/stranded.md", "# Done\n\n- [x] rotated the password\n")
+    finding = ledger_of(md_config(tmp_path), tmp_path)["findings"][0]
+    assert "unfinished_commitments" not in finding["evidence"]
+
+
 def test_probes_are_mandatory(tmp_path) -> None:
     """A reachability scan nobody validated is an opinion with a schema."""
     ts_tree(tmp_path)

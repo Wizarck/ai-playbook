@@ -147,6 +147,28 @@ def test_the_row_carries_the_reasoning_not_just_the_path(repo: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_a_file_that_owes_work_is_refused_even_when_authorised(repo: Path, capsys) -> None:
+    """The one refusal a human signature cannot override.
+
+    A stranded file that records undischarged work is not entropy — it is an
+    obligation with no watcher, and deleting it deletes the only record. The
+    consumer precedent is exact: a `PROGRESS.md` sat unreferenced at the repo
+    root for four weeks owing a teardown on a LIVE customer Workspace.
+
+    The debt has to MOVE somewhere it will be seen. Once it has, the marker goes
+    with it and a re-scan clears the row honestly.
+    """
+    ledger = make_ledger(repo)
+    authorize(repo, ledger)
+    doc = json.loads(ledger.read_text(encoding="utf-8"))
+    doc["findings"][0]["evidence"] = {"unfinished_commitments": 3}
+    ledger.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+
+    assert run(repo, "apply", "--ledger", str(ledger), "--expect", "1") == 2
+    assert "obligation nobody is watching" in capsys.readouterr().err
+    assert (repo / "app" / "orphan.py").exists()
+
+
 def test_an_unauthorised_finding_is_never_deleted(repo: Path) -> None:
     """Tier 3 is what the scanner emits. Deleting it would make the whole
     adjudication step decorative."""
