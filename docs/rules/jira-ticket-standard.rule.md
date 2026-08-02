@@ -45,15 +45,24 @@ places stops being closed within a week.
 
 ## Process supervision
 
-Enforcement is layered, because the paths differ in how gateable they are. This
-table is the honest map, including what it does not cover:
+**This rule binds agents, not people.** That is a scope decision (Arturo,
+2026-08-02), not a gap waiting to be closed: the structure drifts because tickets
+are written at machine speed by something that has no memory of the last one, and
+that is the thing worth gating. A human writing a ticket by hand is already
+choosing what goes in it. Gating the human costs a required-field screen everyone
+learns to route around and — because required fields in a team-managed project
+apply to the REST API too — would break `issue_sync.py` on the day it is enabled.
+
+Enforcement is therefore layered across the agent paths, because those differ in
+how gateable they are. This table is the honest map, including what it does not
+cover:
 
 | Path | Gate | Strength |
 |---|---|---|
 | Agent in session → MCP `createJiraIssue` / `editJiraIssue` | `pretooluse()` denies with every finding at once | Mechanical. **Survives context compaction** — the hook re-fires per call with no memory of the last one |
 | `issue_sync.py` → `create_jira_issue()` | Validates pre-POST, raises `TicketStandardError` | Mechanical. Tracker stubs are exempt BY LABEL (`ai-playbook-managed`) in the contract |
-| Human in the Jira UI | None in-repo | Detected by `check`; a Jira Automation backstop is the follow-up |
-| claude.ai web session, or `curl` with the sync credentials | **None. Not gateable from this repo.** | Detected by `check` only |
+| Human in the Jira UI | **None, by decision** | Measured by `check`, never blocked. No Jira-side backstop is planned |
+| claude.ai web session, or `curl` with the sync credentials | **None. Not gateable from this repo.** | Detected by `check` only — these ARE agent paths, and the residual the scope decision does not excuse |
 
 **The hook only fires if the consumer routes those tools to the dispatcher.** A
 rule with a `pretooluse()` is inert until `.claude/settings.json` sends the event
