@@ -2,6 +2,63 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.8] — 2026-08-02 — feat: enforce the ticket-authoring standard (GPLO-1350)
+
+### Added
+- **`specs/jira-ticket-standard.yaml`** — one contract: required sections per issue
+  type, the closed list of five metric types, heading aliases and normalisation,
+  and the content checks. `validate` fails if the template or the skill quotes a
+  metric type the spec does not have, so "the list lives in one place" is enforced
+  rather than asserted.
+- **`scripts/rules/_ticket_kit.py`** — one validator, four consumers (hook,
+  `create_jira_issue()`, the rule CLI, the skill). Flattens either ADF dialect to
+  markdown-ish and parses that one shape, instead of two matchers that drift.
+- **`jira-ticket-standard` rule + hardrule** — `pretooluse()` denies a
+  non-conformant Atlassian MCP create/edit; `check --since <date>` is the ratchet;
+  `explain <KEY>` shows the match section by section.
+- **`/jira-ticket` skill** — pre-fills from session context and proposes the metric
+  type. A skill that only refuses is a linter, and loses to calling the tool directly.
+- **`templates/jira-ticket.md.tmpl`** — skeletons per issue type, with sentinel
+  placeholders the validator rejects if they survive.
+
+### Fixed
+- **`create_jira_issue()` stored degenerate ADF.** The entire markdown body went
+  into ONE text node inside one paragraph, so `## Métricas` sat in Jira as literal
+  characters and every sync-created ticket was structureless. Now emits real
+  `heading` nodes via `markdown_to_adf()`; `adf_to_markdownish()` still reads the
+  old dialect so the existing backlog parses.
+- **`create_jira_issue()` failure semantics.** Returned `(None, reason)` for
+  everything, making a malformed ticket indistinguishable from a timeout — the
+  caller logged both and carried on. Malformed now raises `TicketStandardError`
+  before any POST.
+
+### Measured
+- **Conformance on 2026-08-02: 1 of 16 (6%).** The only conformant ticket is
+  GPLO-1350 itself. Fifteen others, three of them filed carefully earlier the same
+  day, are not.
+- **Three false-positive classes were found by measuring against real tickets and
+  fixed before shipping**, each of which would have made the standard fire hardest
+  on the best-written tickets:
+  - The first sentinel shape was `{{...}}` — **Jira's own inline-monospace markup**.
+    It matched 29 times across sixteen tickets and every hit was legitimate content:
+    file paths, shell commands, commit SHAs, a GUID, and Helm templating inside a
+    ticket that was *about* Helm templating. Now `<<...>>`, plus code spans are
+    stripped before the scan.
+  - The heading/metric-type normaliser rejected all four metric lines of GPLO-1350
+    over markdown emphasis and a trailing full stop (`_cobertura / compliance_.`).
+  - `min_words_per_section` started at 12, rejected four legitimate tickets, then 6,
+    which rejected "Ampliar el walker de ADF". It is 3: a word count can only ever
+    catch a degenerate body, and every notch upward rejects terse correct writing,
+    which teaches authors to pad.
+
+### Notes
+- Enforcement is layered and the rule doc names what it does **not** cover: a
+  claude.ai web session runs no local hooks, and `curl` with the sync credentials
+  bypasses everything. `check` is the compensating control for both.
+- Carve-outs decided up front, not after the first false positive: Subtask inherits
+  its parent's test plan, Epic has none, and `issue_sync` tracker stubs are exempt
+  by label because the OpenSpec proposal is their content of record.
+
 ## [0.22.7] — 2026-08-02 — docs: the entropy gate is enforced, and what a green gate does not mean
 
 ### Changed

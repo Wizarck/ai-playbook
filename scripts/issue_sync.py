@@ -425,20 +425,37 @@ def create_jira_issue(
     )
     labels_final = list(labels or JIRA_LABELS)
 
+    # Gate + real ADF, both from the one shared contract. Order matters: judge
+    # the markdown the author wrote, then convert. Converting first would mean
+    # validating a projection of the input rather than the input.
+    #
+    # Tracker stubs carry `ai-playbook-managed` and are EXEMPT by label in
+    # specs/jira-ticket-standard.yaml — their content of record is the OpenSpec
+    # proposal, so duplicating an A/B/C here would create a second copy that
+    # drifts from the first. The exemption lives in the contract as data, not as
+    # a branch here; without it this gate would break its only caller on day one.
+    from scripts.rules._ticket_kit import (
+        TicketStandardError,
+        markdown_to_adf,
+        validate_description,
+    )
+
+    _result = validate_description(description, issue_type, labels=labels_final)
+    if not _result.ok:
+        # Raise rather than return `(None, reason)`: this function's tuple makes
+        # "the ticket is malformed" indistinguishable from "Jira timed out", and
+        # the caller logs both and carries on. A malformed ticket must stop.
+        raise TicketStandardError(_result.findings)
+
     body = {
         "fields": {
             "project": {"key": project_key},
             "summary": summary,
-            "description": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [{"type": "text", "text": description}],
-                    }
-                ],
-            },
+            # Real heading nodes. Posting the whole body as one text node — what
+            # this did before — stored `## Métricas` as literal characters, so
+            # every sync-created ticket was structureless in Jira while looking
+            # fine in the source markdown.
+            "description": markdown_to_adf(description),
             "issuetype": {"name": issue_type},
             "labels": labels_final,
         }

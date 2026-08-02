@@ -1,0 +1,118 @@
+# Jira ticket — template
+
+> The contract lives in [`specs/jira-ticket-standard.yaml`](../specs/jira-ticket-standard.yaml).
+> This file is the human-readable face of it. If the two ever disagree, the spec
+> wins and this file is the bug.
+>
+> Headings below are **Spanish because GPLO tickets are Spanish** — a form speaks
+> the language of whoever fills it in. They are data, matched case- and
+> accent-insensitively, tolerant of `2.` prefixes and of a trailing
+> `(parenthetical)`.
+>
+> **`<<...>>` placeholders are sentinels.** They teach by example AND they are a
+> contract: a ticket submitted with a sentinel still in it is REJECTED. Never
+> "fill them in later".
+>
+> Do not use checkboxes, tables, or emoji in headings. Jira stores descriptions
+> as ADF: `- [ ]` becomes an interactive taskList whose UI state silently drifts
+> from the text, tables are painful to edit in place, and an emoji breaks
+> heading matching.
+
+## Feature / Big Improvement · Small Improvement
+
+```markdown
+## Contexto / Problema
+
+<<What is broken or missing today, and what happens if nobody fixes it. Name the
+evidence: a file:line, a measurement, a ticket. Not "it would be nice if".>>
+
+## Alcance / Entregables
+
+<<What actually ships. Name the artefacts — paths, endpoints, jobs. If something
+is deliberately NOT in scope, say so here; that sentence prevents an argument
+later.>>
+
+## Plan de prueba (A/B/C)
+
+- **A — baseline / happy path**: <<the thing works end to end. How will you know
+  — what exact output or state do you expect?>>
+- **B — control negativo**: <<the case that must FAIL. Name the exact assertion
+  you invert and what error you expect. This is the section that proves the gate
+  bites; a green A proves only that you did not test.>>
+- **C — regresión**: <<what must keep working. Name an existing test path or id,
+  or write `ninguno aún — <por qué>`.>>
+
+## Métricas (métrica → tipo)
+
+- <<what you will measure>> → <<cobertura / compliance>>
+- <<a second one, if the work has a second dimension>> → <<calidad / exactitud>>
+```
+
+## Bug
+
+A bug's natural shape is not A/B/C — forcing one makes you invent a "baseline"
+for behaviour that is simply broken. The regression test *is* the C, which is
+why it survives here.
+
+```markdown
+## Contexto / Problema
+
+<<What the bug costs. Who hits it, how often, and what they see.>>
+
+## Repro
+
+<<Exact steps, from a known starting state. A bug nobody can reproduce is a
+rumour. Include the environment if it matters.>>
+
+## Esperado vs Actual
+
+- **Esperado**: <<what should happen>>
+- **Actual**: <<what happens instead — the real message, code or state, not
+  "it breaks">>
+
+## Test de regresión
+
+<<An existing test path or id that will cover this once fixed, or
+`ninguno aún — <por qué>`.>>
+
+## Métricas (métrica → tipo)
+
+- <<how you will know it is fixed and stays fixed>> → <<calidad / exactitud>>
+```
+
+## Subtask · Epic
+
+Both carry `Contexto / Problema` and `Alcance / Entregables` only. A subtask
+inherits its parent's test plan; an epic does not have one, its children do.
+
+## The metric types — closed list
+
+Five, and only five. Anything else is rejected. The point of a closed list is
+that "número de cosas" stops being an acceptable answer to "what kind of
+measurement is this?".
+
+| Type | It answers |
+|---|---|
+| `cobertura / compliance` | What fraction of X satisfies Y |
+| `calidad / exactitud` | How often the thing is RIGHT — false positives, accuracy |
+| `tendencia / burn-down` | A count moving over time, in the direction you claimed |
+| `rendimiento / eficiencia` | Time, throughput, resource use |
+| `coste` | Money, tokens, CI minutes |
+
+## How this gets checked
+
+Presence of a heading proves nothing, so the checker also looks at what is
+under it:
+
+- **Sentinels** — any surviving `<<...>>` fails.
+- **Metric lines** — each must parse as `- <metric> → <type>` with the type in
+  the closed list. `->` is normalised to `→`.
+- **B is not boilerplate** — "verificar que no funciona" and its cousins are
+  rejected by name. B must say which assertion flips.
+- **C names a referent** — a test path/id, or an explicit `ninguno aún — <por qué>`.
+- **Escape hatch** — `N/A — <reason>` is valid **per section**, never for a whole
+  ticket, and its usage rate is reported. A high rate means this template does
+  not fit the work; that is information about the template, not about you.
+
+Run `python .ai-playbook/scripts/rules/jira-ticket-standard.rule.py explain <KEY>`
+to see, section by section, what matched.
