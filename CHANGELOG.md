@@ -2,6 +2,53 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.3] — 2026-08-02 — feat: sweep-execute (remove an orphan, leave a tombstone)
+
+### Added
+- **`scripts/sweep_execute.py` + `docs/runbooks/remove-dead-code.md`.** The
+  scanner shipped in v0.22.2 deliberately cannot delete, which left a ledger
+  nobody could act on without hand-deleting files and hand-writing the reasoning
+  somewhere — which is how the reasoning stops being written.
+
+  Every removal now leaves a **tombstone**: one append-only row in
+  `docs/operations/removed-code.md` with the path, the date, the pre-removal SHA,
+  who authorised it, the rationale, the originating finding id, and a restore
+  command to paste as-is.
+
+  **A quarantine directory was considered and rejected**, and the rejection is
+  the substance of this release. It fails at all four things it appears to offer:
+  the cost stays (the tax is being in the tree, not being imported — a repo-wide
+  rename here edited a file nothing had called since the initial commit); the
+  file can still run (a Python module under the package tree is importable
+  wherever you park it, so "quarantined" is not "off"); it kills the signal (the
+  value of removal is CI telling you at once that you were wrong, and a file that
+  still resolves breaks nothing and proves nothing); and nothing ever empties it.
+  Git is already an exact quarantine — content, path, date, author. Its one gap
+  is DISCOVERABILITY, since nobody runs `git log --diff-filter=D` six months
+  later, and the tombstone closes that gap and nothing else.
+
+  The safety model is the existing `schema-sweep-manifest-v1.json` contract
+  rather than new invention — it already said a Tier 1 action must not apply once
+  HEAD has moved, and that `human` is the only authority that may authorise Tier
+  1. Deletable means `confirm` AND tier 1 AND `decided_by: human` AND
+  `scan.commit == HEAD` AND no tracked worktree changes; the last two together
+  prove the tree is byte-for-byte the one that was scanned, so no per-file hash
+  is needed.
+
+  Two additions beyond the contract, both from the same precedent — v0.19.29 of
+  `cleanup-zombies` shipped a Tier 1 auto-delete, ran it from a `--quiet` hook,
+  destroyed 623 lines of live code, and went unnoticed for three weeks:
+  `--expect N`, the operator's typed checksum, and an `authorize` that is per-id
+  with no `--all`. `apply` stages but never commits.
+
+  16 tests. The central one takes the restore command out of a generated row,
+  runs it verbatim, and asserts the file returns byte-identical — that test is
+  the entire argument for deleting rather than quarantining.
+
+### Changed
+- `docs/concepts/code-entropy.md` gains the removal half of axes 1/2 and the
+  quarantine rejection.
+
 ## [0.22.2] — 2026-08-02 — feat: sweep (code-entropy axes 1 + 2, on-demand)
 
 ### Added
