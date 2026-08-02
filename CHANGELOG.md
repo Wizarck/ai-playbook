@@ -2,6 +2,31 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.12] — 2026-08-02 — scope: the ticket standard accepts either language
+
+### Added
+- **English headings for the three sections that lacked them.** `contexto`,
+  `alcance` and `metricas` now carry `Context / Problem`, `Scope / Deliverables`
+  and `Metrics` (plus short forms) alongside their Spanish aliases.
+
+  This was never a decision anyone made. Four sections already had English
+  aliases — `Test plan`, `Steps to reproduce`, `Expected vs actual`,
+  `Regression test` — and three did not, which is simply what the first author
+  reached for. Measured 2026-08-02 while drafting a 15-ticket backlog in
+  English: a fully English ticket was rejected on exactly those three sections,
+  so the standard was not enforcing Spanish, it was forcing tickets to be
+  **bilingual**. Either language is a defensible house rule; half of each is not.
+
+  Canonical stays Spanish so nothing already written moves, and the change is
+  purely additive: no description that validated before it stops validating
+  after. `tests/fixtures/jira_ticket_gplo_1350.md` — the real production
+  ticket the suite is anchored on — is asserted unchanged as the C regression.
+
+  The negative control is the one worth reading: `## Background` is plausible
+  English prose for the same content and is still **rejected**. The matcher
+  resolves against the closed alias list, not against "English", so the contract
+  is still a contract.
+
 ## [0.22.11] — 2026-08-02 — scope: the ticket standard binds agents, not people
 
 ### Changed

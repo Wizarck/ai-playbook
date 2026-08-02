@@ -477,3 +477,72 @@ def test_findings_render_as_one_message_not_one_at_a_time():
 def test_contract_validate_subcommand_passes():
     module = _rule_module()
     assert module.main(["validate"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Bilingual section headings (added 0.22.12)
+# ---------------------------------------------------------------------------
+# The standard shipped with English aliases on four sections and none on three,
+# which forced a bilingual ticket rather than allowing either language. These
+# assert the addition is real AND additive.
+
+_ENGLISH_TICKET = """## Context / Problem
+The fan-out iterated every active tenant with no gate at all.
+
+## Scope / Deliverables
+A per-tenant enablement row carrying a DPIA reference, plus its test.
+
+## Test plan
+- **A — baseline**: with an enablement row present the scan is enqueued.
+- **B — control negativo**: with no row, zero tasks are enqueued; run_task is
+  replaced with a bomb that raises if the guard stops holding.
+- **C — regresión**: backend/tests/datashield/test_piracy_scan_killswitch.py.
+
+## Metrics
+- Tenants carrying a registered dpia_reference → compliance
+- Tasks enqueued with no enablement row, which must be zero → precision
+"""
+
+
+def test_a_fully_english_ticket_is_conformant():
+    """A — baseline: every section resolves from its English heading."""
+    result = K.validate_description(_ENGLISH_TICKET, FEATURE)
+    assert result.ok, K.render_findings(result.findings)
+
+
+@pytest.mark.parametrize("heading,section_id", [
+    ("Context / Problem", "contexto"),
+    ("Context", "contexto"),
+    ("Scope / Deliverables", "alcance"),
+    ("Deliverables", "alcance"),
+    ("Metrics", "metricas"),
+    ("2. Metrics", "metricas"),
+])
+def test_english_headings_normalise_onto_their_section(heading, section_id):
+    spec = K.load_spec()
+    norm = spec["normalization"]
+    candidates = {
+        K.normalize_heading(a, norm)
+        for a in [spec["sections"][section_id]["canonical"],
+                  *spec["sections"][section_id]["aliases"]]
+    }
+    assert K.normalize_heading(heading, norm) in candidates
+
+
+def test_b_an_unrelated_english_heading_still_fails():
+    """B — negative control: the win is *these* aliases, not English-tolerance.
+
+    `## Background` is plausible English prose for the same content. If it were
+    accepted, the section matcher would be resolving on language rather than on
+    the closed alias list, and the contract would have stopped being a contract.
+    """
+    body = _ENGLISH_TICKET.replace("## Context / Problem", "## Background")
+    result = K.validate_description(body, FEATURE)
+    assert not result.ok
+    assert "missing-section" in kinds(result)
+
+
+def test_c_spanish_headings_keep_validating(conformant):
+    """C — regression: the real GPLO-1350 ticket is Spanish and must not move."""
+    result = K.validate_description(conformant, FEATURE)
+    assert result.ok, K.render_findings(result.findings)
