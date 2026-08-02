@@ -35,7 +35,7 @@ deliverable and a human decides. Precedent: `cleanup-zombies` v0.19.29 shipped a
 Tier-1 auto-delete and destroyed 623 lines of live code.
 
 CLI:
-    repo-hygiene.rule.py check   [--config P] [--json] [--changed-only] [--check ID]
+    repo-hygiene.rule.py check   [--config P] [--json] [--changed-only] [--check ID] [--max N]
     repo-hygiene.rule.py explain <check-id> [--config P]
     repo-hygiene.rule.py validate [--config P]
 
@@ -837,9 +837,48 @@ def cmd_check(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # The ratchet, and it is deliberately NOT the severity mechanism above.
+    #
+    # Every check here is S3 on the merits: an unused dependency widens the CVE
+    # surface and a stale graph misleads a reader, but neither is a correctness
+    # defect. Relabelling them S2 so the step fails would buy a gate at the cost
+    # of the severity scale meaning anything — and a scale nobody trusts is how
+    # the S2s that DO matter start getting waved through.
+    #
+    # "How bad is this finding" and "has this got worse" are separate questions.
+    # Severity answers the first and only the first; this answers the second,
+    # and a finding can legitimately be S3 forever while still never being
+    # allowed to grow.
+    if args.max is not None:
+        if args.max < 0:
+            raise ConfigError(
+                f"`--max {args.max}` is negative; a baseline is a count, and counts start at 0"
+            )
+        if len(findings) > args.max:
+            emit_error(
+                why=(
+                    f"{len(findings)} hygiene finding(s), baseline {args.max} — this got WORSE. "
+                    "Severity says how bad a finding is; the baseline says whether it grew, "
+                    "and these are S3 precisely so that this number is the thing that gates"
+                ),
+                where=str(config_path),
+                fix=(
+                    "remove the dependency, declare the channel that proves it is used, or "
+                    "regenerate the stale artefact. `explain <id>` shows what each channel "
+                    "proved. Raising the baseline is not on this list."
+                ),
+                override="none",
+            )
+            return 1
+
     if not args.as_json:
         total = sum(r.population for r in results)
         print(f"repo-hygiene: OK — {len(results)} check(s), {total} item(s), {len(findings)} finding(s)")
+        if args.max is not None and len(findings) < args.max:
+            # Ratchets only ratchet if somebody lowers them, and nobody lowers a
+            # number they were never told had slack.
+            print(f"repo-hygiene: below the baseline of {args.max} — LOWER IT to "
+                  f"{len(findings)} in this same PR; that is what locks the improvement in.")
     return 0
 
 
@@ -903,6 +942,8 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("--changed-only", action="store_true",
                        help="Only run dependency checks whose manifest changed.")
     check.add_argument("--check", help="Limit to one check id.")
+    check.add_argument("--max", type=int, default=None,
+                       help="Ratchet: fail if the finding count exceeds this. Only goes DOWN.")
     check.set_defaults(func=cmd_check)
 
     explain = sub.add_parser("explain", help="Show what each channel proved.")

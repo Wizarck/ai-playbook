@@ -80,7 +80,7 @@ After adding a dependency, editing a manifest, or editing `repo-hygiene.yaml`,
 run the hardrule and confirm exit code 0:
 
 ```bash
-python .ai-playbook/scripts/rules/repo-hygiene.rule.py check [--config <path>] [--json] [--changed-only] [--check <id>]
+python .ai-playbook/scripts/rules/repo-hygiene.rule.py check [--config <path>] [--json] [--changed-only] [--check <id>] [--max <n>]
 python .ai-playbook/scripts/rules/repo-hygiene.rule.py explain <check-id> [--config <path>]
 python .ai-playbook/scripts/rules/repo-hygiene.rule.py validate [--config <path>]   # contract-only lint, no repo scan
 ```

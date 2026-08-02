@@ -2,6 +2,29 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.5] — 2026-08-02 — feat: a count ratchet for repo-hygiene, separate from severity
+
+### Added
+- **`repo-hygiene.rule.py check --max N`.** Every check in this rule is S3 on the
+  merits: an unused dependency widens the CVE surface and a stale graph misleads
+  a reader, but neither is a correctness defect. That made the rule permanently
+  non-blocking, and a consumer's CI comment had promised to "raise the severities
+  once the count reaches zero" — which was the wrong instrument. Relabelling S3
+  findings as S2 to make a step fail buys a gate at the cost of the severity
+  scale meaning anything, and a scale nobody trusts is how the S2s that DO matter
+  start getting waved through.
+
+  "How bad is this finding" and "has this got worse" are separate questions.
+  Severity answers the first and only the first; `--max` answers the second. A
+  finding can be legitimately S3 forever and still never be allowed to grow.
+
+  Opt-in: without `--max`, behaviour is unchanged. Below the baseline it says so,
+  because ratchets only ratchet if somebody lowers them. A negative baseline is
+  refused — a ceiling that can never be met is a job that is red forever, and a
+  job that is red forever gets switched off.
+
+  60 tests.
+
 ## [0.22.4] — 2026-08-02 — feat: the orphan ratchet, and named exceptions
 
 ### Added
