@@ -201,8 +201,42 @@ nothing to run, and it converts a class of silent production absence into a
 failed pre-commit. That is the whole argument for separating the axes: four of
 them are hygiene, and one of them is a bug detector wearing hygiene's clothes.
 
+## Removing what you find, without losing it
+
+Detection and removal are separate tools on purpose: finding and destroying
+should not be the same command, and the second must never be reachable from a
+hook. `sweep_scan.py` emits everything at Tier 3 and has no delete path;
+`sweep_execute.py` removes only what a **human** raised to Tier 1, refuses once
+HEAD has moved past the scan, and stages without committing.
+
+Every removal leaves a **tombstone**: one append-only row in
+`docs/operations/removed-code.md` carrying the path, the date, the pre-removal
+SHA, who authorised it, the rationale, and a restore command to paste as-is.
+
+The tempting alternative — a quarantine directory holding dead files for a
+probation period — was considered and rejected, because it fails at all four of
+the things it appears to offer:
+
+- **The cost stays.** The tax on dead code is being IN THE TREE, not being
+  imported. Quarantined files are still grepped, IDE-searched, caught by rename
+  refactors, type-checked and listed in the SBOM. Observed: a repo-wide rename
+  edited a file nothing had called since the initial commit.
+- **It can still run.** A Python module under the package tree stays importable
+  from wherever it is parked. "Quarantined" is not "off".
+- **It kills the signal.** The value of removal is that CI tells you immediately
+  when you were wrong. If the file still resolves, nothing breaks and the
+  probation proves nothing. Make it unresolvable and it equals deletion.
+- **Nothing empties it.** No trigger exists, so it grows — and a sweep would
+  report every file in it every month until someone excludes the directory,
+  creating an unwatched region of the repo.
+
+Git is already an exact quarantine. Its one gap is **discoverability**: nobody
+runs `git log --diff-filter=D` six months later wondering whether a URL
+sanitiser ever existed. The tombstone closes that gap and nothing else.
+
 ## Further reading
 
 - `specs/wiring-assertions.schema.yaml` — the assertion contract for
   `unwired-capability`.
 - `schemas/schema-sweep-manifest-v1.json` — the ledger a sweep emits.
+- `docs/runbooks/remove-dead-code.md` — the end-to-end removal procedure.

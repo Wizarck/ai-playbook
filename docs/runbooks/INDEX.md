@@ -14,6 +14,7 @@
 | [onboard-new-project.md](onboard-new-project.md) | Attach a new repo to the ai-playbook (submodule pin, dispatcher routers, MCP config, SessionStart hook, propagation, Profile A/B enforcement). |
 | [ponytail-toggle.md](ponytail-toggle.md) | Like caveman, **new projects bootstrapped via `python -m scripts.bootstrap |
 | [release.md](release.md) | Cut a new ai-playbook semver tag. Consumers bump at their own pace (pull model, v0.19.0+). |
+| [remove-dead-code.md](remove-dead-code.md) | Turn a `sweep` ledger into deletions you can undo. Roughly thirty minutes for a |
 | [rotate-secrets.md](rotate-secrets.md) | Rotate any of the playbook-managed secrets (GitHub PATs, SMTP credentials, Atlassian token, dev GITHUB_TOKEN, SOPS age key) on schedule or on compromise. |
 | [run-telemetry-report.md](run-telemetry-report.md) | Generate the weekly or monthly telemetry report (obey-rate, cost, lifecycle) from the consumer's rule-events.jsonl log. |
 | [runbook-db-corruption.md](runbook-db-corruption.md) | Recover from Hindsight (SQLite-backed memory MCP) database corruption — pick the right recovery path (backup, sqlite recovery, JSONL replay) and verify. |
