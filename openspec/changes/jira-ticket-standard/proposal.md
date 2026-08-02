@@ -44,9 +44,15 @@ parses.
 
 - **Rewriting the 126 open legacy tickets.** They are measured and reported as
   their own cohort.
-- **Jira UI layers** — Automation `validate-on-create` and required custom fields
-  are configuration only Arturo can apply, and the platform notes for doing so are
-  in the rule doc.
+- **Jira UI layers** — Automation `validate-on-create` and required custom fields.
+  Originally deferred as "configuration only Arturo can apply"; **dropped outright
+  on 2026-08-02** once the intent was stated plainly: the standard exists to bind
+  agents, which write tickets at machine speed with no memory across calls, not
+  people choosing what to type. Two costs settled it — required fields in a
+  team-managed project apply to the REST API as well, so enabling them breaks
+  `issue_sync.py`, and an Automation rule that only comments is a notification, not
+  a gate. Neither buys anything the hook does not already provide on the path that
+  produces the volume.
 - **A conformance baseline in CI.** Report-only until the number is trusted; a gate
   that lands red on a backlog is a gate someone switches off.
 

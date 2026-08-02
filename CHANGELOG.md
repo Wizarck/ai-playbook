@@ -2,6 +2,28 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.11] — 2026-08-02 — scope: the ticket standard binds agents, not people
+
+### Changed
+- **The Jira-side layers of `jira-ticket-standard` are dropped, not deferred.**
+  `docs/rules/jira-ticket-standard.rule.md` promised "a Jira Automation backstop
+  is the follow-up" for the human-in-the-UI path, and the OpenSpec proposal
+  carried the same as a deferral. Both now record the decision that removes them.
+
+  The standard exists because tickets get written at machine speed by something
+  with no memory of the last call — that is what drifts, and that is what the
+  `pretooluse()` hook gates. A person typing a ticket is already choosing what
+  goes in it. Two costs settled the rest: required fields in a team-managed
+  project apply to the **REST API** too, so enabling them breaks
+  `issue_sync.py` on day one, and an Automation rule that only comments is a
+  notification rather than a gate.
+
+  Nothing in `_ticket_kit.py`, the hook, the skill or `check` changes — `check`
+  still measures UI-authored tickets, it simply never blocks them. What changes
+  is that the docs no longer promise work nobody intends to do. **A deferral
+  nothing is watching is the failure mode this rule was written to stop; leaving
+  one in the rule's own text was not defensible.**
+
 ## [0.22.10] — 2026-08-02 — fix: the dispatcher mangled every non-ASCII hook payload
 
 ### Fixed
