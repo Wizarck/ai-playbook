@@ -2,6 +2,36 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.4] — 2026-08-02 — feat: the orphan ratchet, and named exceptions
+
+### Added
+- **`sweep_scan.py check --max N`** — the gate `enforcement-status.md` has been
+  asking for since v0.20.0. Exit 1 above the baseline, listing the offending
+  paths; and when the count is BELOW the baseline it says so, because ratchets
+  only ratchet if somebody lowers them and nobody lowers a number they were never
+  told had slack. The failure names the three real fixes — wire it in, delete it
+  via `sweep_execute.py`, or add an `allow` entry naming the mechanism — and says
+  outright that raising the baseline is not one of them.
+
+  Counting runs per-PR while adjudication stays monthly, and the split is what
+  makes that legitimate: counting is deterministic and takes 27 s on a 1674-file
+  consumer, adjudication needs a model and a human. Catching an orphan on the PR
+  that creates it is worth much more than a month later — the author still
+  remembers why the file is there, and the fix is usually to finish wiring it.
+
+- **`allow`, with a mandatory `reason`.** Some files are alive by a mechanism no
+  import graph can see: a webpack `resolve.alias`, a `COPY` in a Dockerfile.
+  Measured on the consumer, 4 of 14 candidates. The reason is required because it
+  is the whole difference between an exception and a suppression — a named
+  mechanism can be re-verified, a bare path is a file someone silenced.
+
+  A **stale** `allow` entry fails the build, borrowed from `repo-hygiene`'s
+  contract. Without it the allow list becomes the unvisited graveyard a
+  quarantine directory would have been, except this one silently shrinks what the
+  scan can see.
+
+  45 tests.
+
 ## [0.22.3] — 2026-08-02 — feat: sweep-execute (remove an orphan, leave a tombstone)
 
 ### Added
