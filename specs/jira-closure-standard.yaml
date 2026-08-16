@@ -1,0 +1,154 @@
+# jira-closure-standard — what a ticket must SHOW before it may be closed.
+#
+# The twin of `jira-ticket-standard.yaml`. That one governs what a ticket must
+# CONTAIN when it is filed; this one governs what must be DEMONSTRATED when it
+# is closed. Consumed by `scripts/rules/jira-closure-evidence.rule.py`.
+#
+# WHY THIS EXISTS, and the evidence for it being a gate rather than a norm.
+#
+# A soft rule with the same content already existed, as an agent memory written
+# after two wrong closures: "'verified' has to name WHICH HALF; follow the paths
+# a ticket cites, not its label." It was in context. The same error was then made
+# twice more — four in total across one campaign (2026-08-15/16):
+#
+#   GPLO-1469  closed after verifying 1 of the ticket's 3 requirements
+#   GPLO-1388  closed after reading `blueprints/datascout/`, when the ticket's
+#              first line names `blueprints/datashield/router.py:818` — the
+#              product LABEL was followed instead of the cited PATH
+#   GPLO-1473  closed twice: once on a `grep -v` that filtered out exactly where
+#              the fix lived, once on the backend half of a two-half ticket
+#   GPLO-1497  closed on the backend half; the Playwright half was still pinned
+#              with `test.fail()` on the very assertion the ticket was about
+#
+# Every one of those closures HAD a comment, and every comment was confident.
+# What none of them had was a mechanical reason to be complete. That is the gap
+# this file closes: not more advice, but an artefact that cannot be produced
+# without answering "which half, and did you look where the ticket pointed".
+#
+# THE CLAUSES ARE DELIBERATELY UNEVEN. C1-C3 are permissive and apply always.
+# C4 and C5 are the strict ones and fire ONLY where the ticket itself makes the
+# check unambiguous — where it cites paths, or where it enumerates requirements.
+# A ticket written as loose prose is judged only by C1-C3. This is on purpose: a
+# gate that fires on tickets it cannot actually judge trains people to skip it,
+# which is how the last one stopped working.
+#
+# All explanation is English per `docs/rules/english-only-docs.rule.md`.
+
+schema: ai-playbook/jira-closure-standard/v1
+schema_version: "1.0.0"
+
+# ---------------------------------------------------------------------------
+# When the gate fires
+# ---------------------------------------------------------------------------
+# A transition INTO the `done` status category. Read from the live transition
+# list rather than hardcoded ids: transition ids are per-workflow and a literal
+# here would silently stop matching the day a workflow is edited — a gate that
+# quietly matches nothing is worse than no gate, because it still reports green.
+fires_on:
+  status_category: done
+
+# Issue types this applies to. Empty list = all types.
+# Sub-tasks and Epics are excluded: an Epic closes because its children did, and
+# demanding independent artefact evidence for it is ceremony, not verification.
+issue_types_exempt:
+  - Epic
+  - Subtask
+  - Sub-task
+
+# A label that opts a single ticket out, for the cases the clauses genuinely
+# cannot judge. Using it is not a workaround — the label is visible on the board
+# and in the audit, which is the point.
+exempt_labels:
+  - closure-evidence-exempt
+
+# ---------------------------------------------------------------------------
+# C2 — the verdict token
+# ---------------------------------------------------------------------------
+# A closure comment must state WHAT KIND of closure this is, from a closed list.
+# The list matters more than it looks: "STALE" and "FIXED" carry completely
+# different follow-up obligations, and a comment that says neither leaves the
+# next reader unable to tell whether the code changed.
+#
+# Matched case-insensitively as a whole word anywhere in the comment.
+verdicts:
+  - FIXED           # the code changed in this repo, and the change is named
+  - STALE           # already fixed by earlier work; nothing to do
+  - RETRACTED       # the finding was wrong; the ticket's premise is false
+  - DUPLICATE       # another ticket owns it; that ticket is named
+  - WONTFIX         # real, and deliberately not being fixed; the reason is given
+  - CANNOT-REPRODUCE
+
+# ---------------------------------------------------------------------------
+# C3 — artefact references
+# ---------------------------------------------------------------------------
+# "I verified it" is not evidence. A closure must point at something a reader can
+# open. Any of these shapes counts as one reference.
+artefact_patterns:
+  # backend/app/foo.py:123  ·  frontend/app/x.tsx  ·  .github/workflows/ci.yml
+  path: '(?:[\w.\-]+/)+[\w.\-]+\.[A-Za-z0-9]{1,6}(?::\d+)?'
+  # a merge/commit sha, 7-40 hex
+  sha: '\b[0-9a-f]{7,40}\b'
+  # PR / issue reference
+  pr: '(?:#|PR |pull/)\d+'
+  # a named test, which is the strongest artefact of the three
+  test: '\btest_[\w]+\b|\bit\([''"]|\btest\([''"]'
+
+# ---------------------------------------------------------------------------
+# C4 — path fidelity  (the GPLO-1388 / GPLO-1497 clause)
+# ---------------------------------------------------------------------------
+# If the ticket BODY cites file paths, the closure comment must reference at
+# least one of them.
+#
+# This is the mechanical form of "follow the paths a ticket cites, not its
+# label". GPLO-1388's title carried a `[DataScout]` product tag while its first
+# line named `datashield/router.py:818`; the closure read the directory the tag
+# suggested, found nothing wrong, and closed. GPLO-1497's regression section
+# named a Playwright spec that the closure never opened.
+#
+# "At least one" rather than "all": a ticket often cites background paths that
+# are context, not subject. Requiring all of them would make the gate wrong more
+# often than the author, and a gate that is usually wrong gets bypassed.
+path_fidelity:
+  enabled: true
+  minimum_overlap: 1
+  # Paths appearing only inside these sections are context, not subject, and do
+  # not count toward the requirement. Matched with the ticket-standard's own
+  # heading normalization.
+  ignore_sections: []
+
+# ---------------------------------------------------------------------------
+# C5 — requirement coverage  (the GPLO-1469 clause)
+# ---------------------------------------------------------------------------
+# If the ticket enumerates N requirements, the closure comment must carry at
+# least N artefact references — one per half, which is exactly the discipline
+# that failed four times.
+#
+# Only fires at N >= 2: a single-requirement ticket is already covered by C3, and
+# counting to one adds nothing.
+#
+# The count is taken from ordered-list items in the sections below, because those
+# are the places a requirement is stated rather than described. A ticket that
+# writes its requirements as prose is not judged by this clause — see the note at
+# the top about not firing where the check cannot be made honestly.
+requirement_coverage:
+  enabled: true
+  minimum_items: 2
+  count_sections:
+    - "Esperado vs Actual"
+    - "Expected vs actual"
+    - "Test de regresión"
+    - "Regression test"
+    - "Criterios de aceptación"
+    - "Acceptance criteria"
+
+# ---------------------------------------------------------------------------
+# Failure behaviour
+# ---------------------------------------------------------------------------
+# Fail OPEN on any infrastructure problem — no credentials, Jira unreachable, a
+# malformed spec. Same argument the ticket standard makes: a broken gate must
+# not become an outage on every transition anyone tries to make. The gate's job
+# is to catch a careless closure, not to be the reason nobody can close anything.
+fail_open_on_error: true
+
+# The environment variable that skips the gate for one invocation.
+skip_env: AIPLAYBOOK_JIRA_CLOSURE_SKIP

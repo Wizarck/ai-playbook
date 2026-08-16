@@ -2,6 +2,75 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.13] — 2026-08-16 — scope: two gates for the two shapes agent error actually takes
+
+### Added
+- **`jira-closure-evidence`** — a hardrule refusing a transition into Done whose
+  closure comment shows nothing. Five clauses: a comment exists (C1), it carries
+  a verdict token from a closed list (C2), it references something openable
+  (C3), it references at least one of the paths **the ticket itself cites**
+  (C4), and it names one distinct artefact per enumerated requirement (C5).
+  Contract in `specs/jira-closure-standard.yaml`; the twin of
+  `jira-ticket-standard`, which governs what a ticket must *contain* when filed
+  rather than what it must *show* when closed.
+
+  **This is a gate because the norm was already tried and measurably failed.**
+  An agent memory with the same content — "'verified' has to name WHICH HALF;
+  follow the paths a ticket cites, not its label" — was written after two wrong
+  closures and was loaded in context when two more were made. Four in one
+  campaign (geeplo, 2026-08-15/16), each with a confident comment attached and
+  none with a mechanical reason to be complete: GPLO-1469 (1 of 3 requirements
+  checked → C5), GPLO-1388 (read the directory the `[DataScout]` label suggested
+  while the ticket's first line named `datashield/router.py:818` → C4),
+  GPLO-1473 (a `grep -v` that filtered out where the fix lived, then the backend
+  half of a two-half ticket → C5), GPLO-1497 (backend half closed while the
+  Playwright half named in the ticket's own regression section was still pinned
+  `test.fail()` → C4).
+
+  C1–C3 apply always; **C4 and C5 fire only where the ticket makes the check
+  unambiguous** — where it cites paths, or enumerates requirements. The
+  unevenness is deliberate: a gate that fires on tickets it cannot honestly
+  judge trains people to bypass it, which is how the norm it replaces stopped
+  working. Fails open on any infrastructure problem.
+
+  Its own test suite caught a real defect in it before release: the first draft
+  stripped code spans before looking for paths, and tickets write paths in
+  backticks nearly every time — so C3 and C4 were unfirable on the common case.
+  A gate that cannot fail, inside the file whose entire subject is gates that
+  cannot fail. Pinned by `test_paths_inside_backticks_are_seen`.
+
+- **`shared-test-db-mutex`** — a PreToolUse/PostToolUse lock so one shared test
+  database carries one test run at a time. Keyed on the **database** (inline
+  `DATABASE_URL=`, then the environment, then cwd), not the checkout, so
+  separate projects still run concurrently.
+
+  Measured incident: a 40-minute full-suite run, in flight to answer whether 743
+  previously ungated tests stay green when interleaved in one process, was
+  corrupted by two short pytest invocations started beside it — backend pytest
+  drops and recreates the schema in its session fixture. The cost was not the
+  forty minutes; it was that the corrupted run produced a **plausible answer to
+  the question being asked**, in the shape a real answer would take. The
+  recovery attempt was then misread the same way.
+
+  Released on return, on a dead holder, or after three hours — a TTL set well
+  above any real suite, because a TTL at or below the true runtime releases the
+  lock under a slow-but-healthy run and rebuilds the original failure in a new
+  shape.
+
+- **`absence-is-not-evidence`** — advisory, no paired hardrule, because it is
+  judgment. A negative result is evidence only if the search could have found
+  the thing; when a ticket, error or spec cites a concrete path, open that path
+  and not the directory its label suggests. Carries the five measured instances
+  (`grep -v` over the fix's own file; a product label followed instead of a
+  cited path; `git diff A...B` three-dot read as "ahead" when the branches were
+  behind; a SOAK run against an image built before the fixes; the backend half
+  of a two-half ticket) plus two corollaries — a gate that cannot fail is not a
+  gate, and when a defect class recurs, stop sweeping and invert to a ratchet
+  over the safe cases.
+
+  C4 and C5 of `jira-closure-evidence` are this rule's enforceable subset. The
+  rest is deliberately left as judgment rather than pretended into a check.
+
 ## [0.22.12] — 2026-08-02 — scope: the ticket standard accepts either language
 
 ### Added
