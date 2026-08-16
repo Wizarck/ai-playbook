@@ -100,7 +100,7 @@ def load_spec(path: Path | None = None) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# The five clauses
+# The six clauses (C1-C4 judge the comment alone; C5-C6 need the ticket)
 # ---------------------------------------------------------------------------
 
 
@@ -312,11 +312,12 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
     items = enumerated_items(text)
     if len(items) >= int(rc.get("minimum_items", 2)):
         blank = [n for n, item in enumerate(items, 1) if not _artefact_refs(item, spec)]
+        one = len(blank) == 1
         clauses.append(Clause(
             "C4", not blank,
             f"the closure enumerates {len(items)} items but "
-            f"{'item' if len(blank) == 1 else 'items'} "
-            f"{', '.join(str(b) for b in blank)} name no artefact. Every half you "
+            f"{'item' if one else 'items'} {', '.join(str(b) for b in blank)} "
+            f"{'names' if one else 'name'} no artefact. Every half you "
             f"claim to have closed needs its own openable thing",
         ))
 
