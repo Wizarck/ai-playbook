@@ -2,6 +2,42 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.14] — 2026-08-16 — scope: the branch gate stops demanding what this repo forbids
+
+### Fixed
+- **`branch-name-validator` asked for a file the playbook gitignores.** The gate
+  told authors to "create the proposal at `openspec/changes/<id>/` and commit it
+  to this branch" — and `openspec/` is ignored here on purpose ("the playbook
+  does not commit its own proposals/tasks/archive", `.gitignore`, #79). That
+  remedy could never be followed by anyone.
+
+  **Nobody was blocked, which is why it lasted.** The third remedy — "use a
+  `chore/*` branch" — was the only one that worked, so every PR merged after
+  #158 used `chore/*`, including ones titled `feat(...)`: #163, #162, #161,
+  #159, #157. The prefix stopped meaning "this is maintenance" and came to mean
+  "this is the only prefix that passes", while the check reported green the
+  whole time. A gate whose remedy is impossible does not stop the work; it
+  quietly retrains everyone to route around it.
+
+  The requirement is still correct for a consumer repo that commits `openspec/`,
+  so it is not deleted — it is made conditional on being satisfiable, tested
+  with `git check-ignore` **on the exact path the error message names**. The
+  branch-NAME pattern is untouched and still enforced.
+
+  The first attempt at that test asked "does this repo track anything under
+  `openspec/`" and was wrong: gitignoring a directory does not untrack what was
+  already committed, and legacy proposals from before #79 are still in the tree.
+  It answered "satisfiable" while a new proposal still could not be added.
+  Caught by running the condition rather than reasoning about it —
+  `test_the_repo_this_runs_in_actually_triggers_the_exemption` now pins it.
+
+### Added
+- `tests/test_branch_name_validator_workflow.py` — 13 tests, the workflow's
+  first coverage. Negative controls carry the weight: an exemption that swallows
+  the gate would satisfy every "must not block" assertion while removing the
+  enforcement, so the branch-name pattern, the success path and the failing
+  verdict are each asserted to still exist.
+
 ## [0.22.13] — 2026-08-16 — scope: two gates for the two shapes agent error actually takes
 
 ### Added
