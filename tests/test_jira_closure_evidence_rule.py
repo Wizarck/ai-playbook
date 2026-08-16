@@ -316,12 +316,12 @@ def test_prose_bullets_are_not_treated_as_claims():
     assert "C4" not in _failed("", comment)
 
 
-def test_a_single_enumerated_item_is_not_judged_by_C4():
+def test_a_single_enumerated_item_is_not_judged_by_c4():
     """NEGATIVE CONTROL: counting to one adds nothing over C3."""
     assert "C4" not in _failed("", "FIXED\n1. done - app/x.py:1\n")
 
 
-def test_C4_needs_no_ticket_body_at_all():
+def test_c4_needs_no_ticket_body_at_all():
     """The whole point of the rework, asserted directly.
 
     Every clause that fires here does so on an empty description. If this ever
@@ -446,7 +446,7 @@ def test_the_message_admits_when_the_ticket_was_not_read():
     assert "C1-C4" in msg
 
 
-def test_the_message_says_so_when_the_ticket_WAS_read():
+def test_the_message_says_so_when_the_ticket_was_read():
     """NEGATIVE CONTROL for the mode notice.
 
     If both modes printed the same thing, a reader would assume path fidelity
