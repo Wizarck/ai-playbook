@@ -38,14 +38,54 @@ schema: ai-playbook/jira-closure-standard/v1
 schema_version: "1.0.0"
 
 # ---------------------------------------------------------------------------
+# WHERE THE EVIDENCE COMES FROM — payload first, network optional
+# ---------------------------------------------------------------------------
+# The closure comment must ride INSIDE the transition call:
+#
+#   update: {"comment": [{"add": {"body": "FIXED — ..."}}]}
+#
+# Jira's transition endpoint accepts it and the MCP tool exposes the field. This
+# is the same shape as every other hardrule here — the twin `jira-ticket-standard`
+# judges `tool_input["description"]` and needs nothing installed.
+#
+# The first version of this contract instead FETCHED the issue over REST, which
+# made a public tracker-agnostic playbook require an Atlassian API token from
+# every consumer, for a capability most of them will never use. In the repo it
+# was written for those credentials did not exist, so the rule failed open on
+# every transition while advertising `enforced` — a gate that could not fail,
+# inside the file whose subject is gates that cannot fail.
+#
+# Reading the payload also makes the check STRONGER in one respect the fetch
+# could not match: a separately-posted comment is whatever happened to land last,
+# while a comment inside the transition is atomic with the act it justifies.
+evidence_source: payload
+
+# ---------------------------------------------------------------------------
 # When the gate fires
 # ---------------------------------------------------------------------------
-# A transition INTO the `done` status category. Read from the live transition
-# list rather than hardcoded ids: transition ids are per-workflow and a literal
-# here would silently stop matching the day a workflow is edited — a gate that
-# quietly matches nothing is worse than no gate, because it still reports green.
+# A transition INTO the `done` status category.
+#
+# TWO WAYS TO KNOW, and they are not equivalent:
+#
+#  1. WITH credentials — read from the live transition list. Authoritative, and
+#     immune to a workflow edit.
+#  2. WITHOUT — the consumer declares its own ids in
+#     `AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS` (comma-separated, e.g. "31,41").
+#
+# (2) is THE OPT-IN, and it is what keeps this playbook agnostic. Declaring
+# "31 means Done" is not a secret: it is cheap, static, per-repo config a reader
+# can verify by eye. A consumer who never sets it is never affected by this rule
+# — no token, no configuration, no noise.
+#
+# The residual is named rather than glossed: a declared id list CAN go stale if
+# the workflow is edited, and then the gate quietly stops matching. That is the
+# exact hazard the original design avoided by fetching. It is accepted here
+# because the alternative — every consumer minting a token — is a larger and
+# more permanent cost, and because mode (1) still overrides (2) wherever
+# credentials happen to exist.
 fires_on:
   status_category: done
+  done_transitions_env: AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS
 
 # Issue types this applies to. Empty list = all types.
 # Sub-tasks and Epics are excluded: an Epic closes because its children did, and
@@ -94,8 +134,32 @@ artefact_patterns:
   test: '\btest_[\w]+\b|\bit\([''"]|\btest\([''"]'
 
 # ---------------------------------------------------------------------------
-# C4 — path fidelity  (the GPLO-1388 / GPLO-1497 clause)
+# C4 — no blank halves  (the GPLO-1469 clause, payload-only)
 # ---------------------------------------------------------------------------
+# If the closure comment enumerates its work as an ordered list, EVERY item must
+# carry at least one artefact reference of its own.
+#
+# This is the clause that survives having no credentials, and it is the one that
+# catches the error the whole rule was built for: GPLO-1469 was closed after
+# verifying 1 requirement of 3. Writing three numbered halves and leaving two
+# without evidence is a blank someone has to fill deliberately — where before it
+# was simply a thing forgotten.
+#
+# Weaker than C6, and the difference is worth stating: C4 asks whether the halves
+# you LISTED carry evidence; only the ticket knows whether you listed them all.
+# Self-declared rather than cross-checked.
+#
+# ORDERED LISTS ONLY. Bullets carry prose — context, caveats, links — and
+# demanding an artefact per bullet would fail the closures that explain
+# themselves best, which is how a clause earns a reputation for being wrong and
+# starts getting skipped. Threshold shared with C6 via `requirement_coverage`:
+# counting to one adds nothing over C3.
+
+# ---------------------------------------------------------------------------
+# C5 — path fidelity  (the GPLO-1388 / GPLO-1497 clause) — REMOTE ONLY
+# ---------------------------------------------------------------------------
+# Needs the ticket body, so it is skipped whenever credentials are absent. Its
+# absence is announced in the block message rather than left to be assumed.
 # If the ticket BODY cites file paths, the closure comment must reference at
 # least one of them.
 #
@@ -117,8 +181,13 @@ path_fidelity:
   ignore_sections: []
 
 # ---------------------------------------------------------------------------
-# C5 — requirement coverage  (the GPLO-1469 clause)
+# C6 — requirement coverage vs the TICKET — REMOTE ONLY
 # ---------------------------------------------------------------------------
+# The strictly stronger form of C4, and the one thing a credential actually
+# buys: C4 asks whether the halves you listed carry evidence, C6 asks whether
+# you listed them all. Only the ticket knows how many there were.
+#
+# `minimum_items` is shared with C4.
 # If the ticket enumerates N requirements, the closure comment must carry at
 # least N artefact references — one per half, which is exactly the discipline
 # that failed four times.

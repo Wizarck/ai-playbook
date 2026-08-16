@@ -109,22 +109,22 @@ def test_reading_the_directory_the_label_suggests_is_refused():
         "CANNOT-REPRODUCE — read backend/app/blueprints/datascout/router.py "
         "and the gate is present."
     )
-    assert "C4" in _failed(GPLO_1388, comment)
+    assert "C5" in _failed(GPLO_1388, comment)
 
 
 def test_opening_the_path_the_ticket_cites_passes():
-    """NEGATIVE CONTROL for C4."""
+    """NEGATIVE CONTROL for C6."""
     comment = (
         "FIXED — backend/app/blueprints/datashield/router.py:818 now takes "
         "require_internal_admin. test_a_plain_member_cannot_reach_the_flagged_list"
     )
-    assert "C4" not in _failed(GPLO_1388, comment)
+    assert "C5" not in _failed(GPLO_1388, comment)
 
 
 def test_a_loose_path_reference_still_counts():
     """Compared on the last two segments, so an honest closure that writes
     `datashield/router.py` is not failed on formatting."""
-    assert "C4" not in _failed(GPLO_1388, "FIXED — datashield/router.py:818 gated.")
+    assert "C5" not in _failed(GPLO_1388, "FIXED — datashield/router.py:818 gated.")
 
 
 def test_c4_stays_quiet_when_the_ticket_cites_no_paths():
@@ -152,18 +152,18 @@ THREE_REQUIREMENTS = (
 
 def test_closing_three_requirements_on_one_artefact_is_refused():
     comment = "FIXED — the gate is in adapters/shared_drive.py:354."
-    assert "C5" in _failed(THREE_REQUIREMENTS, comment)
+    assert "C6" in _failed(THREE_REQUIREMENTS, comment)
 
 
 def test_naming_one_artefact_per_requirement_passes():
-    """NEGATIVE CONTROL for C5."""
+    """NEGATIVE CONTROL for C6."""
     comment = (
         "**FIXED** — verified against HEAD.\n"
         "1. adapters/shared_drive.py:354 — descendants sampled\n"
         "2. adapters/_common.py:412 — gate counts the manifest\n"
         "3. tests/transfer/test_shared_drive_adapter.py — verify test added\n"
     )
-    assert "C5" not in _failed(THREE_REQUIREMENTS, comment)
+    assert "C6" not in _failed(THREE_REQUIREMENTS, comment)
 
 
 def test_repeating_one_path_does_not_satisfy_the_count():
@@ -177,7 +177,7 @@ def test_repeating_one_path_does_not_satisfy_the_count():
         "FIXED\n1. adapters/shared_drive.py\n2. adapters/shared_drive.py\n"
         "3. adapters/shared_drive.py\n"
     )
-    assert "C5" in _failed(THREE_REQUIREMENTS, comment)
+    assert "C6" in _failed(THREE_REQUIREMENTS, comment)
 
 
 def test_repro_steps_are_not_counted_as_requirements():
@@ -253,3 +253,207 @@ def test_paths_inside_backticks_are_seen():
 def test_a_fenced_block_in_the_comment_still_yields_artefacts():
     comment = "FIXED\n\n```\nbackend/app/router.py:12\n```\n"
     assert RULE._artefact_refs(comment, SPEC)
+
+
+# ---------------------------------------------------------------------------
+# C4 — no blank halves. Judged WITHOUT the ticket, so it survives having no
+# credentials, which is the normal state for a consumer of a public playbook.
+# ---------------------------------------------------------------------------
+#
+# This is the clause that replaces what the remote fetch used to buy. The old
+# design needed an Atlassian API token to know how many requirements a ticket
+# had, so every consumer would have had to mint one for a capability most of
+# them will never use. C4 asks a question the payload can answer by itself: of
+# the halves you SAY you closed, does each one carry evidence?
+
+
+def test_an_enumerated_closure_with_a_blank_half_is_refused():
+    """The GPLO-1469 shape, caught with no ticket and no network."""
+    comment = (
+        "FIXED\n"
+        "1. the reparent gate counts moved ids - adapters/shared_drive.py:354\n"
+        "2. the verify test exists - test_shared_drive_adapter.py\n"
+        "3. recursive source inventory\n"
+    )
+    assert "C4" in _failed("", comment)
+
+
+def test_every_half_carrying_an_artefact_passes():
+    """NEGATIVE CONTROL for C4 - the honest three-part closure."""
+    comment = (
+        "FIXED\n"
+        "1. gate counts moved ids - adapters/shared_drive.py:354\n"
+        "2. verify test added - test_shared_drive_adapter.py\n"
+        "3. docstring states the limit - adapters/shared_drive.py:290\n"
+    )
+    assert "C4" not in _failed("", comment)
+
+
+def test_evidence_on_the_following_line_still_counts():
+    """An item runs to the next marker, so multi-line items are not punished."""
+    comment = (
+        "FIXED\n"
+        "1. the gate counts moved ids\n"
+        "   see adapters/shared_drive.py:354\n"
+        "2. the verify test exists\n"
+        "   test_shared_drive_adapter.py\n"
+    )
+    assert "C4" not in _failed("", comment)
+
+
+def test_prose_bullets_are_not_treated_as_claims():
+    """NEGATIVE CONTROL: bullets carry context, not coverage claims.
+
+    Demanding an artefact per bullet would fail the closures that explain
+    themselves best, and a clause that is usually wrong gets skipped.
+    """
+    comment = (
+        "FIXED - adapters/shared_drive.py:354\n"
+        "\n"
+        "- point one was already resolved by GPLO-1511\n"
+        "- point three is a design call for the transfer owner\n"
+    )
+    assert "C4" not in _failed("", comment)
+
+
+def test_a_single_enumerated_item_is_not_judged_by_C4():
+    """NEGATIVE CONTROL: counting to one adds nothing over C3."""
+    assert "C4" not in _failed("", "FIXED\n1. done - app/x.py:1\n")
+
+
+def test_C4_needs_no_ticket_body_at_all():
+    """The whole point of the rework, asserted directly.
+
+    Every clause that fires here does so on an empty description. If this ever
+    returns an empty set, payload-only mode has become a no-op - which is the
+    failure the previous version shipped with.
+    """
+    fired = _failed("", "closed it")
+    assert fired, "payload-only mode judges nothing - the gate is inert again"
+    assert {"C2", "C3"} <= fired
+
+
+# ---------------------------------------------------------------------------
+# The comment must ride IN the transition
+# ---------------------------------------------------------------------------
+
+
+def test_the_comment_is_read_from_the_transition_payload():
+    tool_input = {
+        "issueIdOrKey": "PROJ-1",
+        "transition": {"id": "31"},
+        "update": {"comment": [{"add": {"body": "FIXED - app/x.py:1"}}]},
+    }
+    assert RULE.payload_comment(tool_input) == "FIXED - app/x.py:1"
+
+
+def test_a_transition_with_no_comment_field_yields_nothing():
+    assert RULE.payload_comment({"transition": {"id": "31"}}) == ""
+
+
+@pytest.mark.parametrize("update", [
+    {"comment": []},
+    {"comment": [{}]},
+    {"comment": [{"add": {}}]},
+    {"comment": [{"add": {"body": "   "}}]},
+    {"comment": "not-a-list"},
+])
+def test_malformed_comment_payloads_do_not_crash(update):
+    """Fail open on shape, rather than a traceback inside a PreToolUse hook."""
+    assert RULE.payload_comment({"update": update}) == ""
+
+
+# ---------------------------------------------------------------------------
+# The opt-in - a consumer joins by naming its own workflow, not by minting a
+# token. This is what keeps the playbook tracker-agnostic.
+# ---------------------------------------------------------------------------
+
+
+def test_no_declared_transitions_means_the_rule_does_nothing(monkeypatch):
+    """NEGATIVE CONTROL, and the portability guarantee.
+
+    A consumer who has not declared which transition means Done cannot be judged
+    - transition ids are per-workflow. Silence here is correct: the alternative
+    is demanding a closure comment on every move to In Progress, which would be
+    switched off within a day.
+    """
+    monkeypatch.delenv(RULE.DONE_TRANSITIONS_ENV, raising=False)
+    assert RULE.declared_done_transitions() == set()
+
+
+def test_declared_transitions_are_parsed(monkeypatch):
+    monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31, 41 ,")
+    assert RULE.declared_done_transitions() == {"31", "41"}
+
+
+def _no_creds(monkeypatch):
+    for var in ("ATLASSIAN_URL", "ATLASSIAN_USERNAME", "ATLASSIAN_API_TOKEN"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_payload_only_mode_blocks_a_declared_done_transition(monkeypatch):
+    """End-to-end with NO credentials: the gate must still bite."""
+    monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
+    _no_creds(monkeypatch)
+
+    verdict = RULE.pretooluse({
+        "tool_name": "mcp__claude_ai_Atlassian__transitionJiraIssue",
+        "tool_input": {"issueIdOrKey": "PROJ-1", "transition": {"id": "31"},
+                       "update": {"comment": [{"add": {"body": "done"}}]}},
+    })
+    assert verdict is not None, (
+        "no credentials and the gate went quiet - this is exactly the defect "
+        "v0.22.16 documented, reintroduced"
+    )
+    assert "payload alone" in verdict.message
+
+
+def test_payload_only_mode_ignores_an_undeclared_transition(monkeypatch):
+    """NEGATIVE CONTROL: a move to In Progress is not a closure."""
+    monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
+    _no_creds(monkeypatch)
+    assert RULE.pretooluse({
+        "tool_name": "mcp__claude_ai_Atlassian__transitionJiraIssue",
+        "tool_input": {"issueIdOrKey": "PROJ-1", "transition": {"id": "11"}},
+    }) is None
+
+
+def test_a_good_closure_passes_in_payload_only_mode(monkeypatch):
+    """NEGATIVE CONTROL: the gate must be satisfiable without credentials."""
+    monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
+    _no_creds(monkeypatch)
+    body = (
+        "FIXED - verified against HEAD.\n"
+        "1. the gate counts moved ids - adapters/shared_drive.py:354\n"
+        "2. the verify test exists - test_shared_drive_adapter.py\n"
+    )
+    assert RULE.pretooluse({
+        "tool_name": "mcp__claude_ai_Atlassian__transitionJiraIssue",
+        "tool_input": {"issueIdOrKey": "PROJ-1", "transition": {"id": "31"},
+                       "update": {"comment": [{"add": {"body": body}}]}},
+    }) is None
+
+
+# ---------------------------------------------------------------------------
+# The block message must say which mode judged it
+# ---------------------------------------------------------------------------
+
+
+def test_the_message_admits_when_the_ticket_was_not_read():
+    clauses = RULE.evaluate("", "closed it", SPEC)
+    msg = RULE.render(clauses, SPEC, remote=False)
+    assert "not read" in msg
+    assert "C1-C4" in msg
+
+
+def test_the_message_says_so_when_the_ticket_WAS_read():
+    """NEGATIVE CONTROL for the mode notice.
+
+    If both modes printed the same thing, a reader would assume path fidelity
+    had been checked when it had not - overstated coverage, which is the
+    campaign-long defect this whole rule is about.
+    """
+    clauses = RULE.evaluate("some ticket", "closed it", SPEC)
+    msg = RULE.render(clauses, SPEC, remote=True)
+    assert "C1-C6" in msg
+    assert "not read" not in msg

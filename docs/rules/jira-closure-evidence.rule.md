@@ -1,10 +1,10 @@
 ---
 schema: rule/v1
 slug: jira-closure-evidence
-description: A ticket MUST NOT transition into Done unless a closure comment names a verdict, an openable artefact, at least one path the ticket itself cites, and one artefact per enumerated requirement. ADVISORY until the payload-only rework lands — see the Enforcement status section.
+description: A ticket MUST NOT transition into Done unless the transition carries a closure comment naming a verdict, an openable artefact, and evidence for every half it claims to have closed. Opt in per repo by declaring your Done transition ids.
 paired_hardrule: scripts/rules/jira-closure-evidence.rule.py
 activation: always
-status: advisory
+status: enforced
 applies_to: all
 triggers: ["PreToolUse"]
 last_validated: "2026-08-17"
@@ -22,27 +22,32 @@ last_validated: "2026-08-17"
 A transition of a Jira issue into the `done` status category, made through the
 Atlassian MCP `transitionJiraIssue` tool.
 
-The status category is read from the issue's live transition list, not from a
-hardcoded id. Transition ids are per-workflow; a literal here would stop
-matching the day someone edits a workflow, and the gate would go on reporting
-success while checking nothing.
+Which transition counts as Done is resolved in one of two ways — the live
+transition list where credentials exist, otherwise the ids the consumer has
+declared. See *How it runs* below; unset means this rule does nothing.
 
 ## Binding clause
 
-The closure comment MUST satisfy every clause that applies:
+The closure comment — carried **inside the transition** — MUST satisfy every
+clause that applies:
 
-| | Clause | Applies |
-|---|---|---|
-| **C1** | A closure comment exists | always |
-| **C2** | It carries a verdict token — `FIXED`, `STALE`, `RETRACTED`, `DUPLICATE`, `WONTFIX`, `CANNOT-REPRODUCE` | always |
-| **C3** | It references at least one openable artefact — a path, a named test, a commit, a PR | always |
-| **C4** | It references at least one of the file paths the **ticket body** cites | only if the ticket cites paths |
-| **C5** | It names at least N distinct artefacts, where N is the number of requirements the ticket enumerates | only if N ≥ 2 |
+| | Clause | Applies | Needs the ticket |
+|---|---|---|---|
+| **C1** | A closure comment exists | always | no |
+| **C2** | It carries a verdict token — `FIXED`, `STALE`, `RETRACTED`, `DUPLICATE`, `WONTFIX`, `CANNOT-REPRODUCE` | always | no |
+| **C3** | It references at least one openable artefact — a path, a named test, a commit, a PR | always | no |
+| **C4** | If it enumerates its work as an ordered list, **every item** carries its own artefact | only if it lists ≥ 2 items | no |
+| **C5** | It references at least one of the file paths the **ticket body** cites | only if the ticket cites paths | **yes** |
+| **C6** | It names at least N distinct artefacts, where N is the number of requirements the **ticket** enumerates | only if N ≥ 2 | **yes** |
 
-C1–C3 are permissive and apply to everything. C4 and C5 are strict and fire only
-where the ticket itself makes the check unambiguous. **This unevenness is
-deliberate.** A gate that fires on tickets it cannot honestly judge trains people
-to bypass it, which is how the norm this replaces stopped working.
+C1–C3 are permissive and apply to everything. C4–C6 are strict and fire only
+where the text itself makes the check unambiguous. **This unevenness is
+deliberate.** A gate that fires where it cannot honestly judge trains people to
+bypass it, which is how the norm this replaces stopped working.
+
+C4 and C6 are close cousins and the difference matters: **C4 asks whether the
+halves you listed carry evidence; C6 asks whether you listed them all.** Only the
+ticket knows the second, which is the one thing a credential actually buys.
 
 ## Trust boundary
 
@@ -56,68 +61,64 @@ file the next thing that reports green while nothing is verified.
 Uncovered, and named rather than glossed: transitions made from the Jira web UI,
 or by `curl` with the sync credentials, run no local hook.
 
-## Enforcement status — ADVISORY, and why
+## How it runs — payload first, network optional
 
-**This rule does not currently block anything.** It is `status: advisory` on
-purpose, and that is a correction rather than a design choice.
-
-The clauses need two texts: the ticket's **description** and its **latest
-comment**. Neither is in the event. The MCP transition payload carries only
-`issueIdOrKey` and `transition.id`, so the hardrule fetches the issue over the
-REST API — and that fetch needs `ATLASSIAN_URL` / `ATLASSIAN_USERNAME` /
-`ATLASSIAN_API_TOKEN` in the hook process's environment.
-
-Measured in the repo this was written for: those variables are in **neither**
-the SOPS-encrypted dev secrets nor OpenBao, and a hook subprocess cannot borrow
-the agent's MCP OAuth. So `_load_jira_creds()` returns `None`, the rule fails
-open, and every transition is allowed. It was described as live for a day while
-this was true.
-
-`advisory` here therefore means *"cannot be relied on to fire"*, not *"will
-never fire"*. The hardrule still runs — the dispatcher routes on `triggers:`
-alone and does not consult `status:` — so a consumer who **does** export those
-three variables gets full C1-C5 blocking. Both halves are stated because either
-one alone would be the misleading half.
-
-### Why this is the wrong shape, not just an unconfigured one
-
-Every other hardrule in this playbook judges the **event payload**. Its own twin
-`jira-ticket-standard` reads `tool_input["description"]` directly — no
-credentials, no network, works for every consumer, and is simply inert for
-anyone who does not use that tool.
-
-This rule is the only one that reaches out. That is what makes it non-portable,
-and the dependency is not "Jira" — it is **needing state the event does not
-carry**. The same rule against GitHub Issues or Linear would have the same
-problem. A public, tracker-agnostic playbook cannot ship a rule that requires
-every consumer to mint a long-lived API token for a capability most of them will
-never use.
-
-### The rework this is waiting on
-
-Bring the evidence into the event. Jira's transition API accepts a comment
-inside the transition itself, and the MCP tool exposes the field:
+The closure comment must ride **inside** the transition call:
 
 ```json
 { "issueIdOrKey": "PROJ-1", "transition": {"id": "31"},
   "update": {"comment": [{"add": {"body": "FIXED — ..."}}]} }
 ```
 
-C1-C3 then judge from the payload, exactly like the twin. C4 and C5 change from
-*verify against the remote ticket* to *show your work*: the comment must
-enumerate the requirements it closes, each with its own artefact.
+Jira's transition endpoint accepts it and the MCP tool exposes the field, so the
+gate judges the event itself — no credentials, no network. That is the same
+shape as every other hardrule here; the twin `jira-ticket-standard` reads
+`tool_input["description"]` and needs nothing installed.
 
-That is weaker in principle — self-declared rather than cross-checked. It is
-also enough for the failure it was built for, which was **forgetting** a half,
-not lying about one: an omission becomes a blank someone has to fill
-deliberately. And it makes the gate better in one respect the fetch version
-cannot match — the evidence becomes **atomic with the act it justifies**, rather
-than being whatever comment happened to land last.
+### Two modes, and the block message says which one judged you
 
-The remote cross-check survives as an optional layer, off unless a consumer
-configures credentials, and it must announce which mode it is in. A rule that
-says `enforced` while checking nothing is the exact defect this file exists to
-catch, and it spent a day being one.
+| | Mode | Needs | Clauses |
+|---|---|---|---|
+| default | payload-only | nothing but the opt-in below | C1-C4 |
+| optional | payload + ticket | `ATLASSIAN_URL` / `_USERNAME` / `_API_TOKEN` | C1-C6 |
+
+C5 (path fidelity) and C6 (requirement count vs the ticket) need the ticket
+body, so they are skipped without credentials. Their absence is **printed on
+every block** — a reader who assumes the ticket was cross-checked when it was
+not is exactly the overstated coverage this rule exists to prevent.
+
+### The opt-in
+
+```bash
+AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS=31,41
+```
+
+Transition ids are per-workflow, so without credentials the gate cannot tell a
+closure from a move to In Progress. **Unset means this rule does nothing.**
+
+That is deliberate, and it is what keeps this playbook tracker-agnostic.
+Declaring "31 means Done" is not a secret — it is cheap, static, per-repo config
+a reader can verify by eye. A consumer who never sets it is never affected: no
+token to mint, nothing to configure, no noise. Where credentials do exist, the
+live status category overrides the declared list.
+
+Residual, named rather than glossed: a declared list **can go stale** if the
+workflow is edited, and the gate then quietly stops matching. That is the hazard
+the original fetch-based design avoided. It is accepted because the alternative
+— every consumer minting an API token for a capability most will never use — is
+a larger and more permanent cost.
+
+### What this cost, historically
+
+v0.22.14 shipped `enforced` and was described as live. It was neither. The
+clauses needed the ticket body, the fetch needed an Atlassian token, and in the
+repo it was written for that token existed in neither the SOPS dev secrets nor
+OpenBao — a hook subprocess cannot borrow the agent's MCP OAuth. The rule ran,
+found no credentials, and failed open on every transition for a day.
+
+The dependency was never "Jira". It was **needing state the event does not
+carry**, which would break identically against GitHub Issues or Linear. C4 is
+the answer: it asks a question the payload can answer on its own.
 
 ## Process supervision
 
@@ -132,21 +133,30 @@ The four, all in one campaign (2026-08-15/16), and which clause catches each:
 
 | ticket | what happened | caught by |
 |---|---|---|
-| GPLO-1469 | closed after verifying 1 of the ticket's 3 requirements | **C5** |
-| GPLO-1388 | closed after reading `blueprints/datascout/`, when the ticket's first line names `blueprints/datashield/router.py:818` — the product **label** was followed instead of the cited **path** | **C4** |
-| GPLO-1473 | closed on a `grep -v` that filtered out exactly where the fix lived; then closed again on the backend half of a two-half ticket | **C5** |
-| GPLO-1497 | closed on the backend half; the Playwright half named in the ticket's own regression section was still pinned with `test.fail()` | **C4** |
+| GPLO-1469 | closed after verifying 1 of the ticket's 3 requirements | **C4** / **C6** |
+| GPLO-1388 | closed after reading `blueprints/datascout/`, when the ticket's first line names `blueprints/datashield/router.py:818` — the product **label** was followed instead of the cited **path** | **C5** |
+| GPLO-1473 | closed on a `grep -v` that filtered out exactly where the fix lived; then closed again on the backend half of a two-half ticket | **C4** / **C6** |
+| GPLO-1497 | closed on the backend half; the Playwright half named in the ticket's own regression section was still pinned with `test.fail()` | **C5** |
 
 Every one of those closures had a confident comment attached. None had a
 mechanical reason to be complete. The failure mode is not ignorance — it is
 confidence under load, and confidence is exactly what a `PreToolUse` hook does
 not have: it re-fires on every transition with no memory of the last one.
 
-### Fail-open
+### Fail-open, and where it now DEGRADES instead
 
-Any infrastructure problem — no credentials, Jira unreachable, a malformed spec
-— lets the transition through. This gate exists to catch a careless closure, not
-to become the reason nobody can close anything.
+A malformed spec, or an unparseable event, lets the transition through. This
+gate exists to catch a careless closure, not to become the reason nobody can
+close anything.
+
+Missing credentials and an unreachable Jira are **no longer** in that list. They
+used to abandon the check entirely — which is how this shipped as `enforced`
+while allowing everything. They now fall back to the payload-only clauses, so
+the common case is a weaker check rather than no check.
+
+The one genuine no-op left is an unset `AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS`
+with no credentials: the gate cannot tell a closure from any other transition
+and must stay silent. That is the opt-in working, not a failure.
 
 ## Examples
 

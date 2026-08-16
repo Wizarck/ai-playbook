@@ -64,6 +64,23 @@ SPEC_RELATIVE = "specs/jira-closure-standard.yaml"
 
 _MCP_TRANSITION_RE = re.compile(r"^mcp__.+__transitionJiraIssue$")
 
+#: Consumer-declared transition ids that mean "Done", comma-separated.
+#:
+#: THE OPT-IN. Transition ids are per-workflow, so the playbook cannot know
+#: them, and the first version of this rule solved that by fetching the live
+#: transition list — which cost every consumer an Atlassian API token for a
+#: capability most of them will never use. That made a tracker-agnostic playbook
+#: depend on one tracker's credentials.
+#:
+#: Declaring "31 means Done" is not a secret. It is cheap, static, per-repo
+#: config that a reader can verify by eye, and a consumer who never sets it is
+#: never affected by this rule. That is the whole point: opt in by naming your
+#: own workflow, not by minting a token.
+#:
+#: When credentials DO happen to be present the live status category still wins
+#: — see :func:`_targets_done`. This variable is the floor, not a replacement.
+DONE_TRANSITIONS_ENV = "AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS"
+
 _SPEC_CACHE: dict[str, Any] = {}
 
 
@@ -137,6 +154,58 @@ def _cited_paths(text: str, spec: dict[str, Any]) -> set[str]:
     return out
 
 
+def payload_comment(tool_input: dict) -> str:
+    """The closure comment carried BY the transition call itself.
+
+    Jira's transition endpoint accepts a comment inside the transition
+    (``update.comment[].add.body``) and the MCP tool exposes the field. Reading
+    it here is what makes the gate work with no credentials and no network —
+    the same shape as every other hardrule in this playbook, whose twin
+    ``jira-ticket-standard`` judges ``tool_input["description"]`` directly.
+
+    It also makes the gate BETTER, not merely portable. A separately-posted
+    comment is whatever happened to land last; a comment inside the transition
+    is atomic with the act it justifies. You cannot close without saying why, in
+    the same call.
+    """
+    update = tool_input.get("update") or {}
+    entries = update.get("comment") or []
+    bodies: list[str] = []
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            add = entry.get("add") or {}
+            body = add.get("body") if isinstance(add, dict) else None
+            if isinstance(body, str) and body.strip():
+                bodies.append(body)
+    return "\n\n".join(bodies)
+
+
+def enumerated_items(text: str) -> list[str]:
+    """Ordered-list items in a closure comment, each with its full body.
+
+    ORDERED LISTS ONLY. Bullets are used for prose — context, caveats, links —
+    and demanding an artefact on every bullet would fail the closures that are
+    written best, which is how a clause earns a reputation for being wrong and
+    starts getting skipped. A numbered list in a closure is a claim about
+    coverage: "these are the things I closed."
+
+    An item runs from its own marker to the next one, so a requirement whose
+    evidence sits on the following line still counts as carrying it.
+    """
+    lines = (text or "").splitlines()
+    starts = [
+        i for i, line in enumerate(lines)
+        if re.match(r"^\s*\d+[.)]\s+\S", line)
+    ]
+    items: list[str] = []
+    for n, start in enumerate(starts):
+        end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+        items.append("\n".join(lines[start:end]))
+    return items
+
+
 def _enumerated_requirements(description: str, spec: dict[str, Any]) -> int:
     """How many requirements the ticket states as an ordered list.
 
@@ -201,7 +270,40 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
         "'verified' on its own is a claim, not evidence",
     ))
 
-    # C4 — path fidelity: did you look where the ticket pointed?
+    # C4 — no blank halves. Every enumerated item carries its own artefact.
+    #
+    # PAYLOAD-ONLY and therefore always available: it judges the comment against
+    # ITSELF, needing neither the ticket nor a credential. This is the clause
+    # that survives the loss of the remote fetch, and it is the one that catches
+    # the error the whole rule was built for — GPLO-1469 was closed after
+    # checking 1 requirement of 3. Writing three numbered halves and leaving two
+    # without evidence is a blank someone has to fill deliberately, where before
+    # it was simply a thing forgotten.
+    #
+    # Self-declared rather than cross-checked, and weaker for it. Said plainly
+    # in the doc rather than dressed up.
+    rc = spec.get("requirement_coverage") or {}
+    items = enumerated_items(text)
+    if len(items) >= int(rc.get("minimum_items", 2)):
+        blank = [
+            n for n, item in enumerate(items, start=1)
+            if not _artefact_refs(item, spec)
+        ]
+        clauses.append(Clause(
+            "C4", not blank,
+            f"the closure enumerates {len(items)} items but "
+            f"{'item' if len(blank) == 1 else 'items'} "
+            f"{', '.join(str(b) for b in blank)} name no artefact. Every half "
+            f"you claim to have closed needs its own openable thing — a path, a "
+            f"test, a commit, a PR",
+        ))
+
+    # C5 — path fidelity: did you look where the ticket pointed?
+    #
+    # REMOTE-ONLY. Needs the ticket body, so it is skipped whenever the
+    # description is unavailable — which is the normal case for a consumer that
+    # has not configured credentials. Its absence is not silent: `render` says
+    # which mode judged the closure.
     pf = spec.get("path_fidelity") or {}
     if pf.get("enabled") and description:
         cited = _cited_paths(description, spec)
@@ -210,7 +312,7 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
             overlap = cited & in_comment
             need = int(pf.get("minimum_overlap", 1))
             clauses.append(Clause(
-                "C4", len(overlap) >= need,
+                "C5", len(overlap) >= need,
                 "the closure references none of the paths the ticket cites "
                 f"({', '.join(sorted(cited)[:4])}). Follow the paths a ticket "
                 f"names, not its label — GPLO-1388 was closed by reading the "
@@ -218,12 +320,16 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
                 f"named a different file",
             ))
 
-    # C5 — one artefact per enumerated requirement.
-    rc = spec.get("requirement_coverage") or {}
+    # C6 — one artefact per requirement the TICKET enumerates.
+    #
+    # REMOTE-ONLY, and the strictly stronger form of C4: C4 asks whether the
+    # halves you listed carry evidence, C6 asks whether you listed them all.
+    # Only the ticket knows how many there were, so this is the clause that a
+    # credential actually buys.
     n = _enumerated_requirements(description or "", spec)
     if n >= int(rc.get("minimum_items", 2)):
         clauses.append(Clause(
-            "C5", len(refs) >= n,
+            "C6", len(refs) >= n,
             f"the ticket enumerates {n} requirements but the closure names "
             f"{len(refs)} distinct artefact(s). 'Verified' has to say WHICH "
             f"HALF — GPLO-1469 was closed after checking 1 requirement of 3",
@@ -232,16 +338,25 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
     return clauses
 
 
-def render(clauses: list[Clause], spec: dict[str, Any]) -> str:
+def render(clauses: list[Clause], spec: dict[str, Any], *, remote: bool = False) -> str:
     failed = [c for c in clauses if not c.ok]
     lines = [
         "jira-closure-evidence: this ticket may not be closed yet.",
         "",
     ]
     lines += [f"  [{c.id}] {c.detail}" for c in failed]
+    # WHICH MODE JUDGED THIS. Stated on every block because a reader who assumes
+    # the ticket body was cross-checked, when it was not, is exactly the kind of
+    # overstated coverage this rule exists to prevent.
     lines += [
         "",
-        "A closure comment that satisfies this looks like:",
+        ("Judged against the ticket body (C1-C6)." if remote else
+         "Judged from the transition payload alone (C1-C4). The ticket body was "
+         "not read, so path fidelity and requirement count were NOT checked."),
+        "",
+        "The closure comment must ride IN the transition, like this:",
+        "",
+        '    update: {"comment": [{"add": {"body": "..."}}]}',
         "",
         "    **FIXED** — verified against HEAD.",
         "    1. <requirement> — backend/app/x/router.py:818, gated. test_a_plain_member_cannot_reach()",
@@ -287,6 +402,17 @@ def _fetch(creds, key: str, timeout: float = 15.0) -> dict[str, Any]:
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+
+def declared_done_transitions() -> set[str]:
+    """Transition ids the consumer has declared as meaning Done.
+
+    Empty when unset, and an empty set means this rule cannot tell a closure
+    from any other transition — so it does nothing. That is the opt-in: a
+    consumer joins by naming its own workflow, not by provisioning a token.
+    """
+    raw = os.environ.get(DONE_TRANSITIONS_ENV, "")
+    return {p.strip() for p in raw.split(",") if p.strip()}
 
 
 def _targets_done(issue: dict[str, Any], transition_id: str, spec: dict[str, Any]) -> bool:
@@ -340,33 +466,50 @@ def pretooluse(event: dict) -> HookVerdict | None:
     if not key or not transition_id:
         return None
 
+    # The remote fetch is an ENHANCEMENT, not a prerequisite (v0.22.17). It used
+    # to be the only path, which made a tracker-agnostic playbook depend on one
+    # tracker's API token — and in the repo this was written for those
+    # credentials did not exist, so the rule failed open on every transition
+    # while advertising `enforced`.
+    issue: dict[str, Any] | None = None
     try:
         from scripts.issue_sync import _load_jira_creds
         creds = _load_jira_creds()
-        if creds is None:
-            return None
-        issue = _fetch(creds, key)
+        if creds is not None:
+            issue = _fetch(creds, key)
     except Exception:
-        # No credentials, Jira down, network blocked — fail open. This gate
-        # exists to catch a careless closure, not to be the reason nobody can
-        # close anything.
-        return None
+        # Jira down, network blocked, malformed response — degrade to the
+        # payload-only clauses rather than abandoning the check entirely.
+        issue = None
 
-    if not _targets_done(issue, transition_id, spec):
-        return None
+    if issue is not None:
+        # Authoritative: ask the live workflow what this transition means.
+        if not _targets_done(issue, transition_id, spec):
+            return None
+        fields = issue.get("fields") or {}
+        itype = str(((fields.get("issuetype") or {}).get("name")) or "")
+        if itype in set(spec.get("issue_types_exempt") or []):
+            return None
+        labels = {str(x) for x in (fields.get("labels") or [])}
+        if labels & set(spec.get("exempt_labels") or []):
+            return None
+        description = _description_text(issue)
+        # A comment in the payload is the contract; a separately-posted one is
+        # accepted as a fallback so the remote mode keeps judging closures
+        # written the old way rather than silently passing them.
+        comment = payload_comment(tool_input) or _latest_comment(issue)
+    else:
+        # Payload-only. We cannot ask what transition 31 means, so the consumer
+        # must have said. Unset = this rule is not for you, and it does nothing.
+        if transition_id not in declared_done_transitions():
+            return None
+        description = ""
+        comment = payload_comment(tool_input)
 
-    fields = issue.get("fields") or {}
-    itype = str(((fields.get("issuetype") or {}).get("name")) or "")
-    if itype in set(spec.get("issue_types_exempt") or []):
-        return None
-    labels = {str(x) for x in (fields.get("labels") or [])}
-    if labels & set(spec.get("exempt_labels") or []):
-        return None
-
-    clauses = evaluate(_description_text(issue), _latest_comment(issue), spec)
+    clauses = evaluate(description, comment, spec)
     if all(c.ok for c in clauses):
         return None
-    return block(render(clauses, spec))
+    return block(render(clauses, spec, remote=issue is not None))
 
 
 # ---------------------------------------------------------------------------

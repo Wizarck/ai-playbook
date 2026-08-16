@@ -2,6 +2,74 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.17] — 2026-08-17 — scope: the closure gate stops needing an API token
+
+### Changed
+- **`jira-closure-evidence` judges the transition payload, not a REST fetch.**
+  The closure comment must now ride INSIDE the transition:
+
+  ```json
+  {"issueIdOrKey": "PROJ-1", "transition": {"id": "31"},
+   "update": {"comment": [{"add": {"body": "FIXED — ..."}}]}}
+  ```
+
+  Jira's endpoint accepts it and the MCP tool exposes the field, so the rule
+  needs no credentials and no network — the same shape as every other hardrule
+  here, and as its own twin `jira-ticket-standard`, which reads
+  `tool_input["description"]` directly.
+
+  **Why this was necessary for a public playbook.** The previous design fetched
+  the issue, so every consumer would have had to mint a long-lived Atlassian API
+  token for a capability most of them will never use. The dependency was never
+  "Jira" — it was *needing state the event does not carry*, which breaks
+  identically against GitHub Issues or Linear.
+
+  It is also a better check in one respect the fetch could not match: a
+  separately-posted comment is whatever happened to land last, while a comment
+  inside the transition is **atomic with the act it justifies**.
+
+- **New clause C4 — no blank halves.** If a closure enumerates its work as an
+  ordered list, every item must carry its own artefact. Payload-only, so it
+  survives having no credentials, and it is what catches the error the rule was
+  built for: GPLO-1469 was closed after verifying 1 requirement of 3. Ordered
+  lists only — bullets carry prose, and demanding an artefact per bullet would
+  fail the closures that explain themselves best.
+
+  Self-declared rather than cross-checked, and weaker for it. Said plainly: C4
+  asks whether the halves you LISTED carry evidence; C6 asks whether you listed
+  them all, and only the ticket knows that.
+
+- **Clause renumbering.** Old C4 (path fidelity) → **C5**; old C5 (requirement
+  count vs the ticket) → **C6**. Both are now remote-only and skipped without
+  credentials — and their absence is printed on every block, because a reader
+  who assumes the ticket was cross-checked when it was not is precisely the
+  overstated coverage this rule exists to prevent.
+
+### Added
+- **`AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS` — the opt-in.** Transition ids are
+  per-workflow, so without credentials the gate cannot tell a closure from a
+  move to In Progress. Unset means the rule does nothing, and that is the point:
+  a consumer joins by naming its own workflow, not by provisioning a token.
+  Declaring "31 means Done" is static, non-secret, per-repo config a reader can
+  verify by eye. Where credentials do exist, the live status category still wins.
+
+  Residual, named rather than glossed: a declared list can go stale if the
+  workflow is edited. That is the hazard the fetch avoided, accepted because
+  every consumer minting a token is a larger and more permanent cost.
+
+### Fixed
+- Missing credentials and an unreachable Jira now **degrade** to the
+  payload-only clauses instead of abandoning the check. Abandoning is how
+  v0.22.14 shipped `enforced` while allowing every transition.
+- `status` back to `enforced` — accurate now, where in v0.22.14 it was not and
+  in v0.22.16 it was honestly downgraded.
+
+### Verification
+- 43 tests (20 new). Mutation-verified twice: restoring the credentials
+  requirement reddens `test_payload_only_mode_blocks_a_declared_done_transition`
+  and nothing else; making C4 unfirable reddens
+  `test_an_enumerated_closure_with_a_blank_half_is_refused` and nothing else.
+
 ## [0.22.16] — 2026-08-17 — scope: a rule that said `enforced` while checking nothing
 
 ### Fixed
