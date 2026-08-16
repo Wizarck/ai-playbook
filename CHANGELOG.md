@@ -2,6 +2,49 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.16] — 2026-08-17 — scope: a rule that said `enforced` while checking nothing
+
+### Fixed
+- **`jira-closure-evidence` is now `status: advisory`.** It was shipped as
+  `enforced` and described as live. It was not blocking anything, and could not.
+
+  The clauses need the ticket's **description** and its **latest comment**.
+  Neither is in the event: the MCP transition payload carries only
+  `issueIdOrKey` and `transition.id`. So the hardrule fetches the issue over
+  REST, which needs `ATLASSIAN_URL` / `ATLASSIAN_USERNAME` /
+  `ATLASSIAN_API_TOKEN` in the hook process's environment. Measured in the
+  consumer repo it was written for: those are in neither the SOPS dev secrets
+  nor OpenBao, and a hook subprocess cannot borrow the agent's MCP OAuth. The
+  rule ran, found no credentials, and failed open on every transition.
+
+  A rule advertising `enforced` while verifying nothing is the exact defect this
+  rule exists to catch. It spent a day being one.
+
+  `advisory` here means *"cannot be relied on to fire"*, not *"will never
+  fire"* — the dispatcher routes on `triggers:` alone and ignores `status:`, so
+  a consumer who does export those variables still gets full C1-C5 blocking.
+  Both halves are documented, because either alone is the misleading half.
+
+### Known gap
+- **The shape is wrong for an agnostic playbook, not merely unconfigured.**
+  Every other hardrule here judges the event payload — the direct twin
+  `jira-ticket-standard` reads `tool_input["description"]`, needing no
+  credentials and staying inert for anyone who does not use that tool. This is
+  the only rule that reaches out, and the dependency is not "Jira": it is
+  *needing state the event does not carry*, which would break identically
+  against GitHub Issues or Linear. A public, tracker-agnostic playbook must not
+  require every consumer to mint a long-lived API token for a capability most of
+  them will never use.
+
+  The rework, tracked for a later release: carry the closure comment **inside**
+  the transition (`update.comment[].add.body`, which Jira's API and the MCP tool
+  both accept). C1-C3 then judge from the payload like the twin; C4-C5 change
+  from *verify against the remote ticket* to *show your work* — the comment must
+  enumerate the requirements it closes, each with its own artefact. Weaker in
+  principle, sufficient for the failure it was built for (forgetting a half, not
+  lying about one), and it makes the evidence **atomic with the act it
+  justifies** rather than whatever comment happened to land last.
+
 ## [0.22.15] — 2026-08-17 — scope: the mutex was a three-hour outage on the only platform it runs on
 
 ### Fixed

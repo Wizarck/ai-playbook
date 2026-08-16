@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-08-16T16:48:40.902501+00:00",
+  "generated_at": "2026-08-16T20:39:11.681178+00:00",
   "rules": [
     {
       "slug": "absence-is-not-evidence",
@@ -597,7 +597,7 @@ window.RULES_INVENTORY = {
     },
     {
       "slug": "jira-closure-evidence",
-      "status": "enforced",
+      "status": "advisory",
       "paired_hardrule": "scripts/rules/jira-closure-evidence.rule.py",
       "has_l1": true,
       "has_l3": false,
@@ -611,7 +611,7 @@ window.RULES_INVENTORY = {
       "triggers": [
         "PreToolUse"
       ],
-      "description": "A ticket MUST NOT transition into Done unless a closure comment names a verdict, an openable artefact, at least one path the ticket itself cites, and one artefact per enumerated requirement.",
+      "description": "A ticket MUST NOT transition into Done unless a closure comment names a verdict, an openable artefact, at least one path the ticket itself cites, and one artefact per enumerated requirement. ADVISORY until the payload-only rework lands — see the Enforcement status section.",
       "doc_path": "docs/rules/jira-closure-evidence.rule.md"
     },
     {
