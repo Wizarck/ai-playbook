@@ -472,6 +472,21 @@ def test_every_half_carrying_an_artefact_passes():
     assert "C4" not in _failed("", GOOD)
 
 
+def test_the_blank_half_refusal_agrees_in_number():
+    """The refusal is prose a person has to act on; make it read as prose.
+
+    The plural was applied to the noun and not to the verb, so the COMMON case
+    -- exactly one blank half -- shipped 'item 2 name no artefact'. Caught by
+    reading the gate's own output during an end-to-end probe, not by any test:
+    every assertion here checked clause ids, and none read the sentence.
+    """
+    def c4(comment: str) -> str:
+        return next(c for c in RULE.evaluate("", comment, SPEC) if c.id == "C4").detail
+
+    assert "item 2 names no artefact" in c4(BLANK_HALF)
+    assert "items 1, 2 name no artefact" in c4("FIXED\n1. first thing\n2. second\n")
+
+
 def test_evidence_on_the_following_line_still_counts():
     comment = (
         "FIXED\n"
