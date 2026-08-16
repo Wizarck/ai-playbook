@@ -93,31 +93,53 @@ problem. A public, tracker-agnostic playbook cannot ship a rule that requires
 every consumer to mint a long-lived API token for a capability most of them will
 never use.
 
-### The rework this is waiting on
+### The rework, and the design that was TESTED AND FAILED
 
-Bring the evidence into the event. Jira's transition API accepts a comment
-inside the transition itself, and the MCP tool exposes the field:
+The obvious answer is to bring the evidence into the event: Jira's transition
+API accepts a comment inside the transition, and the MCP tool exposes the field.
 
 ```json
 { "issueIdOrKey": "PROJ-1", "transition": {"id": "31"},
   "update": {"comment": [{"add": {"body": "FIXED — ..."}}]} }
 ```
 
-C1-C3 then judge from the payload, exactly like the twin. C4 and C5 change from
-*verify against the remote ticket* to *show your work*: the comment must
-enumerate the requirements it closes, each with its own artefact.
+**It does not work, and this was measured on a real closure (GPLO-1397) before
+it shipped.** Recorded here so nobody rebuilds it:
 
-That is weaker in principle — self-declared rather than cross-checked. It is
-also enough for the failure it was built for, which was **forgetting** a half,
-not lying about one: an omission becomes a blank someone has to fill
-deliberately. And it makes the gate better in one respect the fetch version
-cannot match — the evidence becomes **atomic with the act it justifies**, rather
-than being whatever comment happened to land last.
+1. A markdown string is rejected — *"Operation value must be an Atlassian
+   Document"*. That error comes from Jira's own validator, which proves the MCP
+   server **does** forward `update`.
+2. Proper ADF is **accepted**: the call returns success and the status moves to
+   Done. The comment is **silently dropped** — `comment.total` stays 0, re-read
+   twice minutes apart, while a sibling ticket returns its comments through the
+   identical call.
 
-The remote cross-check survives as an optional layer, off unless a consumer
-configures credentials, and it must announce which mode it is in. A rule that
-says `enforced` while checking nothing is the exact defect this file exists to
-catch, and it spent a day being one.
+The mechanism is almost certainly `hasScreen: false` on the transition — Jira
+drops field operations for a transition with no screen. That is a **per-workflow
+property**, so even where it happens to work it is not something a consumer
+could rely on.
+
+Shipping it would have been **worse than shipping nothing**: the gate would
+demand the comment ride in the transition, the author would comply, Jira would
+return success, and the ticket would land in Done with *no comment at all*.
+
+The lesson is the one this whole rule is about, turned on its author: the API
+accepting a field is not the field persisting. **Acceptance is not persistence.**
+
+### The next design — a receipt
+
+`addCommentToJiraIssue` carries the body in its payload *and* stores it. So:
+
+1. On `addCommentToJiraIssue`, if the body carries a verdict token, judge the
+   payload-only clauses and write a small local receipt for that issue key.
+2. On a transition into a declared Done id, require a valid recent receipt.
+
+No credentials, no network, and it validates a comment that demonstrably exists.
+The local-state machinery already exists in `shared-test-db-mutex`.
+
+The credential-free opt-in idea survives intact: a consumer declares its own
+Done transition ids rather than provisioning a token, so a repo that never sets
+it is never affected.
 
 ## Process supervision
 
