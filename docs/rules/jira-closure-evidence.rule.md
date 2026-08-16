@@ -1,10 +1,10 @@
 ---
 schema: rule/v1
 slug: jira-closure-evidence
-description: A ticket MUST NOT transition into Done unless a closure comment names a verdict, an openable artefact, at least one path the ticket itself cites, and one artefact per enumerated requirement. ADVISORY until the payload-only rework lands — see the Enforcement status section.
+description: A ticket MUST NOT transition into Done unless a qualifying closure comment was posted for it first — a verdict, an openable artefact, and evidence for every half it claims to have closed. Opt in per repo by declaring your Done transition ids.
 paired_hardrule: scripts/rules/jira-closure-evidence.rule.py
 activation: always
-status: advisory
+status: enforced
 applies_to: all
 triggers: ["PreToolUse"]
 last_validated: "2026-08-17"
@@ -126,7 +126,7 @@ return success, and the ticket would land in Done with *no comment at all*.
 The lesson is the one this whole rule is about, turned on its author: the API
 accepting a field is not the field persisting. **Acceptance is not persistence.**
 
-### The next design — a receipt
+### The design that shipped — a receipt
 
 `addCommentToJiraIssue` carries the body in its payload *and* stores it. So:
 
@@ -135,7 +135,15 @@ accepting a field is not the field persisting. **Acceptance is not persistence.*
 2. On a transition into a declared Done id, require a valid recent receipt.
 
 No credentials, no network, and it validates a comment that demonstrably exists.
-The local-state machinery already exists in `shared-test-db-mutex`.
+The local-state machinery is the same shape as `shared-test-db-mutex`'s lock:
+a small JSON file per issue key, under the system temp dir, with a one-hour
+TTL so evidence from last week cannot authorise today's closure.
+
+**Commenting is never blocked.** A comment saying *"this was FIXED in the
+other ticket"* is ordinary discussion, and refusing it would be a false
+positive on the most common word in the verdict list — the fastest way to
+teach everyone the override. The comment is judged and recorded; the
+transition is where it is enforced.
 
 The credential-free opt-in idea survives intact: a consumer declares its own
 Done transition ids rather than provisioning a token, so a repo that never sets
