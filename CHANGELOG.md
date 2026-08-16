@@ -2,6 +2,50 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.18] — 2026-08-17 — scope: the closure gate works without an API token
+
+### Added
+- **`jira-closure-evidence` now enforces via a receipt.** The comment is judged
+  where it is *written* — `addCommentToJiraIssue`, whose payload carries the body
+  and whose comment demonstrably persists — and a small local receipt records
+  the verdict. A transition into a declared Done id then requires a fresh
+  passing receipt.
+
+  This is the design that replaces the one v0.22.17 recorded as failed. Carrying
+  the comment inside the transition does not work: Jira accepts the ADF, returns
+  success, moves the issue to Done, and silently drops the comment.
+
+  No credentials, no network, and it validates text that actually exists.
+
+- **`AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS` — the opt-in.** Transition ids are
+  per-workflow, so without credentials the gate cannot tell a closure from a
+  move to In Progress. Unset means the rule does nothing: a consumer joins by
+  naming its own workflow, not by minting a token. Where credentials do exist,
+  the live status category still wins.
+
+- **New clause C4 — no blank halves.** If a closure enumerates its work as an
+  ordered list, every item must carry its own artefact. Catches the error the
+  rule was built for (GPLO-1469, closed after verifying 1 requirement of 3)
+  using only the comment. Ordered lists only — bullets carry prose.
+
+### Changed
+- Old C4 (path fidelity) → **C5**; old C5 (requirement count) → **C6**. Both
+  remote-only, skipped without credentials, and their absence is stated in the
+  refusal rather than left to be assumed.
+- **Commenting is never blocked**, only recorded. Refusing a comment that merely
+  says FIXED would be a false positive on the most common verdict word.
+- `status` back to `enforced` — accurate now.
+
+### Verification
+- 45 tests. Mutation-verified twice, each killing only its own cluster: killing
+  the verdict matcher reddens the six recording tests; removing the receipt
+  check at transition time reddens the four enforcement tests.
+- The verdict matcher shipped in a draft with literal backspace bytes instead of
+  `` word-boundary escapes, so it matched nothing and no receipt was ever
+  written — a silent no-op with a green suite.
+  `test_a_verdict_token_is_what_makes_it_a_closure` exists specifically to
+  redden on that.
+
 ## [0.22.17] — 2026-08-17 — scope: the planned rework was tested and does not work
 
 ### Fixed
