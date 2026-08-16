@@ -105,6 +105,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 
 ### Enforced (paired hardrule on disk)
 
+- [absence-is-not-evidence](docs/rules/absence-is-not-evidence.rule.md)
 - [agentic-failure-catalog-schema](docs/rules/agentic-failure-catalog-schema.rule.md)
 - [ai-reviewer-signoff](docs/rules/ai-reviewer-signoff.rule.md)
 - [alembic-migration-naming](docs/rules/alembic-migration-naming.rule.md)
@@ -132,6 +133,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [gitignore-entries](docs/rules/gitignore-entries.rule.md)
 - [graphify-adoption](docs/rules/graphify-adoption.rule.md)
 - [install-playbook](docs/rules/install-playbook.rule.md)
+- [jira-closure-evidence](docs/rules/jira-closure-evidence.rule.md)
 - [jira-ticket-standard](docs/rules/jira-ticket-standard.rule.md)
 - [link-integrity](docs/rules/link-integrity.rule.md)
 - [lint-parity-precommit](docs/rules/lint-parity-precommit.rule.md)
@@ -146,6 +148,7 @@ Every `docs/rules/<slug>.rule.md` slug, grouped by `status:`. Hand-curated in Sl
 - [registry-entry](docs/rules/registry-entry.rule.md)
 - [repo-hygiene](docs/rules/repo-hygiene.rule.md)
 - [secrets-handling](docs/rules/secrets-handling.rule.md)
+- [shared-test-db-mutex](docs/rules/shared-test-db-mutex.rule.md)
 - [skills-sync](docs/rules/skills-sync.rule.md)
 - [stacked-pr-guard](docs/rules/stacked-pr-guard.rule.md)
 - [subagent-envelope-schema](docs/rules/subagent-envelope-schema.rule.md)

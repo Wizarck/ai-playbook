@@ -1,7 +1,24 @@
 {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-08-02T04:33:15.863493+00:00",
+  "generated_at": "2026-08-16T16:48:40.902501+00:00",
   "rules": [
+    {
+      "slug": "absence-is-not-evidence",
+      "status": "advisory",
+      "paired_hardrule": null,
+      "has_l1": false,
+      "has_l3": false,
+      "l1_effective": false,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [],
+      "description": "A negative result MUST NOT be reported as proof of absence unless the search could have found the thing; when a ticket, error or spec cites a concrete path, that path MUST be opened before any verdict about it.",
+      "doc_path": "docs/rules/absence-is-not-evidence.rule.md"
+    },
     {
       "slug": "agentic-failure-catalog-schema",
       "status": "enforced",
@@ -576,6 +593,25 @@
       "doc_path": "docs/rules/install-playbook.rule.md"
     },
     {
+      "slug": "jira-closure-evidence",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/jira-closure-evidence.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [
+        "PreToolUse"
+      ],
+      "description": "A ticket MUST NOT transition into Done unless a closure comment names a verdict, an openable artefact, at least one path the ticket itself cites, and one artefact per enumerated requirement.",
+      "doc_path": "docs/rules/jira-closure-evidence.rule.md"
+    },
+    {
       "slug": "jira-ticket-standard",
       "status": "enforced",
       "paired_hardrule": "scripts/rules/jira-ticket-standard.rule.py",
@@ -909,6 +945,26 @@
       ],
       "description": "Secrets MUST live under SOPS-encrypted files or .env.local; literals MUST NOT be committed.",
       "doc_path": "docs/rules/secrets-handling.rule.md"
+    },
+    {
+      "slug": "shared-test-db-mutex",
+      "status": "enforced",
+      "paired_hardrule": "scripts/rules/shared-test-db-mutex.rule.py",
+      "has_l1": true,
+      "has_l3": false,
+      "l1_effective": true,
+      "applies_to": [
+        "claude",
+        "gemini",
+        "cursor"
+      ],
+      "break_glass_env": null,
+      "triggers": [
+        "PreToolUse",
+        "PostToolUse"
+      ],
+      "description": "A test run that mutates a shared test database MUST hold an exclusive lock on it; a second run against the same database MUST be refused while the first is in flight.",
+      "doc_path": "docs/rules/shared-test-db-mutex.rule.md"
     },
     {
       "slug": "skills-sync",
