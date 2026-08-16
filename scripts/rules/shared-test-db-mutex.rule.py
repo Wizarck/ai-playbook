@@ -110,13 +110,23 @@ def _database_key(command: str) -> str:
 def _pid_alive(pid: int) -> bool:
     """Best effort, and honest about it.
 
-    On POSIX, signal 0 is the standard probe. On Windows there is no cheap
-    equivalent in the stdlib, so liveness is left to the TTL. Returning True on
-    an unknown platform is the safe direction: it keeps the lock held, and a
-    genuinely dead holder is released by the TTL rather than by a guess.
+    On POSIX, signal 0 is the standard probe.
+
+    WINDOWS USED TO RETURN True UNCONDITIONALLY, and the comment justifying it
+    called that "the safe direction: a genuinely dead holder is released by the
+    TTL rather than by a guess". That reasoning was wrong for the only platform
+    this actually runs on. With no liveness probe, the TTL IS the release
+    mechanism — so any interrupted run (Ctrl-C, a killed background task, a
+    crashed worker) wedges the database for three hours. Measured within fifteen
+    minutes of first wiring the hook up: a probe process exited, its lock
+    survived, and the next legitimate command was refused by a dead holder.
+
+    A mutex whose failure mode is a three-hour outage gets switched off, and
+    then it protects nothing at all. `OpenProcess` is in the stdlib via ctypes
+    and costs microseconds, so the honest fix is to actually ask.
     """
-    if os.name == "nt":  # pragma: no cover - platform branch
-        return True
+    if os.name == "nt":
+        return _pid_alive_windows(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -126,6 +136,59 @@ def _pid_alive(pid: int) -> bool:
     except OSError:
         return True
     return True
+
+
+#: OpenProcess access right that needs no elevation just to ask "does it exist".
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_ERROR_ACCESS_DENIED = 5
+_ERROR_INVALID_PARAMETER = 87
+_STILL_ACTIVE = 259
+
+
+def _pid_alive_windows(pid: int) -> bool:
+    """Ask Windows whether `pid` is a live process.
+
+    Two subtleties, both of which decide the direction of the answer:
+
+    * ``ERROR_ACCESS_DENIED`` means the process EXISTS and we may not inspect
+      it (another user, higher integrity). That is alive, not dead — treating
+      it as dead would let one user's lock be stolen by another's.
+    * A process that has exited but whose handle is still open remains
+      openable, and reports exit code != ``STILL_ACTIVE``. Without that second
+      check a zombie holder would read as alive forever, which is the exact bug
+      being fixed, just narrower.
+
+    Anything unexpected answers True — keeping a lock held is recoverable (the
+    TTL still exists, and there is a documented override); releasing one that
+    is genuinely held corrupts a running suite silently.
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except Exception:  # pragma: no cover - ctypes missing is not a real config
+        return True
+
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenProcess(
+            _PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid),
+        )
+        if not handle:
+            err = ctypes.get_last_error()
+            if err == _ERROR_ACCESS_DENIED:
+                return True
+            if err == _ERROR_INVALID_PARAMETER:
+                return False
+            return True
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return True
+            return code.value == _STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:  # pragma: no cover - defensive
+        return True
 
 
 def _read(path: Path) -> dict[str, Any] | None:

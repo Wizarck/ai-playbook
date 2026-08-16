@@ -160,6 +160,79 @@ def test_a_fresh_lock_from_a_live_process_is_not_stale():
     assert RULE._is_stale(fresh) is False
 
 
+# ---------------------------------------------------------------------------
+# Liveness — the half that decides whether this is a mutex or an outage
+# ---------------------------------------------------------------------------
+#
+# `_pid_alive` used to return True unconditionally on Windows, with a comment
+# calling that "the safe direction" because the TTL would release a dead
+# holder. On the platform this actually runs on, that made the TTL the ONLY
+# release mechanism: any interrupted run wedged the database for three hours.
+# It was hit fifteen minutes after the hook was first wired up — a probe
+# process exited, its lock outlived it, and the next real command was refused
+# by a holder that no longer existed.
+#
+# These run on every platform: the assertions are about processes, not about
+# which syscall answers.
+
+
+def test_a_process_that_has_exited_is_not_alive():
+    """The bug, stated directly."""
+    import subprocess
+    import sys
+    done = subprocess.Popen([sys.executable, "-c", "pass"])
+    done.wait()
+    time.sleep(0.3)
+    assert RULE._pid_alive(done.pid) is False
+
+
+def test_a_running_process_is_alive():
+    """NEGATIVE CONTROL.
+
+    If liveness answered False for a live holder the mutex would never refuse
+    anything, which is the failure this whole rule exists to prevent — and it
+    would be invisible, because everything would simply keep working.
+    """
+    import subprocess
+    import sys
+    running = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(3)"])
+    try:
+        time.sleep(0.5)
+        assert RULE._pid_alive(running.pid) is True
+    finally:
+        running.wait()
+
+
+def test_our_own_process_is_alive():
+    import os
+    assert RULE._pid_alive(os.getpid()) is True
+
+
+def test_a_lock_from_a_dead_holder_is_taken_over(tmp_path):
+    """End-to-end: the exact situation that blocked a legitimate command.
+
+    A lock file naming a process that has since exited must not refuse the next
+    run — regardless of the TTL, which had 3 hours left on it when this bit.
+    """
+    import subprocess
+    import sys
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    time.sleep(0.3)
+
+    path = tmp_path / f"{RULE._database_key(PYTEST)}.json"
+    path.write_text(json.dumps({
+        "session": "a-session-that-ended",
+        "pid": dead.pid,
+        "started": time.time(),  # FRESH: the TTL cannot save us here
+        "command": PYTEST,
+    }), encoding="utf-8")
+
+    assert RULE.pretooluse(_event(PYTEST, session="s2")) is None, (
+        "a dead holder still blocks — the mutex has become a timed outage"
+    )
+
+
 def test_a_stale_lock_is_taken_over(tmp_path):
     path = tmp_path / f"{RULE._database_key(PYTEST)}.json"
     path.write_text(json.dumps({
