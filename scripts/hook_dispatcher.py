@@ -216,6 +216,10 @@ def dispatch(
 _KNOWN_AIS = ("claude", "gemini", "cursor")
 _MODULE_CACHE: dict[str, Any] = {}
 
+#: Import failures, by hardrule path. A rule that cannot load is a silent
+#: coverage hole; keeping the reason lets callers say so instead of guessing.
+_LOAD_ERRORS: dict[str, str] = {}
+
 
 def _consumer_root(start: Path | None = None) -> Path:
     """Walk up for the consumer project root (.gitmodules or AGENTS.md); cwd fallback."""
@@ -242,8 +246,25 @@ def _load_rule_module(path: Path | None) -> Any:
             _MODULE_CACHE[key] = None
             return None
         mod = importlib.util.module_from_spec(spec)
+        # REGISTER BEFORE EXEC. `@dataclass` resolves `cls.__module__` through
+        # `sys.modules` at class-creation time; without this the import dies
+        # with `AttributeError: 'NoneType' object has no attribute '__dict__'`,
+        # naming nothing useful.
+        #
+        # Measured cost of not doing it: `jira-closure-evidence` declares a
+        # dataclass, so it failed to import on EVERY dispatch from the day it
+        # shipped. The `except` below turned that into `mod = None`, and the
+        # caller's `continue` made it indistinguishable from a rule with no
+        # hook. The rule was `status: enforced`, listed by `--list`, not
+        # disabled, matched its trigger — and never once ran.
+        sys.modules[mod_name] = mod
         spec.loader.exec_module(mod)
-    except Exception:  # noqa: BLE001 — a broken rule must not wedge the hook path.
+    except Exception as exc:  # noqa: BLE001 — a broken rule must not wedge the hook path.
+        # Fail open, but NOT silently. A rule that cannot be imported is a
+        # coverage hole, and the whole point of a gate is that its absence is
+        # noticed. Recorded here so `--list` and the run event can surface it.
+        sys.modules.pop(mod_name, None)
+        _LOAD_ERRORS[key] = f"{type(exc).__name__}: {exc}"
         mod = None
     _MODULE_CACHE[key] = mod
     return mod
