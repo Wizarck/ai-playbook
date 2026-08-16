@@ -2,6 +2,43 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.19] — 2026-08-17 — scope: a rule that could not be imported at all
+
+### Fixed
+- **`_load_rule_module` never registered the module in `sys.modules`.**
+  `@dataclass` combined with `from __future__ import annotations` resolves its
+  field types through `sys.modules` at class-creation time, so any rule using
+  that pair — which is every rule in this repo — died with
+  `AttributeError: NoneType has no attribute __dict__`.
+
+  `except Exception: mod = None` then turned that into a `None`, and the
+  caller's `continue` made an unimportable rule **indistinguishable from a rule
+  with no hook for this event**.
+
+  Measured cost: `jira-closure-evidence` declares a dataclass. It was
+  `status: enforced`, appeared in `--list`, was not disabled, and matched its
+  trigger — and had NEVER ONCE RUN since it shipped in v0.22.14. Two later
+  explanations for it not firing (a matcher missing `transition`, then absent
+  Atlassian credentials) were both true and both downstream of this one.
+
+  Import failures are now recorded in `_LOAD_ERRORS` instead of vanishing. The
+  behaviour is still fail-open — a broken rule must not wedge the hook path —
+  but its absence is no longer silent.
+
+  A failed import also no longer leaves a half-executed module behind in
+  `sys.modules`, which would be the worse failure: importable by name from
+  anywhere else in the process, and appearing to work.
+
+### Verification
+- New census test: every shipped hardrule must import. A NEW rule that fails
+  fails this file rather than going quietly missing.
+- Mutation-verified: removing the registration reddens the census AND the
+  dataclass test.
+- The dataclass test's first draft used a plain `@dataclass` and passed with
+  the fix reverted — measured that only the deferred-annotations form
+  reproduces (`@dataclass(slots=True)` does not either). Corrected, because a
+  test that cannot reproduce its own subject is the defect this repo is about.
+
 ## [0.22.18] — 2026-08-17 — scope: the closure gate works without an API token
 
 ### Added
