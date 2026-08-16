@@ -4,6 +4,7 @@
 
 | File | Summary |
 | --- | --- |
+| [absence-is-not-evidence.rule.md](absence-is-not-evidence.rule.md) | A negative result MUST NOT be reported as proof of absence unless the search could have found the thing; when a ticket, error or spec cites a concrete path, that path MUST be opened before any verdic… |
 | [agentic-failure-catalog-schema.rule.md](agentic-failure-catalog-schema.rule.md) | New entries in the `docs/concepts/agentic-failures.md` catalog MUST carry an OTel attribute key (`ai_playbook.failure.<class>`), MUST land via an RFC (not a direct edit), and detectors emitting the f… |
 | [ai-reviewer-signoff.rule.md](ai-reviewer-signoff.rule.md) | When an AI reviewer is present (Profile A), the worker MUST address each Actionable comment with a fix-commit citing the comment ID, run L1 self-review, and emit the §4.5.3 signoff block; Profile B (… |
 | [alembic-migration-naming.rule.md](alembic-migration-naming.rule.md) | Alembic migrations MUST use the verbose form `<NNNN>_<topic>` matching the filename — `revision = "0010_research_sources_tier_b_c"` not `revision = "0010"`; the L1 pre-commit hook greps `alembic/vers… |
@@ -36,7 +37,8 @@
 | [graphify-adoption.rule.md](graphify-adoption.rule.md) | Consumer repos that commit a graphify knowledge graph MUST gitignore the per-machine/per-run graph state, register the graph.json union-merge driver via `graphify hook install`, and pin `graphifyy>=0… |
 | [hitl-approval-pattern.rule.md](hitl-approval-pattern.rule.md) | State-mutating actions in single-operator AI systems MUST be gated on an asynchronous human approval delivered via a chat channel (Telegram/WhatsApp/Slack/Hermes) with HMAC-validated reply correlatio… |
 | [install-playbook.rule.md](install-playbook.rule.md) | Consumer one-time bootstrap of the .ai-playbook submodule with a pinned semver tag. |
-| [jira-ticket-standard.rule.md](jira-ticket-standard.rule.md) | Every agent-authored Jira ticket MUST carry the sections its issue type owes — A/B/C test plan and typed metrics for features, repro + expected-vs-actual + regression test for bugs — with every metric declaring one of exactly five types from a closed list. |
+| [jira-closure-evidence.rule.md](jira-closure-evidence.rule.md) | A ticket MUST NOT transition into Done unless a closure comment names a verdict, an openable artefact, at least one path the ticket itself cites, and one artefact per enumerated requirement. |
+| [jira-ticket-standard.rule.md](jira-ticket-standard.rule.md) | Every Jira ticket an agent creates MUST carry the sections its issue type owes — an A/B/C test plan and typed metrics for features, repro plus expected-vs-actual plus a regression test for bugs — wit… |
 | [link-integrity.rule.md](link-integrity.rule.md) | No dead relative markdown links under docs/; every relative target MUST resolve on disk. |
 | [lint-parity-precommit.rule.md](lint-parity-precommit.rule.md) | Linters that gate CI MUST also run at pre-commit with the same pin — a linter that only exists in CI is discovered post-push, and on repos without branch protection the red merges and becomes ambient… |
 | [mcp-render.rule.md](mcp-render.rule.md) | Consumer MCP configs (.mcp.json + .gemini/settings.json) MUST be regenerated from mcp-servers.yaml whenever the SSOT changes; stale rendered files leak deprecated server lists into CLI sessions. |
@@ -55,6 +57,7 @@
 | [registry-entry.rule.md](registry-entry.rule.md) | Consumer repo must be registered in the developer's local playbook registry at ~/.ai-playbook/projects.yaml so dispatchers resolve via path lookup. |
 | [repo-hygiene.rule.md](repo-hygiene.rule.md) | Every dependency declared in a manifest covered by a `repo-hygiene.yaml` check MUST be provable as used by at least one declared channel, and every declared generated artefact MUST be git-ignored and… |
 | [secrets-handling.rule.md](secrets-handling.rule.md) | Secrets MUST live under SOPS-encrypted files or .env.local; literals MUST NOT be committed. |
+| [shared-test-db-mutex.rule.md](shared-test-db-mutex.rule.md) | A test run that mutates a shared test database MUST hold an exclusive lock on it; a second run against the same database MUST be refused while the first is in flight. |
 | [skills-sync.rule.md](skills-sync.rule.md) | Consumer repos that use Claude Code skills must reflect at least one playbook skill under .claude/skills/ (via materialise_skills.py mirror or platform-native symlink). |
 | [slice-preflight.rule.md](slice-preflight.rule.md) | Before the first task commit on `slice/<change-id>`, the worker MUST run the openspec preflight checklist — `openspec_validate.py`, `validate_pairing.py`, marker `start` record, slot-reservation look… |
 | [stacked-pr-guard.rule.md](stacked-pr-guard.rule.md) | A PR that is the base of another open PR MUST have its dependents retargeted onto its own base before it is merged; merging first orphans them, and GitHub closes a PR whose base branch is deleted wit… |
