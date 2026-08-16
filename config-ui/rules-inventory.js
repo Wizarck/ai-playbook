@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-08-16T20:39:11.681178+00:00",
+  "generated_at": "2026-08-16T21:09:20.521282+00:00",
   "rules": [
     {
       "slug": "absence-is-not-evidence",

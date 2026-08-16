@@ -2,6 +2,39 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.17] — 2026-08-17 — scope: the planned rework was tested and does not work
+
+### Fixed
+- **The documented rework for `jira-closure-evidence` described a mechanism that
+  does not persist.** The plan was to carry the closure comment inside the
+  transition (`update.comment[].add.body`). Measured against a real closure
+  before building on it:
+
+  1. A markdown string is rejected — *"Operation value must be an Atlassian
+     Document"*. That error comes from Jira's own validator, proving the MCP
+     server does forward `update`.
+  2. Proper ADF is **accepted**: the call returns success, the status moves to
+     Done, and the comment is **silently dropped**. `comment.total` stays 0,
+     re-read twice minutes apart, while a sibling ticket returns its comments
+     through the identical call.
+
+  Almost certainly `hasScreen: false` on the transition — Jira drops field
+  operations for a screenless transition. That is a per-workflow property, so
+  even where it works it is not something a consumer could rely on.
+
+  Shipping it would have been **worse than shipping nothing**: the gate would
+  demand the comment ride in the transition, the author would comply, Jira would
+  return success, and the ticket would land in Done with no comment at all.
+
+  The lesson is this rule's own subject turned on its author — the API accepting
+  a field is not the field persisting. **Acceptance is not persistence.**
+
+  The doc now records the failed experiment so nobody rebuilds it, and points at
+  a receipt-based design instead: validate the comment on
+  `addCommentToJiraIssue` (whose payload both carries the body and persists it),
+  write a local receipt, and require a recent valid receipt at transition time.
+  The credential-free opt-in idea survives intact.
+
 ## [0.22.16] — 2026-08-17 — scope: a rule that said `enforced` while checking nothing
 
 ### Fixed
