@@ -2,6 +2,39 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.15] — 2026-08-17 — scope: the mutex was a three-hour outage on the only platform it runs on
+
+### Fixed
+- **`shared-test-db-mutex` could not tell a dead holder from a live one on
+  Windows.** `_pid_alive` returned `True` unconditionally there, and the comment
+  justifying it called that "the safe direction" because the TTL would release a
+  genuinely dead holder. That reasoning was wrong for the platform this actually
+  runs on: with no liveness probe, **the TTL was the only release mechanism**, so
+  any interrupted run — Ctrl-C, a killed background task, a crashed worker —
+  locked the database for three hours.
+
+  It was hit **fifteen minutes after the rule was first wired to its event**: a
+  probe process exited, its lock outlived it, and the next legitimate command was
+  refused by a holder that no longer existed.
+
+  This is the failure mode the rule's own doc warns about in a different costume.
+  A gate that fires where it cannot judge honestly gets bypassed; a mutex whose
+  cost is a three-hour outage gets switched off, and then it protects nothing.
+
+  Liveness is now probed on both platforms — `signal 0` on POSIX,
+  `OpenProcess` + `GetExitCodeProcess` on Windows. Two asymmetries are
+  deliberate: `ERROR_ACCESS_DENIED` counts as **alive** (the process exists and
+  we may not inspect it — treating it as dead would let one user's run take
+  another's lock), and any unexpected condition counts as alive (holding a lock
+  too long is recoverable; releasing a held one corrupts a running suite
+  silently).
+
+  Pinned by four tests against real processes, two of which fail against the
+  previous behaviour: a process that has exited is not alive, a running one is
+  (negative control), and a fresh lock naming a dead pid no longer blocks —
+  asserted with the TTL deliberately far from expiry, so only liveness can
+  satisfy it.
+
 ## [0.22.14] — 2026-08-16 — scope: the branch gate stops demanding what this repo forbids
 
 ### Fixed

@@ -7,7 +7,7 @@ activation: always
 status: enforced
 applies_to: all
 triggers: ["PreToolUse", "PostToolUse"]
-last_validated: "2026-08-16"
+last_validated: "2026-08-17"
 ---
 
 # shared-test-db-mutex
@@ -83,6 +83,31 @@ Three hours, well above any real suite. A TTL at or below the true runtime
 releases the lock under a slow-but-healthy run, which rebuilds the original
 failure in a new shape. The same argument the CI timeouts make about being hang
 detectors rather than budgets.
+
+### Why the TTL is not the release mechanism
+
+A generous TTL is only tolerable because a **dead holder is detected directly**.
+The first version of this rule answered "is the holder alive?" with an
+unconditional `True` on Windows, reasoning that the TTL would clean up after a
+dead process. On a Windows-only team that made the TTL the *only* release path,
+so any interrupted run — Ctrl-C, a killed background task, a crashed worker —
+locked the database for three hours.
+
+It was hit fifteen minutes after the rule was first wired to its event: a probe
+process exited, its lock outlived it, and the next legitimate command was
+refused by a holder that no longer existed.
+
+A mutex whose failure mode is a three-hour outage gets switched off, and then it
+protects nothing. Liveness is now probed on both platforms — `signal 0` on
+POSIX, `OpenProcess` + `GetExitCodeProcess` on Windows — with two deliberate
+asymmetries:
+
+- `ERROR_ACCESS_DENIED` means the process **exists** and we may not inspect it.
+  That counts as alive; treating it as dead would let one user's lock be taken
+  by another's run.
+- Anything unexpected counts as alive. Holding a lock too long is recoverable
+  (the TTL still exists, and the override is documented). Releasing one that is
+  genuinely held corrupts a running suite silently, which is the whole point.
 
 ## Examples
 
