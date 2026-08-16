@@ -20,6 +20,38 @@
 # - feat/v<X.Y.Z>-...             — release-prep branches accumulating multiple
 #                                   changes for a release; OpenSpec dir not
 #                                   required (the bundle is the change).
+# - any type, where openspec/ is GITIGNORED — see "the impossible remedy"
+#                                   below. The branch-NAME check still applies;
+#                                   only the directory requirement is dropped.
+#
+# THE IMPOSSIBLE REMEDY (fixed 2026-08-16)
+#
+# This gate told authors to "create the proposal at openspec/changes/<id>/ and
+# commit it to this branch" — and in THIS repository that cannot be done. The
+# playbook gitignores `openspec/` on purpose: "devs may use the openspec workflow
+# locally while iterating on the playbook itself, but the playbook does not commit
+# its own proposals/tasks/archive" (.gitignore, landed in #79). So the directory
+# could never appear in a PR head ref, and remedy (a) was unreachable advice.
+#
+# The consequence was not that people were blocked. It was worse and quieter:
+# remedy (c) — "use a chore/* branch" — was the only one that worked, so EVERY
+# PR merged after #158 used `chore/*`, including ones titled `feat(...)`
+# (#163 `chore/jira-standard-english-aliases`, #162, #161, #159, #157). The
+# prefix stopped meaning "this is maintenance" and started meaning "this is the
+# only prefix that passes". A gate whose remedy is impossible does not stop the
+# work; it silently retrains everyone to route around it, and it reports green
+# the entire time.
+#
+# The requirement is still RIGHT for a consumer repo that commits `openspec/`,
+# which is what it was written for. So it is not deleted — it is made conditional
+# on being SATISFIABLE, tested with `git check-ignore` on the exact path the
+# error message asks the author to create.
+#
+# The first attempt at that test asked "does this repo track anything under
+# openspec/" and was wrong: gitignoring a directory does not untrack what was
+# already committed, and this repo still carries legacy proposals from before #79.
+# So the tracking test answered "satisfiable" while a new proposal still could not
+# be added. It was caught by running it rather than reasoning about it.
 #
 # Soft enforcement: comments on the PR with the violation. Hard gate at merge
 # time: status check fails until the branch is renamed.
@@ -113,6 +145,25 @@ jobs:
               exit 0
               ;;
           esac
+
+          # If the path is GITIGNORED, a new proposal cannot be committed without
+          # `git add -f`, so the requirement is unsatisfiable for this change and
+          # demanding it is a dead end rather than a gate.
+          #
+          # The test is `check-ignore`, NOT "does the repo track any openspec/".
+          # The first draft of this fix used the tracking test and was wrong:
+          # gitignoring a directory does not untrack what was already committed,
+          # so this repo still carries legacy proposals under `openspec/changes/`
+          # from before #79 landed the ignore. The tracking test therefore said
+          # "satisfiable" while a NEW proposal still could not be added. Measured,
+          # not assumed — which is the only reason it was caught.
+          if git check-ignore -q "openspec/changes/$CHANGE_ID" 2>/dev/null; then
+            echo "Exempt: openspec/changes/ is gitignored in this repository, so"
+            echo "        openspec/changes/$CHANGE_ID/ cannot be committed to this branch."
+            echo "(The branch-name pattern above was still enforced.)"
+            echo "verdict=exempt-openspec-ignored" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           echo "verdict=fail-no-openspec" >> "$GITHUB_OUTPUT"
           echo "::error::Branch '$BRANCH' decomposes to change-id '$CHANGE_ID', but openspec/changes/$CHANGE_ID/ does not exist."
