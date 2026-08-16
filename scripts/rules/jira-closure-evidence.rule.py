@@ -63,6 +63,26 @@ SLUG = "jira-closure-evidence"
 SPEC_RELATIVE = "specs/jira-closure-standard.yaml"
 
 _MCP_TRANSITION_RE = re.compile(r"^mcp__.+__transitionJiraIssue$")
+_MCP_COMMENT_RE = re.compile(r"^mcp__.+__addCommentToJiraIssue$")
+
+#: Consumer-declared transition ids that mean "Done", comma-separated.
+#:
+#: THE OPT-IN, and what keeps a tracker-agnostic playbook agnostic. Transition
+#: ids are per-workflow, so the playbook cannot know them. The first version of
+#: this rule solved that by fetching the live transition list, which cost every
+#: consumer an Atlassian API token for a capability most will never use.
+#:
+#: Declaring "31 means Done" is not a secret. It is cheap, static, per-repo
+#: config verifiable by eye, and a consumer who never sets it is never affected.
+#: Where credentials DO exist the live status category still wins.
+DONE_TRANSITIONS_ENV = "AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS"
+
+#: How long a closure receipt authorises a transition.
+#:
+#: Long enough for a real workflow (write the comment, check CI, close), short
+#: enough that evidence from last week cannot authorise today's closure. The
+#: receipt is proof that a QUALIFYING comment was posted, not a standing pass.
+RECEIPT_TTL_SECONDS = 60 * 60
 
 _SPEC_CACHE: dict[str, Any] = {}
 
@@ -137,6 +157,88 @@ def _cited_paths(text: str, spec: dict[str, Any]) -> set[str]:
     return out
 
 
+def enumerated_items(text: str) -> list[str]:
+    """Ordered-list items in a closure comment, each with its full body.
+
+    ORDERED LISTS ONLY. Bullets carry prose — context, caveats, links — and
+    demanding an artefact on every bullet would fail the closures that are
+    written best, which is how a clause earns a reputation for being wrong and
+    starts getting skipped. A numbered list in a closure is a claim about
+    coverage: "these are the things I closed."
+
+    An item runs from its own marker to the next, so evidence on the following
+    line still counts as carried.
+    """
+    lines = (text or "").splitlines()
+    starts = [i for i, line in enumerate(lines) if re.match(r"^\s*\d+[.)]\s+\S", line)]
+    return [
+        "\n".join(lines[s:(starts[n + 1] if n + 1 < len(starts) else len(lines))])
+        for n, s in enumerate(starts)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# The receipt
+# ---------------------------------------------------------------------------
+#
+# WHY A RECEIPT AND NOT THE TRANSITION PAYLOAD. The obvious design — carry the
+# closure comment inside the transition (`update.comment[].add.body`) — was
+# built, tested against a real closure, and DOES NOT WORK: Jira accepts the ADF,
+# returns success, moves the issue to Done, and silently drops the comment
+# (`hasScreen: false` on the transition). Shipping it would have been worse than
+# shipping nothing, because the author would comply and the ticket would land in
+# Done with no comment at all.
+#
+# `addCommentToJiraIssue` carries the body in its payload AND stores it. So the
+# comment is judged where it is written, and the transition checks that a
+# qualifying comment was written. No credentials, no network, and it validates
+# text that demonstrably exists.
+
+
+def _receipt_dir() -> Path:
+    root = os.environ.get("XDG_RUNTIME_DIR") or os.environ.get("TMPDIR") or "/tmp"
+    if os.name == "nt":  # pragma: no cover - platform branch
+        root = os.environ.get("TEMP") or os.environ.get("TMP") or root
+    d = Path(root) / "ai-playbook-closure-receipts"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _receipt_path(key: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(key))[:64]
+    return _receipt_dir() / f"{safe}.json"
+
+
+def write_receipt(key: str, clauses: list[Clause]) -> None:
+    """Record what the closure comment for `key` did and did not satisfy."""
+    import time
+    payload = {
+        "key": key,
+        "at": time.time(),
+        "ok": all(c.ok for c in clauses),
+        "failed": [{"id": c.id, "detail": c.detail} for c in clauses if not c.ok],
+    }
+    try:
+        _receipt_path(key).write_text(json.dumps(payload), encoding="utf-8")
+    except OSError:  # pragma: no cover - a read-only tmp is not worth blocking on
+        pass
+
+
+def read_receipt(key: str, *, now: float | None = None) -> dict[str, Any] | None:
+    """The live receipt for `key`, or None if absent, unreadable or expired."""
+    import time
+    now = time.time() if now is None else now
+    try:
+        data = json.loads(_receipt_path(key).read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if now - float(data.get("at") or 0) > RECEIPT_TTL_SECONDS:
+        return None
+    return data
+
+
 def _enumerated_requirements(description: str, spec: dict[str, Any]) -> int:
     """How many requirements the ticket states as an ordered list.
 
@@ -201,7 +303,24 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
         "'verified' on its own is a claim, not evidence",
     ))
 
-    # C4 — path fidelity: did you look where the ticket pointed?
+    # C4 — no blank halves. Judged against the comment ITSELF, so it needs
+    # neither the ticket nor a credential, and it is what catches the error the
+    # whole rule was built for: GPLO-1469 was closed after checking 1 of 3.
+    # Writing three numbered halves and leaving two without evidence is a blank
+    # someone has to fill deliberately, where before it was simply forgotten.
+    rc = spec.get("requirement_coverage") or {}
+    items = enumerated_items(text)
+    if len(items) >= int(rc.get("minimum_items", 2)):
+        blank = [n for n, item in enumerate(items, 1) if not _artefact_refs(item, spec)]
+        clauses.append(Clause(
+            "C4", not blank,
+            f"the closure enumerates {len(items)} items but "
+            f"{'item' if len(blank) == 1 else 'items'} "
+            f"{', '.join(str(b) for b in blank)} name no artefact. Every half you "
+            f"claim to have closed needs its own openable thing",
+        ))
+
+    # C5 — path fidelity: did you look where the ticket pointed? REMOTE ONLY.
     pf = spec.get("path_fidelity") or {}
     if pf.get("enabled") and description:
         cited = _cited_paths(description, spec)
@@ -210,7 +329,7 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
             overlap = cited & in_comment
             need = int(pf.get("minimum_overlap", 1))
             clauses.append(Clause(
-                "C4", len(overlap) >= need,
+                "C5", len(overlap) >= need,
                 "the closure references none of the paths the ticket cites "
                 f"({', '.join(sorted(cited)[:4])}). Follow the paths a ticket "
                 f"names, not its label — GPLO-1388 was closed by reading the "
@@ -218,12 +337,14 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
                 f"named a different file",
             ))
 
-    # C5 — one artefact per enumerated requirement.
-    rc = spec.get("requirement_coverage") or {}
+    # C6 — one artefact per requirement the TICKET enumerates. REMOTE ONLY, and
+    # the strictly stronger form of C4: C4 asks whether the halves you listed
+    # carry evidence, C6 asks whether you listed them all. Only the ticket knows
+    # the second, which is the one thing a credential actually buys.
     n = _enumerated_requirements(description or "", spec)
     if n >= int(rc.get("minimum_items", 2)):
         clauses.append(Clause(
-            "C5", len(refs) >= n,
+            "C6", len(refs) >= n,
             f"the ticket enumerates {n} requirements but the closure names "
             f"{len(refs)} distinct artefact(s). 'Verified' has to say WHICH "
             f"HALF — GPLO-1469 was closed after checking 1 requirement of 3",
@@ -321,9 +442,47 @@ def _description_text(issue: dict[str, Any]) -> str:
     return text
 
 
+def declared_done_transitions() -> set[str]:
+    """Transition ids the consumer has declared as meaning Done.
+
+    Empty when unset, and empty means this rule cannot tell a closure from any
+    other transition — so it does nothing. That is the opt-in: a consumer joins
+    by naming its own workflow, not by provisioning a token.
+    """
+    raw = os.environ.get(DONE_TRANSITIONS_ENV, "")
+    return {p.strip() for p in raw.split(",") if p.strip()}
+
+
+def _on_comment(event: dict, spec: dict[str, Any]) -> None:
+    """Judge a closure comment where it is WRITTEN, and record the verdict.
+
+    Never blocks. A comment saying "this was FIXED in the other ticket" is
+    ordinary discussion, and refusing it would be a false positive on the most
+    common word in the verdict list — the fastest way to teach everyone the
+    override. The judgement is stored; the transition is where it is enforced.
+    """
+    tool_input = event.get("tool_input") or {}
+    key = _issue_key(tool_input)
+    body = str(tool_input.get("commentBody") or "")
+    if not key or not body.strip():
+        return
+    verdicts = [str(v) for v in (spec.get("verdicts") or [])]
+    # The same word-boundary match C2 uses. A looser test here would record
+    # receipts that C2 then refuses, and two halves of one rule disagreeing
+    # is worse than either being wrong alone.
+    if not any(
+        re.search(rf"\b{re.escape(v)}\b", body, re.IGNORECASE) for v in verdicts
+    ):
+        return  # not a closure comment; nothing to record
+    write_receipt(key, evaluate("", body, spec))
+
+
 def pretooluse(event: dict) -> HookVerdict | None:
-    """Refuse a transition into Done whose closure comment shows nothing."""
-    if not _MCP_TRANSITION_RE.match(str(event.get("tool_name") or "")):
+    """Two acts: record the closure comment, then gate the transition."""
+    tool = str(event.get("tool_name") or "")
+    is_comment = bool(_MCP_COMMENT_RE.match(tool))
+    is_transition = bool(_MCP_TRANSITION_RE.match(tool))
+    if not (is_comment or is_transition):
         return None
 
     try:
@@ -334,44 +493,102 @@ def pretooluse(event: dict) -> HookVerdict | None:
     if os.environ.get(str(spec.get("skip_env") or "")):
         return None
 
+    if is_comment:
+        _on_comment(event, spec)
+        return None
+
     tool_input = event.get("tool_input") or {}
     key = _issue_key(tool_input)
     transition_id = str((tool_input.get("transition") or {}).get("id") or "")
     if not key or not transition_id:
         return None
 
+    # The remote fetch is an ENHANCEMENT. It used to be the only path, which
+    # made a tracker-agnostic playbook depend on one tracker's API token — and
+    # where those credentials did not exist the rule failed open on every
+    # transition while advertising `enforced`.
+    issue: dict[str, Any] | None = None
     try:
         from scripts.issue_sync import _load_jira_creds
         creds = _load_jira_creds()
-        if creds is None:
-            return None
-        issue = _fetch(creds, key)
+        if creds is not None:
+            issue = _fetch(creds, key)
     except Exception:
-        # No credentials, Jira down, network blocked — fail open. This gate
-        # exists to catch a careless closure, not to be the reason nobody can
-        # close anything.
+        issue = None
+
+    if issue is not None:
+        if not _targets_done(issue, transition_id, spec):
+            return None
+        fields = issue.get("fields") or {}
+        itype = str(((fields.get("issuetype") or {}).get("name")) or "")
+        if itype in set(spec.get("issue_types_exempt") or []):
+            return None
+        labels = {str(x) for x in (fields.get("labels") or [])}
+        if labels & set(spec.get("exempt_labels") or []):
+            return None
+        clauses = evaluate(_description_text(issue), _latest_comment(issue), spec)
+        if all(c.ok for c in clauses):
+            return None
+        return block(render(clauses, spec, remote=True))
+
+    # Payload-only. We cannot ask what transition 31 means, so the consumer must
+    # have said. Unset = this rule is not for you.
+    if transition_id not in declared_done_transitions():
         return None
 
-    if not _targets_done(issue, transition_id, spec):
+    receipt = read_receipt(key)
+    if receipt is None:
+        return block(render_missing_receipt(key, spec))
+    if receipt.get("ok"):
         return None
-
-    fields = issue.get("fields") or {}
-    itype = str(((fields.get("issuetype") or {}).get("name")) or "")
-    if itype in set(spec.get("issue_types_exempt") or []):
-        return None
-    labels = {str(x) for x in (fields.get("labels") or [])}
-    if labels & set(spec.get("exempt_labels") or []):
-        return None
-
-    clauses = evaluate(_description_text(issue), _latest_comment(issue), spec)
-    if all(c.ok for c in clauses):
-        return None
-    return block(render(clauses, spec))
+    return block(render_bad_receipt(key, receipt, spec))
 
 
-# ---------------------------------------------------------------------------
-# CLI — `validate` proves the spec parses; `explain` dry-runs one ticket
-# ---------------------------------------------------------------------------
+def _override_line(spec: dict[str, Any]) -> str:
+    return (
+        f"OVERRIDE: {spec.get('skip_env', 'AIPLAYBOOK_JIRA_CLOSURE_SKIP')}=1, or "
+        f"label the issue "
+        f"'{(spec.get('exempt_labels') or ['closure-evidence-exempt'])[0]}'."
+    )
+
+
+def render_missing_receipt(key: str, spec: dict[str, Any]) -> str:
+    return "\n".join([
+        f"jira-closure-evidence: {key} has no closure comment to close on.",
+        "",
+        f"  Post the closure comment FIRST (addCommentToJiraIssue), then",
+        f"  transition. Nothing qualifying was written for {key} in the last "
+        f"{RECEIPT_TTL_SECONDS // 60} minutes.",
+        "",
+        "  A comment counts once it carries a verdict token and evidence:",
+        "",
+        "    **FIXED** — verified against HEAD.",
+        "    1. <requirement> — backend/app/x/router.py:818. test_a_plain_member_cannot_reach()",
+        "    2. <requirement> — frontend/app/y.tsx:141. MigrationJobDetail.test.tsx",
+        "",
+        "  NB the comment cannot ride inside the transition itself: Jira accepts",
+        "  `update.comment` on a screenless transition and silently drops it.",
+        "",
+        _override_line(spec),
+    ])
+
+
+def render_bad_receipt(key: str, receipt: dict[str, Any], spec: dict[str, Any]) -> str:
+    lines = [
+        f"jira-closure-evidence: the closure comment on {key} is not enough yet.",
+        "",
+    ]
+    lines += [f"  [{f.get('id')}] {f.get('detail')}" for f in receipt.get("failed") or []]
+    lines += [
+        "",
+        "  Judged from the comment alone — the ticket body was not read, so path",
+        "  fidelity and requirement count were NOT checked.",
+        "",
+        "  Post a corrected closure comment, then transition.",
+        "",
+        _override_line(spec),
+    ]
+    return "\n".join(lines)
 
 
 def cmd_validate(_args: argparse.Namespace) -> int:
