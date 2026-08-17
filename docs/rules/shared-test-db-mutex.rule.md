@@ -134,6 +134,24 @@ Legitimate when the two runs genuinely do not share state — separate schemas, 
 a suite that provisions its own database per run, as
 `test_migration_alembic.py` does with `geeplo_test_migrations`.
 
+## Known limit: a live PID with dead work
+
+The liveness check asks "does the holder PID exist?", which cannot distinguish
+a working holder from a wedged one. Measured 2026-08-17: an orphaned pytest sat
+**alive but idle** for 50 minutes (CPU counter frozen across samples) holding
+`idle in transaction` on the shared Postgres with a `TRUNCATE` queued behind
+it — every waiter serialized behind a process that would never finish, and the
+mutex was correct by its own rules the whole time.
+
+Diagnosis that works: sample the holder's CPU twice a few minutes apart
+(identical counters = nothing executing), then look at the DATABASE, not the
+lock — `pg_stat_activity` for long `idle in transaction` rows. Terminating the
+zombie's DB backends (`pg_terminate_backend`) releases the real resource and
+usually makes the orphan exit on its own, which needs no process kill at all.
+A lock-file heartbeat would close this properly but requires the holder to
+know about the lock; the hook holds it, the test process does not. Deliberately
+documented instead of half-built.
+
 ## See also
 
 - [absence-is-not-evidence](absence-is-not-evidence.rule.md) — the same session
