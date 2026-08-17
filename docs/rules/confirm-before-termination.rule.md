@@ -76,10 +76,26 @@ python .ai-playbook/scripts/rules/confirm-before-termination.rule.py validate
 
 ## Break-glass
 
-After — and only after — the user says yes, set
-`AIPLAYBOOK_CONFIRM_BEFORE_TERMINATION_OVERRIDE="<short reason>"` for that single
-action. The override is audited; it is NOT a way to skip the confirmation, only
-to record one the user already gave.
+After — and only after — the user says yes, record the confirmation through the
+channel that matches the tool being gated:
+
+- **Bash kill/stop commands**: put the assignment **inline in the gated command
+  itself** — `AIPLAYBOOK_CONFIRM_BEFORE_TERMINATION_OVERRIDE=<short-reason>
+  kill <pid>`. An `export` in a prior or same call CANNOT work: the hook
+  evaluates before the shell runs, so the variable never reaches its
+  environment. Measured 2026-08-17 — an agent holding the user's explicit yes
+  was blocked twice by its own gate before this channel existed (the
+  impossible-remedy shape of #166).
+- **Harness stop tools** (TaskStop / KillShell — no command string to carry a
+  reason): write the **one-shot receipt** first,
+  `echo <short reason> > $TMPDIR/aiplaybook-termination-receipt`. It is
+  consumed on use: one confirmation authorises exactly one stop, and a blank
+  receipt authorises nothing.
+- A hook-level env var still works where a wrapper genuinely exports it before
+  the hook runs (e.g. CI harnesses).
+
+The override is audited; it is NOT a way to skip the confirmation, only to
+record one the user already gave.
 
 ---
 
