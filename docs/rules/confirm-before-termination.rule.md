@@ -26,7 +26,9 @@ the user did not explicitly ask for, including:
 - Stopping / killing / cancelling a running background task or shell — `TaskStop`,
   `KillShell`, `BashOutputKill`, Ctrl-C.
 - Bash process/job control — `kill`, `pkill`, `killall`, `taskkill`,
-  `Stop-Process`, `docker stop|kill|rm`, `docker-compose down`, `systemctl stop`,
+  `Stop-Process`, `docker stop|kill|rm`, `docker compose`/`docker-compose`
+  `down|stop|kill|rm` (either spelling, verb reachable behind global flags),
+  `kubectl delete`, `systemctl stop`,
   `pm2 stop|delete`, `scancel`.
 - Destroying live output / state — `rm -rf`, overwriting a file the agent did
   not create, `git push --force`, `git reset --hard`, `DROP`/`TRUNCATE`, sending

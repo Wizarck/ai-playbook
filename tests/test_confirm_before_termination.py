@@ -40,6 +40,12 @@ def _no_override(monkeypatch):
     "pkill -f gtm",
     "docker stop web",
     "docker-compose down",
+    # Compose v2 spelling — the hyphenated pattern above never matched it.
+    "docker compose down",
+    "docker compose down -v",
+    "docker compose -p proj -f a.yml stop",
+    "kubectl delete pod netprobe -n tenant",
+    "kubectl delete -f manifest.yaml",
     "systemctl stop nginx",
     "pm2 delete all",
 ])

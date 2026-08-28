@@ -48,7 +48,15 @@ _STOP_TOOLS = {"TaskStop", "KillShell", "BashOutputKill"}
 _KILL_PATTERNS = [
     r"\bkill\b", r"\bkillall\b", r"\bpkill\b", r"\btaskkill\b",
     r"\bStop-Process\b",
-    r"\bdocker\s+(stop|kill|rm)\b", r"\bdocker-compose\s+(down|stop|kill)\b",
+    r"\bdocker\s+(stop|kill|rm)\b",
+    # Compose: both spellings, and the verb may sit behind global flags
+    # (`-p proj`, `-f a.yml`). v2 is `docker compose` (space) — the hyphenated
+    # v1 pattern never matched it, so `docker compose down -v`, which destroys
+    # volumes, walked straight through the gate.
+    r"\bdocker[-\s]+compose\s+(?:-{1,2}[\w-]+(?:[=\s]+[^\s]+)?\s+)*(down|stop|kill|rm)\b",
+    # Deleting a live k8s workload is the cluster-native equivalent of
+    # `docker rm`, and was ungated entirely.
+    r"\bkubectl\s+delete\b",
     r"\bsystemctl\s+stop\b", r"\bservice\s+\S+\s+stop\b",
     r"\bsupervisorctl\s+stop\b", r"\bpm2\s+(stop|kill|delete)\b",
     r"\bscancel\b",

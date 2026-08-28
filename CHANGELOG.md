@@ -2,6 +2,28 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.22] — 2026-08-28 — scope: the termination gate did not know about Compose v2
+
+### Fixed
+- **`docker compose` (v2, with a space) walked straight through the gate.**
+  `_KILL_PATTERNS` only carried the v1 hyphenated spelling `docker-compose`, so
+  `docker compose down -v` — which destroys named volumes — was never matched.
+  Found the hard way: an agent ran exactly that against a live stack and the
+  gate stayed silent, while the same agent was correctly blocked on
+  `docker rm`. A safety rule with a hole is worse than a known-absent one,
+  because the blocks it *does* issue imply a coverage it does not have.
+
+  Both spellings are now matched by one pattern, and the verb is reachable
+  behind global flags (`docker compose -p proj -f a.yml down`), which is the
+  form that actually slipped through.
+
+- **`kubectl delete` was ungated entirely.** Deleting a live workload is the
+  cluster-native equivalent of `docker rm`. Now matched.
+
+Non-terminating neighbours stay allowed and are covered by tests:
+`docker compose up -d`, `docker compose ps`, `docker compose logs`,
+`kubectl get`, `kubectl rollout restart`.
+
 ## [0.22.19] — 2026-08-17 — scope: a rule that could not be imported at all
 
 ### Fixed
