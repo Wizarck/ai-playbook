@@ -1,7 +1,7 @@
 ---
 name: openspec-apply-parallel
 description: Implement an OpenSpec change in parallel using multiple subagents (one per disjoint task group inside the same slice). Use when the slice's tasks.md has ≥2 task groups with disjoint write-paths AND >30 min of parallelisable work. For sequential implementation use openspec-apply-change instead.
-license: Apache-2.0
+license: MIT
 metadata:
   author: ai-playbook
   version: "1.0"

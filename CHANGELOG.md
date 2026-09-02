@@ -2,6 +2,40 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.22.23] — 2026-09-03 — scope: crediting the work this repository was built on
+
+### Legal
+- **`NOTICE` added at the repository root.** This is a public repository that
+  redistributes about nine megabytes of adapted third-party work, most of it the
+  `skills/bmad-*` tree, and carried no attribution outside the changelog. MIT
+  requires the copyright and permission notice to travel with any substantial
+  portion, so its absence was a defect, not a formality. The notice names every
+  origin, its licence and holder, what was taken, and whether it was vendored,
+  wrapped, or adopted as a pattern. It opens by disclaiming affiliation, because
+  a fork that keeps upstream's naming should say plainly that upstream did not
+  write it and is not answerable for it.
+
+- **The upstream version is named rather than guessed.** The BMAD installation
+  manifest that a consumer still carries records installer 6.3.0 on 2026-04-19,
+  with core 6.3.0, bmm 6.3.0, bmb 1.5.0, cis 0.1.9 and tea 1.7.2; the import here
+  is dated 2026-04-26 and its skill set matches that installation exactly, one
+  own-work skill aside. The notice says "imported", which is a fact, and declares
+  that a byte-level comparison against the published packages was not run.
+
+### Fixed
+- **Two licence claims were wrong.** Graphify relicensed from MIT to Apache 2.0
+  and moved organisation; the README still called it MIT. And
+  `skills/openspec-apply-parallel`, which is this repository's own work, declared
+  Apache-2.0 inside an MIT repository.
+
+- **The hybrid-planning section named a dormant skill family.** The README listed
+  `bmad-testarch-*` as part of the flow while the skills inventory marked the same
+  family as not participating in any documented phase.
+
+- **Ported skills now name the copyright holder they were ported from**, and the
+  two rules shaped by third-party work carry that credit in the rule itself
+  instead of only in this file, so it survives being read on its own.
+
 ## [0.22.22] — 2026-08-28 — scope: the termination gate did not know about Compose v2
 
 ### Fixed
