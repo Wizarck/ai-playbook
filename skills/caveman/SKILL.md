@@ -3,7 +3,9 @@ name: caveman
 description: Use when the user wants compressed agent output, types /caveman, asks to talk like caveman, requests shorter responses, or asks to cut output tokens.
 license: MIT
 metadata:
-  author: ai-playbook (ported from JuliusBrussee/caveman, MIT)
+  author: ai-playbook
+  derived_from: "JuliusBrussee/caveman — MIT, (c) 2026 Julius Brussee"
+  notice: ../../NOTICE
   version: "1.0"
 ---
 
