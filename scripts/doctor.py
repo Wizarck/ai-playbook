@@ -278,15 +278,26 @@ def check_projects_registry() -> CheckResult:
 # (extra spaces, surrounding backticks on the var name, parenthetical annotations).
 _VAR_RE = re.compile(r"`?([A-Z][A-Z0-9_]+)`?")
 
+# Inline markdown emphasis around a cell's text (`code`, **bold**, *italic*).
+# Stripped before comparing a cell, so ``**yes** (preferred auth path)`` and
+# ``yes (preferred auth path)`` are read the same way.
+_MARKUP_RE = re.compile(r"[`*_]")
+
 
 def _parse_required_env_vars(spec_text: str) -> list[str]:
-    """Return a list of canonical env-var names flagged ``Required? | yes``.
+    """Return the env vars every consumer must set, per the env-vars contract.
 
-    The env-vars.md contract is a markdown table with columns
-    ``Var | Prefix | Purpose | Required? | Default | Where read``.
-    We scan data rows (skip header + separator) and emit the Var-cell name
-    whenever the Required? cell contains the word ``yes`` (case-insensitive,
-    allowing annotations like ``yes (if acme-corp consumer)``).
+    The contract is a markdown table with columns
+    ``Var | Prefix | Purpose | Required? | Default | Where read``. Two of its
+    own rules decide what belongs here, and both are enforced below:
+
+    * **Unqualified ``yes`` only.** A cell like ``yes (for LLM tracing)`` or
+      ``yes (if any Hindsight call is made)`` states a *condition*. Probing
+      those makes doctor warn every consumer about integrations they never
+      enabled, so a qualified ``yes`` is not a requirement.
+    * **No cross-prefix reads** (env-vars.md §Rules). Vars owned by a specific
+      consumer flow through explicit CLI args; the playbook never reads them,
+      so doctor must not demand them either.
     """
     out: list[str] = []
     for line in spec_text.splitlines():
@@ -298,8 +309,9 @@ def _parse_required_env_vars(spec_text: str) -> list[str]:
         # Skip header row and separator row.
         if cells[0].lower() == "var" or set(cells[0]) <= {"-", ":", " "}:
             continue
-        required_cell = cells[3].lower()
-        if "yes" not in required_cell:
+        # An unqualified "yes" is a requirement; "yes (if …)" is a condition.
+        required_cell = _MARKUP_RE.sub("", cells[3]).strip().lower()
+        if required_cell != "yes":
             continue
         # Skip alias rows — their Var cell is *(alias)* or similar; only canonical
         # names we can export from a shell matter here.
@@ -310,9 +322,12 @@ def _parse_required_env_vars(spec_text: str) -> list[str]:
         if not m:
             continue
         name = m.group(1)
-        # Only probe vars that live in a prefix a playbook consumer would set
-        # from their shell/SOPS env. Cross-prefix vars (acme-corp_, consumer-c_)
-        # flow through CLI args per env-vars.md Rules; doctor doesn't probe them.
+        # Cross-prefix vars belong to one consumer and reach the playbook through
+        # explicit CLI args (env-vars.md §Rules, "No cross-prefix reads"), so a
+        # missing one is never this consumer's problem.
+        prefix = _MARKUP_RE.sub("", cells[1]).strip().lower()
+        if prefix.startswith("consumer-"):
+            continue
         if name not in out:
             out.append(name)
     return out
@@ -320,7 +335,7 @@ def _parse_required_env_vars(spec_text: str) -> list[str]:
 
 def check_env_vars_required(playbook_root: Path | None = None) -> CheckResult:
     playbook_root = playbook_root or PLAYBOOK_ROOT
-    spec = playbook_root / "specs" / "env-vars.md"
+    spec = playbook_root / "docs" / "concepts" / "env-vars.md"
     if not spec.is_file():
         return CheckResult(
             "env-vars-required",
@@ -329,6 +344,13 @@ def check_env_vars_required(playbook_root: Path | None = None) -> CheckResult:
         )
     text = spec.read_text(encoding="utf-8")
     required = _parse_required_env_vars(text)
+    if not required:
+        return CheckResult(
+            "env-vars-required",
+            STATUS_OK,
+            "no env var is required unconditionally (per docs/concepts/env-vars.md); "
+            "the rest are conditional on integrations you opt into.",
+        )
     missing = [name for name in required if not os.environ.get(name)]
     if not missing:
         return CheckResult(
