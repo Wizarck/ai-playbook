@@ -198,14 +198,16 @@ Coverage criteria are intentionally excluded from this checklist.
 - [ ] High violations deducted (-5 each)
 - [ ] Medium violations deducted (-2 each)
 - [ ] Low violations deducted (-1 each)
-- [ ] Bonus points added (max +30):
-  - [ ] Excellent BDD structure (+5 if applicable)
-  - [ ] Comprehensive fixtures (+5 if applicable)
-  - [ ] Comprehensive data factories (+5 if applicable)
-  - [ ] Network-first pattern (+5 if applicable)
-  - [ ] Perfect isolation (+5 if applicable)
-  - [ ] All test IDs present (+5 if applicable)
-- [ ] Final score calculated: max(0, min(100, Starting - Violations + Bonus))
+- [ ] Final score calculated: max(0, 100 - Violations)
+- [ ] Recommendation derived from the counts, not from the score:
+      any CRITICAL or HIGH → Request Changes; else any MEDIUM → Approve With
+      Comments; else Approve
+
+No bonus points. Every one of them was an "excellent" or "comprehensive"
+judgement with no predicate behind it and no gate saying when it could apply,
+which is the subjectivity this ledger exists to remove — and thirty points of
+it could cancel six real HIGH violations. Doing the expected thing well is what
+earns the absence of a deduction; it does not also earn credit.
 
 **Quality Grade:**
 

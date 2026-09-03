@@ -55,10 +55,18 @@ This is an **isolated subagent** running in parallel with other quality dimensio
 ```javascript
 const totalChecks = testFiles.length * checksPerFile;
 const failedChecks = violations.length;
-const severityWeights = { HIGH: 10, MEDIUM: 5, LOW: 2 };
-const totalPenalty = violations.reduce((sum, v) => sum + severityWeights[v.severity], 0);
-const score = Math.max(0, 100 - totalPenalty);
 ```
+
+Severity is not computed here. For every violation, read the severity that
+`./criteria-registry.md` pins for the row that fired, and put that row's id in
+the `row` field so the aggregator can deduplicate a defect that two dimensions
+both notice. A defect matching no row is reported in prose under
+recommendations, with no severity and no deduction.
+
+The deduction ledger is applied once, over all four dimensions together, by
+`step-03f-aggregate-scores.md`. Scoring per dimension and then averaging is what
+let one defect cost a different number of points depending on which subagent
+found it.
 
 ---
 
@@ -67,14 +75,12 @@ const score = Math.max(0, 100 - totalPenalty);
 ```json
 {
   "dimension": "isolation",
-  "score": 90,
-  "max_score": 100,
-  "grade": "A-",
   "violations": [
     {
       "file": "tests/api/integration.spec.ts",
       "line": 15,
       "severity": "HIGH",
+      "row": "<registry row id, e.g. H1>",
       "category": "test-order-dependency",
       "description": "Test depends on previous test creating user record",
       "suggestion": "Each test should create its own test data in beforeEach",
