@@ -210,10 +210,10 @@ Coverage criteria are intentionally excluded from this checklist.
 **Quality Grade:**
 
 - [ ] Grade assigned based on score:
-  - 90-100: A+ (Excellent)
-  - 80-89: A (Good)
-  - 70-79: B (Acceptable)
-  - 60-69: C (Needs Improvement)
+  - 90-100: A (Excellent)
+  - 80-89: B (Good)
+  - 70-79: C (Acceptable)
+  - 60-69: D (Needs Improvement)
   - <60: F (Critical Issues)
 
 ---
