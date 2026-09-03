@@ -45,6 +45,11 @@ manifest:
     (npm `bmad-method-test-architecture-enterprise`)
     https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise
 
+One file was imported later and from a newer release:
+`skills/bmad-testarch-test-review/steps-c/criteria-registry.md`, taken from
+test-architecture-enterprise 1.24.0 on 2026-09-03 and modified where it defers
+to fragments this repository does not ship.
+
 Not verified: a byte-for-byte comparison against the published packages for
 those versions. The identification rests on the installation manifest and on
 the skill set matching that installation exactly, one own-work skill aside.
