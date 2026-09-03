@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.SKILLS_INVENTORY = {
   "schema": "skills-inventory/v1",
-  "generated_at": "2026-07-13T02:03:46.959669+00:00",
+  "generated_at": "2026-09-03T16:31:48.354985+00:00",
   "skills": [
     {
       "slug": "ai-playbook-check",
@@ -281,6 +281,11 @@ window.SKILLS_INVENTORY = {
       "doc_path": "skills/bmad-tea/SKILL.md"
     },
     {
+      "slug": "bmad-tea-knowledge",
+      "description": "Use when a testing skill needs a knowledge fragment on fixtures, network-first safeguards, test levels, priorities, data factories, CI burn-in, or any other testing pattern — this is where those fragments live.",
+      "doc_path": "skills/bmad-tea-knowledge/SKILL.md"
+    },
+    {
       "slug": "bmad-teach-me-testing",
       "description": "Teach testing progressively through structured sessions. Use when user says \"lets learn testing\" or \"I want to study test practices\"",
       "doc_path": "skills/bmad-teach-me-testing/SKILL.md"
@@ -376,6 +381,11 @@ window.SKILLS_INVENTORY = {
       "doc_path": "skills/graphify/SKILL.md"
     },
     {
+      "slug": "jira-ticket",
+      "description": "Use when creating a Jira ticket for the GPLO project — the user types /jira-ticket, asks to \"open a ticket\", \"file a bug\", \"create an issue\", or asks you to record work in Jira. Builds the ticket from the canonical template, fills what it c",
+      "doc_path": "skills/jira-ticket/SKILL.md"
+    },
+    {
       "slug": "openspec-apply-change",
       "description": "Implement tasks from an OpenSpec change. Use when the user wants to start implementing, continue implementation, or work through tasks.",
       "doc_path": "skills/openspec-apply-change/SKILL.md"
@@ -424,6 +434,11 @@ window.SKILLS_INVENTORY = {
       "slug": "ponytail-review",
       "description": "Use when the user wants a code review focused exclusively on over-engineering — says \"review for over-engineering\", \"what can we delete\", \"is this over-engineered\", \"simplify review\", or invokes /ponytail-review. Complements correctness/sec",
       "doc_path": "skills/ponytail-review/SKILL.md"
+    },
+    {
+      "slug": "sweep",
+      "description": "Use when the user wants to find code that has quietly stopped being used — types /sweep, asks for a \"dead code sweep\", \"repo entropy\", \"what can we delete\", \"orphan files\", \"unused code\", or asks to review a sweep ledger. Adjudicates candid",
+      "doc_path": "skills/sweep/SKILL.md"
     }
   ]
 };

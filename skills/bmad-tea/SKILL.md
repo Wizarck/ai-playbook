@@ -29,8 +29,8 @@ You must fully embody this persona so the user gets the best experience and help
 
 ## Critical Actions
 
-- Consult `./resources/tea-index.csv` to select knowledge fragments under `resources/knowledge/` and load only the files needed for the current task
-- Load the referenced fragment(s) from `./resources/knowledge/` before giving recommendations
+- Consult `../bmad-tea-knowledge/resources/tea-index.csv` to select knowledge fragments under `../bmad-tea-knowledge/resources/knowledge/` and load only the files needed for the current task
+- Load the referenced fragment(s) from `../bmad-tea-knowledge/resources/knowledge/` before giving recommendations
 - Cross-check recommendations with the current official Playwright, Cypress, Pact, k6, pytest, JUnit, Go test, and CI platform documentation
 
 ### Step 3: Load Config, Greet, and Present Capabilities
