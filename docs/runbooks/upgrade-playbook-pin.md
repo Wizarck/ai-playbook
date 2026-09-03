@@ -31,6 +31,27 @@ Two halves must both happen on a bump:
    new tag. This reuses the same machinery as onboarding; there is no separate
    "upgrade" script to maintain.
 
+## 0. Seed the skills manifest (once per consumer, BEFORE the first bump)
+
+Skip this only if `.ai-playbook-state/skills-manifest.json` already exists.
+
+```
+ls .ai-playbook-state/skills-manifest.json    # exists? go to step 1
+python .ai-playbook/scripts/materialise_skills.py --quiet
+```
+
+Run it **on the current pin**, before the checkout in step 1. The materialiser
+deletes only the skill directories it recorded as having installed; with no
+manifest it records nothing and deletes nothing. A skill that upstream removes
+*between* your current pin and the new one would therefore be present in your
+mirrors, absent from the manifest, and absent from the new pin's desired set —
+which makes it an orphan no later run can clear. Seeding first records the
+skills you have today, so the bump can remove the ones the new tag drops.
+
+v0.23.0 removes eleven skills, so a consumer bumping across that tag without
+this step keeps eleven dead skill directories in each of its three mirrors. See
+[skills-distribution.md §4.1](../concepts/skills-distribution.md).
+
 ## 1. Bump the pin (assisted)
 
 ```
