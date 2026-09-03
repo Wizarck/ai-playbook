@@ -3,25 +3,25 @@ schema: concept/v1
 slug: skills-inventory
 title: Skills Inventory
 summary: |
-  Curated map of the 71 bmad-* and openspec-* skills shipped with the playbook,
+  Curated map of the 61 bmad-* and openspec-* skills shipped with the playbook,
   classified by their role in the canonical BMAD+OpenSpec hybrid flow. ACTIVE
   skills are invoked during the documented phases (see runbook-bmad-openspec).
   DORMANT skills ship in the repo as optional surface but are not part of the
   canonical flow — they remain available for ad-hoc invocation or future use.
-last_validated: "2026-05-22"
+last_validated: "2026-09-04"
 ---
 
 # Skills Inventory
 
 ## Why
 
-The playbook imports skills from two upstreams (BMAD module + OpenSpec methodology) and adds a small number of native skills (`dev-flow`, `ai-playbook-check`). Total in scope: **71 skills** (66 `bmad-*` + 5 `openspec-*`), distributed to every consumer repo via `scripts/materialise_skills.py`.
+The playbook imports skills from two upstreams (BMAD module + OpenSpec methodology) and adds a small number of native skills (`dev-flow`, `ai-playbook-check`). Total in scope: **61 skills** (56 `bmad-*` + 5 `openspec-*`), distributed to every consumer repo via `scripts/materialise_skills.py`.
 
-Not every imported skill participates in the canonical hybrid flow defined in [runbook-bmad-openspec.md](runbook-bmad-openspec.md). Some are vestigial from the upstream BMAD bucle (story/sprint loop) that the hybrid flow replaces with OpenSpec changes; others are coaches or tooling that may be useful occasionally but are not invoked by any documented phase.
+Not every imported skill participates in the canonical hybrid flow defined in [runbook-bmad-openspec.md](runbook-bmad-openspec.md). Some are coaches or tooling that may be useful occasionally but are not invoked by any documented phase.
 
-Skills do not consume context until invoked — only frontmatter (`name` + `description`) is exposed to the model for discovery. The cost of dormant skills is therefore discovery noise, not memory or context budget. They are kept available because the recovery cost of deleting and later needing one is higher than the carrying cost.
+Skills do not consume context until invoked — only frontmatter (`name` + `description`) is exposed to the model for discovery. The cost of dormant skills is therefore discovery noise, not memory or context budget. A skill is kept when the recovery cost of deleting it and later needing it is higher than that noise; it is cut when it contradicts the hybrid flow rather than merely sitting outside it.
 
-This document is the authoritative map. When a contributor wonders "is `bmad-quick-dev` part of the flow?", the answer is here.
+This document is the authoritative map. When a contributor wonders "is `bmad-correct-course` part of the flow?", the answer is here.
 
 ## What
 
@@ -145,17 +145,12 @@ Available for early-Discovery ideation. Not invoked by canonical gates; opt-in b
 
 ### DORMANT — BMAD bucle (replaced by OpenSpec changes)
 
-The original BMAD methodology runs a `PM → Architect → PO → SM → Dev → QA` loop with stories and sprints. The hybrid flow replaces "story → sprint" with "OpenSpec change → propose/apply/archive", so the following skills are kept as reference but not invoked by any canonical gate.
+The original BMAD methodology runs a `PM → Architect → PO → SM → Dev → QA` loop with stories and sprints. The hybrid flow replaces "story → sprint" with "OpenSpec change → propose/apply/archive". The skills that produced or consumed the story and sprint artefacts were removed (see **Removed** below); what remains here sits outside the loop rather than inside it.
 
 | Skill | Original role |
 |---|---|
-| [bmad-agent-dev](../../skills/bmad-agent-dev/SKILL.md) | Amelia — developer persona hub |
-| [bmad-agent-tech-writer](../../skills/bmad-agent-tech-writer/SKILL.md) | Paige — technical documentation persona hub |
+| [bmad-agent-dev](../../skills/bmad-agent-dev/SKILL.md) | Amelia — developer persona hub, rebased on the OpenSpec change |
 | [bmad-agent-architect](../../skills/bmad-agent-architect/SKILL.md) | Winston — architect persona hub (its sub-skill `bmad-create-architecture` is active) |
-| [bmad-create-story](../../skills/bmad-create-story/SKILL.md) | Create dedicated story file with implementation context |
-| [bmad-dev-story](../../skills/bmad-dev-story/SKILL.md) | Execute story implementation from spec file |
-| [bmad-sprint-planning](../../skills/bmad-sprint-planning/SKILL.md) | Generate sprint status tracking from epics |
-| [bmad-sprint-status](../../skills/bmad-sprint-status/SKILL.md) | Summarise sprint status and surface risks |
 | [bmad-correct-course](../../skills/bmad-correct-course/SKILL.md) | Manage significant changes during sprint execution |
 | [bmad-create-epics-and-stories](../../skills/bmad-create-epics-and-stories/SKILL.md) | Break requirements into epics + user stories |
 
@@ -175,17 +170,6 @@ The Test Architect (Murat) persona with its 8 testarch workflows is a parallel t
 | [bmad-testarch-test-review](../../skills/bmad-testarch-test-review/SKILL.md) | Review test quality |
 | [bmad-testarch-trace](../../skills/bmad-testarch-trace/SKILL.md) | Traceability matrix |
 
-### DORMANT — BMad Builder meta-tooling
-
-Meta-skills that build BMad agents/modules/workflows. The hybrid flow does not add new BMad modules; new flow steps go through OpenSpec changes instead.
-
-| Skill | Role |
-|---|---|
-| [bmad-agent-builder](../../skills/bmad-agent-builder/SKILL.md) | Conversational builder of new BMad agents |
-| [bmad-bmb-setup](../../skills/bmad-bmb-setup/SKILL.md) | Setup BMad Builder module in a project |
-| [bmad-module-builder](../../skills/bmad-module-builder/SKILL.md) | Plan / create / validate BMad modules |
-| [bmad-workflow-builder](../../skills/bmad-workflow-builder/SKILL.md) | Build / convert / analyse workflows and skills |
-
 ### DORMANT — Document utilities
 
 Generic markdown utilities not wired into any canonical phase.
@@ -198,12 +182,23 @@ Generic markdown utilities not wired into any canonical phase.
 | [bmad-editorial-review-prose](../../skills/bmad-editorial-review-prose/SKILL.md) | Clinical copy-editor for prose communication issues |
 | [bmad-editorial-review-structure](../../skills/bmad-editorial-review-structure/SKILL.md) | Structural editor — proposes cuts and reorganisation |
 
-### DORMANT — Other
+### Removed
 
-| Skill | Reason |
+Eleven skills were deleted rather than left dormant, because each one either
+contradicted a rule the fork adopted or produced an artefact the hybrid flow no
+longer has. The reasoning and the byte counts are in
+`openspec/changes/skills-cut-builder-story-loop/proposal.md`; the consumer
+migration step a removal requires is step 0 of
+[upgrade-playbook-pin.md](../runbooks/upgrade-playbook-pin.md).
+
+| Skill | Replaced by |
 |---|---|
-| [bmad-quick-dev](../../skills/bmad-quick-dev/SKILL.md) | Oneshot implementation skill — superseded by `dev-flow` + `openspec-apply-change` in the hybrid flow |
-| [bmad-generate-project-context](../../skills/bmad-generate-project-context/SKILL.md) | Creates `project-context.md` — superseded by `AGENTS.md` + `.ai-playbook/` submodule |
+| `bmad-agent-builder`, `bmad-workflow-builder`, `bmad-module-builder`, `bmad-bmb-setup` | Nothing — the fork does not build new BMad modules, and these carried the tree's only `uv run` dependency and its only installer |
+| `bmad-create-story`, `bmad-dev-story` | `openspec-propose` → `openspec-apply-change` |
+| `bmad-sprint-planning`, `bmad-sprint-status` | The change list under `openspec/changes/` |
+| `bmad-quick-dev` | `dev-flow` + `openspec-apply-change` |
+| `bmad-generate-project-context` | `AGENTS.md` + the `.ai-playbook/` submodule |
+| `bmad-agent-tech-writer` | `bmad-agent-analyst`, which reaches the same `bmad-document-project` |
 
 ## How it relates to other concepts
 

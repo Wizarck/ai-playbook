@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.SKILLS_INVENTORY = {
   "schema": "skills-inventory/v1",
-  "generated_at": "2026-09-03T16:31:48.354985+00:00",
+  "generated_at": "2026-09-03T23:51:12.145662+00:00",
   "skills": [
     {
       "slug": "ai-playbook-check",
@@ -26,11 +26,6 @@ window.SKILLS_INVENTORY = {
       "doc_path": "skills/bmad-agent-architect/SKILL.md"
     },
     {
-      "slug": "bmad-agent-builder",
-      "description": "Builds, edits or analyzes Agent Skills through conversational discovery. Use when the user requests to \"Create an Agent\", \"Analyze an Agent\" or \"Edit an Agent\".",
-      "doc_path": "skills/bmad-agent-builder/SKILL.md"
-    },
-    {
       "slug": "bmad-agent-dev",
       "description": "Senior software engineer for story execution and code implementation. Use when the user asks to talk to Amelia or requests the developer agent.",
       "doc_path": "skills/bmad-agent-dev/SKILL.md"
@@ -41,19 +36,9 @@ window.SKILLS_INVENTORY = {
       "doc_path": "skills/bmad-agent-pm/SKILL.md"
     },
     {
-      "slug": "bmad-agent-tech-writer",
-      "description": "Technical documentation specialist and knowledge curator. Use when the user asks to talk to Paige or requests the tech writer.",
-      "doc_path": "skills/bmad-agent-tech-writer/SKILL.md"
-    },
-    {
       "slug": "bmad-agent-ux-designer",
       "description": "UX designer and UI specialist. Use when the user asks to talk to Sally or requests the UX designer.",
       "doc_path": "skills/bmad-agent-ux-designer/SKILL.md"
-    },
-    {
-      "slug": "bmad-bmb-setup",
-      "description": "Sets up BMad Builder module in a project. Use when the user requests to 'install bmb module', 'configure BMad Builder', or 'setup BMad Builder'.",
-      "doc_path": "skills/bmad-bmb-setup/SKILL.md"
     },
     {
       "slug": "bmad-brainstorming",
@@ -146,19 +131,9 @@ window.SKILLS_INVENTORY = {
       "doc_path": "skills/bmad-create-prd/SKILL.md"
     },
     {
-      "slug": "bmad-create-story",
-      "description": "Creates a dedicated story file with all the context the agent will need to implement it later. Use when the user says \"create the next story\" or \"create story [story identifier]\"",
-      "doc_path": "skills/bmad-create-story/SKILL.md"
-    },
-    {
       "slug": "bmad-create-ux-design",
       "description": "Plan UX patterns and design specifications. Use when the user says \"lets create UX design\" or \"create UX specifications\" or \"help me plan the UX\"",
       "doc_path": "skills/bmad-create-ux-design/SKILL.md"
-    },
-    {
-      "slug": "bmad-dev-story",
-      "description": "Execute story implementation following a context filled story spec file. Use when the user says \"dev this story [story file]\" or \"implement the next story in the sprint plan\"",
-      "doc_path": "skills/bmad-dev-story/SKILL.md"
     },
     {
       "slug": "bmad-distillator",
@@ -196,11 +171,6 @@ window.SKILLS_INVENTORY = {
       "doc_path": "skills/bmad-extract-lessons-from-adrs/SKILL.md"
     },
     {
-      "slug": "bmad-generate-project-context",
-      "description": "Create project-context.md with AI rules. Use when the user says \"generate project context\" or \"create project context\"",
-      "doc_path": "skills/bmad-generate-project-context/SKILL.md"
-    },
-    {
       "slug": "bmad-help",
       "description": "Analyzes current state and user query to answer BMad questions or recommend the next skill(s) to use. Use when user asks for help, bmad help, what to do next, or what to start with in BMad.",
       "doc_path": "skills/bmad-help/SKILL.md"
@@ -214,11 +184,6 @@ window.SKILLS_INVENTORY = {
       "slug": "bmad-market-research",
       "description": "Conduct market research on competition and customers. Use when the user says they need market research",
       "doc_path": "skills/bmad-market-research/SKILL.md"
-    },
-    {
-      "slug": "bmad-module-builder",
-      "description": "Plans, creates, and validates BMad modules. Use when the user requests to 'ideate module', 'plan a module', 'create module', 'build a module', or 'validate module'.",
-      "doc_path": "skills/bmad-module-builder/SKILL.md"
     },
     {
       "slug": "bmad-party-mode",
@@ -241,11 +206,6 @@ window.SKILLS_INVENTORY = {
       "doc_path": "skills/bmad-qa-generate-e2e-tests/SKILL.md"
     },
     {
-      "slug": "bmad-quick-dev",
-      "description": "Implements any user intent, requirement, story, bug fix or change request by producing clean working code artifacts that follow the project''s existing architecture, patterns and conventions. Use when the user wants to build, fix, tweak, re",
-      "doc_path": "skills/bmad-quick-dev/SKILL.md"
-    },
-    {
       "slug": "bmad-retrospective",
       "description": "Post-epic review to extract lessons and assess success. Use when the user says \"run a retrospective\" or \"lets retro the epic [epic]\"",
       "doc_path": "skills/bmad-retrospective/SKILL.md"
@@ -264,16 +224,6 @@ window.SKILLS_INVENTORY = {
       "slug": "bmad-shard-doc",
       "description": "Splits large markdown documents into smaller, organized files based on level 2 (default) sections. Use if the user says perform shard document",
       "doc_path": "skills/bmad-shard-doc/SKILL.md"
-    },
-    {
-      "slug": "bmad-sprint-planning",
-      "description": "Generate sprint status tracking from epics. Use when the user says \"run sprint planning\" or \"generate sprint plan\"",
-      "doc_path": "skills/bmad-sprint-planning/SKILL.md"
-    },
-    {
-      "slug": "bmad-sprint-status",
-      "description": "Summarize sprint status and surface risks. Use when the user says \"check sprint status\" or \"show sprint status\"",
-      "doc_path": "skills/bmad-sprint-status/SKILL.md"
     },
     {
       "slug": "bmad-tea",
@@ -339,11 +289,6 @@ window.SKILLS_INVENTORY = {
       "slug": "bmad-validate-prd",
       "description": "Validate a PRD against standards. Use when the user says \"validate this PRD\" or \"run PRD validation\"",
       "doc_path": "skills/bmad-validate-prd/SKILL.md"
-    },
-    {
-      "slug": "bmad-workflow-builder",
-      "description": "Builds, converts, and analyzes workflows and skills. Use when the user requests to \"build a workflow\", \"modify a workflow\", \"quality check workflow\", \"analyze skill\", or \"convert a skill\".",
-      "doc_path": "skills/bmad-workflow-builder/SKILL.md"
     },
     {
       "slug": "caveman",
