@@ -64,7 +64,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
     },
     {
       "category": "Monitoring",
-      "status": "CONCERN",
+      "status": "CONCERNS",
       "description": "No APM (Application Performance Monitoring) tool",
       "evidence": ["Logging present but no distributed tracing"],
       "recommendations": ["Implement APM (Datadog/New Relic)", "Add distributed tracing"]

@@ -65,7 +65,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
     },
     {
       "category": "Data Scaling",
-      "status": "CONCERN",
+      "status": "CONCERNS",
       "description": "No database sharding strategy for large data growth",
       "evidence": ["Single database instance", "No partitioning"],
       "recommendations": ["Plan database sharding strategy", "Implement read replicas", "Consider database clustering"]
@@ -73,7 +73,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
   ],
   "compliance": {
     "1M_users": "PASS",
-    "10M_users": "CONCERN",
+    "10M_users": "CONCERNS",
     "100M_users": "FAIL"
   },
   "priority_actions": ["Design database sharding strategy for future growth", "Implement read replicas for read-heavy workloads"],

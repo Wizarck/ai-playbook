@@ -56,7 +56,6 @@ For each API endpoint, create test file in `tests/api/[feature].spec.ts`:
 ```typescript
 import { test, expect } from '@playwright/test';
 // If Playwright Utils enabled:
-// import { apiRequest } from '@playwright-utils/api';
 
 test.describe('[Feature] API Tests', () => {
   test('[P0] should handle successful [operation]', async ({ request }) => {

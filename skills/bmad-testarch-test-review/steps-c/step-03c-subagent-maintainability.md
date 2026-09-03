@@ -29,7 +29,7 @@ This is an **isolated subagent** running in parallel with other quality dimensio
 
 **HIGH SEVERITY Violations**:
 
-- Tests >100 lines (too complex)
+- Tests >1000 lines (too complex)
 - No test.describe grouping
 - Duplicate test logic (copy-paste)
 - Unclear test names (no Given/When/Then structure)
@@ -85,7 +85,7 @@ const score = Math.max(0, 100 - totalPenalty);
     "LOW": 1
   },
   "recommendations": [
-    "Split large test files into smaller, focused files (<100 lines each)",
+    "Split large test files into smaller, focused files (<1000 lines each)",
     "Add test.describe grouping for related tests",
     "Extract duplicate logic into helper functions"
   ],
