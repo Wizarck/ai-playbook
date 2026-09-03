@@ -20,7 +20,7 @@ The Teach Me Testing workflow is a multi-session learning companion that teaches
 cd /path/to/bmad-method-test-architecture-enterprise
 
 # Run the workflow
-bmad run teach-me-testing
+/bmad-teach-me-testing
 ```
 
 Or invoke through TEA agent menu:

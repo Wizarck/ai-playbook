@@ -394,9 +394,9 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 
 **Next Actions:**
 
-- If PASS ✅: Proceed to `*gate` workflow or release
-- If CONCERNS ⚠️: Address HIGH/CRITICAL issues, re-run `*nfr-assess`
-- If FAIL ❌: Resolve FAIL status NFRs, re-run `*nfr-assess`
+- If PASS ✅: Proceed to `/bmad-testarch-trace` for the gate decision, or release
+- If CONCERNS ⚠️: Address HIGH/CRITICAL issues, re-run `/bmad-testarch-nfr`
+- If FAIL ❌: Resolve FAIL status NFRs, re-run `/bmad-testarch-nfr`
 
 **Critical Issues:** {COUNT}
 **High Priority Issues:** {COUNT}
