@@ -73,19 +73,18 @@ High Violations:         -{high_count} × 5 = -{high_deduction}
 Medium Violations:       -{medium_count} × 2 = -{medium_deduction}
 Low Violations:          -{low_count} × 1 = -{low_deduction}
 
-Bonus Points:
-  Excellent BDD:         +{0|5}
-  Comprehensive Fixtures: +{0|5}
-  Data Factories:        +{0|5}
-  Network-First:         +{0|5}
-  Perfect Isolation:     +{0|5}
-  All Test IDs:          +{0|5}
                          --------
-Total Bonus:             +{bonus_total}
+Total Deduction:         -{total_deduction}
 
 Final Score:             {final_score}/100
 Grade:                   {grade}
+Recommendation:          {recommendation}
 ```
+
+The recommendation follows from the counts above, not from the score: any
+CRITICAL or HIGH means Request Changes, otherwise any MEDIUM means Approve With
+Comments, otherwise Approve. Two reviewers who find the same defects reach the
+same recommendation even if they word the minor ones differently.
 
 ---
 
