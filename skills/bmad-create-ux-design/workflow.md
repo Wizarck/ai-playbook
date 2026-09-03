@@ -34,6 +34,7 @@ This uses **micro-file architecture** for disciplined execution:
 - `palette_options` = `{project-root}/docs/ux/variants/palette-options.html`
 - `variants_dir` = `{project-root}/docs/ux/variants/`
 - `design_canonical` = `{project-root}/docs/ux/DESIGN.md`
+- `experience_canonical` = `{project-root}/docs/ux/EXPERIENCE.md`
 - `journey_docs` = `{project-root}/docs/ux/j1.md` … `jN.md`
 - `components_catalogue` = `{project-root}/docs/ux/components.md`
 
@@ -45,6 +46,7 @@ Copyable templates live in `{playbook}/templates/ux/`:
 - `palette-options.html.template`
 - `variants-index.html.template`
 - `DESIGN.md.template` (9-section format)
+- `EXPERIENCE.md.template` (behavioural spine)
 - `journey.md.template`
 - `components.md.template`
 
@@ -67,7 +69,19 @@ Copy on first use of the UX track in this project. Adapt freely.
 
 **Step 3 — Variant generation.** With palette locked, run **one agent per creative engine in parallel** (5 engines per `ux-track.md` §5.1). Each agent applies its engine's actual methodology to the same brief; only typography / spatial / motion vary. Each variant is self-documenting (banner + audit head comment per §6) and links from `variants/index.html` (the comparison page).
 
-**Pick + Phase A scrub + Phase B consolidation** (per `ux-track.md` §9). After the user picks, archive rejected variants, scrub engine references from the canonical, write `DESIGN.md` (9-section per template), then write per-journey docs (`jN.md`) + companion mocks where surfaces meaningfully differ, then write `components.md`.
+**Pick + Phase A scrub + Phase B consolidation** (per `ux-track.md` §9). After the user picks, archive rejected variants, scrub engine references from the canonical, write **both spines** — `DESIGN.md` (9-section per template) for appearance and
+`EXPERIENCE.md` (per `ux-track.md` §21) for behaviour — then write per-journey
+docs (`jN.md`) + companion mocks where surfaces meaningfully differ, then write
+`components.md`.
+
+The behavioural decisions taken while building the variants (what the empty
+state says, what happens to focus after a dialog closes, how long a toast
+lasts) are written into `EXPERIENCE.md` at this point. Left in a mock's head
+comment they get restated, differently, in every journey doc that needs them.
+
+Journey and component docs may refine a spine for their own scope and may never
+contradict one; when a journey needs a different rule, the spine changes first
+(`ux-track.md` §21.3).
 
 ### Iteration: bones + layer remix (per `ux-track.md` §8)
 

@@ -64,10 +64,25 @@ Search for required documents using these patterns (sharded means a large docume
 1. `{planning_artifacts}/*architecture*.md` (whole document)
 2. `{planning_artifacts}/*architecture*/index.md` (sharded version)
 
-**UX Design Document Search (Optional):**
+**UX Contract Search (Optional):**
 
-1. `{planning_artifacts}/*ux*.md` (whole document)
-2. `{planning_artifacts}/*ux*/index.md` (sharded version)
+The UX contract is two spines, not one file. Look for both and say which are
+present; finding one is finding half.
+
+1. `{project-root}/docs/ux/DESIGN.md` — appearance
+2. `{project-root}/docs/ux/EXPERIENCE.md` — behaviour: states, interaction
+   primitives, voice, accessibility floor, motion
+3. `{project-root}/docs/ux/j*.md` — per-journey docs, one per journey
+4. `{project-root}/docs/ux/components.md` — component catalogue
+
+Legacy fallback, for projects that predate the two-spine layout:
+
+5. `{planning_artifacts}/*ux*.md` (whole document)
+6. `{planning_artifacts}/*ux*/index.md` (sharded version)
+
+`EXPERIENCE.md` is where the state patterns live, so a story that has to cover
+an empty, error or offline state gets its acceptance criteria from there rather
+than inventing them per story.
 
 Before proceeding, Ask the user if there are any other documents to include for analysis, and if anything found should be excluded. Wait for user confirmation. Once confirmed, create the {planning_artifacts}/epics.md from the ../templates/epics-template.md and in the front matter list the files in the array of `inputDocuments: []`.
 
