@@ -1,0 +1,103 @@
+---
+schema: experience/v1
+project: { { PROJECT_NAME } }
+updated: { { TODAY } }
+design_spine: ./DESIGN.md
+---
+
+# {{PROJECT_NAME}} — EXPERIENCE.md
+
+> The behavioural spine. `DESIGN.md` says how the product looks; this says how
+> it behaves. Both are normative for the whole product. A journey doc or a
+> component entry may refine what is written here for its own scope, and may
+> never contradict it — when one needs to, this file changes first.
+
+## 1 Commitments
+
+Three to five sentences, each one a promise a reviewer can hold a screen to.
+Write the ones this product would actually be judged on, not a general list.
+
+- Nothing that takes longer than a moment happens without the surface saying so.
+- A destructive action is always recoverable, or always confirmed. Never neither.
+- <commitment specific to this product>
+
+## 2 State patterns
+
+Every surface owes an answer to each row. "Not applicable" is an answer and
+needs a reason.
+
+| State | What the surface owes | Copy pattern |
+|---|---|---|
+| Empty, first use | What this is for and the one action that fills it | |
+| Empty, filtered to nothing | That the filter caused it, and the way back | |
+| Loading, under a moment | Nothing. Do not flash a spinner | — |
+| Loading, longer | Progress if it is knowable, a skeleton if it is not | |
+| Partial | What arrived, what did not, whether it will retry itself | |
+| Offline | What still works, what is queued | |
+| Error, the user can fix it | What happened and the next action, in that order | |
+| Error, the user cannot fix it | What happened, what is being done, what to do meanwhile | |
+| Success, in place | The change itself, visible. A toast only if it left the view | |
+
+## 3 Interaction primitives
+
+The behaviours that repeat across surfaces, decided once.
+
+| Primitive | Rule |
+|---|---|
+| Primary action per view | One. If two compete, one is not primary |
+| Destructive action | <confirm, or undo window of N seconds — pick one and say which> |
+| Undo | <where it lives, how long it lasts> |
+| Selection | <single or multi, what clears it> |
+| Navigation away with unsaved work | <blocked, autosaved, or discarded — say which> |
+| Keyboard | Every action reachable without a pointer; focus visible at all times |
+| Focus after an action | <where focus lands after create, delete, close> |
+| Form validation | <on blur, on submit — and never only on submit> |
+
+## 4 Voice and tone
+
+How the product speaks. Give real strings, not adjectives.
+
+- **Register**: <plain, warm, terse — one word, then an example>
+- **Person**: <"you" for the reader; avoid "we" except for what the product does>
+- **Buttons** name the action, and the result names it back: `Publish` → `Published`
+- **Errors** say what happened and how to fix it. No apologies, no blame, no codes as the only content
+- **Empty states** say what goes here, not that nothing is here
+- **Never**: <the words this product does not use>
+
+| Situation | Say | Not |
+|---|---|---|
+| Save failed, retryable | | |
+| Permission denied | | |
+| Nothing matches a filter | | |
+
+## 5 Accessibility floor
+
+Non-negotiable minimum. Colour contrast lives in `DESIGN.md` §Colors and is
+verified by the WCAG-AA ritual; everything else that is not about colour is here.
+
+- Target size and spacing floor: <value>
+- Every control has an accessible name; icon-only controls carry a label
+- Focus order follows reading order; no positive `tabindex`
+- Motion respects `prefers-reduced-motion`; nothing conveys meaning by motion alone
+- Nothing conveys meaning by colour alone
+- Live regions announce what changed, once
+- <floor specific to this product>
+
+## 6 Motion and timing
+
+| Role | Duration | Easing | Notes |
+|---|---|---|---|
+| State change in place | | | |
+| Element entering | | | |
+| Element leaving | | | |
+| Reduced motion | 0 or a cross-fade | — | Never a loss of meaning |
+
+## 7 Do's and don'ts
+
+Practical guardrails, written from mistakes this product has actually made.
+
+**Do**
+-
+
+**Don't**
+-
