@@ -204,10 +204,10 @@ orphan is permanent until the manifest is seeded while the skill is still
 desired.
 
 So a consumer that has never run a materialiser new enough to write a manifest
-must run one **before** its pin moves past the removal. The procedure is in
-[upgrade-playbook-pin.md](../runbooks/upgrade-playbook-pin.md); the cut that
-made this concrete is recorded in
-`openspec/changes/skills-cut-builder-story-loop/proposal.md`.
+must run one **before** its pin moves past the removal. The procedure is step 0
+of [upgrade-playbook-pin.md](../runbooks/upgrade-playbook-pin.md); the removal
+that made this concrete is the v0.23.0 entry in
+[CHANGELOG.md](../../CHANGELOG.md).
 
 Hand-edits inside a playbook-owned mirror directory are NOT preserved. Mirrors
 are derived state; edits go upstream to `ai-playbook/skills/<name>/`.

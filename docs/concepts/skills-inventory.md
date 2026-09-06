@@ -186,9 +186,9 @@ Generic markdown utilities not wired into any canonical phase.
 
 Eleven skills were deleted rather than left dormant, because each one either
 contradicted a rule the fork adopted or produced an artefact the hybrid flow no
-longer has. The reasoning and the byte counts are in
-`openspec/changes/skills-cut-builder-story-loop/proposal.md`; the consumer
-migration step a removal requires is step 0 of
+longer has. The reasoning and the byte counts are in the v0.23.0 entry of
+[CHANGELOG.md](../../CHANGELOG.md); the consumer migration step a removal
+requires is step 0 of
 [upgrade-playbook-pin.md](../runbooks/upgrade-playbook-pin.md).
 
 | Skill | Replaced by |
