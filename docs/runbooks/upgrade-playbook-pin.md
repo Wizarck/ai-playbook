@@ -31,27 +31,6 @@ Two halves must both happen on a bump:
    new tag. This reuses the same machinery as onboarding; there is no separate
    "upgrade" script to maintain.
 
-## 0. Seed the skills manifest (once per consumer, BEFORE the first bump)
-
-Skip this only if `.ai-playbook-state/skills-manifest.json` already exists.
-
-```
-ls .ai-playbook-state/skills-manifest.json    # exists? go to step 1
-python .ai-playbook/scripts/materialise_skills.py --quiet
-```
-
-Run it **on the current pin**, before the checkout in step 1. The materialiser
-deletes only the skill directories it recorded as having installed; with no
-manifest it records nothing and deletes nothing. A skill that upstream removes
-*between* your current pin and the new one would therefore be present in your
-mirrors, absent from the manifest, and absent from the new pin's desired set —
-which makes it an orphan no later run can clear. Seeding first records the
-skills you have today, so the bump can remove the ones the new tag drops.
-
-v0.23.0 removes eleven skills, so a consumer bumping across that tag without
-this step keeps eleven dead skill directories in each of its three mirrors. See
-[skills-distribution.md §4.1](../concepts/skills-distribution.md).
-
 ## 1. Bump the pin (assisted)
 
 ```
@@ -152,6 +131,14 @@ render once to materialise the local configs.
   run `python .ai-playbook/scripts/mcp/render.py` once to regenerate it locally.
 - **Skills look stale after the bump** — step 2 was skipped; `bootstrap.py
   --update` is what re-materialises them, not the `git checkout`.
+- **A skill the release removed is still in your mirrors** — you crossed the tag
+  with a playbook copy older than v0.24.0, which could not recognise a removed
+  skill without a manifest. Re-run step 2 on the new pin; it clears them now.
+  Delete them by hand if the pin cannot move: see
+  [skills-distribution.md §4.1](../concepts/skills-distribution.md).
+- **The bump shows a large diff under `skills/`** — that mirror is committed in
+  your repo. It is derived state; untrack it once with `git rm -r --cached
+  skills/` (§3.2 of the same spec).
 - **Submodule shows dirty after enabling a feature** — feature state files
   (`caveman.json`, `graphify.json`, `ponytail.json`) live at the submodule root
   and are gitignored by the playbook; if your checkout predates that, update the
