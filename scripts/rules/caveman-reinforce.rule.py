@@ -94,4 +94,7 @@ def main(argv: list[str] | None = None, *, cwd: Path | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.rules._telemetry import cli_emit
+
+    raise SystemExit(cli_emit("caveman-reinforce", main))
