@@ -20,7 +20,7 @@
 #     (not playbook-driven).
 
 version: 1
-manifest_version: "2026-08-01.1"
+manifest_version: "2026-09-06.1"
 
 # NOTE (v0.19.0): the push-pipeline retirement deleted PLAYBOOK-INTERNAL
 # files (consumers.yaml, consumers.yaml.example, propagate_bump.py,
@@ -159,9 +159,13 @@ entries:
     reason: >
       Skills present in a consumer mirror but NOT in the current
       `.ai-playbook/skills/` source. Causes: (a) playbook renamed/removed
-      the skill (v0.7.0 alignment, commit ade4ca2; survivor list 4833403);
-      (b) consumer has a local custom skill — keep it but note the drift.
-      Manual review required.
+      the skill (v0.7.0 alignment, commit ade4ca2; survivor list 4833403;
+      v0.23.0 removed eleven — the BMad Builder set and the story/sprint
+      loop); (b) consumer has a local custom skill — keep it but note the
+      drift. Manual review required. If the finding names v0.23.0 skills,
+      the mirror had no `.ai-playbook-state/skills-manifest.json` when the
+      pin moved, so the materialiser could not classify them as stale;
+      remove them by hand — see step 0 of docs/runbooks/upgrade-playbook-pin.md.
     evidence: 4833403
 
   - id: orphan-specs
