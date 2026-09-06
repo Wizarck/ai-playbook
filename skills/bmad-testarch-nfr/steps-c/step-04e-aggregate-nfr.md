@@ -77,7 +77,7 @@ domains.forEach((domain) => {
 const complianceSummary = {};
 Object.entries(allCompliance).forEach(([standard, statuses]) => {
   const hasFail = statuses.some((s) => s.status === 'FAIL');
-  const hasPartial = statuses.some((s) => s.status === 'PARTIAL' || s.status === 'CONCERN');
+  const hasPartial = statuses.some((s) => s.status === 'PARTIAL' || s.status === 'CONCERNS');
 
   complianceSummary[standard] = hasFail ? 'FAIL' : hasPartial ? 'PARTIAL' : 'PASS';
 });

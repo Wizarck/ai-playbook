@@ -114,13 +114,18 @@ const totalChecks = testFiles.length * checksPerFile;
 const failedChecks = violations.length;
 const passedChecks = totalChecks - failedChecks;
 
-// Weight violations by severity
-const severityWeights = { HIGH: 10, MEDIUM: 5, LOW: 2 };
-const totalPenalty = violations.reduce((sum, v) => sum + severityWeights[v.severity], 0);
-
-// Score: 100 - (penalty points)
-const score = Math.max(0, 100 - totalPenalty);
 ```
+
+Severity is not computed here. For every violation, read the severity that
+`./criteria-registry.md` pins for the row that fired, and put that row's id in
+the `row` field so the aggregator can deduplicate a defect that two dimensions
+both notice. A defect matching no row is reported in prose under
+recommendations, with no severity and no deduction.
+
+The deduction ledger is applied once, over all four dimensions together, by
+`step-03f-aggregate-scores.md`. Scoring per dimension and then averaging is what
+let one defect cost a different number of points depending on which subagent
+found it.
 
 ---
 
@@ -131,14 +136,12 @@ Write JSON to temp file: `/tmp/tea-test-review-determinism-{{timestamp}}.json`
 ```json
 {
   "dimension": "determinism",
-  "score": 85,
-  "max_score": 100,
-  "grade": "B",
   "violations": [
     {
       "file": "tests/api/user.spec.ts",
       "line": 42,
       "severity": "HIGH",
+      "row": "<registry row id, e.g. H1>",
       "category": "random-generation",
       "description": "Test uses Math.random() - non-deterministic",
       "suggestion": "Use faker.seed(12345) for deterministic random data",
@@ -148,6 +151,7 @@ Write JSON to temp file: `/tmp/tea-test-review-determinism-{{timestamp}}.json`
       "file": "tests/e2e/checkout.spec.ts",
       "line": 78,
       "severity": "MEDIUM",
+      "row": "<registry row id, e.g. H1>",
       "category": "hard-wait",
       "description": "Test uses waitForTimeout - creates flakiness",
       "suggestion": "Replace with expect(locator).toBeVisible()",

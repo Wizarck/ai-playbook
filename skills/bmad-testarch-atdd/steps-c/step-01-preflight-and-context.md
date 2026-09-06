@@ -3,7 +3,7 @@ name: 'step-01-preflight-and-context'
 description: 'Verify prerequisites and load story, framework, and knowledge base'
 outputFile: '{test_artifacts}/atdd-checklist-{story_key}.md'
 nextStepFile: './step-02-generation-mode.md'
-knowledgeIndex: './resources/tea-index.csv'
+knowledgeIndex: '../bmad-tea-knowledge/resources/tea-index.csv'
 ---
 
 # Step 1: Preflight & Context Loading

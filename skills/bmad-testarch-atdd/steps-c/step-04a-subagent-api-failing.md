@@ -68,7 +68,6 @@ For each API endpoint, create test file in `tests/api/[feature].spec.ts`:
 ```typescript
 import { test, expect } from '@playwright/test';
 // If Playwright Utils enabled:
-// import { apiRequest } from '@playwright-utils/api';
 
 test.describe('[Story Name] API Tests (ATDD)', () => {
   test.skip('[P0] should register new user successfully', async ({ request }) => {

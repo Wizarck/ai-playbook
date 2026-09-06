@@ -2,6 +2,167 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.23.0] — 2026-09-04 — scope: the vendored frameworks become a fork that owns itself
+
+MINOR, not PATCH: eleven skills are removed from the surface every consumer
+materialises, and consumers with no skills manifest need a one-time step
+**before** they bump across this tag. See "Migration" at the end of this entry.
+
+### Removed
+- **Eleven vendored BMAD skills, 1 056 671 B.** An earlier audit proposed cutting
+  35 of the 71 on the strength of their being 50.20 % of the repository. That
+  number stopped existing when the testing knowledge base was deduplicated, and
+  the same 35 skills re-measured at 18.9 %. Re-justified one by one, ten of the
+  35 turned out to carry modifications made here — the list had been built from
+  reference counts, never from a diff against upstream — and one of them had been
+  improved the same week. What survived that scrutiny is a smaller cut on a
+  different criterion: not weight, but contradiction.
+
+  The four BMad Builder skills (`bmad-agent-builder`, `bmad-workflow-builder`,
+  `bmad-module-builder`, `bmad-bmb-setup`) build new BMad modules, which this
+  fork does not do; they held the skills tree's only `uv run` dependency and its
+  only installer. The story and sprint loop (`bmad-create-story`,
+  `bmad-dev-story`, `bmad-sprint-planning`, `bmad-sprint-status`,
+  `bmad-quick-dev`) was replaced by OpenSpec changes — a substitution the runbook
+  documents rather than an inference from disuse. And two had named successors:
+  `bmad-generate-project-context` (now `AGENTS.md` + the submodule) and
+  `bmad-agent-tech-writer` (its only output is reachable from
+  `bmad-agent-analyst`).
+
+  The testing family stays, at 7.2 %. It holds most of this repository's
+  modifications to vendored skills, it is where upstream moves fastest, and one
+  of its skills had been improved the same week the list proposed deleting it.
+  The rest of the original candidates — the CIS coaches, the editorial
+  utilities, `bmad-help`, `bmad-correct-course`, `bmad-create-epics-and-stories`,
+  `bmad-distillator`, `bmad-teach-me-testing` — are 364 929 B together and are
+  left for a decision about whether the flow routes to them, which is a question
+  about use rather than about bytes.
+
+### Changed
+- **One copy of the testing knowledge base instead of nine.** The same 49
+  fragments and index sat byte-identical in nine skill directories and were
+  copied again into three mirrors per consumer, so a single fragment reached a
+  consumer twenty-seven times. It now lives once, in `bmad-tea-knowledge`, read
+  through its index. 6 153 384 B recovered with no skill deleted and no content
+  lost.
+
+- **Amelia executes a change, not a story.** `bmad-agent-dev` routed four of its
+  seven menu items at deleted skills, and told the agent to read a story file,
+  tick its tasks and update its File List. No skill produced that file any more.
+  The persona now reads `openspec/changes/<id>/proposal.md` and `tasks.md`; the
+  discipline is unchanged, only the artefact moved.
+
+- **A second UX spine, for how the product behaves.** `docs/ux/DESIGN.md` is
+  about appearance, and everything about behaviour — state patterns, interaction
+  primitives, voice and tone, the accessibility floor — was being settled in the
+  head comment of whichever mock needed it first. `EXPERIENCE.md` gives those an
+  address, and the track now states which artefact wins when two disagree.
+
+### Fixed
+- **The test-review score depended on which dimension found the defect.** Each of
+  the four review workers carried its own severity weights and computed its own
+  0–100 score, so the same violation cost a different amount depending on who
+  raised it, and the aggregator averaged the four. There is now one deduction
+  ledger — CRITICAL 10, HIGH 5, MEDIUM 2, LOW 1, subtracted from 100 — with
+  cross-dimension deduplication on `file:line:row`, and the workers report
+  violations instead of scores. The criteria registry that fixes severity per row
+  was imported from test-architecture-enterprise 1.24.0.
+
+  The aggregator also computed an A/B/C/D/F grade while the checklist documented
+  A+/A/B/C/F. They now agree.
+
+- **`bmad-testarch-ci` told the agent to do three things the rest of the family
+  forbids** — run tests serially, use a fresh database per test, and wait on hard
+  timeouts — each contradicting the isolation and determinism rules the same
+  family states elsewhere.
+
+- **The distribution spec described an algorithm the code no longer runs.**
+  `skills-distribution.md` §4 documented whole-mirror wipe-and-recopy and promised
+  that skills removed upstream "disappear from the mirror in one shot — no orphan
+  accumulation". The materialiser has been provenance-gated since the additive
+  contract landed: it deletes only what its per-mirror manifest records it as
+  having installed. §4 now describes what runs, and §4.1 states the consequence
+  that makes the migration below necessary.
+
+- **The bootstrapped propagation workflow was not valid YAML.** Three multi-line
+  strings sat at column 0 inside a `run: |` block, closing the block scalar. Every
+  consumer created from the template got a dead workflow and a red pre-commit. The
+  heredocs are now `printf` redirections, and the OpenSpec CLI is pinned and
+  version-checked instead of installed from two package names that do not exist.
+
+- **`doctor` warned about environment variables it was reading from the wrong
+  file**, then counted table rows whose "required" cell said things like
+  "yes (if X)" as unconditionally required, and treated another project's prefix
+  as this one's.
+
+- **The onboarding runbook documented two flags that do not exist** in the
+  script's argument parser or its schema, and an expected output nobody had run.
+
+- **Six guardrails enforced decisions that never reached telemetry** when invoked
+  directly, so Dashboard coverage was incomplete and the enforcement docs
+  promised more observability than existed. The remaining rule CLIs and both
+  sweep CLIs now route through the existing `cli_emit` / `script_emit` wrappers,
+  exit codes unchanged, and `enforcement-status.md` states where the
+  `rule-event/v2` stream ends — GitHub Actions gates stay outside it, because a
+  workflow check governs an asynchronous PR transition rather than an agent tool
+  call, and mixing the two would combine incompatible denominators.
+
+  The regression guard that keeps this from silently regressing is bound to the
+  entry point it protects: a `cli_emit` call inside the `__main__` guard only
+  counts when it receives `main` itself, and a direct `main()` call in the same
+  guard is rejected — otherwise a decoy call satisfied the check while the real
+  path ran unobserved. Contributed by @WilliamPersico in #177.
+
+### Legal
+- **`NOTICE` added at the repository root.** This is a public repository that
+  redistributes about nine megabytes of adapted third-party work, most of it the
+  `skills/bmad-*` tree, and carried no attribution outside the changelog. MIT
+  requires the copyright and permission notice to travel with any substantial
+  portion, so its absence was a defect, not a formality. The notice names every
+  origin, its licence and holder, what was taken, and whether it was vendored,
+  wrapped, or adopted as a pattern. It opens by disclaiming affiliation, because
+  a fork that keeps upstream's naming should say plainly that upstream did not
+  write it and is not answerable for it.
+
+- **The upstream version is named rather than guessed.** The BMAD installation
+  manifest that a consumer still carries records installer 6.3.0 on 2026-04-19,
+  with core 6.3.0, bmm 6.3.0, bmb 1.5.0, cis 0.1.9 and tea 1.7.2; the import here
+  is dated 2026-04-26 and its skill set matches that installation exactly, one
+  own-work skill aside. The notice says "imported", which is a fact, and declares
+  that a byte-level comparison against the published packages was not run.
+
+### Fixed
+- **Two licence claims were wrong.** Graphify relicensed from MIT to Apache 2.0
+  and moved organisation; the README still called it MIT. And
+  `skills/openspec-apply-parallel`, which is this repository's own work, declared
+  Apache-2.0 inside an MIT repository.
+
+- **The hybrid-planning section named a dormant skill family.** The README listed
+  `bmad-testarch-*` as part of the flow while the skills inventory marked the same
+  family as not participating in any documented phase.
+
+- **Ported skills now name the copyright holder they were ported from**, and the
+  two rules shaped by third-party work carry that credit in the rule itself
+  instead of only in this file, so it survives being read on its own.
+
+### Migration
+
+Consumers whose repository has no `.ai-playbook-state/skills-manifest.json` must
+run the materialiser **once on their current pin, before checking out this tag**:
+
+```
+python .ai-playbook/scripts/materialise_skills.py --quiet
+```
+
+The materialiser deletes only what its manifest records it as having installed.
+With no manifest it seeds ownership as `present ∩ desired`, which by construction
+excludes a skill this tag no longer wants — so the eleven removed skills would
+never be classified as stale, on that run or any later one, and would sit in all
+three mirrors permanently. Seeding first records what you have today, so the bump
+can remove them. Consumers that already have a manifest need nothing.
+
+Full procedure: step 0 of `docs/runbooks/upgrade-playbook-pin.md`.
+
 ## [0.22.22] — 2026-08-28 — scope: the termination gate did not know about Compose v2
 
 ### Fixed

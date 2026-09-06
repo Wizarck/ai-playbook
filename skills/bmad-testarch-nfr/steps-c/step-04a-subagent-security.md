@@ -69,7 +69,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
 For each category, determine status:
 
 - **PASS**: Properly implemented
-- **CONCERN**: Partially implemented or weak
+- **CONCERNS**: Partially implemented or weak
 - **FAIL**: Not implemented or critical vulnerability
 - **N/A**: Not applicable to this system
 
@@ -101,7 +101,7 @@ For each category, determine status:
     },
     {
       "category": "Data Encryption",
-      "status": "CONCERN",
+      "status": "CONCERNS",
       "description": "Database encryption at rest not enabled",
       "evidence": ["Database config shows no encryption"],
       "recommendations": ["Enable database encryption at rest", "Use AWS RDS encryption or equivalent", "Implement key rotation policy"]

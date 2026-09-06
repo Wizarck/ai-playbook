@@ -27,33 +27,39 @@ This is an **isolated subagent** running in parallel with other quality dimensio
 
 ### 1. Identify Performance Violations
 
-**HIGH SEVERITY Violations**:
+What this dimension looks for:
 
-- Tests not parallelizable (using test.describe.serial unnecessarily)
-- Slow setup/teardown (creating fresh DB for every test)
 - Excessive navigation (reloading pages unnecessarily)
 - No fixture reuse (repeating expensive operations)
-
-**MEDIUM SEVERITY Violations**:
-
-- Hard waits >2 seconds (waitForTimeout(5000))
 - Inefficient selectors (page.$$ instead of locators)
 - Large data sets in tests without pagination
-- Missing performance optimizations
-
-**LOW SEVERITY Violations**:
-
-- Could use parallelization (test.describe.configure({ mode: 'parallel' }))
-- Minor inefficiencies
 - Excessive logging
 
-### 2. Calculate Performance Score
+What this dimension must **not** report, and why:
 
-```javascript
-const severityWeights = { HIGH: 10, MEDIUM: 5, LOW: 2 };
-const totalPenalty = violations.reduce((sum, v) => sum + severityWeights[v.severity], 0);
-const score = Math.max(0, 100 - totalPenalty);
-```
+- **Serial execution.** `test.describe.serial` is how a Pact suite and anything
+  sharing a broker fixture stay correct. Whether a file may run in parallel is
+  decided by isolation, which reads shared state directly; a speed dimension
+  guessing at it penalises correct code.
+- **Per-test database setup.** A fresh database per test is the isolation the
+  rubric asks for elsewhere. Charging for it here made the review argue with
+  itself, and the file that obeyed both rules could not exist.
+- **Hard waits.** They belong to determinism, row H1, and are charged there. A
+  timer is a correctness defect that happens to also be slow, and it was being
+  deducted twice in a single pass.
+
+### 2. Read Severity From the Registry
+
+Severity is not computed here. For every violation, read the severity that
+`./criteria-registry.md` pins for the row that fired, and put that row's id in
+the `row` field so the aggregator can deduplicate a defect that two dimensions
+both notice. A defect matching no row is reported in prose under
+recommendations, with no severity and no deduction.
+
+The deduction ledger is applied once, over all four dimensions together, by
+`step-03f-aggregate-scores.md`. Scoring per dimension and then averaging is what
+let one defect cost a different number of points depending on which subagent
+found it.
 
 ---
 
@@ -62,23 +68,12 @@ const score = Math.max(0, 100 - totalPenalty);
 ```json
 {
   "dimension": "performance",
-  "score": 80,
-  "max_score": 100,
-  "grade": "B",
   "violations": [
-    {
-      "file": "tests/e2e/search.spec.ts",
-      "line": 10,
-      "severity": "HIGH",
-      "category": "not-parallelizable",
-      "description": "Tests use test.describe.serial unnecessarily - reduces parallel execution",
-      "suggestion": "Remove .serial unless tests truly share state",
-      "code_snippet": "test.describe.serial('Search tests', () => { ... });"
-    },
     {
       "file": "tests/api/bulk-operations.spec.ts",
       "line": 35,
       "severity": "MEDIUM",
+      "row": "<registry row id, e.g. H1>",
       "category": "slow-setup",
       "description": "Test creates 1000 records in setup - very slow",
       "suggestion": "Use smaller data sets or fixture factories",

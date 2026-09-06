@@ -56,7 +56,7 @@ Coverage mapping and coverage gates are out of scope here. Use `trace` for cover
 | Data Factories                       | {✅ PASS \| ⚠️ WARN \| ❌ FAIL} | {count}    | {brief_note} |
 | Network-First Pattern                | {✅ PASS \| ⚠️ WARN \| ❌ FAIL} | {count}    | {brief_note} |
 | Explicit Assertions                  | {✅ PASS \| ⚠️ WARN \| ❌ FAIL} | {count}    | {brief_note} |
-| Test Length (≤300 lines)             | {✅ PASS \| ⚠️ WARN \| ❌ FAIL} | {lines}    | {brief_note} |
+| Test Length (≤1000 lines)            | {✅ PASS \| ⚠️ WARN \| ❌ FAIL} | {lines}    | {brief_note} |
 | Test Duration (≤1.5 min)             | {✅ PASS \| ⚠️ WARN \| ❌ FAIL} | {duration} | {brief_note} |
 | Flakiness Patterns                   | {✅ PASS \| ⚠️ WARN \| ❌ FAIL} | {count}    | {brief_note} |
 
@@ -73,19 +73,18 @@ High Violations:         -{high_count} × 5 = -{high_deduction}
 Medium Violations:       -{medium_count} × 2 = -{medium_deduction}
 Low Violations:          -{low_count} × 1 = -{low_deduction}
 
-Bonus Points:
-  Excellent BDD:         +{0|5}
-  Comprehensive Fixtures: +{0|5}
-  Data Factories:        +{0|5}
-  Network-First:         +{0|5}
-  Perfect Isolation:     +{0|5}
-  All Test IDs:          +{0|5}
                          --------
-Total Bonus:             +{bonus_total}
+Total Deduction:         -{total_deduction}
 
 Final Score:             {final_score}/100
 Grade:                   {grade}
+Recommendation:          {recommendation}
 ```
+
+The recommendation follows from the counts above, not from the score: any
+CRITICAL or HIGH means Request Changes, otherwise any MEDIUM means Approve With
+Comments, otherwise Approve. Two reviewers who find the same defects reach the
+same recommendation even if they word the minor ones differently.
 
 ---
 
@@ -257,7 +256,7 @@ Grade:                   {grade}
 
 This review consulted the following knowledge base fragments:
 
-- **[test-quality.md](../../../agents/bmad-tea/resources/knowledge/test-quality.md)** - Definition of Done for tests (no hard waits, <300 lines, <1.5 min, self-cleaning)
+- **[test-quality.md](../../bmad-tea-knowledge/resources/knowledge/test-quality.md)** - Definition of Done for tests (no hard waits, <1000 lines, <1.5 min, self-cleaning)
 - **[fixture-architecture.md](../../../agents/bmad-tea/resources/knowledge/fixture-architecture.md)** - Pure function → Fixture → mergeTests pattern
 - **[network-first.md](../../../agents/bmad-tea/resources/knowledge/network-first.md)** - Route intercept before navigate (race condition prevention)
 - **[data-factories.md](../../../agents/bmad-tea/resources/knowledge/data-factories.md)** - Factory functions with overrides, API-first setup
