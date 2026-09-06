@@ -21,9 +21,17 @@ On each run the materialiser:
   skills survive untouched.
 
 When no manifest entry exists for a mirror (a consumer whose mirrors predate this
-capability), the owned set is seeded as ``present ∩ desired`` and NOTHING is
-deleted on that first run (one cycle of eventual consistency, surfaced by the
-next check).
+capability), the owned set is seeded as ``present ∩ (desired ∪ ever_owned)``,
+where ``ever_owned`` is every slug the playbook has shipped at any point, read
+from ``specs/skills-owned-history.yaml``. A skill the playbook REMOVED is
+therefore still recognised as playbook-owned and cleared on that first run,
+while a skill the consumer authored is in neither set and survives untouched.
+
+That list is what keeps removal a pull-model operation. Seeded from ``present ∩
+desired`` alone, a removed skill is excluded from the owned set by construction
+and can never be classified as stale — on that run or any later one — so
+clearing it required an out-of-band step in every consumer before it bumped.
+Nothing reaches into consumer repos, so that step could not be relied on.
 
 Idempotent: re-running with no upstream changes produces zero filesystem
 modifications.
@@ -152,6 +160,32 @@ def _present_dirs(target: Path) -> set[str]:
     return {child.name for child in target.iterdir() if child.is_dir()}
 
 
+def _ever_owned(source: Path) -> set[str]:
+    """Every slug this playbook has ever shipped, from `specs/skills-owned-history.yaml`.
+
+    Used only to seed ownership for a mirror with no manifest entry, so a skill
+    the playbook REMOVED is still recognised as playbook-owned and deleted on the
+    consumer's first ordinary run — no out-of-band step, no knowledge of who the
+    consumers are.
+
+    Resolved relative to the source's parent so it works both in the playbook
+    itself and from a consumer's `.ai-playbook/` submodule. Missing or unreadable
+    file returns the empty set: the seed then degrades to the old
+    ``present ∩ desired`` behaviour rather than failing the run.
+    """
+    spec = source.parent / "specs" / "skills-owned-history.yaml"
+    try:
+        import yaml  # local import: keeps the module importable without PyYAML
+
+        data = yaml.safe_load(spec.read_text(encoding="utf-8")) or {}
+    except (OSError, ValueError, ImportError):
+        return set()
+    slugs = data.get("slugs")
+    if not isinstance(slugs, list):
+        return set()
+    return {s for s in slugs if isinstance(s, str)}
+
+
 def _rmtree(path: Path) -> None:
     """``shutil.rmtree`` tolerant of Windows read-only files (git perms)."""
 
@@ -185,15 +219,20 @@ def _sync_one(
     *,
     desired: set[str],
     owned_prev: set[str] | None,
+    ever_owned: set[str] | None = None,
     dry_run: bool,
     quiet: bool,
 ) -> _MirrorSync:
     """Additively sync the playbook-owned skills source -> target mirror.
 
     ``owned_prev`` is the set the playbook installed last time, or ``None`` when
-    the manifest has no entry for this mirror (migration: seed ``present ∩
-    desired`` and delete nothing this run). A directory that is neither
-    playbook-owned nor desired is a user skill and is left untouched.
+    the manifest has no entry for this mirror. In that case ownership is seeded
+    as ``present ∩ (desired ∪ ever_owned)``: a slug the playbook removed is still
+    recognised as its own and cleared on this very run, while a slug the consumer
+    authored is in neither set and is left untouched.
+
+    ``ever_owned`` empty falls back to ``present ∩ desired``, which deletes
+    nothing on that first run — the pre-v0.24.0 behaviour.
     """
     # Symlinked mirror: treat as already in sync; do not manage provenance.
     if target.is_symlink():
@@ -203,7 +242,7 @@ def _sync_one(
 
     present = _present_dirs(target)
     if owned_prev is None:
-        owned_prev = present & desired  # migration seed: delete nothing
+        owned_prev = present & (desired | (ever_owned or set()))
 
     user_preserved = sorted(present - owned_prev - desired)
     stale = sorted((owned_prev - desired) & present)
@@ -312,6 +351,7 @@ def materialise_skills(
 
     manifest = _skills_manifest.read(consumer_dir)
     new_manifest: dict[str, set[str]] = dict(manifest)
+    ever_owned = _ever_owned(source)
 
     for mirror_rel in MIRROR_RELS:
         target = consumer_dir / mirror_rel
@@ -321,6 +361,7 @@ def materialise_skills(
             target,
             desired=desired,
             owned_prev=manifest.get(rel_key),  # None => migration seed
+            ever_owned=ever_owned,
             dry_run=dry_run,
             quiet=quiet,
         )
