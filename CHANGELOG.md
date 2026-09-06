@@ -30,7 +30,13 @@ materialises, and consumers with no skills manifest need a one-time step
   `bmad-agent-analyst`).
 
   The testing family stays, at 7.2 %. It holds most of this repository's
-  modifications to vendored skills and is where upstream moves fastest.
+  modifications to vendored skills, it is where upstream moves fastest, and one
+  of its skills had been improved the same week the list proposed deleting it.
+  The rest of the original candidates — the CIS coaches, the editorial
+  utilities, `bmad-help`, `bmad-correct-course`, `bmad-create-epics-and-stories`,
+  `bmad-distillator`, `bmad-teach-me-testing` — are 364 929 B together and are
+  left for a decision about whether the flow routes to them, which is a question
+  about use rather than about bytes.
 
 ### Changed
 - **One copy of the testing knowledge base instead of nine.** The same 49
