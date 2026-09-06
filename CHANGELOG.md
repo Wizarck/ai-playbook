@@ -92,6 +92,21 @@ materialises, and consumers with no skills manifest need a one-time step
 - **The onboarding runbook documented two flags that do not exist** in the
   script's argument parser or its schema, and an expected output nobody had run.
 
+- **Six guardrails enforced decisions that never reached telemetry** when invoked
+  directly, so Dashboard coverage was incomplete and the enforcement docs
+  promised more observability than existed. The remaining rule CLIs and both
+  sweep CLIs now route through the existing `cli_emit` / `script_emit` wrappers,
+  exit codes unchanged, and `enforcement-status.md` states where the
+  `rule-event/v2` stream ends — GitHub Actions gates stay outside it, because a
+  workflow check governs an asynchronous PR transition rather than an agent tool
+  call, and mixing the two would combine incompatible denominators.
+
+  The regression guard that keeps this from silently regressing is bound to the
+  entry point it protects: a `cli_emit` call inside the `__main__` guard only
+  counts when it receives `main` itself, and a direct `main()` call in the same
+  guard is rejected — otherwise a decoy call satisfied the check while the real
+  path ran unobserved. Contributed by @WilliamPersico in #177.
+
 ### Legal
 - **`NOTICE` added at the repository root.** This is a public repository that
   redistributes about nine megabytes of adapted third-party work, most of it the
