@@ -9,7 +9,7 @@ outputFile: '{test_artifacts}/test-review.md'
 
 ## STEP GOAL
 
-Read outputs from 4 quality subagents, calculate weighted overall score (0-100), and aggregate violations for report generation.
+Read the violations from the 4 quality subagents, deduplicate them, apply one deduction ledger, and derive the review recommendation.
 
 ---
 
@@ -18,9 +18,9 @@ Read outputs from 4 quality subagents, calculate weighted overall score (0-100),
 - 📖 Read the entire step file before acting
 - ✅ Speak in `{communication_language}`
 - ✅ Read all 4 subagent outputs
-- ✅ Calculate weighted overall score
-- ✅ Aggregate violations by severity
-- ❌ Do NOT re-evaluate quality (use subagent outputs)
+- ✅ Apply the deduction ledger once, over all dimensions together
+- ✅ Derive the recommendation from the violation counts, never by judgement
+- ❌ Do NOT re-evaluate quality, and do NOT re-assign a severity: both are settled by `./criteria-registry.md`
 
 ---
 
@@ -62,32 +62,36 @@ if (!allSucceeded) {
 
 ---
 
-### 2. Calculate Weighted Overall Score
+### 2. Deduplicate Across Dimensions
 
-**Dimension Weights** (based on TEA quality priorities):
+Two dimensions can notice the same defect. Deduplicate before scoring, on the
+row that fired rather than on the prose, so one defect is charged once:
 
 ```javascript
-const weights = {
-  determinism: 0.3, // 30% - Reliability and flake prevention
-  isolation: 0.3, // 30% - Parallel safety and independence
-  maintainability: 0.25, // 25% - Readability and long-term health
-  performance: 0.15, // 15% - Speed and execution efficiency
-};
+const seen = new Map();
+dimensions.forEach((dim) => {
+  results[dim].violations.forEach((v) => {
+    const key = `${v.file}:${v.line}:${v.row}`;
+    if (!seen.has(key)) seen.set(key, { ...v, dimensions: [dim] });
+    else seen.get(key).dimensions.push(dim);
+  });
+});
+const allViolations = [...seen.values()];
 ```
 
-**Calculate overall score:**
+---
+
+### 3. Apply the Deduction Ledger
+
+One ledger, applied once, over every violation from every dimension. Severity
+comes from `./criteria-registry.md` and was already resolved by the subagents.
 
 ```javascript
-const overallScore = dimensions.reduce((sum, dim) => {
-  return sum + results[dim].score * weights[dim];
-}, 0);
+const DEDUCTION = { CRITICAL: 10, HIGH: 5, MEDIUM: 2, LOW: 1 };
 
-const roundedScore = Math.round(overallScore);
-```
+const totalDeduction = allViolations.reduce((sum, v) => sum + (DEDUCTION[v.severity] ?? 0), 0);
+const roundedScore = Math.max(0, 100 - totalDeduction);
 
-**Determine grade:**
-
-```javascript
 const getGrade = (score) => {
   if (score >= 90) return 'A';
   if (score >= 80) return 'B';
@@ -95,54 +99,69 @@ const getGrade = (score) => {
   if (score >= 60) return 'D';
   return 'F';
 };
-
 const overallGrade = getGrade(roundedScore);
 ```
 
----
-
-### 3. Aggregate Violations by Severity
-
-**Collect all violations from all dimensions:**
+An unknown severity is a bug in the subagent output, not a zero-cost violation.
+Fail loudly rather than absorbing it:
 
 ```javascript
-const allViolations = dimensions.flatMap((dim) =>
-  results[dim].violations.map((v) => ({
-    ...v,
-    dimension: dim,
-  })),
-);
+const unknown = allViolations.filter((v) => !(v.severity in DEDUCTION));
+if (unknown.length) {
+  throw new Error(
+    `Violations carry a severity the ledger does not define: ` +
+      unknown.map((v) => `${v.file}:${v.line} (${v.severity})`).join(', '),
+  );
+}
+```
 
-// Group by severity
-const highSeverity = allViolations.filter((v) => v.severity === 'HIGH');
-const mediumSeverity = allViolations.filter((v) => v.severity === 'MEDIUM');
-const lowSeverity = allViolations.filter((v) => v.severity === 'LOW');
+**Why one ledger and not four weighted dimensions.** Each dimension used to score
+itself out of 100 and the aggregator averaged those with fixed weights, so the
+same defect cost 3 points when determinism found it and 1.5 when performance did.
+Two reviewers of one pull request could land three points apart and return
+opposite recommendations. Severity now decides cost, and where the defect was
+noticed decides nothing.
+
+---
+
+### 4. Derive the Recommendation
+
+The recommendation is computed from what was found, never chosen:
+
+```javascript
+const count = (sev) => allViolations.filter((v) => v.severity === sev).length;
+
+const deriveRecommendation = () => {
+  if (count('CRITICAL') > 0) return 'Request Changes';
+  if (count('HIGH') > 0) return 'Request Changes';
+  if (count('MEDIUM') > 0) return 'Approve With Comments';
+  return 'Approve';
+};
+
+const recommendation = deriveRecommendation();
 
 const violationSummary = {
   total: allViolations.length,
-  HIGH: highSeverity.length,
-  MEDIUM: mediumSeverity.length,
-  LOW: lowSeverity.length,
+  CRITICAL: count('CRITICAL'),
+  HIGH: count('HIGH'),
+  MEDIUM: count('MEDIUM'),
+  LOW: count('LOW'),
 };
 ```
 
----
+The score is reported alongside the recommendation but does not produce it. A
+score threshold would reintroduce the disagreement the ledger removed, because
+two reviewers who find the same defects but describe a different number of minor
+ones would land either side of a cutoff.
 
-### 4. Prioritize Recommendations
-
-**Extract recommendations from all dimensions:**
+**Recommendations to the author** are collected from the dimensions unchanged and
+capped at ten, ordered by the severity of the violation each one addresses:
 
 ```javascript
-const allRecommendations = dimensions.flatMap((dim) =>
-  results[dim].recommendations.map((rec) => ({
-    dimension: dim,
-    recommendation: rec,
-    impact: results[dim].score < 70 ? 'HIGH' : 'MEDIUM',
-  })),
-);
-
-// Sort by impact (HIGH first)
-const prioritizedRecommendations = allRecommendations.sort((a, b) => (a.impact === 'HIGH' ? -1 : 1)).slice(0, 10); // Top 10 recommendations
+const SEVERITY_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+const prioritizedRecommendations = dimensions
+  .flatMap((dim) => results[dim].recommendations.map((rec) => ({ dimension: dim, recommendation: rec })))
+  .slice(0, 10);
 ```
 
 ---
@@ -155,32 +174,23 @@ const prioritizedRecommendations = allRecommendations.sort((a, b) => (a.impact =
 const reviewSummary = {
   overall_score: roundedScore,
   overall_grade: overallGrade,
-  quality_assessment: getQualityAssessment(roundedScore),
+  total_deduction: totalDeduction,
+  recommendation,
 
-  dimension_scores: {
-    determinism: results.determinism.score,
-    isolation: results.isolation.score,
-    maintainability: results.maintainability.score,
-    performance: results.performance.score,
-  },
-
-  dimension_grades: {
-    determinism: results.determinism.grade,
-    isolation: results.isolation.grade,
-    maintainability: results.maintainability.grade,
-    performance: results.performance.grade,
-  },
+  // Dimensions report where a defect was noticed, not how much it cost.
+  violations_by_dimension: Object.fromEntries(
+    dimensions.map((dim) => [dim, allViolations.filter((v) => v.dimensions.includes(dim)).length]),
+  ),
 
   violations_summary: violationSummary,
 
   all_violations: allViolations,
 
-  high_severity_violations: highSeverity,
+  blocking_violations: allViolations.filter((v) => v.severity === 'CRITICAL' || v.severity === 'HIGH'),
 
   top_10_recommendations: prioritizedRecommendations,
 
   subagent_execution: 'PARALLEL (4 quality dimensions)',
-  performance_gain: '~60% faster than sequential',
 };
 
 // Save for Step 4 (report generation)
@@ -196,19 +206,22 @@ fs.writeFileSync(`/tmp/tea-test-review-summary-${timestamp}.json`, JSON.stringif
 
 📊 Overall Quality Score: {roundedScore}/100 (Grade: {overallGrade})
 
-📈 Dimension Scores:
-- Determinism:      {determinism_score}/100 ({determinism_grade})
-- Isolation:        {isolation_score}/100 ({isolation_grade})
-- Maintainability:  {maintainability_score}/100 ({maintainability_grade})
-- Performance:      {performance_score}/100 ({performance_grade})
+🧾 Recommendation: {recommendation}   (derived from the counts below)
+
+📈 Violations by dimension (where noticed, not what it cost):
+- Determinism:      {determinism_count}
+- Isolation:        {isolation_count}
+- Maintainability:  {maintainability_count}
+- Performance:      {performance_count}
 
 ℹ️ Coverage is excluded from `test-review` scoring. Use `trace` for coverage analysis and gates.
 
-⚠️ Violations Found:
-- HIGH:   {high_count} violations
-- MEDIUM: {medium_count} violations
-- LOW:    {low_count} violations
-- TOTAL:  {total_count} violations
+⚠️ Violations Found (after cross-dimension deduplication):
+- CRITICAL: {critical_count}  (−10 each)
+- HIGH:     {high_count}  (−5 each)
+- MEDIUM:   {medium_count}  (−2 each)
+- LOW:      {low_count}  (−1 each)
+- TOTAL:    {total_count}, deducting {total_deduction} points
 
 🚀 Performance: Parallel execution ~60% faster than sequential
 
@@ -264,14 +277,14 @@ Load next step: `{nextStepFile}`
 ### ✅ SUCCESS:
 
 - All 4 subagent outputs read and parsed
-- Overall score calculated with proper weights
+- Score is 100 minus the ledger total, and the recommendation follows from the counts
 - Violations aggregated correctly
 - Summary complete and saved
 
 ### ❌ FAILURE:
 
 - Failed to read one or more subagent outputs
-- Score calculation incorrect
+- A severity outside the ledger was absorbed instead of raised
 - Summary missing or incomplete
 
-**Master Rule:** Aggregate determinism, isolation, maintainability, and performance only.
+**Master Rule:** One defect, one row, one deduction. Where it was noticed changes nothing about what it costs.

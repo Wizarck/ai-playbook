@@ -163,7 +163,7 @@ Create an ongoing learning companion that teaches testing progressively through 
 **LLM Features:**
 
 - **Web-Browsing:** Included - Use case: Safety net for framework updates (Cypress, Jest, newer Playwright versions) and frameworks not covered in TEA docs. Motto: "Only reach out when you don't have the info"
-- **File I/O:** Included - Operations: Read TEA docs (/docs/_.md), read knowledge fragments (/src/agents/bmad-tea/resources/knowledge/_.md), write progress file ({user}-tea-progress.yaml), write session notes, write completion certificate
+- **File I/O:** Included - Operations: Read TEA docs (/docs/_.md), read knowledge fragments (../bmad-tea-knowledge/resources/knowledge/_.md), write progress file ({user}-tea-progress.yaml), write session notes, write completion certificate
 - **Sub-Agents:** Excluded - Sessions are linear teaching steps handled by TEA agent, not complex specialized tasks requiring delegation
 - **Sub-Processes:** Excluded - Learning is sequential (one session at a time), no parallel processing needed
 
@@ -465,7 +465,7 @@ teach-me-testing/
 
 **Content Sources (Triple Reference System):**
 
-- Local files: `/docs/*.md`, `/src/agents/bmad-tea/resources/knowledge/*.md`
+- Local files: `/docs/*.md`, `../bmad-tea-knowledge/resources/knowledge/*.md`
 - Online docs: `<https://bmad-code-org.github.io/bmad-method-test-architecture-enterprise/`>
 - GitHub fragments: Direct links to knowledge fragment source files
 
@@ -939,8 +939,8 @@ cp -r {external-project-root}/_bmad-output/bmb-creations/workflows/teach-me-test
 **After deployment:**
 
 1. Update TEA agent menu to add [TMT] Teach Me Testing
-2. Test the workflow: `bmad run teach-me-testing`
-3. Validate: `bmad run teach-me-testing -v`
+2. Test the workflow: `/bmad-teach-me-testing`
+3. Validate: `/bmad-teach-me-testing` (validation pass)
 4. Document in TEA module README
 
 ---

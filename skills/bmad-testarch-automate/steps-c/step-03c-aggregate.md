@@ -209,18 +209,11 @@ export const mockPaymentSuccess = async (page: Page) => {
 
 **D) Helper Utilities** (`tests/fixtures/helpers.ts`):
 
-```typescript
-import { Page } from '@playwright/test';
-import { interceptNetworkCall } from '@seontechnologies/playwright-utils/intercept-network-call';
-
-export const observeApiCall = (page: Page, urlPattern: string, method: string = 'GET') => {
-  return interceptNetworkCall({
-    page,
-    method,
-    url: urlPattern,
-  });
-};
-```
+Do not wrap a utility in a helper that only forwards its arguments. A function
+whose body is a single `interceptNetworkCall` or `apiRequest` call adds a name
+to learn and a layer to step through without adding meaning — call the utility
+directly. Write a helper here only when it composes several calls or encodes a
+decision the caller should not repeat.
 
 ---
 

@@ -121,7 +121,7 @@ Document the decision in `docs/hitl-gates-log.md` of the consumer.
 ### 2. Create the repo on GitHub (if it does not exist)
 
 ```bash
-gh repo create Wizarck/<project-name> --private --clone
+gh repo create <owner>/<project-name> --private --clone
 cd <project-name>
 git commit --allow-empty -m "chore: initial commit"
 git push -u origin master
@@ -132,13 +132,11 @@ If the repo already exists with history, `cd` into its working tree and skip to 
 ### 3. Run `bootstrap.py` from the playbook
 
 ```bash
-cd /c/Projects/<project-name>
+cd <workspace>/<project-name>
 
-python /c/Projects/ai-playbook/scripts/bootstrap.py <project-name> \
+python <playbook-checkout>/scripts/bootstrap.py <project-name> \
     --owner <your-email> \
-    --path . \
-    --visibility private \
-    --default-branch master
+    --path .
 ```
 
 Flags:
@@ -148,27 +146,25 @@ Flags:
 | `<project-name>` (positional) | Slug. `[a-zA-Z0-9][a-zA-Z0-9_-]*`. Bank is `<project-name>` lowercased. |
 | `--owner` | Email for AGENTS.md frontmatter. Defaults to `$GIT_AUTHOR_EMAIL` or `git config user.email`. |
 | `--path .` | Where to write. Defaults to `<cwd>/<project-name>`. Pass `.` when the repo already exists. |
-| `--visibility private\|public` | Sets the visibility marker in AGENTS.md frontmatter. Public repos do not include the personal layer in `.mcp.json`. |
-| `--default-branch master\|main` | Stored in AGENTS.md frontmatter; informational only. |
 | `--personal` | For personal repos only. Marks `personal: true`; loads the personal add-on if configured. |
 | `--dry-run` | Simulate without writing. Recommended on first pass. |
 | `--from-config PATH` | Apply a config bundle exported from `config-ui/` after the base bootstrap. Mutates `rules-toggle.json` + the feature state files (`caveman.json` / `graphify.json` / `ponytail.json`, each via its own CLI) + `feature-flags.env`. See [Concept: ai-playbook-config](../concepts/ai-playbook-config.md) and [Runbook: use-config-ui](use-config-ui.md). |
 
-Expected output (the actual `vX.Y.Z` shown reflects the playbook's current
-`VERSION` file at the time you run bootstrap — bootstrap reads it dynamically):
+The run opens with `→ Bootstrapping project '<project-name>'` and closes with
+`✅ Bootstrap complete. Next steps:`. In between it reports the submodule, the
+template copy, the skills mirrors, pre-commit, and a validate-only drift report
+(`→ ai-playbook-check`). The pin comes from the playbook's `VERSION` file at the
+time you run it.
 
-```
-→ Bootstrapping project '<project-name>'
-   target : /c/Projects/<project-name>
-   owner  : <your-email>
-   pin    : vX.Y.Z
-   mode   : live
-✓ added .ai-playbook submodule pinned at vX.Y.Z
-✓ copied 8 templates with placeholder substitution
-✓ pre-commit installed
-✓ doctor.py: ✅ healthy
-✓ rendered .mcp.json + .gemini/settings.json for <project-name>
-```
+Expect around half a minute, and roughly 3300 new files in your repo. That
+number surprises people: about 99 % of it is the same 86 skills written into
+three mirrors (`.claude/`, `.gemini/` and `skills/`) so every host finds them
+where it looks. Your own tree gains 11 workflow files, 4 scripts, and one file
+each for the dispatcher, the routers and the tool config.
+
+Bootstrap also writes outside the target directory: it registers the project in
+`~/.ai-playbook/projects.yaml`, and leaves `.ai-playbook-state/` plus an
+`applied-config.json` for the reconcile step.
 
 ### 4. Fill the manual placeholders in AGENTS.md
 
@@ -196,7 +192,7 @@ python .ai-playbook/scripts/schema_validate.py AGENTS.md
 ### 5. Commit + push the project
 
 ```bash
-cd /c/Projects/<project-name>
+cd <workspace>/<project-name>
 git add .
 TAG="v$(cat .ai-playbook/VERSION)"
 git commit -m "chore: bootstrap <project-name> via ai-playbook $TAG"
@@ -223,8 +219,8 @@ Otherwise, bump manually with `cd .ai-playbook && git fetch && git checkout vX.Y
 Create the GH Project (if it does not exist):
 
 ```bash
-gh project create --owner Wizarck --title "<project-name>"
-gh project list --owner Wizarck   # take the resulting number, e.g. 5
+gh project create --owner <owner> --title "<project-name>"
+gh project list --owner <owner>   # take the resulting number, e.g. 5
 ```
 
 Even when Jira is the primary tracker, the GH Project still hosts the roadmap view + canonical Status schema.
@@ -232,10 +228,10 @@ Even when Jira is the primary tracker, the GH Project still hosts the roadmap vi
 Run the bootstrap (idempotent — safe re-run):
 
 ```bash
-cd /c/Projects/<project-name>
+cd <workspace>/<project-name>
 python -m scripts.bootstrap_gh_project \
-    --owner Wizarck --project-number <N> \
-    --repo Wizarck/<project-name> \
+    --owner <owner> --project-number <N> \
+    --repo <owner>/<project-name> \
     --profile auto \
     --visibility private   # only when not yet set
 ```
@@ -262,20 +258,20 @@ Skip if the repo stays private or if CodeRabbit is not wanted. The §4.5 contrac
 
 ### 10. Configure the `CONSUMER_D_GOD_MODE` secret (Profile A only)
 
-If the consumer has CI workflows that need to clone `.ai-playbook/` (private submodule of `Wizarck/ai-playbook`):
+Only needed when a workflow clones a submodule that is private. The playbook repo itself is public, so `actions/checkout` reaches it without a token:
 
 ```bash
-gh secret set CONSUMER_D_GOD_MODE -R Wizarck/<project-name> --body "<your-pat>"
+gh secret set CONSUMER_D_GOD_MODE -R <owner>/<project-name> --body "<your-pat>"
 ```
 
-The PAT requires scope `Contents: read` on `Wizarck/ai-playbook` and `Wizarck/consumer-d-skills`. Without this, `actions/checkout@v4` with `submodules: true` fails with `404 Repository not found`.
+The PAT requires scope `Contents: read` on each private submodule the workflow clones. Without it, `actions/checkout@v4` with `submodules: true` fails with `404 Repository not found`.
 
 ### 11. Verify the SessionStart hook
 
 Launch a Claude Code session in the repo:
 
 ```bash
-cd /c/Projects/<project-name>
+cd <workspace>/<project-name>
 claude  # or whatever launches Claude Code
 ```
 
@@ -342,7 +338,7 @@ with an absolute path: `"command": "sops exec-env /absolute/path/to/your/secrets
 ### Symptom: rollback — something went wrong and the bootstrap must be undone
 **Fix**:
 ```bash
-cd /c/Projects/<project-name>
+cd <workspace>/<project-name>
 git rm -rf --cached .ai-playbook
 rm -rf .ai-playbook AGENTS.md CLAUDE.md GEMINI.md .claude .cursor .mcp.json .gemini mcp-servers.project.yaml
 # Edit .gitignore by hand if it carries playbook entries you want to keep.

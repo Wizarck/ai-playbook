@@ -83,6 +83,7 @@ After picking, Phase A (scrub) and Phase B (consolidation) run (§9) to produce 
 | `docs/ux/variants/mock-*.html` | per variant | Step 3: variants with locked palette. |
 | `docs/ux/variants/index.html` | project-level | Step 3 / pick: navigation across variants with attribution to nothing — see §6 self-documenting rule. |
 | `docs/ux/DESIGN.md` | project-level | Canonical 9-section design system, written after the user picks a variant. |
+| `docs/ux/EXPERIENCE.md` | project-level | Canonical behavioural spine — states, interaction primitives, voice, accessibility floor, motion. Written alongside DESIGN.md. See §21. |
 | `docs/ux/{journey-id}.md` | per user journey | Mock + interaction notes for a specific JTBD/journey from the PRD. One per journey. |
 | `docs/ux/variants/mock-j{N}-*.html` | per journey (when warranted) | Companion mock for journeys whose surface meaningfully differs from J1's. |
 | `docs/ux/components.md` | project-level | Storybook-style catalogue of named components, written **after** the journey mocks (not before — see §12). |
@@ -611,6 +612,7 @@ Copyable templates ship in `templates/ux/`:
 - `palette-options.html.template` — N palettes as visual rows + mini-previews.
 - `variants-index.html.template` — comparison index page (canonical + fallback + archive).
 - `DESIGN.md.template` — 9-section skeleton with OKLCH-first CSS block.
+- `EXPERIENCE.md.template` — behavioural spine skeleton: states, primitives, voice, accessibility floor, motion.
 - `journey.md.template` — frontmatter + section skeleton.
 - `components.md.template` — Storybook-style entry skeleton.
 
@@ -624,3 +626,84 @@ Consumers copy these on first use of the UX track. They are starting points, not
 - [parallel-review.md](parallel-review.md) — QA discipline this spec mirrors
 - [agentic-failures.md](agentic-failures.md) — `goal_drift` if UX track produces journey docs without FR back-references
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) §6 — backwards compatibility for consumers that deviate from §12's recommended DESIGN.md format
+
+
+## 21 EXPERIENCE.md format spec
+
+`DESIGN.md` (§11) is a spine about appearance. `EXPERIENCE.md` is the spine about
+behaviour, and it has the same standing: both are normative for the whole
+product.
+
+The two answer different questions and neither can answer the other's. What a
+button looks like at rest, hover and disabled belongs to `DESIGN.md`. What
+happens to focus after the dialog that button opened is closed belongs here.
+
+### 21.1 Why a second file rather than more sections
+
+State patterns, interaction primitives, voice and accessibility floor were being
+settled inside the head comment of whichever mock needed them first, then
+restated — drifting — in the journey docs. Appearance had one authority and
+behaviour had as many authorities as there were mocks.
+
+They are not appended to `DESIGN.md` because that file's section order is
+compatible with an external format and its consumers, and because the two spines
+have different readers: a visual reviewer reads one, a reviewer checking that the
+empty state and the error state were thought about reads the other.
+
+### 21.2 Section order
+
+Sections use `##` headings, in this order. A section may be omitted only with a
+stated reason; an omission with no reason is an unanswered question, not a
+decision.
+
+| # | Section | Owns |
+|:---|:---|:---|
+| 1 | Commitments | The few behavioural promises a reviewer can hold a screen against |
+| 2 | State patterns | Empty, loading, partial, offline, error, success — and what each surface owes |
+| 3 | Interaction primitives | Primary action, destructive action, undo, selection, unsaved work, keyboard, focus, validation |
+| 4 | Voice and tone | Register, person, and the real strings for buttons, errors and empty states |
+| 5 | Accessibility floor | The non-negotiable minimum that is not about colour |
+| 6 | Motion and timing | Durations and easing by role, and the reduced-motion answer |
+| 7 | Do's and don'ts | Guardrails written from mistakes this product actually made |
+
+Two boundaries are deliberate. **Colour contrast is not here**: it belongs to
+`DESIGN.md` §Colors and is verified by the WCAG-AA ritual (§15), so it keeps one
+home. **Motion is here rather than there** because a duration is only meaningful
+attached to the behaviour it paces.
+
+### 21.3 Precedence
+
+Four artefacts describe one product. Which one wins was never written down, so a
+reader who found two different empty-state rules had no way to tell which was the
+mistake.
+
+| Artefact | Normative for | May |
+|:---|:---|:---|
+| `DESIGN.md` | the whole product, appearance | — |
+| `EXPERIENCE.md` | the whole product, behaviour | — |
+| `jN.md` | one journey | refine a spine for that journey; never contradict one |
+| `components.md` | one component | refine a spine for that component; never contradict one |
+
+**Refining** means being more specific where the spine is silent or general.
+**Contradicting** means stating a different rule for a case the spine already
+decided. When a journey genuinely needs a different rule, the spine changes
+first and the journey cites it. A journey doc that contradicts a spine is
+`goal_drift` per [agentic-failures.md](agentic-failures.md), on the same footing
+as a journey doc with no FR back-references (§4).
+
+Both spines are read as a pair. A consumer looking for "the UX contract" looks
+for `docs/ux/DESIGN.md` **and** `docs/ux/EXPERIENCE.md`; finding one is finding
+half.
+
+### 21.4 What this section does not change
+
+Additive by construction. Untouched: the visual-first rule that steps 2 and 3
+produce a visual artefact (§3), one agent per creative engine in parallel (§5),
+the OKLCH-canonical colour rule (§10), the Phase A scrub (§9), the WCAG-AA
+ritual (§15), and the QA discipline with its verdict literals (§17).
+
+> **Numbering note.** This section is appended rather than inserted next to §11,
+> its natural neighbour, because the section numbers in this document have
+> drifted across versions — §12 is cited in three places for three different
+> sections — and renumbering belongs to a cleanup of its own rather than to this
+> change.

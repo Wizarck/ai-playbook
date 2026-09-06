@@ -131,8 +131,8 @@ See `docs/concepts/skills-registry.md` for scope semantics and the degraded-mode
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
 | `LANGFUSE_HOST` | `LANGFUSE_` | Langfuse instance base URL. | yes (for LLM tracing) | unset | `scripts/tracing/*` |
-| `LANGFUSE_PUBLIC_KEY` | `LANGFUSE_` | Public key for project. | yes | unset | `scripts/tracing/*` |
-| `LANGFUSE_SECRET_KEY` | `LANGFUSE_` | Secret key (SOPS). | yes | unset | `scripts/tracing/*` |
+| `LANGFUSE_PUBLIC_KEY` | `LANGFUSE_` | Public key for project. | yes (for LLM tracing) | unset | `scripts/tracing/*` |
+| `LANGFUSE_SECRET_KEY` | `LANGFUSE_` | Secret key (SOPS). | yes (for LLM tracing) | unset | `scripts/tracing/*` |
 
 ---
 
@@ -217,8 +217,8 @@ When any of `SMTP_USER` / `SMTP_PASSWORD` is unset, email delivery is **silently
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
 | `ATLASSIAN_URL` | `ATLASSIAN_` | Jira Cloud base URL (e.g. `https://consumer-a.atlassian.net`). | yes (for private-repo tracker sync) | unset | `scripts/issue_sync.py`, `scripts/release_cut.py` |
-| `ATLASSIAN_USERNAME` | `ATLASSIAN_` | Atlassian account email (for REST basic auth). | yes | unset | same |
-| `ATLASSIAN_API_TOKEN` | `ATLASSIAN_` | Personal API token (SOPS-decrypted). | yes | unset | same |
+| `ATLASSIAN_USERNAME` | `ATLASSIAN_` | Atlassian account email (for REST basic auth). | yes (for private-repo tracker sync) | unset | same |
+| `ATLASSIAN_API_TOKEN` | `ATLASSIAN_` | Personal API token (SOPS-decrypted). | yes (for private-repo tracker sync) | unset | same |
 | `AIPLAYBOOK_JIRA_DEFAULT_PROJECT` | `AIPLAYBOOK_` | Jira project key for private consumers without an explicit mapping. | no | `consumer-a` | `scripts/issue_sync.py` |
 | `AIPLAYBOOK_JIRA_DEFAULT_ISSUE_TYPE` | `AIPLAYBOOK_` | Jira issue type for auto-created stories. | no | `Story` | `scripts/issue_sync.py` |
 

@@ -150,11 +150,11 @@ A Python port of [DietrichGebert/ponytail](https://github.com/DietrichGebert/pon
 
 ### Graphify mode (committed code knowledge graph)
 
-A wrapper around [graphify](https://github.com/safishamsi/graphify) (PyPI `graphifyy`, MIT) that parses a repo's ASTs into a committed knowledge graph under `graphify-out/` — nodes are files/functions/classes/symbols, edges are imports/calls/inheritance. Agents query it for structural orientation (callers, dependencies, blast radius) at a fraction of the tokens of a grep→read→grep sweep, and unlike a RAG it traverses structure rather than embedding similarity. Builds are AST-only (no LLM calls, no token cost) and incremental. Toggle it from the config UI (or `scripts/graphify/cli.py`); the adoption rule nudges a build when the graph is stale. Concept: [`docs/concepts/graphify.md`](docs/concepts/graphify.md); setup: [`docs/runbooks/graphify-setup.md`](docs/runbooks/graphify-setup.md).
+A wrapper around [Graphify](https://github.com/Graphify-Labs/graphify) (PyPI `graphifyy`, Apache-2.0) that parses a repo's ASTs into a committed knowledge graph under `graphify-out/` — nodes are files/functions/classes/symbols, edges are imports/calls/inheritance. Agents query it for structural orientation (callers, dependencies, blast radius) at a fraction of the tokens of a grep→read→grep sweep, and unlike a RAG it traverses structure rather than embedding similarity. Builds are AST-only (no LLM calls, no token cost) and incremental. Toggle it from the config UI (or `scripts/graphify/cli.py`); the adoption rule nudges a build when the graph is stale. Concept: [`docs/concepts/graphify.md`](docs/concepts/graphify.md); setup: [`docs/runbooks/graphify-setup.md`](docs/runbooks/graphify-setup.md).
 
 ### BMAD + OpenSpec hybrid planning
 
-Two complementary planning systems shipped as one workflow. **BMAD** (skills like `bmad-agent-pm`, `bmad-agent-architect`, `bmad-agent-ux-designer`, the `bmad-testarch-*` family) drives discovery → planning → design through specialist agents with explicit gates (A / B / C / D / F). **OpenSpec** (slug-scoped change folders under `openspec/changes/<id>/`) turns the approved slicing into scaffolded proposals, design notes, and `tasks.md` consumed by the implementation rules (`openspec-scaffold`, `openspec-apply-enforcement`). The seam is one canonical artefact (`docs/openspec-slice.md`) that BMAD writes at Gate C and OpenSpec reads at Phase 3 — no retyping scope notes across 11+ changes per module. Bridge spec: [`docs/concepts/bmad-openspec-bridge.md`](docs/concepts/bmad-openspec-bridge.md).
+Two complementary planning systems shipped as one workflow. **BMAD** (skills like `bmad-agent-pm`, `bmad-agent-architect`, `bmad-agent-ux-designer`) drives discovery → planning → design through specialist agents with explicit gates (A / B / C / D / F). **OpenSpec** (slug-scoped change folders under `openspec/changes/<id>/`) turns the approved slicing into scaffolded proposals, design notes, and `tasks.md` consumed by the implementation rules (`openspec-scaffold`, `openspec-apply-enforcement`). The seam is one canonical artefact (`docs/openspec-slice.md`) that BMAD writes at Gate C and OpenSpec reads at Phase 3 — no retyping scope notes across 11+ changes per module. Bridge spec: [`docs/concepts/bmad-openspec-bridge.md`](docs/concepts/bmad-openspec-bridge.md). The `bmad-*` skills ship as an adapted fork — see [`NOTICE`](NOTICE) — and nothing has to be installed from upstream for them to work.
 
 ### Telemetry — local-first, export-ready
 
@@ -297,6 +297,13 @@ For the per-release narrative (what shipped in each tag, deprecations, breaking 
 ## License
 
 [MIT](LICENSE) © 2026 Arturo Ramírez.
+
+Parts of this repository are adapted from other projects and keep their own
+licences and copyright — most visibly the `skills/bmad-*` tree, which is an
+adapted fork of BMAD-METHOD (MIT, © 2025 BMad Code, LLC) and needs nothing
+installed from upstream to work here. Every origin, what was taken, and in what
+form is listed in [`NOTICE`](NOTICE). ai-playbook is not affiliated with, nor
+endorsed by, any of them.
 
 ## Contributing
 

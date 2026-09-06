@@ -4,6 +4,8 @@ description: Use when navigating an unfamiliar codebase, tracing how code connec
 license: MIT
 metadata:
   author: ai-playbook
+  wraps: "Graphify — Apache-2.0, (c) 2026 Safi Shamsi and the Graphify contributors"
+  notice: ../../NOTICE
   version: "1.0"
 ---
 

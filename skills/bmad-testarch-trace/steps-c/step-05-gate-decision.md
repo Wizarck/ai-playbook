@@ -402,7 +402,10 @@ const authGapCount = heuristicCounts.auth_missing_negative_paths ?? 0;
 const errorPathGapCount = heuristicCounts.happy_path_only_criteria ?? 0;
 const uiJourneyGapCount = heuristicCounts.ui_journeys_without_e2e;
 const uiStateGapCount = heuristicCounts.ui_states_missing_coverage;
-const sourceSha = process.env.GITHUB_SHA || runtime.getSourceSha?.() || '';
+const sourceSha =
+  runtime.getSourceSha?.() || runtime.getGitHeadSha?.() || process.env.GITHUB_SHA || '';
+// GITHUB_SHA is the ephemeral merge commit on pull_request events, so it names a
+// revision that exists on no branch. Ask the runtime first and fall back to it last.
 const mapOptionalHeuristicStatus = (count, applicable) => {
   if (!applicable) return 'not_applicable';
   if (typeof count !== 'number' || Number.isNaN(count)) return 'unknown';

@@ -62,7 +62,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
     },
     {
       "category": "Caching",
-      "status": "CONCERN",
+      "status": "CONCERNS",
       "description": "No CDN for static assets",
       "evidence": ["Static files served from origin"],
       "recommendations": ["Implement CDN (CloudFront/Cloudflare)", "Cache static assets for 1 year"]
@@ -70,7 +70,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
   ],
   "compliance": {
     "SLA_99.9": "PASS",
-    "SLA_99.99": "CONCERN"
+    "SLA_99.99": "CONCERNS"
   },
   "priority_actions": ["Implement CDN for static assets", "Add database query caching for frequent reads"],
   "summary": "Performance is acceptable with minor optimization opportunities"

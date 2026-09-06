@@ -29,7 +29,7 @@ This is an **isolated subagent** running in parallel with other quality dimensio
 
 **HIGH SEVERITY Violations**:
 
-- Tests >100 lines (too complex)
+- Tests >1000 lines (too complex)
 - No test.describe grouping
 - Duplicate test logic (copy-paste)
 - Unclear test names (no Given/When/Then structure)
@@ -48,13 +48,18 @@ This is an **isolated subagent** running in parallel with other quality dimensio
 - Could benefit from helper functions
 - Inconsistent assertion styles
 
-### 2. Calculate Maintainability Score
+### 2. Read Severity From the Registry
 
-```javascript
-const severityWeights = { HIGH: 10, MEDIUM: 5, LOW: 2 };
-const totalPenalty = violations.reduce((sum, v) => sum + severityWeights[v.severity], 0);
-const score = Math.max(0, 100 - totalPenalty);
-```
+Severity is not computed here. For every violation, read the severity that
+`./criteria-registry.md` pins for the row that fired, and put that row's id in
+the `row` field so the aggregator can deduplicate a defect that two dimensions
+both notice. A defect matching no row is reported in prose under
+recommendations, with no severity and no deduction.
+
+The deduction ledger is applied once, over all four dimensions together, by
+`step-03f-aggregate-scores.md`. Scoring per dimension and then averaging is what
+let one defect cost a different number of points depending on which subagent
+found it.
 
 ---
 
@@ -63,14 +68,12 @@ const score = Math.max(0, 100 - totalPenalty);
 ```json
 {
   "dimension": "maintainability",
-  "score": 75,
-  "max_score": 100,
-  "grade": "C",
   "violations": [
     {
       "file": "tests/e2e/complex-flow.spec.ts",
       "line": 1,
       "severity": "HIGH",
+      "row": "<registry row id, e.g. H1>",
       "category": "test-too-long",
       "description": "Test file is 250 lines - too complex to maintain",
       "suggestion": "Split into multiple smaller test files by feature area",
@@ -85,7 +88,7 @@ const score = Math.max(0, 100 - totalPenalty);
     "LOW": 1
   },
   "recommendations": [
-    "Split large test files into smaller, focused files (<100 lines each)",
+    "Split large test files into smaller, focused files (<1000 lines each)",
     "Add test.describe grouping for related tests",
     "Extract duplicate logic into helper functions"
   ],

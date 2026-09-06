@@ -3,7 +3,9 @@ name: ponytail
 description: Use when the user wants the laziest solution that actually works — types /ponytail, says "be lazy", "lazy mode", "simplest solution", "minimal solution", "yagni", "do less", or "shortest path", or complains about over-engineering, bloat, boilerplate, or unnecessary dependencies. Supports intensity levels lite, full, ultra (default). Pairs with caveman, which compresses prose, not code.
 license: MIT
 metadata:
-  author: ai-playbook (ported from DietrichGebert/ponytail, MIT)
+  author: ai-playbook
+  derived_from: "DietrichGebert/ponytail — MIT, (c) 2026 DietrichGebert"
+  notice: ../../NOTICE
   version: "1.0"
 ---
 

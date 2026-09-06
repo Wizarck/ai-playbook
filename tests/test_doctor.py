@@ -152,19 +152,62 @@ def test_parse_required_env_vars_picks_yes_rows() -> None:
         "|---|---|---|---|---|---|\n"
         "| `FOO_KEY` | `FOO_` | foo | yes | unset | x |\n"
         "| `OPT_KEY` | `OPT_` | opt | no | unset | y |\n"
-        "| `BAR_KEY` | `BAR_` | bar | yes (conditional) | unset | z |\n"
     )
     names = doctor._parse_required_env_vars(text)
     assert "FOO_KEY" in names
-    assert "BAR_KEY" in names
     assert "OPT_KEY" not in names
+
+
+def test_parse_required_env_vars_skips_conditional_rows() -> None:
+    """A qualified ``yes`` states a condition, not a requirement.
+
+    Treating them as required made doctor warn every consumer about
+    integrations they never enabled.
+    """
+    text = (
+        "| Var | Prefix | Purpose | Required? | Default | Where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| `TRACE_KEY` | `TRACE_` | tracing | yes (for LLM tracing) | unset | x |\n"
+        "| `BOLD_KEY` | `BOLD_` | auth | **yes** (preferred auth path) | unset | y |\n"
+        "| `PLAIN_KEY` | `PLAIN_` | core | **yes** | unset | z |\n"
+    )
+    names = doctor._parse_required_env_vars(text)
+    assert names == ["PLAIN_KEY"]
+
+
+def test_parse_required_env_vars_skips_cross_prefix_rows() -> None:
+    """env-vars.md §Rules: the playbook never reads another consumer's vars."""
+    text = (
+        "| Var | Prefix | Purpose | Required? | Default | Where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| `CONSUMER_D_CORE_DIR` | `consumer-d_` | path | yes | unset | x |\n"
+        "| `MINE_KEY` | `AIPLAYBOOK_` | mine | yes | unset | y |\n"
+    )
+    names = doctor._parse_required_env_vars(text)
+    assert names == ["MINE_KEY"]
+
+
+def test_check_env_vars_required_ok_when_nothing_is_unconditional(
+    tmp_path: Path,
+) -> None:
+    spec_dir = tmp_path / "docs" / "concepts"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "env-vars.md").write_text(
+        "| Var | Prefix | Purpose | Required? | Default | Where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| `TRACE_KEY` | `TRACE_` | tracing | yes (for LLM tracing) | unset | x |\n",
+        encoding="utf-8",
+    )
+    r = doctor.check_env_vars_required(tmp_path)
+    assert r.status == doctor.STATUS_OK
+    assert "conditional" in r.detail
 
 
 def test_check_env_vars_required_warns_on_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    spec_dir = tmp_path / "specs"
-    spec_dir.mkdir()
+    spec_dir = tmp_path / "docs" / "concepts"
+    spec_dir.mkdir(parents=True)
     (spec_dir / "env-vars.md").write_text(
         "| Var | Prefix | Purpose | Required? | Default | Where |\n"
         "|---|---|---|---|---|---|\n"
@@ -180,8 +223,8 @@ def test_check_env_vars_required_warns_on_missing(
 def test_check_env_vars_required_ok_when_all_set(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    spec_dir = tmp_path / "specs"
-    spec_dir.mkdir()
+    spec_dir = tmp_path / "docs" / "concepts"
+    spec_dir.mkdir(parents=True)
     (spec_dir / "env-vars.md").write_text(
         "| Var | Prefix | Purpose | Required? | Default | Where |\n"
         "|---|---|---|---|---|---|\n"
@@ -191,6 +234,17 @@ def test_check_env_vars_required_ok_when_all_set(
     monkeypatch.setenv("DOCTOR_PRESENT_VAR", "1")
     r = doctor.check_env_vars_required(tmp_path)
     assert r.status == doctor.STATUS_OK
+
+
+def test_check_env_vars_required_finds_the_real_contract() -> None:
+    """The default root must resolve to a file that exists on disk.
+
+    The path lived under ``specs/`` until the doc move; the tests kept passing
+    because they built their own ``specs/`` fixture, so every consumer saw a
+    permanent "not found" warning. Probe the real tree so it cannot drift again.
+    """
+    r = doctor.check_env_vars_required()
+    assert "not found" not in r.detail
 
 
 def test_check_env_vars_alias_warning_fires_when_only_alias_set(

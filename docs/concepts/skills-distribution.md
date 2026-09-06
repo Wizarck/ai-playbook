@@ -171,28 +171,46 @@ OUTPUT: SkillsMaterialisationResult { skills_total, mirrors_rewritten,
 
 1. source = source_override or <consumer-dir>/.ai-playbook/skills/
    If source missing -> emit canonical error, return with errors[]; exit 2.
+   desired = immediate children of source holding a SKILL.md, minus disabled.
 
-2. For each mirror in (skills/, .claude/skills/, .gemini/skills/):
-   a. Compute sha256 fingerprint over (relpath, file-bytes) pairs of source.
-   b. Compute fingerprint over the existing target (if any).
-   c. If equal -> no-op (mirrors_in_sync++).
-   d. Else if dry_run -> log "would rewrite".
-   e. Else -> shutil.rmtree(target) + shutil.copytree(source, target).
-              On OSError -> append to result.errors, continue with next mirror.
-              On success -> mirrors_rewritten++.
+2. manifest = read(<consumer-dir>/.ai-playbook-state/skills-manifest.json)
 
-3. Build summary string; return result.
+3. For each mirror in (skills/, .claude/skills/, .gemini/skills/):
+   a. If the mirror is a symlink -> skip; do not manage provenance.
+   b. present    = immediate child directories of the mirror.
+      owned_prev = manifest[mirror], or `present ∩ desired` when absent (§4.1).
+      stale      = (owned_prev - desired) ∩ present
+      user_kept  = present - owned_prev - desired
+   c. Delete every directory in `stale`.
+   d. For each name in `desired`, compare the per-skill fingerprint and
+      rmtree + copytree only that directory when it differs.
+      On OSError -> append to result.errors, continue.
+   e. manifest[mirror] = desired
+
+4. Persist the manifest (best-effort; skipped in dry-run). Return result.
 ```
 
-### 4.1 Orphan removal via wipe-and-recopy
+### 4.1 Orphan removal is provenance-gated
 
-When fingerprints differ, the target is **wiped fully** before copying.
-Skills that were removed upstream disappear from the mirror in one shot —
-no orphan accumulation. This is the same primitive consumer-a's
-`sync_skills_local.py` uses (PR #125).
+The materialiser deletes only what it recorded as having installed. A directory
+that is neither playbook-owned nor desired is a user skill and survives
+untouched — that is the additive contract.
 
-Hand-edits inside a mirror are NOT preserved. Mirrors are derived state;
-edits go upstream to `ai-playbook/skills/<name>/`.
+The consequence matters when a skill is removed upstream. **A mirror with no
+manifest entry loses nothing on that run**: `owned_prev` is seeded as
+`present ∩ desired`, which by construction excludes the removed skill, so it is
+never classified as stale — not on that run and not on any later one. The
+orphan is permanent until the manifest is seeded while the skill is still
+desired.
+
+So a consumer that has never run a materialiser new enough to write a manifest
+must run one **before** its pin moves past the removal. The procedure is step 0
+of [upgrade-playbook-pin.md](../runbooks/upgrade-playbook-pin.md); the removal
+that made this concrete is the v0.23.0 entry in
+[CHANGELOG.md](../../CHANGELOG.md).
+
+Hand-edits inside a playbook-owned mirror directory are NOT preserved. Mirrors
+are derived state; edits go upstream to `ai-playbook/skills/<name>/`.
 
 ### 4.2 Idempotency cost
 
@@ -296,7 +314,7 @@ cut):
 | Reproducibility | 100% | `git checkout <consumer-sha>` + `python .ai-playbook/scripts/materialise_skills.py` produces byte-identical mirrors |
 | Idempotency | 100% — second run is a fingerprint-equal no-op | Test fixture `test_materialise_skills.py::test_idempotent_run` |
 | Windows portability | Materialisation runs from clean clone with no admin / Dev Mode | Smoke test on Win11 Pro (Git Bash + native PowerShell) |
-| Orphan removal | Skill removed upstream disappears in next materialise run | Test fixture `test_materialise_skills.py::test_orphan_skill_removed` |
+| Orphan removal | Skill removed upstream disappears in the next materialise run **that has a manifest entry for the mirror** | Test fixture `test_materialise_skills.py::test_orphan_skill_removed` |
 | Hook overhead | ≤500ms p50 for hot (in-sync) runs | Bench in `tests/test_materialise_skills.py` |
 
 ---
