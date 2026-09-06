@@ -19,6 +19,18 @@
 .ai-playbook/dashboard-data.js
 .ai-playbook-state/
 
+# single-source skills mirrors — derived state, regenerated from
+# .ai-playbook/skills/ by materialise_skills.py on post-checkout / post-merge.
+# All three are copies; none is a source. Committing one means every playbook
+# bump lands as a diff of files nobody in this repo wrote, and any hand-edit
+# here is silently overwritten on the next run — edits belong upstream in
+# ai-playbook/skills/<name>/. Consumers onboarded before v0.17.0 may still
+# track /skills/ from the RFC-0001 era, when it WAS the source; untrack it once
+# with `git rm -r --cached skills/`.
+/skills/
+/.claude/skills/
+/.gemini/skills/
+
 # rendered MCP configs — LOCAL build artifacts (base+project+personal merge).
 # Personal/tenant servers must never land in a committed file, so the rendered
 # output is per-machine: regenerate with `python .ai-playbook/scripts/mcp/render.py`.

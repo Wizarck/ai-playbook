@@ -246,6 +246,93 @@ def test_partial_mirror_adds_skills_and_preserves_unmanaged(tmp_path: Path) -> N
 
 
 # ---------------------------------------------------------------------------
+# 7b. Removal reaches a consumer that never had a manifest
+# ---------------------------------------------------------------------------
+
+
+def _seed_history(consumer: Path, slugs: list[str]) -> None:
+    """Write the `specs/skills-owned-history.yaml` the source resolves against."""
+    spec = consumer / ms.SOURCE_REL.parent / "specs" / "skills-owned-history.yaml"
+    spec.parent.mkdir(parents=True, exist_ok=True)
+    body = "version: 1\nslugs:\n" + "".join(f"  - {s}\n" for s in slugs)
+    spec.write_text(body, encoding="utf-8")
+
+
+def test_removed_skill_is_cleared_on_first_run_without_a_manifest(tmp_path: Path) -> None:
+    """The case that used to need an out-of-band step in every consumer.
+
+    A mirror holding a skill the playbook has since removed, and no manifest to
+    say who installed it. Seeded from `present ∩ desired` the slug is excluded
+    from the owned set by construction, so it could never be classified as stale
+    and stayed forever. The history list puts it back in the owned set.
+    """
+    consumer = _build_consumer(tmp_path)  # source ships hello-world + ping
+    _seed_history(consumer, ["hello-world", "ping", "retired-skill"])
+    for rel in ms.MIRROR_RELS:
+        stale = consumer / rel / "retired-skill"
+        stale.mkdir(parents=True, exist_ok=True)
+        (stale / "SKILL.md").write_text("removed upstream", encoding="utf-8")
+        mine = consumer / rel / "my-own-skill"
+        mine.mkdir(parents=True, exist_ok=True)
+        (mine / "SKILL.md").write_text("mine", encoding="utf-8")
+
+    result = ms.materialise_skills(consumer, quiet=True)
+
+    assert result.ok
+    for rel in ms.MIRROR_RELS:
+        assert not (consumer / rel / "retired-skill").exists(), (
+            "a slug the playbook shipped and then removed must be cleared on the "
+            "first run, with no manifest and no pre-seed"
+        )
+        # A skill the playbook never shipped is in neither set — untouched.
+        assert (consumer / rel / "my-own-skill" / "SKILL.md").read_text(
+            encoding="utf-8"
+        ) == "mine"
+        assert f"{rel.as_posix()}/retired-skill" in result.stale_removed
+        assert f"{rel.as_posix()}/my-own-skill" in result.user_dirs_preserved
+
+
+def test_absent_history_degrades_to_deleting_nothing(tmp_path: Path) -> None:
+    """No history file (or an unreadable one) must not fail the run — the seed
+    falls back to `present ∩ desired`, which deletes nothing."""
+    consumer = _build_consumer(tmp_path)
+    for rel in ms.MIRROR_RELS:
+        stale = consumer / rel / "retired-skill"
+        stale.mkdir(parents=True, exist_ok=True)
+        (stale / "SKILL.md").write_text("removed upstream", encoding="utf-8")
+
+    result = ms.materialise_skills(consumer, quiet=True)
+
+    assert result.ok
+    assert result.stale_removed == []
+    for rel in ms.MIRROR_RELS:
+        assert (consumer / rel / "retired-skill" / "SKILL.md").is_file()
+
+
+def test_history_list_covers_every_skill_this_repo_ships() -> None:
+    """Adding a skill without listing it here would make it undeletable later.
+
+    The list is append-only and is what a consumer with no manifest consults, so
+    a slug absent from it can never be recognised as playbook-owned.
+    """
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    data = yaml.safe_load(
+        (root / "specs" / "skills-owned-history.yaml").read_text(encoding="utf-8")
+    )
+    listed = set(data["slugs"])
+    shipped = {
+        p.name for p in (root / "skills").iterdir() if (p / "SKILL.md").is_file()
+    }
+    assert shipped <= listed, (
+        "skills shipped but absent from specs/skills-owned-history.yaml: "
+        f"{sorted(shipped - listed)}"
+    )
+    assert len(data["slugs"]) == len(listed), "duplicate slugs in the history list"
+
+
+# ---------------------------------------------------------------------------
 # 8. Nested skill assets
 # ---------------------------------------------------------------------------
 
