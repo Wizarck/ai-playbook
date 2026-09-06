@@ -281,5 +281,12 @@ def posttooluse(event: dict) -> HookVerdict | None:
     return None
 
 
-if __name__ == "__main__":  # pragma: no cover
+def main(_argv: list[str] | None = None) -> int:
     print(f"{SLUG}: lock dir {_lock_dir()}")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    from scripts.rules._telemetry import cli_emit
+
+    raise SystemExit(cli_emit(SLUG, main))
