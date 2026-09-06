@@ -6,7 +6,7 @@ summary: |
   The playbook is part framework, part documented protocol. This file makes
   explicit which is which. A future contributor adding enforcement to a row
   flips it from "spec-only" to "wired" + ships the test.
-last_validated: "2026-05-19"
+last_validated: "2026-09-05"
 ---
 
 # Enforcement Status
@@ -51,6 +51,7 @@ flips it from "spec-only" to "wired" + ships the test.
 | [incident-response.md](incident-response.md) | 🟠 wired-pending-trigger | Promoted from 📌 → 🟠 on 2026-05-01 by OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.6). v1.0.0 ships with: 8 S1–S4 scenario rows + on-call ladder (solo / family-of-3 / team-of-N) + 7-day post-mortem trigger detector + comm templates + 4 stub recovery runbooks (`runbook-vps-down`, `runbook-db-corruption`, `runbook-key-rotation-emergency`, `runbook-secrets-leak-containment`). Activation trigger detector `first_paying_client_detected` lives in [`scripts/lifecycle_check.py`](../../scripts/lifecycle_check.py). Simulator: [`scripts/simulate_incident_response.py`](../../scripts/simulate_incident_response.py). Status flips 🟠 → ✅ when a `consumers.yaml` entry has `paying_tier` + `sla_signed` (within 30 days) OR a non-maintainer `oncall_eligible: true` entry lands. |
 | [model-migration.md](model-migration.md) | 🟠 wired-pending-trigger | New row — added on 2026-05-01 by OpenSpec change `complete-ir-and-model-migration-specs` (Phase 5 P5.7). v1.0.0 ships with: trigger taxonomy (curated YAML at [`configs/anthropic-retirement-list.yaml`](../../configs/anthropic-retirement-list.yaml) + `MODEL_MIGRATION_REQUESTED` env var) + 6-step playbook + canary thresholds (≤2× cost, ≤1.5× p95) + rollback path. Activation trigger detector `model_retirement_detected` lives in [`scripts/lifecycle_check.py`](../../scripts/lifecycle_check.py). Simulator: [`scripts/simulate_model_migration.py`](../../scripts/simulate_model_migration.py); integrates with [`scripts/verify_llm_routing.py`](../../scripts/verify_llm_routing.py) when present. Status flips 🟠 → ✅ when an entry in the retirement YAML reaches `retirement_date - now ≤ 90 days` and the maintainer runs the playbook end-to-end. |
 | [issue-tracking.md](issue-tracking.md) | 🟡 partial | Jira sync via `issue_sync.py` wired; GitHub issue creation works. The dual-flow (community vs enterprise) decision rule is documented but not enforced — humans place issues in the right tracker by convention. |
+| [jira-ticket-standard.md](../rules/jira-ticket-standard.rule.md) | ✅ wired | Preventive `PreToolUse` validation blocks non-conformant Atlassian create/edit payloads; `jira-ticket-standard.rule.py check` audits the Jira ratchet and `validate` checks the canonical YAML contract. Covered by `tests/test_jira_ticket_standard.py`. CLI decisions use `_telemetry.cli_emit`; hook decisions use `hook_dispatcher.run_rules`, so negative `rule-event/v2` rows reach the Dashboard matrix and honesty aggregation. |
 | [mcp-servers-schema.md](mcp-servers-schema.md) | ✅ wired | `scripts/mcp/validate.py` validates every layer; `scripts/mcp/render.py` produces `.mcp.json` + `.gemini/settings.json`; `scripts/check_mcp_drift.py` (v0.3.0+) detects drift between legacy and v1 yamls. |
 | [memory-hierarchy.md](memory-hierarchy.md) | ✅ wired | Tier 3 (Hindsight) wired end-to-end via `_hindsight.py` + `inject_context.py` + `retain_memory.py` + SessionStart hooks. Tier 1 (session) is implicit. Tier 2 (project) and Tier 4 (universal/git) rely on git itself. Decay policy §6 is documented; Hindsight's server-side TTL enforces it. |
 | [migration-guide.md](migration-guide.md) | ✅ wired | `schema_validate.py --autofix` honours the contract verbatim. v0 → v1 migration tested. |
@@ -71,6 +72,30 @@ flips it from "spec-only" to "wired" + ships the test.
 | [taxonomy.md](taxonomy.md) | 🟡 partial | Canonical glossary used in spec writing. `drift_check.py` flags new terms appearing in consumer dispatchers without entry here. |
 | [upstream-sync.md](upstream-sync.md) | 🟡 partial | `scripts/upstream_sync.py` + `langgraph-aiops/workflows/upstream_refresher.py` wired for fork rebase. The propose-only HITL is enforced by code (no auto-merge). PATCHES.md inventory enforced per fork. |
 | [verdict-contract.md](../rules/verdict-contract.rule.md) | ✅ wired | `verdict_lint.py --shape artifact` enforces the ✅/⚠️/❓ + S1–S4 rubric on QA artefacts. Pre-commit + CI run it. |
+
+---
+
+## Telemetry visibility boundary
+
+`rule-event/v2` is the local agent-rule and direct-playbook-script observation
+stream. A guardrail is Dashboard-visible only when a real invocation emits an
+event that survives aggregation into `panels.matrix.rows`; its LLM-level
+self-check contribution appears in `panels.honesty.rows` once the sample floor
+is met. Source imports alone are not visibility evidence.
+
+The code-entropy audit set is covered end to end: `sweep-scan` and
+`sweep-execute` emit as `kind=script`; `repo-hygiene`, `capability-wiring`, and
+`cleanup-zombies` emit through their rule CLI wrappers; and
+`jira-ticket-standard` emits through either its CLI wrapper or the in-process
+hook dispatcher. `tests/test_guardrail_dashboard_visibility.py` drives real
+negative conditions through all six paths and asserts both Dashboard panels.
+
+GitHub Actions gates deliberately remain outside this stream. A workflow check
+blocks or permits an asynchronous PR/deploy transition, not an agent tool call;
+mixing it into local obey-rate would combine incompatible denominators. Their
+evidence is the GitHub check/run conclusion plus repository workflow tests. If a
+future Dashboard needs CI outcomes, it requires a separate event kind and panel
+contract rather than synthetic local rule events.
 
 ---
 
