@@ -2,6 +2,72 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.24.0] — 2026-09-06 — scope: removing a skill stops needing anyone's cooperation
+
+v0.23.0 removed eleven skills and shipped a migration step: every consumer had to
+run the materialiser once, on its current pin, **before** bumping. That step was
+the defect. This playbook is pull-model — consumers bump on their own schedule
+and nothing reaches into their repos — so a correctness requirement that must be
+executed inside each consumer, in advance, cannot be relied on, and it presumes
+the playbook knows who its consumers are. It does not.
+
+### Added
+- **`specs/skills-owned-history.yaml`** — every slug the playbook has ever
+  shipped, 87 of them. It exists so the materialiser can tell a skill the
+  playbook REMOVED from a skill the consumer wrote, which is the one thing a
+  fresh mirror cannot infer. Seeded from `present ∩ desired` alone, a removed
+  slug is excluded from the owned set by construction and can never be
+  classified as stale; with the list, the seed becomes
+  `present ∩ (desired ∪ ever_owned)` and it is cleared on the consumer's first
+  ordinary `bootstrap.py --update`. A skill the consumer authored is in neither
+  set and is preserved.
+
+  Append-only: removing a slug re-creates the orphan it exists to clear, and a
+  test fails if a shipped skill is missing from it. A playbook copy that predates
+  the file degrades to the old behaviour — deletes nothing — rather than failing.
+
+### Removed
+- **`scripts/bump_consumers.py`, `scripts/_bumper.py`, `tests/test_bumper.py`**
+  — 1 112 lines. `bump_consumers.py` walked every project in the developer's
+  local registry, moved each one's submodule pin, and with `--push --open-pr`
+  pushed and opened pull requests across them. That is the push pipeline retired
+  in v0.19.0, still shipping as a supported script and contradicting
+  `release.md` in the same repository: *"No automation reaches into consumer
+  repos."* Nothing else imported the two helpers — the "CI-side" user named in
+  their docstrings had already gone.
+
+  The pull-model path is untouched: a consumer bumps itself with
+  `scripts/rules/update-playbook.rule.py apply --execute`.
+
+  The registry itself stays and is unaffected. `~/.ai-playbook/projects.yaml` is
+  per-dev, gitignored, and built by scanning the developer's own disk; the
+  playbook holds no list of who consumes it and now ships nothing that walks one.
+
+### Fixed
+- **The `.gitignore` template ignored none of the three skills mirrors** while
+  `skills-distribution.md` §3.2 stated that every consumer ignores all three. The
+  contract was documented and never implemented, so what a consumer ignored was
+  whatever it had hand-written. Repos onboarded under RFC-0001 carry a block that
+  ignores `.claude/skills/` and `.gemini/skills/` but keeps `/skills/` — correct
+  then, when `skills/` was the source and the other two its copies; wrong since
+  v0.17.0 collapsed all three into mirrors. Two consumers were found committing
+  roughly 1 100 files of playbook content, taking a diff of files nobody there
+  wrote on every bump, and silently losing any hand-edit to the next materialise.
+
+  The template now carries all three. Existing repos untrack theirs once with
+  `git rm -r --cached skills/`.
+
+### Migration
+
+None. That is the point of the release — a consumer bumps normally and the
+eleven skills v0.23.0 removed are cleared on that run. Step 0 of
+`upgrade-playbook-pin.md` is deleted; consumers that already ran it lose nothing
+by having done so.
+
+A consumer that already crossed v0.23.0 with an older playbook copy still has the
+eleven in its mirrors: bumping to v0.24.0 and re-running `bootstrap.py --update`
+clears them.
+
 ## [0.23.0] — 2026-09-04 — scope: the vendored frameworks become a fork that owns itself
 
 MINOR, not PATCH: eleven skills are removed from the surface every consumer

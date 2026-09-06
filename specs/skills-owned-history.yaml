@@ -1,0 +1,116 @@
+# skills-owned-history.yaml — every skill slug this playbook has ever shipped.
+#
+# Purpose: let a consumer mirror that has no
+# `.ai-playbook-state/skills-manifest.json` still recognise a skill the playbook
+# REMOVED, and delete it on the consumer's first ordinary
+# `bootstrap.py --update`.
+#
+# Without this list the materialiser cannot tell a removed playbook skill from a
+# skill the consumer wrote: with no manifest it seeds ownership as
+# `present ∩ desired`, which by construction excludes anything the current tag
+# no longer wants, so the removed skill is never classified as stale — not on
+# that run nor on any later one. It became a permanent orphan, and the only
+# remedy was an out-of-band step in every consumer BEFORE it bumped. That is a
+# push-model requirement, and this playbook is pull-model: consumers bump on
+# their own schedule and nothing reaches into their repos. Hence this list.
+#
+# With it the seed becomes `present ∩ (desired ∪ ever_owned)`, so:
+#   - a slug the playbook removed  -> owned, not desired -> stale -> deleted
+#   - a slug the consumer authored -> in neither set     -> preserved untouched
+#
+# APPEND-ONLY. Never remove a slug: deleting one from here re-creates the orphan
+# it exists to clear. Adding a new skill to `skills/` requires adding it here —
+# `tests/test_materialise_skills.py` fails otherwise.
+#
+# Regenerate the historical portion with:
+#   git log --all --pretty=format: --name-only --diff-filter=AMRD -- 'skills/*/SKILL.md'
+
+version: 1
+slugs:
+  - ai-playbook-check
+  - bmad-advanced-elicitation
+  - bmad-agent-analyst
+  - bmad-agent-architect
+  - bmad-agent-builder
+  - bmad-agent-dev
+  - bmad-agent-pm
+  - bmad-agent-tech-writer
+  - bmad-agent-ux-designer
+  - bmad-bmb-setup
+  - bmad-brainstorming
+  - bmad-check-implementation-readiness
+  - bmad-checkpoint-preview
+  - bmad-cis-agent-brainstorming-coach
+  - bmad-cis-agent-creative-problem-solver
+  - bmad-cis-agent-design-thinking-coach
+  - bmad-cis-agent-innovation-strategist
+  - bmad-cis-agent-presentation-master
+  - bmad-cis-agent-storyteller
+  - bmad-cis-design-thinking
+  - bmad-cis-innovation-strategy
+  - bmad-cis-problem-solving
+  - bmad-cis-storytelling
+  - bmad-code-review
+  - bmad-correct-course
+  - bmad-create-architecture
+  - bmad-create-epics-and-stories
+  - bmad-create-prd
+  - bmad-create-story
+  - bmad-create-ux-design
+  - bmad-dev-story
+  - bmad-distillator
+  - bmad-document-project
+  - bmad-domain-research
+  - bmad-edit-prd
+  - bmad-editorial-review-prose
+  - bmad-editorial-review-structure
+  - bmad-extract-lessons-from-adrs
+  - bmad-generate-project-context
+  - bmad-help
+  - bmad-index-docs
+  - bmad-market-research
+  - bmad-module-builder
+  - bmad-party-mode
+  - bmad-prfaq
+  - bmad-product-brief
+  - bmad-qa-generate-e2e-tests
+  - bmad-quick-dev
+  - bmad-retrospective
+  - bmad-review-adversarial-general
+  - bmad-review-edge-case-hunter
+  - bmad-shard-doc
+  - bmad-sprint-planning
+  - bmad-sprint-status
+  - bmad-tea
+  - bmad-tea-knowledge
+  - bmad-teach-me-testing
+  - bmad-technical-research
+  - bmad-testarch-atdd
+  - bmad-testarch-automate
+  - bmad-testarch-ci
+  - bmad-testarch-framework
+  - bmad-testarch-nfr
+  - bmad-testarch-test-design
+  - bmad-testarch-test-review
+  - bmad-testarch-trace
+  - bmad-validate-prd
+  - bmad-workflow-builder
+  - caveman
+  - caveman-commit
+  - caveman-compress
+  - caveman-help
+  - caveman-review
+  - dev-flow
+  - graphify
+  - jira-ticket
+  - openspec-apply-change
+  - openspec-apply-parallel
+  - openspec-archive-change
+  - openspec-explore
+  - openspec-propose
+  - ponytail
+  - ponytail-audit
+  - ponytail-debt
+  - ponytail-help
+  - ponytail-review
+  - sweep
