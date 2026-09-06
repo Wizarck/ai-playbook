@@ -243,6 +243,47 @@ def _main_guards(tree: ast.Module) -> list[ast.If]:
     return guards
 
 
+def _guard_wraps_main(guards: list[ast.If]) -> bool:
+    """True when a guard hands the module's `main` to `cli_emit`.
+
+    Locating *any* `cli_emit` call in the guard is not enough. This passes such
+    a scan while leaving the real entry path untelemetered:
+
+        if __name__ == "__main__":
+            cli_emit("something-else", other_main)
+            raise SystemExit(main())
+
+    So the callable argument is checked by name, not merely the call.
+    """
+    return any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "cli_emit"
+        and any(
+            isinstance(arg, ast.Name) and arg.id == "main"
+            for arg in [*node.args, *(kw.value for kw in node.keywords)]
+        )
+        for guard in guards
+        for node in ast.walk(guard)
+    )
+
+
+def _guard_calls_main_directly(guards: list[ast.If]) -> bool:
+    """True when a guard *calls* `main(...)` instead of passing it as a value.
+
+    `cli_emit(SLUG, main)` references `main`; it never calls it. A call node
+    named `main` inside the guard is therefore an entry path that runs without
+    telemetry, even when a correctly-wrapped call sits beside it.
+    """
+    return any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "main"
+        for guard in guards
+        for node in ast.walk(guard)
+    )
+
+
 def test_every_rule_imports_the_direct_telemetry_wrapper() -> None:
     # The spec (ci-guardrail-audit-evidence §"Every playbook `.rule.py` SHALL
     # import and invoke the direct `_telemetry` wrapper") requires BOTH
@@ -251,6 +292,7 @@ def test_every_rule_imports_the_direct_telemetry_wrapper() -> None:
     # directly) pass silently, so both are asserted per file.
     silent: list[str] = []
     uninvoked: list[str] = []
+    bypassed: list[str] = []
     for path in sorted((ROOT / "scripts" / "rules").glob("*.rule.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         direct_wrapper = any(
@@ -263,20 +305,19 @@ def test_every_rule_imports_the_direct_telemetry_wrapper() -> None:
             silent.append(path.name)
 
         guards = _main_guards(tree)
-        invokes_cli_emit = any(
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "cli_emit"
-            for guard in guards
-            for node in ast.walk(guard)
-        )
-        if not invokes_cli_emit:
+        if not _guard_wraps_main(guards):
             uninvoked.append(path.name)
+        if _guard_calls_main_directly(guards):
+            bypassed.append(path.name)
 
     assert not silent, f"rule scripts without a direct `cli_emit` import: {silent}"
     assert not uninvoked, (
         f"rule scripts whose `if __name__ == '__main__':` block(s) do not "
-        f"invoke `cli_emit`: {uninvoked}"
+        f"hand `main` to `cli_emit`: {uninvoked}"
+    )
+    assert not bypassed, (
+        f"rule scripts whose `if __name__ == '__main__':` block(s) call "
+        f"`main()` directly, bypassing telemetry: {bypassed}"
     )
     dispatcher_source = (ROOT / "scripts" / "hook_dispatcher.py").read_text(encoding="utf-8")
     assert "_emit_run_event(r.slug, verdict.verdict" in dispatcher_source
@@ -302,14 +343,7 @@ def test_main_guard_ast_check_rejects_an_unreachable_cli_emit_call() -> None:
     tree = ast.parse(unreachable_source, filename="synthetic.rule.py")
     guards = _main_guards(tree)
     assert len(guards) == 1
-    invokes_cli_emit = any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "cli_emit"
-        for guard in guards
-        for node in ast.walk(guard)
-    )
-    assert invokes_cli_emit is False, (
+    assert _guard_wraps_main(guards) is False, (
         "an unreachable cli_emit call outside the __main__ guard must not "
         "count as invocation"
     )
@@ -323,12 +357,34 @@ def test_main_guard_ast_check_rejects_an_unreachable_cli_emit_call() -> None:
     )
     tree2 = ast.parse(reachable_source, filename="synthetic.rule.py")
     guards2 = _main_guards(tree2)
-    assert any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "cli_emit"
-        for guard in guards2
-        for node in ast.walk(guard)
+    assert _guard_wraps_main(guards2) is True
+    assert _guard_calls_main_directly(guards2) is False
+
+
+def test_main_guard_ast_check_rejects_a_decoy_cli_emit_call() -> None:
+    """The guard may not satisfy the check with a `cli_emit` on another callable.
+
+    Scoping the scan to the `__main__` guard still accepts this shape, which is
+    why the check binds to the `main` argument and rejects a direct `main()`
+    call in the same guard.
+    """
+    decoy_source = "\n".join(
+        (
+            "from scripts.rules._telemetry import cli_emit",
+            "",
+            "if __name__ == '__main__':",
+            "    cli_emit('other', other_main)",
+            "    raise SystemExit(main())",
+            "",
+        )
+    )
+    guards = _main_guards(ast.parse(decoy_source, filename="synthetic.rule.py"))
+    assert len(guards) == 1
+    assert _guard_wraps_main(guards) is False, (
+        "a cli_emit call on an unrelated callable must not satisfy the check"
+    )
+    assert _guard_calls_main_directly(guards) is True, (
+        "the untelemetered `main()` call in the same guard must be flagged"
     )
 
 
