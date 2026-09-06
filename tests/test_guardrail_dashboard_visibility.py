@@ -214,6 +214,35 @@ def test_real_negative_events_render_in_matrix_and_honesty(tmp_path, monkeypatch
         assert honesty[llm]["self_check_verdict_agreement_rate"] == 1.0
 
 
+def _main_guards(tree: ast.Module) -> list[ast.If]:
+    """Return every module-level ``if __name__ == "__main__":`` block.
+
+    Scoping the `cli_emit` check to these nodes (rather than `ast.walk(tree)`
+    over the whole module) matters: a bare whole-file walk would accept a
+    `cli_emit(...)` call sitting in unrelated or unreachable code — a dead
+    branch, an unused helper, a docstring-turned-code snippet — as if it were
+    the script's real CLI entrypoint. Some rule files legitimately split this
+    guard in two (an early one that only does `sys.path.insert` bootstrap, a
+    later one that dispatches `cli_emit`), so every guard at module level is
+    collected rather than returning on the first match.
+    """
+    guards = []
+    for node in tree.body:
+        if not isinstance(node, ast.If):
+            continue
+        test = node.test
+        if (
+            isinstance(test, ast.Compare)
+            and isinstance(test.left, ast.Name)
+            and test.left.id == "__name__"
+            and len(test.comparators) == 1
+            and isinstance(test.comparators[0], ast.Constant)
+            and test.comparators[0].value == "__main__"
+        ):
+            guards.append(node)
+    return guards
+
+
 def test_every_rule_imports_the_direct_telemetry_wrapper() -> None:
     # The spec (ci-guardrail-audit-evidence §"Every playbook `.rule.py` SHALL
     # import and invoke the direct `_telemetry` wrapper") requires BOTH
@@ -233,19 +262,74 @@ def test_every_rule_imports_the_direct_telemetry_wrapper() -> None:
         if not direct_wrapper:
             silent.append(path.name)
 
+        guards = _main_guards(tree)
         invokes_cli_emit = any(
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "cli_emit"
-            for node in ast.walk(tree)
+            for guard in guards
+            for node in ast.walk(guard)
         )
         if not invokes_cli_emit:
             uninvoked.append(path.name)
 
     assert not silent, f"rule scripts without a direct `cli_emit` import: {silent}"
-    assert not uninvoked, f"rule scripts that import but never call `cli_emit`: {uninvoked}"
+    assert not uninvoked, (
+        f"rule scripts whose `if __name__ == '__main__':` block(s) do not "
+        f"invoke `cli_emit`: {uninvoked}"
+    )
     dispatcher_source = (ROOT / "scripts" / "hook_dispatcher.py").read_text(encoding="utf-8")
     assert "_emit_run_event(r.slug, verdict.verdict" in dispatcher_source
+
+
+def test_main_guard_ast_check_rejects_an_unreachable_cli_emit_call() -> None:
+    """Direct proof the `_main_guards` scoping actually matters.
+
+    A file with `cli_emit` called only in dead/unrelated code (never inside
+    `if __name__ == "__main__":`) must be classified as NOT invoking it — a
+    bare whole-file `ast.walk` would wrongly accept this.
+    """
+    unreachable_source = (
+        "from scripts.rules._telemetry import cli_emit\n"
+        "\n"
+        "def _dead_helper():\n"
+        "    # never called by anything, and not inside a __main__ guard\n"
+        "    return cli_emit('not-really-the-entrypoint', lambda a: 0)\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    raise SystemExit(main(None))\n"
+    )
+    tree = ast.parse(unreachable_source, filename="synthetic.rule.py")
+    guards = _main_guards(tree)
+    assert len(guards) == 1
+    invokes_cli_emit = any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "cli_emit"
+        for guard in guards
+        for node in ast.walk(guard)
+    )
+    assert invokes_cli_emit is False, (
+        "an unreachable cli_emit call outside the __main__ guard must not "
+        "count as invocation"
+    )
+
+    # And the positive control: moving the same call inside the guard flips it.
+    reachable_source = (
+        "from scripts.rules._telemetry import cli_emit\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    raise SystemExit(cli_emit('real-slug', main))\n"
+    )
+    tree2 = ast.parse(reachable_source, filename="synthetic.rule.py")
+    guards2 = _main_guards(tree2)
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "cli_emit"
+        for guard in guards2
+        for node in ast.walk(guard)
+    )
 
 
 def test_audited_direct_scripts_remain_wrapped_by_script_emit() -> None:
