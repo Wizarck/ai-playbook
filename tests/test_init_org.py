@@ -92,7 +92,6 @@ def test_apply_replaces_wizarck_with_acme(tmp_path: Path) -> None:
         org_name="acme",
         owner_email="ops@acme.example",
         hindsight_url="https://hindsight.acme.example",
-        secrets_env_path="acme-core/secrets/secrets.env",
     )
     files, replacements = io.apply_edits(tmp_path, plan, dry_run=False)
 
@@ -107,9 +106,8 @@ def test_apply_replaces_wizarck_with_acme(tmp_path: Path) -> None:
     sst = (tmp_path / "docs" / "concepts" / "session-start-hook.md").read_text(encoding="utf-8")
     assert sst.strip() == "https://hindsight.acme.example"
 
-    # SOPS path in templates.
+    # Owner email in templates.
     tmpl = (tmp_path / "templates" / "new-project" / "AGENTS.md.tmpl").read_text(encoding="utf-8")
-    assert "acme-core/secrets/secrets.env" in tmpl
     assert "ops@acme.example" in tmpl
 
 
@@ -118,7 +116,7 @@ def test_apply_dry_run_does_not_mutate(tmp_path: Path) -> None:
     original = (tmp_path / "README.md").read_text(encoding="utf-8")
     plan = io.build_edit_plan(
         root=tmp_path, org_name="acme", owner_email="x@x.com",
-        hindsight_url=None, secrets_env_path=None,
+        hindsight_url=None,
     )
     io.apply_edits(tmp_path, plan, dry_run=True)
     assert (tmp_path / "README.md").read_text(encoding="utf-8") == original
@@ -144,11 +142,10 @@ def test_every_flag_hits_the_real_repo() -> None:
     plan = io.build_edit_plan(
         root=root, org_name="acme", owner_email="ops@acme.example",
         hindsight_url="https://hindsight.acme.example",
-        secrets_env_path="acme/secrets.env",
     )
     hits: dict[str, int] = {}
     io.apply_edits(root, plan, dry_run=True, flag_hits=hits)
-    for flag in ("--hindsight-url", "--secrets-env-path", "--owner-email"):
+    for flag in ("--hindsight-url", "--owner-email"):
         assert hits.get(flag, 0) >= 1, flag
     tmpl = (root / "templates" / "new-project" / ".claude" / "settings.json.tmpl")
     assert any(e.path == tmpl.relative_to(root).as_posix() for e in plan)
@@ -192,39 +189,6 @@ def _with_real_settings_template(root: Path) -> Path:
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_bytes(real.read_bytes())
     return dst
-
-
-def test_windows_secrets_path_keeps_the_settings_template_valid_json(tmp_path: Path) -> None:
-    """A backslash path used to land unescaped in the JSON template, so every
-    consumer bootstrapped from the fork got an unparseable settings.json."""
-    import json
-
-    _make_fake_playbook(tmp_path)
-    settings = _with_real_settings_template(tmp_path)
-    win_path = r"..\acme\secrets\secrets.env"
-
-    rc = io.main([
-        "--org-name", "acme", "--owner-email", "ops@acme.example",
-        "--secrets-env-path", win_path, "--root", str(tmp_path),
-    ])
-
-    assert rc == 0
-    commands = json.dumps(json.loads(settings.read_text(encoding="utf-8")))
-    assert json.dumps(f'"$CLAUDE_PROJECT_DIR/{win_path}"')[1:-1] in commands
-    tmpl = (tmp_path / "templates" / "new-project" / "AGENTS.md.tmpl").read_text(encoding="utf-8")
-    assert win_path in tmpl  # markdown targets get the raw value
-
-
-def test_secrets_path_with_a_quote_is_rejected(tmp_path: Path) -> None:
-    _make_fake_playbook(tmp_path)
-    settings = _with_real_settings_template(tmp_path)
-    before = settings.read_bytes()
-    rc = io.main([
-        "--org-name", "acme", "--owner-email", "ops@acme.example",
-        "--secrets-env-path", 'acme/"secrets".env', "--root", str(tmp_path),
-    ])
-    assert rc == 1
-    assert settings.read_bytes() == before
 
 
 def test_main_no_op_flag_writes_nothing(tmp_path: Path) -> None:
