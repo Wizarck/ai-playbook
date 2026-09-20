@@ -19,7 +19,7 @@ This doc describes the **zero-touch loop** that takes OpenSpec changes and semve
 
 ```
            ┌───────────────────────────────────────────────────────────┐
-           │                 CONSUMER REPO (e.g. consumer-c)           │
+           │                 CONSUMER REPO (e.g. project-c)            │
            │                                                             │
            │   /opsx:propose  →  openspec/changes/<id>/proposal.md      │
            │                                                             │
@@ -46,7 +46,7 @@ This doc describes the **zero-touch loop** that takes OpenSpec changes and semve
                       ┌──────────────────┴──────────────────┐
                       ▼                                     ▼
               Dashboard bell 🔔                     SMTP email (warn+error)
-              (consumer-d /api/notifications)      (via scripts/notify.py)
+              (project-d /api/notifications)       (via scripts/notify.py)
 ```
 
 **Release flow** (mirror, on tag push):
@@ -123,11 +123,11 @@ SMTP_PORT=587
 SMTP_USER=23051550+Wizarck@users.noreply.github.com
 SMTP_PASSWORD=<app-password>
 
-# Jira via atlassian-consumer-a
-ATLASSIAN_URL=https://consumer-a.atlassian.net
+# Jira via atlassian-project-a
+ATLASSIAN_URL=https://project-a.atlassian.net
 ATLASSIAN_USERNAME=23051550+Wizarck@users.noreply.github.com
 ATLASSIAN_API_TOKEN=<jira-api-token>
-AIPLAYBOOK_JIRA_DEFAULT_PROJECT=consumer-a        # or consumer-b
+AIPLAYBOOK_JIRA_DEFAULT_PROJECT=project-a        # or project-b
 
 # GitHub
 AIPLAYBOOK_GH_PROJECT_NUMBER=1                 # optional; 1 = the maintainer's board
@@ -159,9 +159,9 @@ Every override lands in `.ai-playbook/overrides.log` and emits a `warn` notifica
 
 ### Empty bell (no events)
 
-1. Is the dashboard pod's `NOTIFICATIONS_LOG_PATH` pointing at an actually-populated file? On the VPS: `ssh consumer-d-vps kubectl exec -n consumer-d deploy/consumer-d-dashboard -- ls -la /app/.ai-playbook/`.
-2. Is the aiops-state hostPath mounted? Check `helm/consumer-d-stack/templates/dashboard.yaml` has the `aiops-state` volumeMount.
-3. Has anything written to the JSONL yet? `ssh consumer-d-vps cat /opt/consumer-d/data/aiops-metrics/notifications.jsonl`.
+1. Is the dashboard pod's `NOTIFICATIONS_LOG_PATH` pointing at an actually-populated file? On the VPS: `ssh project-d-vps kubectl exec -n project-d deploy/project-d-dashboard -- ls -la /app/.ai-playbook/`.
+2. Is the aiops-state hostPath mounted? Check `helm/project-d-stack/templates/dashboard.yaml` has the `aiops-state` volumeMount.
+3. Has anything written to the JSONL yet? `ssh project-d-vps cat /opt/project-d/data/aiops-metrics/notifications.jsonl`.
 
 ### Email not arriving
 
@@ -189,4 +189,4 @@ Someone (or a prior CI run) already created the release. Inspect `gh release vie
 - `scripts/notify.py`, `scripts/issue_sync.py`, `scripts/release_cut.py` — the implementations.
 - `.github/workflows/issue-sync.yml`, `.github/workflows/release-cut.yml` — the CI triggers.
 - `templates/new-project/.github/workflows/*.tmpl` — consumer-repo copies.
-- Dashboard bell: `consumer-d/dashboard/backend/routes/notifications.py`.
+- Dashboard bell: `project-d/dashboard/backend/routes/notifications.py`.

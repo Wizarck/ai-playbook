@@ -19,7 +19,7 @@ skill content is a separate concern handled by git submodules per
 [`skills-distribution.md`](skills-distribution.md) and
 RFC-0001.
 
-The service lives at `consumer-d-skills.consumer-bfood.com` behind a Cloudflare
+The service lives at `project-d-skills.example.com` behind a Cloudflare
 Tunnel (local port 9002 in dev). This spec defines the HTTP contract, the
 scope model, caching, degraded behaviour, and the security envelope.
 
@@ -30,9 +30,9 @@ scope model, caching, degraded behaviour, and the security envelope.
 Prior to T20, every consumer had to `git clone` or `cp -r` the skills it wanted
 available to its `.claude/skills/` directory. That model:
 
-- **Drifts silently.** Skill X updated in consumer-d-skills master → stale copies
+- **Drifts silently.** Skill X updated in project-d-skills master → stale copies
   everywhere else for weeks.
-- **Mixes scopes.** A personal skill (maintainer-only, e.g. consumer-d infra) leaking
+- **Mixes scopes.** A personal skill (maintainer-only, e.g. project-d infra) leaking
   into a shared consumer repo is an information-leakage risk.
 - **Has no catalog surface.** The agent cannot "ask what exists"; it must
   enumerate the directory manually.
@@ -54,7 +54,7 @@ tag, and the registry's `source` field points there explicitly (e.g.
 ## 2. API contract
 
 Authoritative contract lives at
-[`consumer-d-skills/docs/api-contract.md`](https://github.com/Wizarck/consumer-d-skills/blob/master/docs/api-contract.md).
+[`project-d-skills/docs/api-contract.md`](https://github.com/Wizarck/project-d-skills/blob/master/docs/api-contract.md).
 Summary below — the upstream doc wins on any conflict.
 
 ### `GET /api/v1/skills`
@@ -121,7 +121,7 @@ Scope resolution on the consumer side mirrors `dispatcher-chain.md`:
 1. If cwd is inside a `personal: true` project per
    `~/.ai-playbook/projects.yaml`, the consumer may query `scope=personal`.
 2. Otherwise `scope=public` is the default; `scope=<slug>` is explicit opt-in
-   (e.g. a bmad-code-review variant specific to `consumer-b`).
+   (e.g. a bmad-code-review variant specific to `project-b`).
 3. The registry refuses `scope=personal` without a bearer token.
 
 ## 4. Caching
@@ -169,7 +169,7 @@ counts as part of `DEGRADED_CONTEXT` alongside Hindsight.
   bearer-token verification on the server.
 - **Key rotation.** The API key lives in SOPS-encrypted env (`secrets.env`).
   Rotation follows the same cadence as Hindsight (see
-  `consumer-d/docs/operations/consumer-d-secrets-strategy.md`).
+  `project-d/docs/operations/project-d-secrets-strategy.md`).
 - **Response sanitisation.** The registry must never echo caller-supplied input
   unescaped in its error messages (prevents response-splitting in a proxy).
 - **No plaintext transport.** Production URL is `https://` only; the local

@@ -48,7 +48,7 @@ Covers AC-1, AC-2 from openspec/specs/recipes.md.
 ✅ APPROVED
 ````
 
-**Avoided** — `✅ APPROVED — tests pass` with no output. `✅ APPROVED — I confirmed migrations are clean` (paraphrase, not exit code). Running `mypy --strict apps/api/src/<slice>/` when CI runs `mypy --strict apps/api/` (sub-scope hides cross-cut imports — consumer-e Wave 2 P1 retro, 6 invisible errors). Running the full sweep and claiming a specific change is verified because the suite is green (the link from change → test isn't shown).
+**Avoided** — `✅ APPROVED — tests pass` with no output. `✅ APPROVED — I confirmed migrations are clean` (paraphrase, not exit code). Running `mypy --strict apps/api/src/<slice>/` when CI runs `mypy --strict apps/api/` (sub-scope hides cross-cut imports). Running the full sweep and claiming a specific change is verified because the suite is green (the link from change → test isn't shown).
 
 ## Broadest-scope rule
 

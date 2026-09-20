@@ -1,6 +1,6 @@
 """Tests for scripts/skills_registry.py (T20).
 
-Mocks urllib at the module level; no real HTTP to acme-corp-skills.consumer-bfood.com.
+Mocks urllib at the module level; no real HTTP to acme-corp-skills.example.com.
 Covers env-var resolution, list/show happy paths, malformed response, timeout,
 HTTP 5xx, unreachable, --force-with-reason degradation, --scope propagation,
 --json output, and importable helpers.
@@ -290,9 +290,9 @@ def test_cli_list_scope_param_in_query(
         return _fake_response(_encoded(SAMPLE_PAYLOAD))
 
     monkeypatch.setattr(sr.urlrequest, "urlopen", _capture)
-    rc = sr.main(["list", "--scope", "consumer-b"])
+    rc = sr.main(["list", "--scope", "project-b"])
     assert rc == 0
-    assert "scope=consumer-b" in captured["url"]
+    assert "scope=project-b" in captured["url"]
 
 
 def test_cli_list_missing_url_exits_2(

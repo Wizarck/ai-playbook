@@ -264,7 +264,7 @@ Document these so future agents (and humans) recognise them:
 - **Bypassing OpenSpec for a "quick fix" that's actually 80 lines.** If your "fix" creates new files, deletes existing files, or touches > 50 lines: it's an OpenSpec change. Promote it.
 - **Squashing a multi-commit PR with semantic history.** Squash collapses authorial intent. Reserve squash for trivial single-commit PRs (typo, doc fix, lint cleanup). See `merge-policy.md`.
 - **Merging to main without CI green.** Pre-commit hooks are the floor, not the ceiling. CI must pass before merge regardless of local pre-commit.
-- **Committing with `tasks.md` boxes 0/N ticked.** Filed as Followup #4 from consumer-e slice 3 (PR #57). Auto-tick + CI warning prevent recurrence.
+- **Committing with `tasks.md` boxes 0/N ticked.** Auto-tick + CI warning prevent recurrence.
 - **Tagging a release without consolidated CHANGELOG.** A tag without notes is invisible to consumers; they merge a bump PR with no context.
 - **Manual edits to `openspec/specs/*.md` outside an `openspec-archive:` commit.** Caught by `block_manual_spec_edit.py`. Use OpenSpec workflow.
 - **Cherry-picking commits across PRs to "consolidate".** Loses CI history per PR. Open one PR per logical unit; merge all to main; tag when bundle is coherent.

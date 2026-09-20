@@ -52,8 +52,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
           PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          # PYTHONPATH so playbook scripts can import (per gotcha #9 in
-          # consumer-e). Skips if .ai-playbook submodule is absent.
+          # PYTHONPATH so playbook scripts can import. Skips if .ai-playbook submodule is absent.
           PYTHONPATH: ${{ github.workspace }}/.ai-playbook
         run: |
           if [ ! -f .ai-playbook/scripts/auto_transition_blocked_todo.py ]; then

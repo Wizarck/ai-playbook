@@ -46,7 +46,7 @@ Notes:
 - The seeded template (`templates/new-project/.claude/settings.json.tmpl`) reads the secrets path from `$AIPLAYBOOK_SECRETS_ENV`; unset, the hook is a no-op. Hard-code the path in your own `.claude/settings.json` if you prefer.
 - `timeout: 60` covers cold recall (~30 s on the production deployment) plus sanitisation overhead. The script's internal `DEFAULT_TIMEOUT_SECS` is 45 s; the hook envelope adds 15 s buffer.
 - The output file (`.claude/injected-context.md`) is read by Claude Code's own bootstrap and surfaced alongside the project's `AGENTS.md`.
-- Replace `<project-bank>` with the project's bank id from [`../docs/concepts/memory-hierarchy.md`](memory-hierarchy.md) §2 (e.g. `consumer-c`, `consumer-d`, `consumer-b`).
+- Replace `<project-bank>` with the project's bank id from [`../docs/concepts/memory-hierarchy.md`](memory-hierarchy.md) §2 (e.g. `project-c`, `project-d`, `project-b`).
 
 ## Gemini CLI / Antigravity
 

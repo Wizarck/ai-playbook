@@ -3,8 +3,7 @@ schema: concept/v1
 slug: database-numeric-boundaries
 title: Database Numeric Boundaries
 summary: |
-  A recurring data-integrity hazard surfaced in consumer-c
-  m2-cost-rollup-and-audit: > Postgres numeric columns deserialise to strings
+  A recurring data-integrity hazard: > Postgres numeric columns deserialise to strings
   through TypeORM (default behaviour); JavaScript multiplication of strings
   produces NaN if non-numeric chars are present, or string…
 last_validated: "2026-05-19"
@@ -14,7 +13,7 @@ last_validated: "2026-05-19"
 
 ## 1. Why this spec
 
-A recurring data-integrity hazard surfaced in consumer-c m2-cost-rollup-and-audit:
+A recurring data-integrity hazard:
 
 > Postgres `numeric` columns deserialise to **strings** through TypeORM (default behaviour); JavaScript multiplication of strings produces NaN if non-numeric chars are present, or string concatenation if both are strings. `'10' * '5' === 50` (coerced) but `'10.50' * '5' === 52.5` and `'10' + '5' === '105'` and `'10.5' + 0.1 === '10.50.1'`. Subtle, deterministic, silent.
 
@@ -42,7 +41,7 @@ If the conversion is needed, it lives in **one place** — a column transformer 
 
 ## 3. Per-stack recipes
 
-### 3.1 TypeORM (the consumer-c hazard)
+### 3.1 TypeORM
 
 ```ts
 // ❌ Forbidden: column declared without transformer; consumer code calls Number()
@@ -162,14 +161,3 @@ A "money" column is **numeric + a currency code**. Don't store the currency in t
 - [event-and-data-patterns.md](event-and-data-patterns.md) §6 (open-enum text columns + CHECK) — sister pattern for non-numeric column conventions.
 - [release-management.md](release-management.md) §6.4 — anti-collision contract; numeric column ADD-COLUMNS use Shape A or B per [cross-slice-additive-extension.md](../rules/cross-slice-additive-extension.rule.md).
 
----
-
-## 7. Reference implementations
-
-| Project | Surface | Recipe |
-|---|---|---|
-| consumer-c | `recipes.cost`, `ingredients.unit_cost` | TypeORM `@Column('numeric', { transformer })` with decimal.js |
-| consumer-c | `cost_history.value` | Same pattern; aggregations inside SQL with `numeric` casts |
-| consumer-e | `orders.quantity`, `orders.limit_price` | SQLAlchemy `Numeric(18, 8)` → Python `Decimal` |
-| consumer-e | `equity_snapshots.equity_usd` | Same; `Decimal` arithmetic in `BrokerService` |
-| consumer-d | `whatsapp_invoice_lines.amount` | Ecto `:decimal` → `Decimal` struct in service |

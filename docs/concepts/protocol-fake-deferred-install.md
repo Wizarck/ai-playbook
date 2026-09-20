@@ -3,7 +3,7 @@ schema: concept/v1
 slug: protocol-fake-deferred-install
 title: Protocol Fake Deferred Install
 summary: |
-  A repeated pattern across consumer-e, consumer-c, and consumer-d: a slice
+  A repeated pattern: a slice
   needs to interact with an external SDK / service / vendor — anthropic,
   ib_async, apscheduler, playwright, camoufox, NestJS service-locator, k8s
   sidecar — but shipping the production dependency in the…
@@ -14,7 +14,7 @@ last_validated: "2026-05-19"
 
 ## 1. Why this spec
 
-A repeated pattern across consumer-e, consumer-c, and consumer-d: a slice needs to interact with an external SDK / service / vendor — `anthropic`, `ib_async`, `apscheduler`, `playwright`, `camoufox`, NestJS service-locator, k8s sidecar — but **shipping the production dependency in the same slice is a bad idea** because:
+A repeated pattern: a slice needs to interact with an external SDK / service / vendor — `anthropic`, `ib_async`, `apscheduler`, `playwright`, `camoufox`, NestJS service-locator, k8s sidecar — but **shipping the production dependency in the same slice is a bad idea** because:
 
 - The dep brings in a security-review surface (API keys, network egress, CSP changes, license-boundary review) that is bigger than the slice's logic.
 - The dep blocks local dev / CI on credentialed services (no Anthropic key in PR CI; no IBKR paper account on every dev's laptop).
@@ -63,7 +63,7 @@ For each Protocol-isolated capability, the slice that introduces it produces exa
 A minimal interface capturing **only the methods the consumers actually call**. Examples:
 
 ```python
-# apps/api/src/consumer-e/contexts/research/synthesis/llm_client.py
+# apps/api/src/project-e/contexts/research/synthesis/llm_client.py
 from typing import Protocol
 
 class LLMClient(Protocol):
@@ -133,9 +133,9 @@ This makes the deferred work **discoverable**: the deployment-slice author doesn
 When the deployment slice runs, it ships **one adapter per Deferred-installs row**:
 
 ```python
-# apps/api/src/consumer-e/contexts/research/synthesis/anthropic_client.py
+# apps/api/src/project-e/contexts/research/synthesis/anthropic_client.py
 from anthropic import AsyncAnthropic
-from consumer-e.observability.cost_meter import cost_meter
+from project-e.observability.cost_meter import cost_meter
 
 class AnthropicLLMClient:
     """Production LLMClient adapter wrapping Anthropic SDK with cost-metering."""
@@ -180,7 +180,7 @@ The pattern is language-agnostic. Concrete recipes per stack:
 - Fake: `class FakeLLMClient implements LLMClient { ... }`.
 - Production adapter: `class AnthropicLLMClient implements LLMClient { ... }`.
 - DI: NestJS `useFactory` / `useExisting` with a string DI token (`'LLM_CLIENT'`) or `Symbol`. Inject via `@Inject('LLM_CLIENT')`.
-- **Critical**: per the consumer-c m2-mcp-write-capabilities retro, `@Global()` modules do NOT prevent re-declaration in `TestingModule` overrides — the local declaration wins. **Always import the providing module** (e.g. `imports: [SharedModule]`); never re-declare `@Global()` providers in a consumer module. See [dependency-injection-patterns.md](dependency-injection-patterns.md) for the full rule.
+- **Critical**: `@Global()` modules do NOT prevent re-declaration in `TestingModule` overrides — the local declaration wins. **Always import the providing module** (e.g. `imports: [SharedModule]`); never re-declare `@Global()` providers in a consumer module. See [dependency-injection-patterns.md](dependency-injection-patterns.md) for the full rule.
 
 ### 5.3 Elixir (behaviour + DI via Application config)
 
@@ -205,7 +205,7 @@ A single `deployment-foundation` (or similarly-named) slice consolidates all pro
 - **Impact** — deps audit (license check, image-size delta), secret-handling primitives, license-boundary CI verifies all new deps are non-AGPL (or correctly isolated to AGPL-allowed boundaries).
 - **Acceptance** — every Protocol → ProductionAdapter swap lands AND its construction is tested with mocked secret env AND any license-boundary CI is green AND a secret-rotation runbook exists.
 
-The deployment slice is **necessarily late** in the wave order — after all Protocol consumers exist. consumer-e's roadmap puts it as Wave 4 (after Wave 3 ships R5/T2/R3/O2/T3); consumer-c's equivalent is the production-deploy phase post-MVP.
+The deployment slice is **necessarily late** in the wave order — after all Protocol consumers exist.
 
 ---
 
@@ -224,22 +224,13 @@ The deployment slice is **necessarily late** in the wave order — after all Pro
 ## 8. Cross-references
 
 - [migration-slot-reservation.md](../rules/migration-slot-reservation.rule.md) — the deployment slice often consolidates migration slots from N consumer slices; the slot reservations help track which are already in tree.
-- [dependency-injection-patterns.md](dependency-injection-patterns.md) — DI conventions for wiring Protocol → adapter (especially the @Global() dedup rule from consumer-c).
+- [dependency-injection-patterns.md](dependency-injection-patterns.md) — DI conventions for wiring Protocol → adapter (especially the @Global() dedup rule).
 - [hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md) — sister pattern: HITL gating for mutations is also Protocol-isolated (the approval channel is a Protocol; production wiring is per-channel).
 - [release-management.md](release-management.md) §6.4 — anti-collision contract that the Deferred-installs table extends.
 - [bmad-openspec-bridge.md](bmad-openspec-bridge.md) §3 — slicing artefact schema, extended with "Deferred installs" section.
 
 ---
 
-## 9. Reference implementations
-
-| Project | Slice | Protocol | Fake | Production adapter (deployed) |
-|---|---|---|---|---|
-| consumer-e | research-brief-synthesis | `LLMClient` | `FakeLLMClient` | `AnthropicLLMClient` (deployment-foundation) |
-| consumer-e | ibkr-adapter-resilient | `IBClient` | `FakeIBClient` | `IbAsyncIBClient` (deployment-foundation) |
-| consumer-e | orchestration-scheduler-routines | `SchedulerProtocol` | `InMemoryScheduler` | `APSchedulerAdapter` (deployment-foundation) |
-| consumer-e | research-news-catalysts-adapters | `ScrapeTier2Port` (and 3/4) | `Tier2StubFake` (raises `ScrapeNotImplementedError`) | `Tier2PlaywrightClient` (deployment-foundation) |
-| consumer-c | m2-recipes-core | `IngredientCostResolver` | (test stub) | `M1InventoryCostResolver` (m2-cost-rollup) |
-| consumer-d | ADR-018 (sidecar webhook) | HMAC-validated webhook port | (mock HTTP server) | systemd-managed sidecar (operator-driven) |
+## 9. Adoption
 
 The pattern compounds: each new project that adopts ai-playbook v0.11+ should expect 3-6 Protocol-isolated capabilities by Wave 3; the deployment slice resolves all of them in one PR.

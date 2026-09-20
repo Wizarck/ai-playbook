@@ -64,7 +64,7 @@ Use when multiple unrelated slices extend the entity with disjoint sub-schemas (
 
 ## Examples
 
-**Preferred** — consumer-e R2 added `dedupe_key TEXT NULL` to `research_facts`; the entity dataclass added `dedupe_key: Optional[str] = None`; reads checked `if row.dedupe_key is not None`; the migration claimed slot 0008 per the slicing artefact.
+**Preferred** — a slice added `dedupe_key TEXT NULL` to `research_facts`; the entity dataclass added `dedupe_key: Optional[str] = None`; reads checked `if row.dedupe_key is not None`; the migration claimed slot 0008 per the slicing artefact.
 
 **Avoided** — one big slice owning "all Wave 2 research_facts schema"; `ALTER TABLE … ADD COLUMN audit_trail_id UUID NOT NULL` (no default — breaks reads of pre-existing rows); creating `research_facts_dedupe`, `research_facts_audit`, `research_facts_temporal` sister tables (canonical entity fragmented; 4-way joins); promoting a JSONB sub-key to a column in a follow-up slice without a backfill migration.
 

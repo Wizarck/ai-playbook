@@ -114,10 +114,10 @@ def test_section_populated_when_findings_on_next_line() -> None:
 
 
 _SAMPLE_DIFF = """\
-diff --git a/apps/api/src/consumer-e/shared/messagebus.py b/apps/api/src/consumer-e/shared/messagebus.py
+diff --git a/apps/api/src/project-e/shared/messagebus.py b/apps/api/src/project-e/shared/messagebus.py
 new file mode 100644
 --- /dev/null
-+++ b/apps/api/src/consumer-e/shared/messagebus.py
++++ b/apps/api/src/project-e/shared/messagebus.py
 @@ -0,0 +1,30 @@
 +from __future__ import annotations
 +
@@ -147,7 +147,7 @@ new file mode 100644
 
 def test_analyse_diff_extracts_files_changed() -> None:
     signals = psrc.analyse_diff(_SAMPLE_DIFF)
-    assert "apps/api/src/consumer-e/shared/messagebus.py" in signals["files_changed"]
+    assert "apps/api/src/project-e/shared/messagebus.py" in signals["files_changed"]
 
 
 def test_analyse_diff_extracts_classes() -> None:

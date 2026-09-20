@@ -156,7 +156,7 @@ def test_main_break_glass_short_reason_exits_1(
 # ---------------------------------------------------------------------------
 # read_commit_message — CI mode (v0.9.1 followup #3)
 #
-# Surfaced by consumer-e PR #57 (slice 3 archive). The hook must detect
+# The hook must detect
 # the `openspec-archive:` marker when pre-commit runs in `--from-ref/--to-ref`
 # mode (CI's PR mode), not just from `.git/COMMIT_EDITMSG` (local mode).
 # ---------------------------------------------------------------------------

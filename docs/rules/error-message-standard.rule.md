@@ -57,7 +57,7 @@ Field contract: `WHY` is one present-tense sentence ≤120 chars naming the inva
 **Preferred** — safety gate with no override:
 
 ```
-❌ Secret-like pattern matched (Anthropic API key) at C:/Projects/consumer-d/notes/draft.md:42
+❌ Secret-like pattern matched (Anthropic API key) at C:/Projects/project-d/notes/draft.md:42
    FIX: move the key to `secrets/secrets.env` (SOPS-encrypted) and replace the literal with `$ANTHROPIC_API_KEY`.
    OVERRIDE: none
 ```

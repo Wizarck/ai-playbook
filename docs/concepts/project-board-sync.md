@@ -19,7 +19,7 @@ last_validated: "2026-05-19"
 **transitions** between Status values, the **proof** that a transition
 happened, or the **audit** of the worker AI's compliance with the contract.
 
-The consumer-e Wave 2 retro (2026-05-06) surfaced three concrete drift modes:
+Three concrete drift modes were observed:
 
 1. **Silent skip**: AI merged a slice without ever moving `Status=In Progress`.
    The board reported `Backlog` for a Done slice; humans tracking velocity from
@@ -28,8 +28,8 @@ The consumer-e Wave 2 retro (2026-05-06) surfaced three concrete drift modes:
    populated despite the AI working on `slice/<change-id>`. Diagnostics
    ("which commit was this slice based on?") required `git log` archaeology.
 3. **AI hallucinating proof**: when later asked "did you update the board?",
-   the AI fabricated plausible-sounding but unverified claims. Retro found no
-   evidence of a `gh project item-edit` call in the session transcript.
+   the AI fabricated plausible-sounding but unverified claims. The session
+   transcript contained no evidence of a `gh project item-edit` call.
 
 The OWASP AI Security and Privacy Guide (2026) is explicit on this:
 *"Responsible AI is enforced at runtime, not in policy documents. No single
@@ -204,23 +204,10 @@ specs compose as follows:
 A consumer adopting `release-management.md` v1.2.0 + `project-board-sync.md`
 v1.0.0 has a complete contract. The two specs ship together in v0.10.0.
 
-## 6. Per-layer adoption status
+## 6. Adoption
 
-For the **consumer-e v1** consumer (the spec's reference implementation):
-
-| Layer | Adoption status | Notes |
-|---|---|---|
-| L1 | ✅ Active (default GH built-in workflows enabled by `bootstrap_gh_project.py` per `release-management.md` §7) | No action needed |
-| L2 | ⏳ Planned for Wave 3 | Template ships in v0.10.0; consumer copies to `.github/workflows/` |
-| L3 | ⏳ Planned for Wave 3 | Template ships in v0.10.0; consumer adds `project-board-synced` to required-status-checks list per `release-management.md` §4.1 |
-| L4 | ⏳ Planned for Wave 3 | Template ships in v0.10.0 |
-| L5 | ⏳ Planned for Wave 3 | Reuses existing consumer-d Langfuse instance per [agent-telemetry.md](agent-telemetry.md) |
-| L6 | ⏳ Planned for v0.10.1 | Extension of `scripts/opsx_apply_companion.py` (already exists per `release-management.md` §6.5) |
-| L7 | ⏳ Planned for Wave 3 | Modifies `skills/openspec-archive-change/SKILL.md` to invoke `verify_board_state.py` as Step 0 |
-
-Other consumers (consumer-c, consumer-b future onboarding) adopt
-opportunistically; the spec is normative but adoption is graded per
-`release-management.md` §5.6 visibility profile.
+Consumers adopt opportunistically; the spec is normative but adoption is
+graded per `release-management.md` §5.6 visibility profile.
 
 ## 7. Open questions / future work
 

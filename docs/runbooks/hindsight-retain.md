@@ -19,18 +19,18 @@ Trigger the retain at the boundary of a meaningful event:
 
 | Event | Kind | Bank |
 |---|---|---|
-| ADR chosen over a named alternative | `decision` | project bank (`consumer-c`, `consumer-d`, `consumer-b`) |
+| ADR chosen over a named alternative | `decision` | project bank (`project-c`, `project-d`, `project-b`) |
 | Gotcha discovered (wrong port, weird env, breaking API quirk) | `gotcha` | project bank |
 | Agentic-failure mode fired and was resolved | `failure` | project bank |
 | Retro extracted a reusable pattern | `lesson` | project bank |
-| Cross-project policy or convention | `lesson` | `consumer-d` (universal personal) |
-| Production fact about an external system | `fact` | project or `consumer-d` |
+| Cross-project policy or convention | `lesson` | `project-d` (universal personal) |
+| Production fact about an external system | `fact` | project or `project-d` |
 
 Skip retain when the content is already trivially recoverable from `git log`, `git blame`, the code itself, or a recent doc commit. The Claude Code per-project auto-memory folder is not a substitute — it only reloads in the same project's CLI.
 
 ## Prerequisites
 
-- `secrets/secrets.env` (SOPS-decryptable) exists with `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `HINDSIGHT_URL`: `sops -d ../consumer-d/secrets/secrets.env | grep ^HINDSIGHT_URL=`.
+- `secrets/secrets.env` (SOPS-decryptable) exists with `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `HINDSIGHT_URL`: `sops -d ../project-d/secrets/secrets.env | grep ^HINDSIGHT_URL=`.
 - `sops` and `age` installed: `sops --version && age --version`.
 - The retain script is reachable: `ls .ai-playbook/scripts/retain_memory.py`.
 
@@ -38,43 +38,43 @@ Skip retain when the content is already trivially recoverable from `git log`, `g
 
 1. **Single-item retain** — the common path:
    ```bash
-   sops exec-env ../consumer-d/secrets/secrets.env -- \
+   sops exec-env ../project-d/secrets/secrets.env -- \
      python .ai-playbook/scripts/retain_memory.py \
-       --bank consumer-d \
+       --bank project-d \
        --kind decision \
        --project ai-playbook \
        --content "Rotated GITHUB_TOKEN from god-mode PAT to fine-grained scoped" \
        --why "Least-privilege; god-mode PAT was a 1-week stop-gap" \
        --tag rotation --tag security
    ```
-   Expected output: `✅ retained 1 item(s) to bank=consumer-d; usage=2884 tokens`.
+   Expected output: `✅ retained 1 item(s) to bank=project-d; usage=2884 tokens`.
 
 2. **Bulk retain (optional)** — when several lessons land in one session:
    ```bash
    cat > /tmp/lessons.jsonl <<'EOF'
    {"content": "Lesson 1 body...", "kind": "decision", "project": "ai-playbook", "why": "..."}
-   {"content": "Lesson 2 body...", "kind": "gotcha", "project": "consumer-c", "tags": ["build", "ci"]}
+   {"content": "Lesson 2 body...", "kind": "gotcha", "project": "project-c", "tags": ["build", "ci"]}
    EOF
 
-   sops exec-env ../consumer-d/secrets/secrets.env -- \
-     python .ai-playbook/scripts/retain_memory.py --bank consumer-d --bulk /tmp/lessons.jsonl
+   sops exec-env ../project-d/secrets/secrets.env -- \
+     python .ai-playbook/scripts/retain_memory.py --bank project-d --bulk /tmp/lessons.jsonl
    ```
    Each line is one item. Required field: `content`. Optional: `why`, `kind`, `project`, `tags`, `trace_id`, `context`, `ttl_days`, `timestamp`, `document_id`.
 
 3. **Dry-run when the body is risky** — multi-line text, near a secret-shaped pattern:
    ```bash
    python .ai-playbook/scripts/retain_memory.py \
-       --bank consumer-d --content "..." --kind lesson --dry-run
+       --bank project-d --content "..." --kind lesson --dry-run
    ```
    Prints the JSON that would be POSTed; no network call. Confirm the rendered payload before retaining for real.
 
 4. **Verify the retain landed** by recalling the same query:
    ```bash
-   sops exec-env ../consumer-d/secrets/secrets.env -- \
+   sops exec-env ../project-d/secrets/secrets.env -- \
      python -c "
    from scripts._hindsight import load_credentials, post_recall
    c = load_credentials()
-   r = post_recall(c, 'consumer-d', 'your search query here', max_tokens=2000)
+   r = post_recall(c, 'project-d', 'your search query here', max_tokens=2000)
    print(r.body if r.ok else r.reason)
    "
    ```
@@ -114,13 +114,13 @@ Skip retain when the content is already trivially recoverable from `git log`, `g
 If you want to force a manual drain (e.g. you have queued items but won't
 retain/open a session for a while):
 ```bash
-sops exec-env ../consumer-d/secrets/secrets.env -- \
-  python .ai-playbook/scripts/retain_memory.py --bank consumer-d --replay-queue
+sops exec-env ../project-d/secrets/secrets.env -- \
+  python .ai-playbook/scripts/retain_memory.py --bank project-d --replay-queue
 ```
 The script POSTs each queued item, removes it on success, and keeps it for the next replay attempt on failure.
 
-### Symptom: SOPS path differs because the repo is not co-located with `consumer-d/`
-**Cause**: the canonical wrapper assumes `../consumer-d/secrets/secrets.env` is the SOPS source.
+### Symptom: SOPS path differs because the repo is not co-located with `project-d/`
+**Cause**: the canonical wrapper assumes `../project-d/secrets/secrets.env` is the SOPS source.
 **Fix**: either point `sops exec-env` at an explicit absolute path (`sops exec-env /absolute/path/to/secrets.env -- python ...`), or export the three env vars (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `HINDSIGHT_URL`) in the shell profile and drop the `sops exec-env` wrapper.
 
 ## Related

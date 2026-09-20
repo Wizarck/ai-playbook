@@ -27,16 +27,16 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 - `gh auth status` shows authenticated.
 - `sops` installed and the `AI_PLAYBOOK_AGE_KEY` is in `~/.config/sops/age/keys.txt`: `age-keygen -y ~/.config/sops/age/keys.txt`.
 - 1Password (or equivalent vault) for vendor-side rotation.
-- SSH access to the VPS for k8s Secret updates: `ssh consumer-d-vps echo ok`.
+- SSH access to the VPS for k8s Secret updates: `ssh project-d-vps echo ok`.
 
 ## Secrets inventory
 
 | Secret | Where stored | Used by | Rotation cadence | Owner |
 |---|---|---|---|---|
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | GH repo secrets on all 3 workflow repos + k8s Secret `consumer-d-secrets` | `scripts/notify.py` SMTP fan-out | On Gmail app-password rotation (~annual or loss) | maintainer |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | GH repo secrets on all 3 workflow repos + k8s Secret `project-d-secrets` | `scripts/notify.py` SMTP fan-out | On Gmail app-password rotation (~annual or loss) | maintainer |
 | `AIPLAYBOOK_NOTIFICATIONS_TO` | GH repo secrets + k8s Secret | `scripts/notify.py` | On email change | maintainer |
 | `ATLASSIAN_URL`, `ATLASSIAN_USERNAME`, `ATLASSIAN_API_TOKEN` | GH repo secrets + k8s Secret | `scripts/issue_sync.py`, `scripts/release_cut.py` | On Atlassian API token expiry (~1 yr) | maintainer |
-| `GITHUB_TOKEN` | SOPS `secrets/secrets.env` in `consumer-d` | Local dev + ad-hoc direct push fallback | 30 d (god-mode) / 90 d (scoped) | maintainer |
+| `GITHUB_TOKEN` | SOPS `secrets/secrets.env` in `project-d` | Local dev + ad-hoc direct push fallback | 30 d (god-mode) / 90 d (scoped) | maintainer |
 | `AI_PLAYBOOK_AGE_KEY` | `~/.config/sops/age/keys.txt` per dev machine | SOPS decrypt of all encrypted secrets | Never (root of trust) | maintainer personal |
 
 > The playbook does not hold any PAT with write access to consumer repos. Consumers manage their own bump credentials (Dependabot, Renovate, or local cron).
@@ -49,7 +49,7 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 
 2. **Update SOPS**:
    ```bash
-   cd C:/Projects/consumer-d
+   cd C:/Projects/project-d
    sops --set '["SMTP_PASSWORD"] "<new-16-char-no-spaces>"' secrets/secrets.env
    git commit -am "chore(secrets): rotate SMTP_PASSWORD"
    git push
@@ -58,7 +58,7 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 3. **Update GH repo secrets** on each workflow repo via retry wrapper (direct `gh secret set` has been flaky):
    ```bash
    NEW_PW="<new-16-char-no-spaces>"
-   for repo in Wizarck/ai-playbook Wizarck/consumer-c Wizarck/consumer-d; do
+   for repo in Wizarck/ai-playbook Wizarck/project-c Wizarck/project-d; do
      for i in 1 2 3 4 5; do
        gh secret set SMTP_PASSWORD --repo "$repo" --body "$NEW_PW" && break
        sleep 2
@@ -68,8 +68,8 @@ This runbook covers calendar-driven rotations. For incident-driven rotations (wi
 
 4. **Update the k8s Secret** on VPS:
    ```bash
-   ssh consumer-d-vps "kubectl patch secret consumer-d-secrets -n consumer-d --patch '{\"stringData\":{\"SMTP_PASSWORD\":\"$NEW_PW\"}}'"
-   ssh consumer-d-vps "kubectl rollout restart deployment/consumer-d-dashboard -n consumer-d"
+   ssh project-d-vps "kubectl patch secret project-d-secrets -n project-d --patch '{\"stringData\":{\"SMTP_PASSWORD\":\"$NEW_PW\"}}'"
+   ssh project-d-vps "kubectl rollout restart deployment/project-d-dashboard -n project-d"
    ```
 
 5. **Verify end-to-end**:
@@ -93,9 +93,9 @@ This is the PAT for local ops (direct push fallback, `gh` when `gh auth` is not 
 1. Generate new PAT at <https://github.com/settings/tokens>.
 2. Update SOPS:
    ```bash
-   sops --set '["GITHUB_TOKEN"] "<new-pat>"' C:/Projects/consumer-d/secrets/secrets.env
-   git -C C:/Projects/consumer-d commit -am "chore(secrets): rotate GITHUB_TOKEN"
-   git -C C:/Projects/consumer-d push
+   sops --set '["GITHUB_TOKEN"] "<new-pat>"' C:/Projects/project-d/secrets/secrets.env
+   git -C C:/Projects/project-d commit -am "chore(secrets): rotate GITHUB_TOKEN"
+   git -C C:/Projects/project-d push
    ```
 3. Re-authenticate `gh`:
    ```bash

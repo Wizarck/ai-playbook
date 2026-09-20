@@ -16,7 +16,7 @@ last_validated: "2026-05-19"
 
 Multi-tenant SaaS with N customers absorbs operator mistakes via the law of large numbers — a botched mutation affects one tenant; the rest are insulated. **Single-operator AI systems do not have that luxury**: a botched mutation by the AI affects the operator's only environment.
 
-The pattern that has emerged across consumer-d (5 ADRs about defense-in-depth) and consumer-b is **explicit layering**: every state mutation passes through ≥3 independent gates, each addressing a different failure mode. Defense-in-depth is not a buzzword — it's an enumeration of failures the operator has already paid for once.
+The pattern that has emerged is **explicit layering**: every state mutation passes through ≥3 independent gates, each addressing a different failure mode. Defense-in-depth is not a buzzword — it's an enumeration of failures the operator has already paid for once.
 
 This spec captures the canonical 5-layer pattern for **operator-gated AI infrastructure**: identity → ingress → network → state → ergonomic. Each layer is independently meaningful (dropping one doesn't degrade the others' value); together they form the practical security floor for single-operator AI systems.
 
@@ -26,12 +26,12 @@ This spec **complements** [hitl-approval-pattern.md](../rules/hitl-approval-patt
 
 ## 2. The five layers
 
-| Layer | What it gates | Example mechanism (consumer-d / consumer-b) |
+| Layer | What it gates | Example mechanism |
 |---|---|---|
 | **L1 — Identity** | Who is calling the AI / system at all | Cloudflare Access (OAuth → personal email); single PAT (ADR-017); zero-permission GH App for plugin |
 | **L2 — Ingress** | Authenticated payloads only past the perimeter | HMAC-validated webhook (ADR-018); admin-token bearer auth on internal endpoints |
 | **L3 — Network** | Outbound destinations the AI may reach | NetworkPolicy egress allowlist (ADR-020); CSP for browser-side; firewall rules |
-| **L4 — State (RBAC)** | What the AI's process is permitted to mutate | ServiceAccount + namespace-scoped Role (ADR-019); zero-permission DB grants for plugin user (consumer-b audit) |
+| **L4 — State (RBAC)** | What the AI's process is permitted to mutate | ServiceAccount + namespace-scoped Role (ADR-019); zero-permission DB grants for plugin user |
 | **L5 — Ergonomic** | Per-action confirm-twice for irreversible mutations | Confirm-twice modal + visual lock (ADR-024); CI gate for `apt remove`; `--yes` flag explicit |
 
 The layers are **layered**, not redundant. L1 alone (only identity) leaves the AI's process with full RBAC; an L1-bypassed attacker has superuser. L1+L4 (identity + RBAC) leaves egress open; an attacker who pwns the AI's runtime can exfiltrate data. L1+L4+L3 closes egress; an attacker can still flood the perimeter. L1+L2+L3+L4 covers the technical surface; L5 catches operator typos that the technical layers can't see (the operator typed `prod` when they meant `staging`).
@@ -61,7 +61,7 @@ Don't apply when:
 
 - **One identity per actor**: the AI has one identity (its service account), the operator has one (their personal account); never share.
 - **Time-bounded credentials**: PATs expire on a schedule; rotation is a runbook step, not "click renew when the alert fires".
-- **Zero plugins / forks with elevated permission**: per consumer-b audit, the plugin's WordPress role is "subscriber" (zero edit permission); admin operations go through the operator's account, not the plugin's.
+- **Zero plugins / forks with elevated permission**: the plugin's WordPress role is "subscriber" (zero edit permission); admin operations go through the operator's account, not the plugin's.
 
 ### 4.2 L2 — Ingress
 
@@ -121,16 +121,9 @@ The systems that need all 5 layers are **the same systems that warrant a HITL ga
 - [break-glass.md](../rules/break-glass.rule.md) — the operator's escape valve when defenses interfere with a genuine emergency.
 - [post-mortem.md](post-mortem.md) — when a defense layer fails, postmortem.
 - [security-policy.md](data-retention.md) (related) — data-retention rules; a layer above is "what data even exists for the AI to mutate".
-- External: consumer-d ADRs 017/018/019/020/024 (one ADR per layer in the original analysis).
 
 ---
 
-## 8. Reference implementations
-
-| Project | L1 | L2 | L3 | L4 | L5 |
-|---|---|---|---|---|---|
-| consumer-d | Cloudflare Access (OAuth) + single PAT (ADR-017) | sidecar HMAC (ADR-018) | k8s NetworkPolicy (ADR-020) | ServiceAccount RBAC (ADR-019) | confirm-twice modal + visual lock (ADR-024) |
-| consumer-b | WordPress admin OAuth + zero-permission plugin user | WP nonce + REST API auth | (cloud provider firewall) | DB grants per WP role | confirm-twice on order delete + automated MERGE-ORDERS audit |
-| consumer-e | GH OAuth + per-env PATs | (planned: webhook HMAC for Telegram callback) | NetworkPolicy (planned in deployment-foundation) | per-pod ServiceAccount (planned) | HITL approval per-mutation (P1 channels) |
+## 8. Adoption
 
 The pattern compounds: each new project that adopts ai-playbook v0.11+ should pre-define its 5-layer matrix during BMAD Phase 2 (Architecture / ADRs) — one ADR per layer, even if the layer is "not needed for this system because <reason>".

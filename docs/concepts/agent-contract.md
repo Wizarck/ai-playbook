@@ -45,13 +45,13 @@ validates it against the JSON Schema (§5) before the child's prompt is sent.
   "parent_agent_id": "0196f34a-1100-7a00-8000-000000000001",
   "trace_id": "0af7651916cd43dd8448eb211c80319c",
   "scope": {
-    "project": "consumer-c",
+    "project": "project-c",
     "change_id": "module-1-ingredients-implementation",
     "read_paths": ["apps/api/src/ingredients/**", "packages/types/src/**"],
     "write_paths": []
   },
   "memory": {
-    "bank_id": "consumer-c",
+    "bank_id": "project-c",
     "recall_depth": 5
   },
   "brief": "Acceptance Auditor for module-1-ingredients-implementation. Check AC 1..12 in openspec/changes/module-1-ingredients-implementation/specs/ingredients.md one-for-one against the diff on branch feat/ingredients-impl. Return verdict per verdict-contract.md.",
@@ -163,7 +163,7 @@ Rationale: the parent's triage logic is uniform; no separate failure path.
 
 ### 4.1 Reviewer pair (Acceptance Auditor)
 
-**Input** — spawned by the `bmad-code-review` skill in consumer-c:
+**Input** — spawned by the `bmad-code-review` skill in project-c:
 
 ```json
 {
@@ -172,12 +172,12 @@ Rationale: the parent's triage logic is uniform; no separate failure path.
   "parent_agent_id": "0196f400-0000-7000-8000-000000000001",
   "trace_id": "bd7a9a0f6e5240cda0f60fc94d5f12ab",
   "scope": {
-    "project": "consumer-c",
+    "project": "project-c",
     "change_id": "module-1-ingredients-implementation",
     "read_paths": ["apps/api/src/ingredients/**", "openspec/changes/module-1-ingredients-implementation/**"],
     "write_paths": []
   },
-  "memory": { "bank_id": "consumer-c", "recall_depth": 5 },
+  "memory": { "bank_id": "project-c", "recall_depth": 5 },
   "brief": "Acceptance Auditor. Walk AC 1..12 in specs/ingredients.md. For each, cite test or code evidence. Verdict per verdict-contract.md. Do NOT read design.md (context isolation).",
   "budget": { "max_tokens": 25000, "max_wall_seconds": 240, "max_tool_calls": 40 }
 }
@@ -212,7 +212,7 @@ Rationale: the parent's triage logic is uniform; no separate failure path.
   "parent_agent_id": "0196f411-0000-7000-8000-000000000001",
   "trace_id": "77cc01e5b3f44e9681d3a0edf1a3c8b4",
   "scope": {
-    "project": "consumer-c",
+    "project": "project-c",
     "change_id": "module-1-ingredients-implementation",
     "read_paths": ["apps/api/src/ingredients/**", "packages/types/src/**"],
     "write_paths": [
@@ -221,7 +221,7 @@ Rationale: the parent's triage logic is uniform; no separate failure path.
       "apps/api/test/ingredients/**"
     ]
   },
-  "memory": { "bank_id": "consumer-c", "recall_depth": 3 },
+  "memory": { "bank_id": "project-c", "recall_depth": 3 },
   "brief": "Implement task 3.2 of tasks.md: domain entity Ingredient + value object UnitOfMeasure + use case CreateIngredient. TDD — red test first. Respect ADR-001 (no cross-context imports). Return `write_paths_touched` listing exactly the files you modified.",
   "budget": { "max_tokens": 80000, "max_wall_seconds": 600, "max_tool_calls": 80 }
 }

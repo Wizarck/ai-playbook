@@ -2,7 +2,7 @@
 
 When you fork ai-playbook to create your own playbook for a different org,
 you'd normally have to find-and-replace `Wizarck/<repo>` references,
-`https://acme-corp-hindsight.consumer-bfood.com` placeholders, and tenant-named
+`https://acme-corp-hindsight.example.com` placeholders, and tenant-named
 entries in 6+ files. This script walks the worktree, applies a single set
 of substitutions, and reports what changed.
 
@@ -66,8 +66,7 @@ class FileEdit:
 # Upstream literals each flag rewrites. Keep in sync with the files: a flag
 # whose literals match nothing makes main() exit 1 rather than silently no-op.
 HINDSIGHT_URLS = (
-    "https://acme-corp-hindsight.consumer-bfood.com",
-    "https://consumer-d-hindsight.consumer-bfood.com",
+    "https://acme-corp-hindsight.example.com",
 )
 UPSTREAM_OWNER_EMAIL = "23051550+Wizarck@users.noreply.github.com"
 

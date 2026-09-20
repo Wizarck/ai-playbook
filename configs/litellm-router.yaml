@@ -8,15 +8,15 @@
 # PRODUCTION DEPLOY — IMPORTANT
 # ===========================================================================
 # LiteLLM accepts only ONE --config file at startup. Each consumer of this
-# playbook (consumer-d, consumer-c, consumer-b, ...) deploys LiteLLM
+# playbook deploys LiteLLM
 # with a project-local ConfigMap (or docker-compose volume mount) that
 # MUST mirror the `model_list:` task-class entries below.
 #
 # Edits to this file MUST be applied to the consumer's ConfigMap in the
 # same PR (or via a propagator script). Each consumer SHOULD ship a sync
-# test that asserts strict-subset — for example, consumer-d ships
+# test that asserts strict-subset — for example, project-d ships
 # `.ai-playbook/tests/test_litellm_config_sync.py` against
-# `helm/consumer-d-stack/templates/configmaps.yaml`. The test lives in the
+# `helm/project-d-stack/templates/configmaps.yaml`. The test lives in the
 # CONSUMER (it reads consumer-local paths), not in this playbook repo.
 #
 # Owner of THIS file: spec authors (model-routing.md), Python callers of

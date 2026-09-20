@@ -21,8 +21,8 @@ Providers addressed here:
 - **Anthropic** — `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
 - **Google** — `gemini-2.5-pro`, `gemini-2.5-pro-thinking`, `gemini-2.5-flash`.
 - **OpenRouter** — `openrouter/llama-4-70b` (open-weights fallback).
-- **Ollama (local)** — `gpt-oss-20b` (currently consumer-d low-criticality tier, per `consumer-d` commit `a85830f`).
-- **LiteLLM** — sits on consumer-d port `4000`; it is the routing point for embeddings, rerank, and any OpenAI-compatible fan-out. The router itself does not need to know which embedding model is in use.
+- **Ollama (local)** — `gpt-oss-20b` (currently the low-criticality tier).
+- **LiteLLM** — sits on port `4000`; it is the routing point for embeddings, rerank, and any OpenAI-compatible fan-out. The router itself does not need to know which embedding model is in use.
 
 ## 1. Task classes (canonical taxonomy)
 
@@ -40,7 +40,7 @@ Latency tiers refer to **time-to-first-token for interactive tasks**, or **total
 | Architecture proposal / ADR drafting | `claude-opus-4-7` | `gemini-2.5-pro-thinking` → `claude-sonnet-4-6` | Reasoning-heavy, low-volume. Sonnet is the last acceptable floor — below that, the task should block, not silently degrade (see §3). | H | H |
 | Retrospective / reflection / wide synthesis | `claude-opus-4-7` | `gemini-2.5-pro-thinking` → block | Needs wide context and synthesis across many trace spans. A Sonnet-tier output here is not worth producing; better to queue the retro. | H | H |
 | Doc writing (playbook specs, runbooks) | `claude-opus-4-7` for initial drafts, `claude-sonnet-4-6` for edits | `gemini-2.5-pro` → `claude-sonnet-4-6` | Dispatch-file architecture demands dense, cross-referenced prose. Opus for the first pass amortizes better than multiple Sonnet revisions. | H (draft) / M (edit) | M |
-| Embeddings / rerank | LiteLLM-routed (see `consumer-d` LiteLLM config) | Provider-internal; LiteLLM handles its own fallback set | The router emits `gen_ai.request.model="litellm"` and the concrete embedding model as a span attribute. Consumers should not hard-code an embedding model in their code paths. | L | L |
+| Embeddings / rerank | LiteLLM-routed (see LiteLLM config) | Provider-internal; LiteLLM handles its own fallback set | The router emits `gen_ai.request.model="litellm"` and the concrete embedding model as a span attribute. Consumers should not hard-code an embedding model in their code paths. | L | L |
 | LLM-as-judge (prompt injection filter, PII screen, etc.) | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | Judges should be small, fast, and boring. Avoid Opus-tier judges — they invent nuance where none exists, hurt latency, and balloon cost. | L | L |
 | **`safety_judge`** (NEW v2.0.0) — concrete task_class for the prompt-injection filter and similar boundary judges | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | Concretises the "LLM-as-judge" row above with a stable identifier callers can pass to `_llm.call(task_class="safety_judge", ...)`. Same Haiku tier; budget-isolated via `ANTHROPIC_API_KEY_JUDGE`. | L | L |
 | **`conversational_agent`** (NEW v2.0.0) — Hermes user-facing turn handling | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | High-volume, low-stakes-per-call. Hermes handles many short messages; Haiku is the right floor. Budget-isolated via `ANTHROPIC_API_KEY_HERMES`. Multi-turn coherence is acceptable at this tier; for analytical work Hermes routes through the existing `daily_dev`/`architecture_proposal` paths. | L | L |
@@ -72,7 +72,7 @@ Degradation state (triggered by the router and observed by the rest of the stack
 - Rate limits: tier-based, measured in tokens/min and requests/min. Exhaust is a `429` — retry with exponential backoff, then fall back.
 - Strength: strongest at multi-step reasoning and code review. Best cache ergonomics thanks to explicit `cache_control`.
 - Weakness: rate-limit ceilings are the operational bottleneck in this codebase; also the most expensive per output token.
-- Watch: advisor-tool beta is in use in `consumer-d/lib/advisor.py`; header is `anthropic-beta: advisor-tool-2026-03-01`. When the beta GA-ships, the header moves.
+- Watch: advisor-tool beta is in use in `project-d/lib/advisor.py`; header is `anthropic-beta: advisor-tool-2026-03-01`. When the beta GA-ships, the header moves.
 
 ### Google Gemini
 
@@ -96,7 +96,7 @@ Degradation state (triggered by the router and observed by the rest of the stack
 - Rate limits: none, other than local hardware.
 - Strength: offline fallback for `OFFLINE` state; zero marginal cost; keeps low-criticality tasks moving when WAN is flaky.
 - Weakness: quality is noticeably below flagship tier; no KV cache reuse across processes; latency is machine-dependent.
-- Watch: consumer-d reserves `gpt-oss-20b` for low-criticality tasks (per `consumer-d` commit `a85830f`). Do not promote it above its tier without the retro explicitly approving.
+- Watch: `gpt-oss-20b` is reserved for low-criticality tasks. Do not promote it above its tier without the retro explicitly approving.
 
 ## 4. OpenTelemetry attributes emitted by the router
 
@@ -115,7 +115,7 @@ Every LLM call wrapped by the router emits a span with at minimum:
 | `ai_playbook.routing.fallback_depth` | int | 0 on primary, 1 on first fallback, etc. |
 | `ai_playbook.routing.reason` | string | Present when `fallback_depth > 0`; enum-ish: `rate_limit`, `timeout`, `error`, `health_probe`. |
 
-These attribute names align with the OpenTelemetry Semantic Conventions for Generative AI (the `gen_ai.*` family) and with the existing Langfuse wrappers in `consumer-d/lib/telemetry/{anthropic,gemini,ollama}_tracer.py`. Keep the attribute surface additive — `additionalProperties: true` applies.
+These attribute names align with the OpenTelemetry Semantic Conventions for Generative AI (the `gen_ai.*` family) and with the existing Langfuse wrappers in `project-d/lib/telemetry/{anthropic,gemini,ollama}_tracer.py`. Keep the attribute surface additive — `additionalProperties: true` applies.
 
 ## 5. Application tags (v2.1.0)
 
@@ -135,11 +135,11 @@ The roster is intentionally short — additions go through the recipe below.
 | Application | What it is | Set by |
 |---|---|---|
 | `hermes-bot` | Telegram + WhatsApp conversational adapter | `AIPLAYBOOK_APPLICATION` env in `/opt/hermes/.env` |
-| `dashboard-backend` | FastAPI app (Langfuse meta-queries, audit summarisation, ad-hoc smoke tests) | env in `helm/consumer-d-stack/templates/dashboard.yaml` deployment |
+| `dashboard-backend` | FastAPI app (Langfuse meta-queries, audit summarisation, ad-hoc smoke tests) | env in `helm/project-d-stack/templates/dashboard.yaml` deployment |
 | `aiops-workflow-<name>` | One per workflow in `langgraph-aiops/workflows/`. Examples: `aiops-workflow-vps-maintainer`, `aiops-workflow-retro-generator`, `aiops-workflow-playbook-bump-propagator` | env per-workflow in `langgraph-aiops/Dockerfile` ENTRYPOINT wrapper |
 | `prompt-injection-filter` | The safety-judge gate (layer-2 Haiku) | env in the script wrapper |
-| `lib-advisor` | The executor/advisor session pair | env via `consumer-d/lib/advisor.py` defaults |
-| `hindsight-internal` | Hindsight's recall summarizer (calls LiteLLM via `HINDSIGHT_API_LLM_BASE_URL=http://litellm:4000`) | env in `helm/consumer-d-stack/templates/hindsight.yaml` |
+| `lib-advisor` | The executor/advisor session pair | env via `project-d/lib/advisor.py` defaults |
+| `hindsight-internal` | Hindsight's recall summarizer (calls LiteLLM via `HINDSIGHT_API_LLM_BASE_URL=http://litellm:4000`) | env in `helm/project-d-stack/templates/hindsight.yaml` |
 | `claude-code` *(reserved)* | Claude Code CLI sessions. Currently routes via direct Anthropic API (not via LiteLLM); reserved here for future inclusion via OTel forwarder. | n/a today |
 
 The `claude-code` row is reserved — the dashboard's cost-by-application widget will show it as "no data (out of LiteLLM scope)" until/unless we add an OTel forwarder.
@@ -178,8 +178,8 @@ consumer=JUDGE
 
 - **`scripts/doctor.py`** — primary-provider health check at session start: ping each primary referenced by `AIPLAYBOOK_DEFAULT_TASK_CLASSES` (or the full set), record RTT, and warn on any class whose primary is unreachable.
 - **`scripts/log_event.py`** — emits the OTel span attributes listed in §4. The router calls it; callers don't emit these directly.
-- **`consumer-d/lib/advisor.py`** — existing advisor-pattern implementation. **This spec informs `advisor.py`; `advisor.py` is not modified by this spec.** The mapping is: `AdvisorSession.executor_*` corresponds to the "Daily dev / story implementation" task class, and `AdvisorSession.advisor_*` corresponds to the "Architecture proposal / ADR drafting" class. When the advisor is cross-provider (the `_run_manual_2call` path), both calls are independently subject to this matrix's fallback semantics.
-- **`consumer-d/lib/telemetry/*.py`** — existing Langfuse wrappers. Consumers in consumer-d trace through these; the playbook router emits the same `gen_ai.*` attributes so the two telemetry paths line up.
+- **`project-d/lib/advisor.py`** — existing advisor-pattern implementation. **This spec informs `advisor.py`; `advisor.py` is not modified by this spec.** The mapping is: `AdvisorSession.executor_*` corresponds to the "Daily dev / story implementation" task class, and `AdvisorSession.advisor_*` corresponds to the "Architecture proposal / ADR drafting" class. When the advisor is cross-provider (the `_run_manual_2call` path), both calls are independently subject to this matrix's fallback semantics.
+- **`project-d/lib/telemetry/*.py`** — existing Langfuse wrappers. Consumers in project-d trace through these; the playbook router emits the same `gen_ai.*` attributes so the two telemetry paths line up.
 
 ## 7. Break-glass
 

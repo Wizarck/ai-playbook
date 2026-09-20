@@ -36,7 +36,7 @@ For each tracked fork the repository has:
 | `upstream` git remote | configured via `git remote add upstream <url>` | the canonical upstream repo |
 | `origin` git remote | our fork on GitHub | read/write for our team |
 | `main` branch | tracks `upstream/main` (or `upstream/master`) | clean mirror; never hand-commit here |
-| `consumer-d/<feature>` or `consumer-b/<feature>` branches | named, per-patch | each local patch carries its own branch |
+| `project-d/<feature>` or `project-b/<feature>` branches | named, per-patch | each local patch carries its own branch |
 | `PATCHES.md` | fork repo root | enumerates every local patch with status |
 
 Rules:
@@ -46,7 +46,7 @@ Rules:
 - A local patch exists ONLY on a named branch. No orphan commits on `main`.
 - Every patch has exactly one row in `PATCHES.md`. An unlisted branch is drift; a listed patch
   without a branch is drift. `scripts/upstream_sync.py status` reports both.
-- Prefix convention: `consumer-d/...` for personal/consumer-d tenant; `consumer-b/...` for consumer-b
+- Prefix convention: `project-d/...` for personal/project-d tenant; `project-b/...` for project-b
   tenant. Other tenants add their prefix per ADR.
 
 ## 3. `PATCHES.md` contract
@@ -58,7 +58,7 @@ at its root. Columns:
 |---|---|
 | Patch ID | `P01`, `P02`, … unique within the fork, monotonically assigned. |
 | Title | ≤60 chars. What this patch does at a glance. |
-| Branch | The named branch carrying the patch (`consumer-d/<feature>` or `consumer-b/<feature>`). |
+| Branch | The named branch carrying the patch (`project-d/<feature>` or `project-b/<feature>`). |
 | Upstream PR | PR number on the upstream repo if we've submitted the patch, else `—`. |
 | Status | One of: `staged` \| `submitted` \| `merged` \| `rejected` \| `lost`. See §5. |
 | Last rebase | ISO date when the patch was last rebased onto `upstream/main`. |
@@ -71,7 +71,7 @@ deleted. See the template.
 ## 4. Refresh cadence
 
 - **Weekly**, automated via the `UpstreamRefresher` LangGraph workflow
-  (consumer-d/langgraph-aiops/workflows/upstream_refresher.py).
+  (project-d/langgraph-aiops/workflows/upstream_refresher.py).
 - **On-demand**, manual via `scripts/upstream_sync.py --refresh <fork>` — this only fetches and
   reports; it never merges.
 - The workflow's write actions are **all gated** by
@@ -221,7 +221,7 @@ workflow itself.
 - [memory-hierarchy.md](memory-hierarchy.md) — retain on every merge / lost event.
 - [`../tutorials/07-fork-inventory.md`](../tutorials/07-fork-inventory.md) — the authoritative catalog of forks.
 - `../templates/PATCHES.md.tmpl` — per-fork manifest template.
-- `../../consumer-d/langgraph-aiops/workflows/upstream_refresher.py` —
+- `../../project-d/langgraph-aiops/workflows/upstream_refresher.py` —
   the workflow.
 
 ---

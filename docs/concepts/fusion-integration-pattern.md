@@ -23,8 +23,6 @@ You have a consumer project that meets these conditions:
 
 If condition 1 is false (project has no custom schema), use the default BMAD+OpenSpec runbook per [runbook-bmad-openspec.md](runbook-bmad-openspec.md). If conditions 2-4 are false (the project has a sketch workflow it's willing to abandon), prefer **replacement** over fusion.
 
-The first reference implementation of this pattern is `consumer-a` (FastAPI + Next.js, modular monolith), which had 18 changes implemented under its custom `consumer-a-team` schema before adopting the playbook. The fusion preserved all 18 changes as-is and applied to new changes only.
-
 ## 2. The fusion decision matrix
 
 For each capability the playbook brings, decide one of:
@@ -36,7 +34,7 @@ For each capability the playbook brings, decide one of:
 | **Reject (override §7)** | The project's existing rule is strictly more rigorous, or the playbook rule overlaps in a way that would weaken project discipline. |
 | **Defer (opt-in via submodule)** | The capability ships in the submodule, but the project doesn't activate it today. Document in §5 capability map. |
 
-Worked decision matrix for `consumer-a` (illustrative):
+Worked decision matrix for `project-a` (illustrative):
 
 | Aspect | Project rule | Playbook rule | Decision |
 |---|---|---|---|
@@ -130,7 +128,7 @@ If the project later decides to backport fusion rules to old changes (rare), ope
 
 ## 5. The N-layer parallel review pattern
 
-The playbook's [parallel-review.md](parallel-review.md) defines 3 layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) running in parallel with context isolation. For projects whose original `review` artefact has **holistic cross-cutting checks** (e.g., "spec compliance, code quality, security/perf, memory patterns, Karpathy compliance" — 5 holistic checks in consumer-a), the fusion adds a **4th layer**:
+The playbook's [parallel-review.md](parallel-review.md) defines 3 layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) running in parallel with context isolation. For projects whose original `review` artefact has **holistic cross-cutting checks** (e.g., "spec compliance, code quality, security/perf, memory patterns, Karpathy compliance" — 5 holistic checks), the fusion adds a **4th layer**:
 
 ```
         ┌──── Layer 1: Blind Hunter        (context-isolated, intent drift)
@@ -321,18 +319,16 @@ repos:
 
 The two commented-out hooks are project-specific and the fusion template comments them rather than removes them — the consumer enables them when the conditions apply.
 
-## 9. Worked example: consumer-a
+## 9. Worked example: project-a
 
-`consumer-a` (FastAPI + Next.js modular monolith) was the first project to adopt this pattern (2026-05-13, ai-playbook v0.11.0). Key choices:
+`project-a` (FastAPI + Next.js modular monolith) adopted this pattern. Key choices:
 
-- **Schema**: kept `openspec/schemas/consumer-a-team/schema.yaml` with 9 artefacts (proposal → specs → design → tasks → apply → test → review → verify → memory).
-- **Imported from playbook**: verdict literals + S1-S4, max-2-rework, output-completeness, verification-before-completion (broadest-scope + tool-exit-code rules), 4-layer parallel review (3 isolated + consumer-a Reviewer with 5 holistic checks), agentic-failures self-check in apply, scope.write_paths declaration in tasks.
+- **Schema**: kept `openspec/schemas/project-a-team/schema.yaml` with 9 artefacts (proposal → specs → design → tasks → apply → test → review → verify → memory).
+- **Imported from playbook**: verdict literals + S1-S4, max-2-rework, output-completeness, verification-before-completion (broadest-scope + tool-exit-code rules), 4-layer parallel review (3 isolated + project-a Reviewer with 5 holistic checks), agentic-failures self-check in apply, scope.write_paths declaration in tasks.
 - **Layer 4 holistic checks**: (1) spec compliance, (2) code quality (FastAPI/Next.js conventions, blueprint pattern, async/await), (3) security & performance (multi-tenant FK leakage, RFC 7807 compliance, N+1, secrets), (4) patterns from memory.md + Hindsight recall (Celery-only syncs, admin-only sync buttons, stale job cleanup), (5) Karpathy compliance.
-- **Dual memory**: `openspec/memory.md` (Markdown SSOT) + Hindsight bank `consumer-a`. Both retained per memory artefact.
+- **Dual memory**: `openspec/memory.md` (Markdown SSOT) + Hindsight bank `project-a`. Both retained per memory artefact.
 - **Deferred (opt-in)**: BMAD Discovery full workflow, bare worktrees, forward-authored retros, slicing artefact, 6 HITL gates.
-- **Not applicable**: migration of 18 existing changes (exempt), `block_manual_spec_edit.py` (consumer-a doesn't archive-promote specs), `verify_llm_routing.py` (consumer-a doesn't call LLMs directly).
-
-See `c:\Projects\consumer-a\AGENTS.md` §7 for the full override block.
+- **Not applicable**: migration of 18 existing changes (exempt), `block_manual_spec_edit.py` (project-a doesn't archive-promote specs), `verify_llm_routing.py` (project-a doesn't call LLMs directly).
 
 ## 10. See also
 

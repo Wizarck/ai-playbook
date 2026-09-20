@@ -17,7 +17,7 @@ DI is not a language-specific concept; the same hazards appear in NestJS, FastAP
 
 ### 1.1 Failure 1: silent provider duplication
 
-consumer-c m2-mcp-write-capabilities had a `SharedModule` marked `@Global()` exporting `AuditResolverRegistry`. A `TestAppModule` (used in integration tests) re-declared the registry in its `providers` array — the local declaration won, creating two instances. The MCP server registered handlers to instance A, but route handlers read from instance B. Result: `payload_before: null` for every agent mutation, with no error. Surfaced only when an integration test asserted on the audit row's content.
+A `SharedModule` marked `@Global()` exported `AuditResolverRegistry`. A `TestAppModule` (used in integration tests) re-declared the registry in its `providers` array — the local declaration won, creating two instances. The MCP server registered handlers to instance A, but route handlers read from instance B. Result: `payload_before: null` for every agent mutation, with no error. Surfaced only when an integration test asserted on the audit row's content.
 
 Lesson: **`@Global()` makes the export visible everywhere but does NOT prevent re-declaration**. The same hazard exists in Python (re-binding a `Depends` callable in `app.dependency_overrides` for tests + forgetting to clear it leaks into adjacent tests) and Phoenix (re-defining a behaviour adapter at runtime via `Application.put_env/3`).
 
@@ -25,7 +25,7 @@ Lesson: **`@Global()` makes the export visible everywhere but does NOT prevent r
 
 A common cross-slice pattern: slice A introduces a service that slice B will need to extend. The naive approach — "slice A defines the class; slice B inherits + overrides" — produces hard coupling: B can't ship without editing A.
 
-The fluent approach is to ship a **DI token + factory** in slice A, and have slice B provide its own implementation bound to the same token. consumer-c m2-cost-rollup-and-audit shipped this as the `INVENTORY_COST_RESOLVER` DI token: m1 introduced the token + a default `M1InventoryCostResolver` implementation; m2 dropped a new `M2InventoryCostResolver` into the cost BC and rebound the token via `useExisting`, with **zero edits to m1's code**.
+The fluent approach is to ship a **DI token + factory** in slice A, and have slice B provide its own implementation bound to the same token. For example, with the `INVENTORY_COST_RESOLVER` DI token, m1 introduced the token + a default `M1InventoryCostResolver` implementation; m2 dropped a new `M2InventoryCostResolver` into the cost BC and rebound the token via `useExisting`, with **zero edits to m1's code**.
 
 This spec codifies both patterns + their cross-language equivalents.
 
@@ -114,8 +114,6 @@ def _reset_audit_registry():
 ```
 
 Drop into the test module; every test in the module gets a fresh cache. Variant for entire test sessions: scope `session` and clear in a `conftest.py`.
-
-This pattern was tracked as a Tier-3 v0.11 deliverable per the consumer-e retros' carry-forward; codified here in §2.4.
 
 ### 2.5 Phoenix / Elixir equivalent (Application config)
 
@@ -246,9 +244,9 @@ If none of those apply, ship the concrete class — premature DI tokens are over
 
 ---
 
-## 4. Singleton-per-action-class (consumer-d ADR-028 pattern)
+## 4. Singleton-per-action-class
 
-A specific application of pattern B: the `request_approval(mode=apply)` HITL gating function in consumer-d ADR-028 is a singleton across all rollout actions, but its implementation is bound differently per action class (deploy / secret-rotation / emergency-override).
+A specific application of pattern B: the `request_approval(mode=apply)` HITL gating function is a singleton across all rollout actions, but its implementation is bound differently per action class (deploy / secret-rotation / emergency-override).
 
 The pattern:
 
@@ -297,14 +295,3 @@ This pattern combines [hitl-approval-pattern.md](../rules/hitl-approval-pattern.
 - [hitl-approval-pattern.md](../rules/hitl-approval-pattern.rule.md) §3 — the approval channel Protocol is the canonical case of this spec applied to HITL gating.
 - [release-management.md](release-management.md) §6.6 — intra-slice subagent parallelism; DI seams that are clean across BCs let subagents work independently.
 
----
-
-## 7. Reference implementations
-
-| Project | Surface | Pattern | Notes |
-|---|---|---|---|
-| consumer-c | `AuditResolverRegistry` | Pattern A (provider dedup) | `@Global()` + `imports: [SharedModule]` discipline; `payload_before:null` bug fixed v0.11 |
-| consumer-c | `INVENTORY_COST_RESOLVER` | Pattern B (token rebinding) | m1 default → m2 BOM-walking impl; m1 untouched |
-| consumer-e | `LLMClient` | Both | Protocol per `protocol-fake-deferred-install`; `@lru_cache` factory in FastAPI |
-| consumer-d | ADR-028 `request_approval` | §4 (singleton-per-action-class) | Action-class-keyed dispatcher dict; routes per class |
-| consumer-e | (P1) `ApprovalChannel` | §4 (singleton-per-channel) | Same pattern, applied to multi-channel HITL routing |

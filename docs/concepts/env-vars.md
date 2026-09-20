@@ -19,8 +19,6 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 | Prefix | Owner | Example | Source |
 |---|---|---|---|
 | `AIPLAYBOOK_` | This repo's scripts. | `AIPLAYBOOK_PROJECTS_FILE` | Runtime env. |
-| `consumer-d_` | consumer-d (personal). | `CONSUMER_D_CORE_DIR`, `CONSUMER_D_VPS_HOST` | SOPS-decrypted + shell env. |
-| `consumer-c_` | consumer-c consumer. | `CONSUMER_C_DATABASE_URL` | `.env` + secret store. |
 | `HINDSIGHT_` | Hindsight MCP credentials. | `HINDSIGHT_API_KEY` | SOPS-decrypted. |
 | `LANGFUSE_` | Langfuse tracing. | `LANGFUSE_HOST` | SOPS-decrypted. |
 | `OTEL_` | OpenTelemetry SDK. | `OTEL_EXPORTER_OTLP_ENDPOINT` | Local Collector or VPS pointer. |
@@ -30,7 +28,7 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 ## Rules
 
 - **No plaintext secrets in git.** Always via SOPS -> decrypted at runtime.
-- **No cross-prefix reads.** A playbook script does not read `consumer-d_*` or `consumer-c_*` directly; those flow through explicit CLI args.
+- **No cross-prefix reads.** A playbook script never reads consumer-owned variables (prefix `consumer-<name>_`) directly; those flow through explicit CLI args.
 - **Every prefix's vars are enumerated below.** Adding a new var = updating this spec in the same PR.
 - **Canonical name wins over alias.** Where a var has a back-compat alias (see `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` below), the canonical name is preferred; `scripts/doctor.py` emits a warning when the alias is the only value set.
 
@@ -43,6 +41,8 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 | `AIPLAYBOOK_PROJECTS_FILE` | `AIPLAYBOOK_` | Override the projects-registry YAML path. | no | `~/.ai-playbook/projects.yaml` | `scripts/discover_projects.py::resolve_registry_path` |
 | `AIPLAYBOOK_PROJECTS_ROOTS` | `AIPLAYBOOK_` | Extra scan roots (comma- or OS-pathsep-separated). | no | empty (falls back to `~/Projects`, `~/projects`, `C:/Projects`, `/opt`, `/srv`) | `scripts/discover_projects.py::get_default_roots` |
 | `AIPLAYBOOK_SECRETS_ENV` | `AIPLAYBOOK_` | Path to the SOPS-encrypted `secrets.env` the seeded `SessionStart` hook decrypts for Hindsight recall. Unset: the hook is a no-op. | no | unset | `templates/new-project/.claude/settings.json.tmpl` |
+| `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED` | `AIPLAYBOOK_` | `1` routes warn/error notifications to the consumer-side durable queue instead of SMTP (needs the queue package importable). | no | unset (SMTP) | `scripts/notify.py` |
+| `AIPLAYBOOK_FLAG_DIR` | `AIPLAYBOOK_` | Directory holding the `budget-disabled-<provider>.flag` files. | no | `/var/lib/acme-corp` | `scripts/telemetry/report.py::_budget_flag_path` |
 | `AIPLAYBOOK_DEBUG` | `AIPLAYBOOK_` | Verbose trace logging from playbook scripts. Truthy = on. | no | unset (off) | any script's logger (T07c) |
 | `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` | `AIPLAYBOOK_` | Minimum tokens per `cache_control` breakpoint before prompt caching is activated (see `docs/concepts/prompt-caching.md`). **Canonical name.** | no | `1024` | `scripts/tracing/*` + `scripts/prompt_injection_filter.py` |
 | `ANTHROPIC_CACHE_TOKENS_MIN` | *(bare, alias)* | **Back-compat alias** for `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN`. Accepted but `scripts/doctor.py` warns and recommends renaming. | no | inherits from canonical default | same sites as the canonical var |
@@ -77,20 +77,9 @@ When both canonical and alias are set, the canonical value wins and the alias is
 
 ---
 
-## `consumer-d_*` (consumer-d, personal)
-
-| Var | Prefix | Purpose | Required? | Default | Where read |
-|---|---|---|---|---|---|
-| `CONSUMER_D_CORE_DIR` | `consumer-d_` | Path to consumer-d checkout. | yes (if consumer-d consumer) | unset | consumer-d dispatchers, not playbook scripts |
-| `CONSUMER_D_VPS_HOST` | `consumer-d_` | SSH target for VPS k3s. | yes (consumer-d ops) | unset | consumer-d runbooks |
-
-Playbook scripts must not read these directly — they flow through the consumer-d dispatcher (see `C:\Projects\consumer-d\consumer-d.md`).
-
----
-
 ## `HINDSIGHT_*` + Cloudflare Access pair
 
-The current consumer-d Hindsight deployment (`https://consumer-d-hindsight.consumer-bfood.com`)
+The current project-d Hindsight deployment (`https://project-d-hindsight.example.com`)
 sits behind Cloudflare Access service auth. The `scripts/_hindsight.py` client
 prefers CF Access headers and falls back to bearer when present — both shapes
 are documented below.
@@ -120,7 +109,7 @@ is set (default true) — see `docs/concepts/memory-hierarchy.md` §9.
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `SKILLS_REGISTRY_URL` | `SKILLS_REGISTRY_` | Base URL of the consumer-d-skills HTTP registry. | yes (if `skills-registry` MCP enabled) | unset | `scripts/skills_registry.py::_load_credentials` |
+| `SKILLS_REGISTRY_URL` | `SKILLS_REGISTRY_` | Base URL of the project-d-skills HTTP registry. | yes (if `skills-registry` MCP enabled) | unset | `scripts/skills_registry.py::_load_credentials` |
 | `SKILLS_REGISTRY_API_KEY` | `SKILLS_REGISTRY_` | Bearer token for `scope=personal` / `scope=<project>` queries. | conditional (required for non-`public` scope) | unset | `scripts/skills_registry.py::_load_credentials` |
 
 See `docs/concepts/skills-registry.md` for scope semantics and the degraded-mode path.
@@ -180,11 +169,11 @@ When a per-consumer key is missing for a task class, `_llm.py` falls back to the
 A `consumer` is a **budget bucket** (a LiteLLM virtual key with its own monthly cap). Add one when an existing bucket cannot absorb a new caller's spend without breaching its budget or muddying attribution.
 
 1. **Choose a SHOUTCASE name.** Convention: short, role-descriptive (e.g., `AIDE`, `INSPECTOR`). Avoid product names (those go in `application` instead — see `model-routing.md` §5).
-2. **Generate a provider API key.** For Anthropic: `console.anthropic.com → Workspaces → <consumer-d> → API Keys → Create`. Tag the key with the consumer name. For OpenRouter: `openrouter.ai/keys → Create Key` with a credit limit matching the intended monthly budget.
-3. **Store in SOPS.** Encrypt into `secrets/secrets.env` as `<PROVIDER>_API_KEY_<CONSUMER>=<value>`. Run `scripts/sops-to-env.sh k8s` to sync into the `consumer-d-secrets` k8s Secret.
+2. **Generate a provider API key.** For Anthropic: `console.anthropic.com → Workspaces → <project-d> → API Keys → Create`. Tag the key with the consumer name. For OpenRouter: `openrouter.ai/keys → Create Key` with a credit limit matching the intended monthly budget.
+3. **Store in SOPS.** Encrypt into `secrets/secrets.env` as `<PROVIDER>_API_KEY_<CONSUMER>=<value>`. Run `scripts/sops-to-env.sh k8s` to sync into the `project-d-secrets` k8s Secret.
 4. **Wire into LiteLLM.** Two edits in the same PR:
    - `.ai-playbook/configs/litellm-router.yaml` — point the relevant `model_name` entries' `api_key: os.environ/<PROVIDER>_API_KEY_<CONSUMER>`.
-   - `helm/consumer-d-stack/templates/configmaps.yaml` — mirror the change (see `test_litellm_config_sync.py` for the contract).
+   - `helm/project-d-stack/templates/configmaps.yaml` — mirror the change (see `test_litellm_config_sync.py` for the contract).
 5. **Add to this table** (above) with the default monthly budget.
 6. **Set the budget cap.** Use `scripts/litellm_budgets.sh set <CONSUMER> <amount_usd>`. Caps live in the LiteLLM admin DB at runtime, NOT in yaml — the script is authoritative.
 7. **Smoke test.** `python -m scripts._llm <task_class> "ping" --consumer <CONSUMER>` returns a response and Langfuse trace shows `metadata.consumer = <CONSUMER>`.
@@ -221,10 +210,10 @@ STARTTLS with certificate and hostname verification (`ssl.create_default_context
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `ATLASSIAN_URL` | `ATLASSIAN_` | Jira Cloud base URL (e.g. `https://consumer-a.atlassian.net`). | yes (for private-repo tracker sync) | unset | `scripts/issue_sync.py`, `scripts/release_cut.py` |
+| `ATLASSIAN_URL` | `ATLASSIAN_` | Jira Cloud base URL (e.g. `https://project-a.atlassian.net`). | yes (for private-repo tracker sync) | unset | `scripts/issue_sync.py`, `scripts/release_cut.py` |
 | `ATLASSIAN_USERNAME` | `ATLASSIAN_` | Atlassian account email (for REST basic auth). | yes (for private-repo tracker sync) | unset | same |
 | `ATLASSIAN_API_TOKEN` | `ATLASSIAN_` | Personal API token (SOPS-decrypted). | yes (for private-repo tracker sync) | unset | same |
-| `AIPLAYBOOK_JIRA_DEFAULT_PROJECT` | `AIPLAYBOOK_` | Jira project key for private consumers without an explicit mapping. | no | `consumer-a` | `scripts/issue_sync.py` |
+| `AIPLAYBOOK_JIRA_DEFAULT_PROJECT` | `AIPLAYBOOK_` | Jira project key for private consumers without an explicit mapping. | no | `project-a` | `scripts/issue_sync.py` |
 | `AIPLAYBOOK_JIRA_DEFAULT_ISSUE_TYPE` | `AIPLAYBOOK_` | Jira issue type for auto-created stories. | no | `Story` | `scripts/issue_sync.py` |
 
 ---

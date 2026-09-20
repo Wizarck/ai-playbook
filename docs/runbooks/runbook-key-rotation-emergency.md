@@ -32,7 +32,7 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
 
 - SOPS / age key for the encrypted secrets store: `age-keygen -y ~/.config/sops/age/keys.txt`.
 - 1Password (or equivalent) for vendor-side rotation — most vendors require a manual UI dance.
-- VPS SSH access for restarting any service that consumes the credential: `ssh consumer-d-vps echo ok`.
+- VPS SSH access for restarting any service that consumes the credential: `ssh project-d-vps echo ok`.
 - `git-filter-repo` installed if history rewrite is anticipated: `pip install git-filter-repo`.
 
 ## Steps
@@ -72,7 +72,7 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
 5. **Restart consuming services.**
    ```bash
    # k3s pods that read from secrets:
-   kubectl rollout restart deploy/<service> -n consumer-d
+   kubectl rollout restart deploy/<service> -n project-d
    # Docker compose:
    cd /opt/<service> && docker compose up -d <service>
    # Local services (rare):

@@ -449,7 +449,7 @@ def test_warn_routes_through_queue_when_enabled_skips_smtp(
     smtp_enabled: type[_FakeSMTP],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    monkeypatch.setenv("AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED", "1")
     captured = _install_fake_queue(monkeypatch)
 
     notify_mod.notify(event="demo.queue", severity="warn", summary="via-queue")
@@ -470,7 +470,7 @@ def test_error_routes_through_queue_when_enabled(
     smtp_enabled: type[_FakeSMTP],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    monkeypatch.setenv("AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED", "1")
     captured = _install_fake_queue(monkeypatch)
 
     notify_mod.notify(event="demo.err", severity="error", summary="boom")
@@ -487,7 +487,7 @@ def test_queue_disabled_falls_through_to_smtp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Default (no env var) keeps the legacy SMTP behaviour."""
-    monkeypatch.delenv("CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED", raising=False)
+    monkeypatch.delenv("AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED", raising=False)
     captured = _install_fake_queue(monkeypatch)
 
     notify_mod.notify(event="demo.legacy", severity="warn", summary="smtp")
@@ -506,7 +506,7 @@ def test_queue_package_missing_falls_through_to_smtp(
     """Env var set but the consumer-side package is absent (e.g. a non-acme-corp
     consumer with the env var inadvertently exported) — must NOT crash; falls
     through to SMTP."""
-    monkeypatch.setenv("CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    monkeypatch.setenv("AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED", "1")
     # Ensure neither real nor fake `notifications` module is importable.
     monkeypatch.delitem(sys.modules, "notifications", raising=False)
     monkeypatch.delitem(sys.modules, "notifications.queue", raising=False)
@@ -535,7 +535,7 @@ def test_queue_enqueue_failure_falls_back_to_smtp(
 ) -> None:
     """If enqueue raises (DB lock, disk full), the helper logs + falls back
     to SMTP — never re-raises."""
-    monkeypatch.setenv("CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    monkeypatch.setenv("AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED", "1")
     _install_fake_queue(monkeypatch, raise_on_enqueue=True)
 
     notify_mod.notify(event="demo.dblock", severity="error", summary="locked")
@@ -553,7 +553,7 @@ def test_queue_does_not_route_info_severity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Per D2.5: info-level bypasses the queue entirely."""
-    monkeypatch.setenv("CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED", "1")
+    monkeypatch.setenv("AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED", "1")
     captured = _install_fake_queue(monkeypatch)
 
     notify_mod.notify(event="demo.info", severity="info", summary="ignore-me")

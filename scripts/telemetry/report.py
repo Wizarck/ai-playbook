@@ -515,7 +515,7 @@ def check_retirement_window(
 
 
 def _budget_flag_path(provider: str, flag_dir: str | None = None) -> Path:
-    base = flag_dir or os.environ.get("CONSUMER_D_FLAG_DIR", BUDGET_FLAG_DIR_DEFAULT)
+    base = flag_dir or os.environ.get("AIPLAYBOOK_FLAG_DIR", BUDGET_FLAG_DIR_DEFAULT)
     return Path(base) / f"budget-disabled-{provider}.flag"
 
 

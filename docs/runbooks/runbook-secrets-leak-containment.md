@@ -53,8 +53,8 @@ Severity: **S1**. MTTR: containment within 1 h, full rotation within 4 h, public
    # On VPS:
    tar czf /opt/forensics/snapshot-$(date +%Y%m%d-%H%M%S).tar.gz \
        /var/log/auth.log /var/log/syslog \
-       /opt/consumer-d/.ai-playbook/events.jsonl \
-       /opt/consumer-d/.ai-playbook/overrides.log
+       /opt/project-d/.ai-playbook/events.jsonl \
+       /opt/project-d/.ai-playbook/overrides.log
    ```
    Snapshots feed the post-mortem and any law-enforcement involvement.
 
@@ -91,7 +91,7 @@ Severity: **S1**. MTTR: containment within 1 h, full rotation within 4 h, public
    - CCPA (California): without unreasonable delay; thresholds depend on the data category.
    - Sector-specific (HIPAA, PCI-DSS, SOC 2 audit clauses) per the applicable contract.
 
-   For consumer-d (solo-state, no paying customers as of 2026-05-01): no regulatory obligation today. Obligation flips on with the same trigger as [Concept: incident-response](../concepts/incident-response.md) §2 (first paying SaaS customer).
+   While solo-state with no paying customers: no regulatory obligation. Obligation flips on with the same trigger as [Concept: incident-response](../concepts/incident-response.md) §2 (first paying SaaS customer).
 
 9. **Customer + public communication.**
    Use [Concept: incident-response](../concepts/incident-response.md) §7.1 templates, adjusted for security:

@@ -1022,7 +1022,7 @@ def test_file_mtime_and_drained_blocks_when_record_not_drained(tmp_path: Path) -
 def test_yaml_literal_rename_renames_scalar_values(tmp_path: Path) -> None:
     consumer = _seed_consumer(tmp_path)
     target = consumer / "mcp-servers.yaml"
-    target.write_text("consumers:\n  - consumer-c-legacy\n  - other\n", encoding="utf-8")
+    target.write_text("consumers:\n  - project-c-legacy\n  - other\n", encoding="utf-8")
     manifest = _write_manifest(
         tmp_path,
         [_base_entry(
@@ -1031,16 +1031,16 @@ def test_yaml_literal_rename_renames_scalar_values(tmp_path: Path) -> None:
             action="rename",
             safety="yaml_literal_rename",
             path="**/*.yaml",
-            rename_from="consumer-c-legacy",
-            rename_to="consumer-c",
+            rename_from="project-c-legacy",
+            rename_to="project-c",
             rename_in_files=["mcp-servers.yaml"],
         )],
     )
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0
     text = target.read_text(encoding="utf-8")
-    assert "consumer-c-legacy" not in text
-    assert "consumer-c" in text
+    assert "project-c-legacy" not in text
+    assert "project-c" in text
 
 
 def test_yaml_literal_rename_skips_invalid_yaml(tmp_path: Path) -> None:
@@ -1055,8 +1055,8 @@ def test_yaml_literal_rename_skips_invalid_yaml(tmp_path: Path) -> None:
             action="rename",
             safety="yaml_literal_rename",
             path="**/*.yaml",
-            rename_from="consumer-c-legacy",
-            rename_to="consumer-c",
+            rename_from="project-c-legacy",
+            rename_to="project-c",
             rename_in_files=["broken.yaml"],
         )],
     )

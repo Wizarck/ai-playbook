@@ -290,7 +290,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
         emit_error(
             why="SKILLS_REGISTRY_URL not set",
             where="env:SKILLS_REGISTRY_URL",
-            fix="export SKILLS_REGISTRY_URL=https://acme-corp-skills.consumer-bfood.com "
+            fix="export SKILLS_REGISTRY_URL=https://acme-corp-skills.example.com "
                 "(or pass --url); see docs/concepts/env-vars.md.",
             override_invocation=(
                 f"{SCRIPT_BASENAME} list --force-with-reason=\"<≥10 char reason>\""

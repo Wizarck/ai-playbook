@@ -64,7 +64,7 @@ flowchart TD
     ProfileBranch -->|Profile B| PB["repo settings only<br/>+ canonical Status schema<br/>(branch protection N/A on Free)"]
 
     PA --> S9["§9 — Install CodeRabbit<br/>GitHub App<br/>(Profile A only)"]
-    S9 --> S10["§10 — Configure<br/>CONSUMER_D_GOD_MODE secret<br/>(Profile A only)"]
+    S9 --> S10["§10 — Configure<br/>AIPLAYBOOK_GOD_MODE secret<br/>(Profile A only)"]
     S10 --> S11
     PB --> S11["§11 — Verify SessionStart hook<br/>(Hindsight bank auto-recall)"]
 
@@ -268,12 +268,12 @@ On the first PR, CodeRabbit comments automatically. The worker AI must read and 
 
 Skip if the repo stays private or if CodeRabbit is not wanted. The §4.5 contract degrades to self-review (Profile B fallback, see [Runbook: coderabbit-fallback](coderabbit-fallback.md)).
 
-### 10. Configure the `CONSUMER_D_GOD_MODE` secret (Profile A only)
+### 10. Configure the `AIPLAYBOOK_GOD_MODE` secret (Profile A only)
 
 Only needed when a workflow clones a submodule that is private. The playbook repo itself is public, so `actions/checkout` reaches it without a token:
 
 ```bash
-gh secret set CONSUMER_D_GOD_MODE -R <owner>/<project-name> --body "<your-pat>"
+gh secret set AIPLAYBOOK_GOD_MODE -R <owner>/<project-name> --body "<your-pat>"
 ```
 
 The PAT requires scope `Contents: read` on each private submodule the workflow clones. Without it, `actions/checkout@v4` with `submodules: true` fails with `404 Repository not found`.
@@ -308,7 +308,7 @@ Configure:
 - Variable `PROJECT_OWNER`: `<your-org>` (your GitHub user or org login).
 - Variable `PROJECT_NUMBER`: `<N>` from step 8.
 
-`project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty. It posts with `secrets.GITHUB_TOKEN`; its submodule checkout uses `secrets.CONSUMER_D_GOD_MODE` (§10) when set and falls back to `github.token`, enough while the playbook repo is public. A copy made before v0.24.2 references the invalid `secrets.consumer-a_GOD_MODE` and fails on every PR: re-copy the template, or set its `token:` line to `${{ secrets.CONSUMER_D_GOD_MODE || github.token }}`.
+`project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty. It posts with `secrets.GITHUB_TOKEN`; its submodule checkout uses `secrets.AIPLAYBOOK_GOD_MODE` (§10) when set and falls back to `github.token`, enough while the playbook repo is public. A copy made before v0.24.2 references an invalid secret name and fails on every PR: re-copy the template, or set its `token:` line to `${{ secrets.AIPLAYBOOK_GOD_MODE || github.token }}`.
 
 `bootstrap_gh_project.py --profile auto` (v0.9.0+) copies `coderabbit-fallback.yml` automatically; the manual `cp` is for consumers skipping the bootstrap script.
 
@@ -349,15 +349,15 @@ git add scripts/install-playbook-hooks.sh scripts/git-hooks/
 **Fix**: `pipx install pre-commit` (or `python -m pip install pre-commit`), then check what went in unchecked with `pre-commit run --all-files`.
 
 ### Symptom: SOPS path mismatch on the SessionStart hook
-**Cause**: the repo is not co-located with `consumer-d/` where the canonical CF Access creds live.
+**Cause**: the repo is not co-located with `project-d/` where the canonical CF Access creds live.
 **Fix**: edit `.claude/settings.json` and replace
 ```
-"command": "sops exec-env ../consumer-d/secrets/secrets.env -- python ..."
+"command": "sops exec-env ../project-d/secrets/secrets.env -- python ..."
 ```
 with an absolute path: `"command": "sops exec-env /absolute/path/to/your/secrets.env -- python ..."`. Or export the env vars in the shell profile and drop the `sops exec-env` wrapper.
 
 ### Symptom: CI submodule clone fails with `404 Repository not found`
-**Cause**: `CONSUMER_D_GOD_MODE` secret missing or PAT lacks `Contents: read` on the playbook + skills repos.
+**Cause**: `AIPLAYBOOK_GOD_MODE` secret missing or PAT lacks `Contents: read` on the playbook + skills repos.
 **Fix**: rotate per [Runbook: rotate-secrets](rotate-secrets.md), confirming the PAT has both repos in scope.
 
 ### Symptom: rollback — something went wrong and the bootstrap must be undone

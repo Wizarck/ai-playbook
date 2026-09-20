@@ -58,10 +58,10 @@ Every `mode="apply"` request MUST supply `idempotency_check() -> bool` returning
 ```python
 approval = request_approval(
     action="vps-cleanup-docker-prune",
-    payload={"host": "consumer-d-prod"},
+    payload={"host": "project-d-prod"},
     severity="warn",
     command_preview="docker builder prune -af",
-    idempotency_key="vps_maintainer-docker-prune-consumer-d-prod-2026-04-29",
+    idempotency_key="vps_maintainer-docker-prune-project-d-prod-2026-04-29",
     reversal_hint="cache rebuilds on next image build (~10 min, recoverable)",
     risk="medium",
     mode="apply",

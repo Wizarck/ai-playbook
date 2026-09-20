@@ -17,13 +17,13 @@ Mine alternative retro-equivalent surfaces (ADRs, gotchas, runbooks, post-mortem
 
 Use this skill when:
 
-- A project has **no populated `retros/` directory** but has an extensive ADR set (e.g. `consumer-d` with 28 ADRs).
+- A project has **no populated `retros/` directory** but has an extensive ADR set.
 - A project has retros but they're **terse / project-specific** and you want a second pass against alternative surfaces.
 - You're authoring an `ai-playbook` release that consolidates cross-project lessons (e.g. v0.11.0) and want to verify coverage across all consumers.
 
 Don't use when:
 
-- The project has comprehensive retros that already capture the lessons (e.g. `consumer-e/retros/` after Wave 3 — read those directly).
+- The project has comprehensive retros that already capture the lessons (read those directly).
 - You want a quick lookup for a specific topic (just `Grep` the relevant directory).
 
 ## Inputs
@@ -155,15 +155,9 @@ This skill pairs with:
 /bmad-extract-lessons-from-adrs --focus="cascade failures"
 
 # Against a specific project (when cwd is elsewhere):
-/bmad-extract-lessons-from-adrs --project=/path/to/consumer-d
+/bmad-extract-lessons-from-adrs --project=/path/to/project-d
 ```
 
 ## Validation
 
-The skill is validated by reproducing the v0.11.0 mining session:
-
-1. Ran against `consumer-d` (28 ADRs + gotchas.md + 19 runbooks).
-2. Ran against `consumer-b` (no ADRs; docs/archive only).
-3. Output: 3 NEW patterns + 2 reinforced patterns vs the prior consumer-e+consumer-c baseline. Direct input to v0.11.0 specs `multi-layer-defense-single-operator.md`, `cascade-failure-template.md`, and the HITL section in `hitl-approval-pattern.md`.
-
-Each subsequent ai-playbook release SHOULD invoke this skill against every consumer in [`consumers.yaml`](../../consumers.yaml) where `retros/` is empty.
+Each ai-playbook release SHOULD invoke this skill against every consumer in [`consumers.yaml`](../../consumers.yaml) where `retros/` is empty.

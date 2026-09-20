@@ -35,7 +35,7 @@ The rule is **advisory** in the playbook tree because `notify.send()` and the ch
 
 ## Examples
 
-**Preferred** — notification carries `body: "Migration 0010 applied to consumer-d-prod"` and `metadata: {trace_id, slice_id, env: "prod"}`; no token / key / cookie material; passes the scan.
+**Preferred** — notification carries `body: "Migration 0010 applied to project-d-prod"` and `metadata: {trace_id, slice_id, env: "prod"}`; no token / key / cookie material; passes the scan.
 
 **Avoided** — `body: f"Failed to authenticate with API key {api_key}"` (literal secret leaks); `metadata: {env_vars: dict(os.environ)}` (bulk dump of secrets); echoing a full HTTP request including cookie headers; including a customer email + phone (PII).
 

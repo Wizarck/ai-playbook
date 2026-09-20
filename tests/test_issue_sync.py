@@ -168,10 +168,10 @@ def test_decide_surface_github_from_frontmatter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _make_consumer(
-        tmp_path, project="consumer-c", personal=False, tracker_kind="github",
+        tmp_path, project="project-c", personal=False, tracker_kind="github",
     )
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: True)
-    monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/consumer-c")
+    monkeypatch.setattr(issue_sync, "_gh_repo_nwo", lambda p: "Wizarck/project-c")
     monkeypatch.setenv("AIPLAYBOOK_GH_PROJECT_NUMBER", "42")
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "github"
@@ -184,12 +184,12 @@ def test_decide_surface_jira_from_frontmatter(
 ) -> None:
     root = _make_consumer(
         tmp_path, project="future-jira-consumer", personal=False,
-        tracker_kind="jira", jira_project="consumer-c-legacy",
+        tracker_kind="jira", jira_project="project-c-legacy",
     )
     monkeypatch.setattr(issue_sync, "_gh_available", lambda: False)
     decision = issue_sync.decide_surface(root)
     assert decision.kind == "jira"
-    assert decision.jira_project == "consumer-c-legacy"
+    assert decision.jira_project == "project-c-legacy"
     assert "tracker_kind=jira" in decision.reason
 
 
@@ -226,7 +226,7 @@ def test_decide_surface_jira_without_project_raises(
 
 def test_jira_project_for_returns_none_for_github(tmp_path: Path) -> None:
     root = _make_consumer(
-        tmp_path, project="consumer-c", personal=False, tracker_kind="github",
+        tmp_path, project="project-c", personal=False, tracker_kind="github",
     )
     assert issue_sync.jira_project_for(root) is None
 
@@ -378,7 +378,7 @@ def test_sync_all_creates_jira_issue_and_writes_back(
     tmp_path: Path, jsonl_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _make_consumer(
-        tmp_path, project="consumer-b",
+        tmp_path, project="project-b",
         proposals={"new-feature": PROPOSAL_WITHOUT},
     )
     monkeypatch.setenv("ATLASSIAN_URL", "https://x")
@@ -386,29 +386,29 @@ def test_sync_all_creates_jira_issue_and_writes_back(
     monkeypatch.setenv("ATLASSIAN_API_TOKEN", "t")
     monkeypatch.setattr(
         issue_sync, "decide_surface",
-        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="consumer-b"),
+        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="project-b"),
     )
     monkeypatch.setattr(
         issue_sync.urlrequest, "urlopen",
-        _fake_urlopen_success({"key": "consumer-b-7"}),
+        _fake_urlopen_success({"key": "project-b-7"}),
     )
     outcome = issue_sync.sync_all(consumer_root=root)
     assert outcome.created == 1
     # Verify proposal now carries the tracker_id.
     prop = (root / "openspec" / "changes" / "new-feature" / "proposal.md").read_text(encoding="utf-8")
-    assert "tracker_id: consumer-b-7" in prop
+    assert "tracker_id: project-b-7" in prop
 
 
 def test_sync_all_queues_on_failure(
     tmp_path: Path, jsonl_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _make_consumer(
-        tmp_path, project="consumer-b",
+        tmp_path, project="project-b",
         proposals={"fails": PROPOSAL_WITHOUT},
     )
     monkeypatch.setattr(
         issue_sync, "decide_surface",
-        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="consumer-b"),
+        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="project-b"),
     )
     monkeypatch.setattr(issue_sync, "_load_jira_creds", lambda: None)
     outcome = issue_sync.sync_all(consumer_root=root)
@@ -442,7 +442,7 @@ def test_sync_all_idempotent_on_second_run(
     tmp_path: Path, jsonl_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _make_consumer(
-        tmp_path, project="consumer-b",
+        tmp_path, project="project-b",
         proposals={"once": PROPOSAL_WITHOUT},
     )
     monkeypatch.setenv("ATLASSIAN_URL", "https://x")
@@ -450,11 +450,11 @@ def test_sync_all_idempotent_on_second_run(
     monkeypatch.setenv("ATLASSIAN_API_TOKEN", "t")
     monkeypatch.setattr(
         issue_sync, "decide_surface",
-        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="consumer-b"),
+        lambda p: issue_sync.SurfaceDecision(kind="jira", jira_project="project-b"),
     )
     monkeypatch.setattr(
         issue_sync.urlrequest, "urlopen",
-        _fake_urlopen_success({"key": "consumer-b-1"}),
+        _fake_urlopen_success({"key": "project-b-1"}),
     )
     first = issue_sync.sync_all(consumer_root=root)
     assert first.created == 1

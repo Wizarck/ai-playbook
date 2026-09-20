@@ -20,7 +20,7 @@
 #     (not playbook-driven).
 
 version: 1
-manifest_version: "2026-11-05.1"
+manifest_version: "2026-11-09.1"
 
 # NOTE (v0.19.0): the push-pipeline retirement deleted PLAYBOOK-INTERNAL
 # files (consumers.yaml, consumers.yaml.example, propagate_bump.py,
@@ -49,7 +49,7 @@ entries:
       `.skills-sources/`. Consumers may keep their own `.skills-sources/<repo>`
       submodules, so `check_gitmodules_first` deletes it only when nothing at,
       under or above it is registered, tracked or checked out.
-    evidence: github.com/consumer-a/consumer-a/pull/125
+    evidence: ai-playbook v0.17.0 CHANGELOG
 
   - id: skills-sources-git-modules-orphan
     tier: 1
@@ -65,7 +65,7 @@ entries:
       or above it is declared or tracked as a gitlink. A real git dir (also of
       nested `.skills-sources/<repo>` submodules) is reported with the command
       to check it before removing it by hand.
-    evidence: github.com/consumer-a/consumer-a/pull/125
+    evidence: ai-playbook v0.17.0 CHANGELOG
 
   - id: auto-managed-orphan-blocks
     tier: 3
@@ -100,25 +100,7 @@ entries:
   # Tier 2 — textual changes (auto-applied; logged for audit)
   # -------------------------------------------------------------------------
 
-  - id: consumer-c-legacy-rename
-    tier: 2
-    action: rename
-    safety: yaml_literal_rename
-    path: "**/*.{yaml,yml,json}"
-    rename_from: consumer-c-legacy
-    rename_to: consumer-c
-    rename_in_files:
-      - mcp-servers.project.yaml
-      - mcp-servers.yaml
-      - consumers.yaml
-      - .mcp.json
-    introduced_in: v0.1.0
-    removed_in: v0.14.1
-    reason: >
-      Consumer name change in playbook v0.14.1 (commit 0c3cd59 +
-      release cb5c6f2). Consumers that hard-coded `consumer-c-legacy` in MCP /
-      consumers YAML/JSON files need the literal updated to `consumer-c`.
-    evidence: 0c3cd59
+  # (no entries at present)
 
   # -------------------------------------------------------------------------
   # Tier 3 — report only (advisory; never modifies FS)
@@ -136,7 +118,7 @@ entries:
       entirely — the field is now dead text. Drop the block and use the
       single-source materialiser
       (`.ai-playbook/scripts/materialise_skills.py`).
-    evidence: github.com/consumer-a/consumer-a/pull/125
+    evidence: ai-playbook v0.17.0 CHANGELOG
 
   - id: inherits-from-too-old
     tier: 3
@@ -197,7 +179,7 @@ entries:
       `validate_skills_mirror.py`. v0.17.0 deleted both scripts upstream
       (slice single-source-skills-reset); any consumer entry referencing them
       breaks `pre-commit run` with `command not found`.
-    evidence: github.com/consumer-a/consumer-a/pull/125
+    evidence: ai-playbook v0.17.0 CHANGELOG
 
   # -------------------------------------------------------------------------
   # v2 entries — added by ai-playbook v0.17.0
@@ -276,7 +258,7 @@ entries:
       upstream playbook has zero use for `.skills-sources/`. It is safe-delete
       only once nothing at, under or above it is registered in `.gitmodules`,
       tracked (a gitlink left in the index keeps it) or checked out.
-    evidence: ai-playbook v0.17.0 CHANGELOG; consumer-a PR #125
+    evidence: ai-playbook v0.17.0 CHANGELOG
 
   - id: skills-sources-frontmatter
     tier: 3

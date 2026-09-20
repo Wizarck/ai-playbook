@@ -23,7 +23,7 @@ its implementation work, BEFORE the first task commit:
         --change-id shared-primitives \\
         --owner Wizarck \\
         --project-number 2 \\
-        --repo Wizarck/consumer-e
+        --repo Wizarck/project-e
 
 The contract in `AGENTS.md` §0 (bootstrap directive) tells the AI to read
 release-management.md, which references this script as the required first

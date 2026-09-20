@@ -312,7 +312,7 @@ def cmd_status(
     # Mismatch A: patches listed but branch missing.
     missing_branches = sorted(b for b in listed_branches if b not in branches)
     # Mismatch B: tenant-prefixed branches that aren't in PATCHES.md.
-    tenant_prefixes = ("acme-corp/", "consumer-b/")
+    tenant_prefixes = ("acme-corp/", "project-b/")
     orphan_branches = sorted(
         b for b in branches
         if b.startswith(tenant_prefixes) and b not in listed_branches

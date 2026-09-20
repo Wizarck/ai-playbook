@@ -23,7 +23,7 @@ Define the 3-level dispatcher inheritance model so any agent (Claude Code, Gemin
    - Verdict/severity contract, break-glass contract, canonical error format, agentic-failure taxonomy.
    - Scripts (`scripts/*.py`) invoked by consumer pre-commit hooks, CI, and session-start helpers.
 2. **Project — `<repo>/AGENTS.md`** at the root of every consumer repo. Inherits from the playbook via `inherits_from` frontmatter. Adds project identity, active work, hard rules, and the capability map. must not duplicate universal content; if a rule is universal, link to `.ai-playbook/specs/<spec>.md` instead of copying it.
-3. **Personal add-on (maintainer only) — `consumer-d/consumer-d.md`**. Loaded conditionally by `~/.claude/CLAUDE.md` when the cwd resolves (via `~/.ai-playbook/projects.yaml`) to an entry with `personal: true`. Contains infra paths, SOPS key locations, VPS endpoints, BRAIN pointer. Never shipped to team devs.
+3. **Personal add-on (maintainer only) — `project-d/project-d.md`**. Loaded conditionally by `~/.claude/CLAUDE.md` when the cwd resolves (via `~/.ai-playbook/projects.yaml`) to an entry with `personal: true`. Contains infra paths, SOPS key locations, VPS endpoints, BRAIN pointer. Never shipped to team devs.
 
 CLI-specific routers (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/00-dispatcher.mdc`) are thin 5–10 line pointers that tell the CLI to read `AGENTS.md`. They carry **no policy**; removing them would not change the resolved ruleset.
 
@@ -45,7 +45,7 @@ flowchart LR
     Router["~/.claude/CLAUDE.md<br/>(built-in router)<br/>universal principles"]
     Project["&lt;repo&gt;/AGENTS.md<br/>(project dispatcher)<br/>project identity + hard rules"]
     Specs[".ai-playbook/specs/&lt;name&gt;.md<br/>(playbook specs)<br/>universal norms + schemas"]
-    Personal["consumer-d/consumer-d.md<br/>(personal add-on)<br/>infra paths + secrets locations"]
+    Personal["project-d/project-d.md<br/>(personal add-on)<br/>infra paths + secrets locations"]
 
     Router -- "loads on session start" --> Project
     Project -- "inherits_from" --> Specs
@@ -70,7 +70,7 @@ The Router → Project edge is eager (session-start load); Project → Specs is 
 
 1. **Playbook default** applies unless explicitly overridden.
 2. **Project-level override** — documented in `AGENTS.md` §7 "Overrides inherited from playbook" with rationale. Empty by default.
-3. **Personal add-on override** (admin scope only) — documented inline in `consumer-d.md`; cannot override `OVERRIDE: none` gates.
+3. **Personal add-on override** (admin scope only) — documented inline in `project-d.md`; cannot override `OVERRIDE: none` gates.
 4. **Break-glass** — `--force-with-reason="<text≥10 chars>"` on a CLI invocation only; never a durable override. Logged to `.ai-playbook/overrides.log` + emitted as OTel `ai_playbook.override.*` span (see `break-glass.md`).
 
 ### Diagram 1B — precedence + OVERRIDE: none guardrails
@@ -79,7 +79,7 @@ The Router → Project edge is eager (session-start load); Project → Specs is 
 flowchart TD
     Default["1. Playbook default<br/>baseline rule"]
     ProjectOv["2. Project override<br/>AGENTS.md §7 + rationale"]
-    PersonalOv["3. Personal override<br/>consumer-d.md (admin scope)"]
+    PersonalOv["3. Personal override<br/>project-d.md (admin scope)"]
     Resolved["Resolved policy<br/>(last writer wins)"]
 
     Default --> ProjectOv

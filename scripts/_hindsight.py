@@ -10,7 +10,7 @@ canonical FastAPI surface documented at ``<HINDSIGHT_URL>/openapi.json``:
     GET  /health                                       — liveness
 
 Per [`docs/concepts/memory-hierarchy.md`](../docs/concepts/memory-hierarchy.md) the bank_id
-matches the project slug (`consumer-c`, `acme-corp`, `consumer-b`, …) — see
+matches the project slug (`project-c`, `acme-corp`, `project-b`, …) — see
 [`docs/concepts/env-vars.md`](../docs/concepts/env-vars.md) for the env var contract.
 
 This client is **stdlib-only** (no SDK dep): consumers run it from

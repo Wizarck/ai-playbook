@@ -69,10 +69,10 @@ maintainer-private (per [dispatcher-chain.md](dispatcher-chain.md) level 3).
 
 | Project | Primary bank | Personal add-on bank |
 |---|---|---|
-| `consumer-c` (public repo) | `consumer-c` | — (no personal layer; community repo) |
-| `consumer-d` (personal infra) | `consumer-d` | `consumer-d-personal` (gotchas, ports, VPS-private knowledge) |
-| `consumer-d-rag` | `consumer-d-rag` | `consumer-d-personal` (shared with consumer-d personal layer) |
-| `consumer-b` | `consumer-b` | `consumer-b-personal` (tenant-private) |
+| `project-c` (public repo) | `project-c` | — (no personal layer; community repo) |
+| `project-d` (personal infra) | `project-d` | `project-d-personal` (gotchas, ports, VPS-private knowledge) |
+| `project-d-rag` | `project-d-rag` | `project-d-personal` (shared with project-d personal layer) |
+| `project-b` | `project-b` | `project-b-personal` (tenant-private) |
 | Cross-cutting personal knowledge (not tied to one project) | — | `hindsight-personal` |
 
 Rules:
@@ -81,7 +81,7 @@ Rules:
 - A child subagent inherits its parent's `memory.bank_id` unless it explicitly overrides in the
   spawn envelope.
 - Writing to a `*-personal` bank from a non-personal session is forbidden — the harness checks
-  the session's `personal` flag (see `consumer-d/AGENTS.md` frontmatter `personal: true`).
+  the session's `personal` flag (see `project-d/AGENTS.md` frontmatter `personal: true`).
 
 ## 3. Retention windows
 
@@ -189,7 +189,7 @@ input envelope declares:
 
 ```json
 "memory": {
-  "bank_id": "consumer-c",
+  "bank_id": "project-c",
   "recall_depth": 5
 }
 ```
@@ -223,23 +223,23 @@ If Hindsight is unreachable, the session enters `DEGRADED_CONTEXT` per
 
 ## 10. Worked example
 
-**Scenario.** A reviewer subagent in consumer-c is spawned for a proposal review on
+**Scenario.** A reviewer subagent in project-c is spawned for a proposal review on
 `module-1-ingredients-implementation`.
 
 Spawn envelope's memory block:
 
 ```json
-"memory": { "bank_id": "consumer-c", "recall_depth": 5 }
+"memory": { "bank_id": "project-c", "recall_depth": 5 }
 ```
 
-1. Child invokes `hindsight.recall(query="consumer-c ingredients categories", top_k=5)`.
+1. Child invokes `hindsight.recall(query="project-c ingredients categories", top_k=5)`.
 2. Three lessons return (score ≥0.7):
    - "Categories use RESTRICT on delete; this bit us once in seed reload." (`kind=gotcha`)
    - "ADR-009 chose soft-delete with `isActive`; physical delete was rejected for audit." (`kind=decision`)
    - "Do NOT import `Category` entity directly from `Ingredient` module; use the port." (`kind=lesson`)
 3. Reviewer cites lesson 3 when catching a diff that imports the entity directly — S2 finding.
 4. After the review concludes, reviewer calls `hindsight.retain` with
-   `why="import-via-port rule recurred; add to readiness checklist"`, `tags=["consumer-c", "lesson"]`,
+   `why="import-via-port rule recurred; add to readiness checklist"`, `tags=["project-c", "lesson"]`,
    and the OTel `trace_id`.
 5. Next sprint, the bootstrap recall surfaces the new lesson at the top of the retrieval for any
    reviewer touching cross-module imports.

@@ -18,7 +18,7 @@ Incident Response (IR) is the contract that coordinates humans and tooling durin
 
 ## 1. Scope
 
-A user-visible outage or a data-corruption event on a service running under playbook-driven infra. As of v1.0.0, in-scope services for the canonical consumer (consumer-d):
+A user-visible outage or a data-corruption event on a service running under playbook-driven infra. As of v1.0.0, in-scope services for the canonical consumer:
 
 - **Hermes** — notification/egress gateway.
 - **Paperclip** — attachment/issue processor.
@@ -62,7 +62,7 @@ Eight concrete scenarios across availability / data / security / capacity. Each 
 | # | Scenario | Sev | Detection signal | Immediate action (≤ 5 min) | Escalation | Artefact required |
 |---|---|---|---|---|---|---|
 | 1 | **VPS unreachable** | S1 | Uptime-Kuma probe failed ×3 OR SSH timeout > 30s. | SSH from secondary device. If unreachable, check Hetzner console + `journalctl -p err -n200`. | Solo (maintainer). | Post-mortem if downtime > 15 min. Runbook: [runbook-vps-down.md](../runbooks/runbook-vps-down.md). |
-| 2 | **Hindsight DB corruption** | S1 | `_hindsight.py::HttpResult.reason == "degraded:retain_failed"` rate > 5%/min in `events.jsonl`. | Stop retain workers (`kubectl scale deploy/hindsight --replicas=0`). Snapshot DB to `/opt/consumer-d/backups/hindsight-<ts>.db`. Replay from JSONL queue. | Solo. | Post-mortem mandatory (data integrity class). Runbook: [runbook-db-corruption.md](../runbooks/runbook-db-corruption.md). |
+| 2 | **Hindsight DB corruption** | S1 | `_hindsight.py::HttpResult.reason == "degraded:retain_failed"` rate > 5%/min in `events.jsonl`. | Stop retain workers (`kubectl scale deploy/hindsight --replicas=0`). Snapshot DB to `/opt/project-d/backups/hindsight-<ts>.db`. Replay from JSONL queue. | Solo. | Post-mortem mandatory (data integrity class). Runbook: [runbook-db-corruption.md](../runbooks/runbook-db-corruption.md). |
 | 3 | **Secrets leak in commit** | S1 | `secrets_scan.py` post-push CI fail OR external report (vendor email, GH advisory). | Rotate every leaked credential within 1h (per [rotate-secrets.md](../runbooks/rotate-secrets.md)). Force-push history rewrite. File CISA-style note. | Solo today; legal notify if customer data implicated. | Security post-mortem ≤ 48h. Runbook: [runbook-secrets-leak-containment.md](../runbooks/runbook-secrets-leak-containment.md). |
 | 4 | **Container OOM cascade** | S2 | Docker restart count > 3 in 5 min for any service (Docker stats). | Identify culprit via `docker stats --no-stream`. Either bump memory limit + recreate OR roll back the deploy that triggered it. | Solo. | Gotcha entry minimum. |
 | 5 | **Certificate expiry imminent** | S2 | Caddy probe reports any cert with `< 7d to expire`. Surfaced by Uptime-Kuma cert-monitor or `caddy validate` cron. | Trigger Caddy reload to fetch fresh ACME (`docker exec caddy caddy reload --config /etc/caddy/Caddyfile`). | Solo. | Gotcha entry. |
@@ -248,7 +248,7 @@ The runbooks named below are stubs as of v1.0.0 (acceptance of OpenSpec change `
 | Key rotation emergency | [runbook-key-rotation-emergency.md](../runbooks/runbook-key-rotation-emergency.md) | Stub v0.1.0 |
 | Secrets leak containment | [runbook-secrets-leak-containment.md](../runbooks/runbook-secrets-leak-containment.md) | Stub v0.1.0 |
 
-Per-consumer richer runbooks (consumer-specific topology, e.g. `consumer-d/runbooks/runbook-vps-disaster-recovery.md`) cross-link from these stubs; the playbook stub names what every consumer must address, the consumer runbook fills in their own infra.
+Per-consumer richer runbooks (consumer-specific topology, e.g. `project-d/runbooks/runbook-vps-disaster-recovery.md`) cross-link from these stubs; the playbook stub names what every consumer must address, the consumer runbook fills in their own infra.
 
 ---
 

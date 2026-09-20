@@ -9,7 +9,7 @@ working tree. The tick is NOT part of the commit being made (see CLI).
 
 Why
 ---
-Filed as Followup #4 (consumer-e slice 3, PR #57): a slice was
+Filed as Followup #4: a slice was
 merged with 0/55 boxes ticked despite being feature-complete (30
 tests + 95% coverage + mypy strict + pre-commit clean). Soft
 "remember to tick" guidance does not survive long runs of code+test

@@ -9,7 +9,7 @@ CLI
 ---
     python -m scripts.check_coderabbit_status \\
         --pr 41 \\
-        --repo Wizarck/consumer-e \\
+        --repo Wizarck/project-e \\
         --wait 300 \\
         [--poll-interval 30] \\
         [--json]

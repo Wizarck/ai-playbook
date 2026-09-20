@@ -16,7 +16,7 @@ CLI
 ---
     python -m scripts.post_self_review_checklist \\
         --pr 41 \\
-        --repo Wizarck/consumer-e \\
+        --repo Wizarck/project-e \\
         [--head-sha <sha>] \\
         [--dry-run]
 

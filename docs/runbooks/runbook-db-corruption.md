@@ -37,7 +37,7 @@ Skip this runbook when:
 
 1. **Stop write traffic.**
    ```bash
-   kubectl scale deploy/hindsight --replicas=0 -n consumer-d
+   kubectl scale deploy/hindsight --replicas=0 -n project-d
    # Or for Docker:
    docker stop hindsight
    ```
@@ -46,14 +46,14 @@ Skip this runbook when:
 2. **Snapshot the broken DB before touching it.**
    ```bash
    ssh root@<vps-ip>
-   cp /opt/consumer-d/data/hindsight.db \
-      /opt/consumer-d/backups/hindsight-broken-$(date +%Y%m%d-%H%M%S).db
+   cp /opt/project-d/data/hindsight.db \
+      /opt/project-d/backups/hindsight-broken-$(date +%Y%m%d-%H%M%S).db
    ```
    This snapshot is for forensic analysis post-incident. Do NOT delete even after recovery succeeds.
 
 3. **Diagnose the corruption.**
    ```bash
-   sqlite3 /opt/consumer-d/data/hindsight.db "PRAGMA integrity_check;"
+   sqlite3 /opt/project-d/data/hindsight.db "PRAGMA integrity_check;"
    ```
    Expected outputs:
    - `ok` → false alarm. Stop here, recheck the detection signal.
@@ -63,34 +63,34 @@ Skip this runbook when:
 
    **Path A — restore from latest clean backup** (preferred when backup is <24 h old):
    ```bash
-   cp /opt/consumer-d/backups/hindsight-<ts>.db /opt/consumer-d/data/hindsight.db
+   cp /opt/project-d/backups/hindsight-<ts>.db /opt/project-d/data/hindsight.db
    ```
 
    **Path B — sqlite recovery** (when backup is >24 h old; preserves more recent state):
    ```bash
-   sqlite3 /opt/consumer-d/data/hindsight-broken-<ts>.db ".recover" \
-     | sqlite3 /opt/consumer-d/data/hindsight-recovered.db
-   mv /opt/consumer-d/data/hindsight-recovered.db /opt/consumer-d/data/hindsight.db
+   sqlite3 /opt/project-d/data/hindsight-broken-<ts>.db ".recover" \
+     | sqlite3 /opt/project-d/data/hindsight-recovered.db
+   mv /opt/project-d/data/hindsight-recovered.db /opt/project-d/data/hindsight.db
    ```
 
    **Path C — replay from JSONL queue** (when A and B both fail):
    ```bash
    # Stop all services that retain to Hindsight first.
    python -m scripts.replay_jsonl --source hindsight-queue.jsonl \
-       --target /opt/consumer-d/data/hindsight.db
+       --target /opt/project-d/data/hindsight.db
    ```
    Path C loses retains that happened between the last queue flush and the corruption window.
 
 5. **Verify recovery integrity.**
    ```bash
-   sqlite3 /opt/consumer-d/data/hindsight.db "PRAGMA integrity_check;"   # expect "ok"
-   sqlite3 /opt/consumer-d/data/hindsight.db "SELECT COUNT(*) FROM memories;"  # sanity row count
+   sqlite3 /opt/project-d/data/hindsight.db "PRAGMA integrity_check;"   # expect "ok"
+   sqlite3 /opt/project-d/data/hindsight.db "SELECT COUNT(*) FROM memories;"  # sanity row count
    ```
 
 6. **Resume traffic.**
    ```bash
-   kubectl scale deploy/hindsight --replicas=1 -n consumer-d
-   kubectl logs -f deploy/hindsight -n consumer-d | grep -E "retain|corrupt"
+   kubectl scale deploy/hindsight --replicas=1 -n project-d
+   kubectl logs -f deploy/hindsight -n project-d | grep -E "retain|corrupt"
    ```
    Watch for new `retain_failed` events; none should appear.
 

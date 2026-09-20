@@ -111,7 +111,7 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 
 ## 4. Consumer-only
 
-**Today:** team devs on projects that consume the playbook as a submodule but never edit it (consumer-c contributors, future consumer-d team devs, future external consumer orgs).
+**Today:** team devs on projects that consume the playbook as a submodule but never edit it.
 
 **Rights.**
 
@@ -157,7 +157,7 @@ When IR activates (see [incident-response.md](incident-response.md) triggers) or
 | Contributor | `view` on dev | `dev-*` | spec-only; activates when a Contributor lands |
 | Consumer-only | none | none | spec-only |
 
-Until then, the maintainer is sole cluster admin. Break-glass for `kubectl` access is logged outside this repo per the ops runbook in `consumer-d/docs/operations/`.
+Until then, the maintainer is sole cluster admin. Break-glass for `kubectl` access is logged outside this repo per the ops runbook in `project-d/docs/operations/`.
 
 ---
 

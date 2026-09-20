@@ -25,7 +25,7 @@ sequenceDiagram
     participant Reg as ~/.ai-playbook/projects.yaml<br/>(registry)
     participant Proj as <project>/AGENTS.md
     participant PB as .ai-playbook/specs/*<br/>(submodule)
-    participant Addon as Personal add-on<br/>(e.g. consumer-d.md)
+    participant Addon as Personal add-on<br/>(e.g. project-d.md)
     participant MCP as MCP servers<br/>(hindsight, guardrails, …)
     participant LLM as LLM provider<br/>(routed per model-routing.md)
 

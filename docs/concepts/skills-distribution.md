@@ -35,8 +35,6 @@ Full rationale, alternatives considered, and historical context for the
 multi-source pattern that v0.17.0 removes:
 
 - D1, D2, D17 — `~/.claude/plans/vamos-a-identificar-los-elegant-marshmallow-decisions.md`
-- consumer-a PR #125 — the first downstream consumer to deviate (2026-05-18),
-  whose `sync_skills_local.py` became the upstream template.
 - ai-playbook v0.17.0 CHANGELOG entry — what shipped and what was removed.
 
 ---
@@ -103,10 +101,10 @@ start a new module's discovery phase". Checked by
 
 ### 2.2 No multi-source registry
 
-v0.17.0 explicitly drops the multi-source registry that v1.0.0 maintained
-(`Wizarck/ai-playbook` + `Wizarck/consumer-d-skills`). All skills now live in
-`ai-playbook/skills/`. Skills previously published from `consumer-d-skills/skills/`
-are absorbed upstream (or remain in `consumer-d-skills` as standalone artefacts
+v0.17.0 explicitly drops the multi-source registry that v1.0.0 maintained.
+All skills now live in `ai-playbook/skills/`.
+Skills previously published from other sources
+are absorbed upstream (or remain in their own repo as standalone artefacts
 without a consumer-side distribution channel — see the
 [v0.17.0 CHANGELOG entry](../../CHANGELOG.md) for the migration audit).
 

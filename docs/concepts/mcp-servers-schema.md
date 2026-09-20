@@ -38,7 +38,7 @@ validator cross-checks.
 - **Precedence**: personal > project > base. Later layers override earlier
   layers **field-by-field** (deep merge), not wholesale replacement.
   - Example: `base` declares `skills-registry` with `endpoint: null`; `personal`
-    sets `endpoint: https://consumer-d-skills.consumer-bfood.com`. The merged record
+    sets `endpoint: https://project-d-skills.example.com`. The merged record
     keeps everything else from base (description, env, auth, scope) and uses
     the personal `endpoint`.
 - **Union semantics for list-valued fields**:
@@ -106,7 +106,7 @@ servers whose every field is parametric (env vars, null commands, well-known
 public endpoints).
 
 The pre-v0.19.2 base template carried a `rag` entry with
-`command: "python -m consumer-d.rag"`. That literal was redacted from the
+`command: "python -m project-d.rag"`. That literal was redacted from the
 real upstream value during the public-flip and no longer worked on any
 real consumer. The entry was moved out of the base in v0.19.2; consumers
 that ship a local RAG server now declare it in their own
@@ -153,7 +153,7 @@ skills-registry:
 
 Layer-specific overrides:
 
-- **Project layer (e.g. `consumer-c/mcp-servers.yaml`)**: may pin
+- **Project layer (e.g. `project-c/mcp-servers.yaml`)**: may pin
   `endpoint` to the production URL and leave `auth: none` if only
   `scope=public` skills are consumed. `env.required` may add
   `SKILLS_REGISTRY_API_KEY` if the project needs `scope=<project-slug>` entries.
@@ -240,7 +240,7 @@ The summary output lists which layer contributed each server:
 ## 7. Extension recipe — adding a new well-known server
 
 1. **Pick a canonical ID.** Short kebab-case; no tenant prefix. Example:
-   `twenty-crm`, not `consumer-d-twenty-crm`.
+   `twenty-crm`, not `project-d-twenty-crm`.
 2. **Draft the base entry** in `ai-playbook/mcp-servers-base.yaml`. Required
    fields: `id`, `description`, `transport`, `auth`, `scope: universal`,
    `capabilities_hint`. Endpoints and OAuth tokens stay null at the base layer.
@@ -261,14 +261,14 @@ The summary output lists which layer contributed each server:
 These will be rejected by the validator, or by review:
 
 - **Hardcoding tenant-specific URLs in base.** Base is for templates; any
-  URL that names a specific tenant (consumer-b, consumer-d, arturo) lives in
+  URL that names a specific tenant (project-b, project-d, arturo) lives in
   personal or project.
 - **Using `scope: personal` at the base layer.** Mechanically blocked; a
   canonical error with `OVERRIDE: none`.
 - **Duplicate canonical IDs across layers.** This is not a duplicate — this
   is override. But two servers with the same ID in a **single** layer is a
   schema violation.
-- **Prefixing IDs with a consumer name** (`consumer-c-guardrails-mcp`).
+- **Prefixing IDs with a consumer name** (`project-c-guardrails-mcp`).
   The point of the 3-layer model is that the canonical ID stays the same;
   the project layer overrides fields, not the name.
 - **Inlining secrets in YAML.** Secrets live in SOPS-encrypted `secrets.env`

@@ -5,7 +5,7 @@ title: Cross Language Tooling
 summary: |
   Most ai-playbook consumer projects are single-language by primary intent
   (TypeScript monorepo, Python monorepo, Go monorepo, …). Reality intrudes: -
-  consumer-e (Python primary) needs an OpenBB sidecar (Python ML service that
+  project-e (Python primary) needs an OpenBB sidecar (Python ML service that
   doesn't fit the FastAPI app's deps).
 last_validated: "2026-05-19"
 ---
@@ -17,13 +17,13 @@ last_validated: "2026-05-19"
 Most ai-playbook consumer projects are single-language by primary intent
 (TypeScript monorepo, Python monorepo, Go monorepo, …). Reality intrudes:
 
-- **consumer-e** (Python primary) needs an OpenBB sidecar (Python ML
+- **project-e** (Python primary) needs an OpenBB sidecar (Python ML
   service that doesn't fit the FastAPI app's deps).
-- **consumer-c** (TypeScript primary, Turborepo) needs a RAG proxy
+- **project-c** (TypeScript primary, Turborepo) needs a RAG proxy
   (Python FastAPI service translating LightRAG to the canonical
   contract) plus a corpus ingestion package (Python scripts piping
   authoritative sources into the RAG vector store).
-- **consumer-d-rag** (Python primary) integrates Hindsight (TypeScript MCP
+- **project-d-rag** (Python primary) integrates Hindsight (TypeScript MCP
   server).
 
 The choice is structural: **does the foreign-language code live inside
@@ -182,22 +182,7 @@ that reads `tools/rag-proxy/.cache/`, breaks isolation. Cross-language
 contracts go over the network (HTTP, gRPC, queue) or via explicit
 codegen artefacts in `packages/<contract>/`.
 
-## 6. Reference implementations
-
-- **consumer-c** Wave 1.8 (`m2-ai-yield-corpus`, PR #88, 2026-05-06):
-  introduced `tools/rag-proxy/` (FastAPI, ~750 LOC + 60 tests, mypy
-  strict, ruff, 93.35% coverage) and `tools/rag-corpus/` (4 ingestion
-  scripts: USDA + EU 1169/2011 + Escoffier + CIAA-gated). Net
-  TypeScript LOC change in `apps/api/`: 0. CI workflow at
-  `.github/workflows/python-tools.yml`.
-
-- **consumer-e** v1 (planned R4 slice `openbb-sidecar-container`):
-  will introduce `tools/openbb-sidecar/` for the OpenBB Platform
-  compute that doesn't fit the apps/api Python deps tree. Same pattern
-  even though the primary language is also Python (the sidecar's deps
-  set is too large to merge into apps/api).
-
-## 7. Cross-references
+## 6. Cross-references
 
 - [release-management.md](release-management.md) §2 (branch model — `tools/<name>/` work follows the same `slice/<change-id>` discipline)
 - [event-and-data-patterns.md](event-and-data-patterns.md) §7 (stateless proxy + stateful caller — the *behavioural* pattern that often informs why a `tools/` service exists)

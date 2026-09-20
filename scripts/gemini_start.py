@@ -67,7 +67,7 @@ def _resolve_bank_id(explicit: str | None, consumer_root: Path) -> str | None:
     if env_value:
         return env_value.strip()
     # Heuristic: consumer dir name matches the projects-registry slug for
-    # well-behaved consumers (acme-corp, consumer-c, acme-corp, etc.).
+    # well-behaved consumers (acme-corp, project-c, etc.).
     name = consumer_root.name
     return name or None
 

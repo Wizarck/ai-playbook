@@ -273,7 +273,7 @@ def test_apply_adds_openspec_without_touching_caveman_userpromptsubmit(tmp_path:
 
 _RELATIVE_CAVEMAN = "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py"
 _RELATIVE_SESSION_START = (
-    "sops exec-env ../consumer-a/secrets/secrets.env -- "
+    "sops exec-env ../acme/secrets/secrets.env -- "
     "python .ai-playbook/scripts/inject_context.py --bank-id x 2>/dev/null || true"
 )
 
@@ -304,7 +304,7 @@ def test_apply_anchors_relative_hook_commands_then_validates(tmp_path: Path) -> 
         'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py"'
     )
     assert hooks["SessionStart"][0]["hooks"][0]["command"] == (
-        'sops exec-env "$CLAUDE_PROJECT_DIR/../consumer-a/secrets/secrets.env" -- '
+        'sops exec-env "$CLAUDE_PROJECT_DIR/../acme/secrets/secrets.env" -- '
         'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py" --bank-id x 2>/dev/null || true'
     )
     assert _cs.validate(root) == 0

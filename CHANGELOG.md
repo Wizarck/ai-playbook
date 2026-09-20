@@ -2,6 +2,35 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [Unreleased]
+
+### Fixed
+- **Seeded hook commands no longer depend on the shell's cwd.** `templates/new-project/.claude/settings.json.tmpl`
+  ran `SessionStart`, both `UserPromptSubmit` hooks and the `PreToolUse` `openspec-apply-enforce` hook through
+  cwd-relative script paths. Hooks run from wherever the shell last `cd`ed, so a missing script made `python`
+  exit 2 and blocked the prompt (or every Edit/Write/Bash, for `PreToolUse`). They are now anchored to
+  `$CLAUDE_PROJECT_DIR` (#129 did this for `hook_dispatcher.py` only). `command_identity()` strips quotes so
+  anchored commands still dedupe against the relative ones already sitting in consumer files.
+- **The `SessionStart` recall could never work from the template.** `sops exec-env FILE -- cmd args` fails on
+  sops 3.10 (`missing file to decrypt`), and the template hard-coded a sibling secrets repo that exists nowhere;
+  `2>/dev/null || true` hid both. The command is now passed to sops as one string and the secrets path comes
+  from `$AIPLAYBOOK_SECRETS_ENV` (unset: the hook is a no-op).
+
+### Changed
+- **Masked consumer names are gone from the playbook** (docs, scripts, tests, templates and this changelog).
+  The playbook keeps no history or tracking of specific consumers: placeholder names in examples became
+  `project-a` … `project-e`, provenance notes (incident citations, adopter tables, validation history) were
+  deleted, and `specs/zombies-manifest.yaml` evidence now cites the playbook's own release.
+- **Env-var identifiers that carried a masked consumer prefix are now `AIPLAYBOOK_*`** (breaking for anyone who
+  had set the old names): `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED`, `AIPLAYBOOK_NOTIFICATIONS_WORKER_DISABLED`,
+  `AIPLAYBOOK_NOTIFICATIONS_DB`, `AIPLAYBOOK_FLAG_DIR`, and the `AIPLAYBOOK_GOD_MODE` CI secret (the workflow
+  template referenced an invalid secret name, since GitHub secret names cannot contain a hyphen).
+
+### Removed
+- `init_org.py --secrets-env-path`: it replaced a string no template contains, so it silently did nothing.
+- The only Tier 2 entry of `specs/zombies-manifest.yaml`, a masked consumer-specific literal rename that could
+  not match anything. `manifest_version` is now `2026-09-20.1`.
+
 ## [0.24.2] — 2026-11-05 — entry scripts run by path; gates stop failing open, tools stop losing data
 
 ### Fixed
@@ -2348,7 +2377,7 @@ The UI surfaces are **opt-in**: no state file = all rules ON, caveman OFF, no en
 
 ### Added — UX track author self-render + self-audit
 
-- **`docs/concepts/ux-track.md`** §17 + new §17.1 (#98) — mandates author self-render and self-audit before requesting human review. Adds step 2 to §17 QA discipline (renumbers existing 2→3, 3→4). New §17.1 sub-section with: 11-point visible-failure checklist (clipped CTAs, overflowing text, broken kerning/fallback fonts, mis-sized grids, invisible bar fills, sticky overlaps, mis-aligned decorations, mock-content leaking, duplicate headers, dark-mode regressions), screenshot-as-evidence requirement (`docs/ux/_review-screenshots-YYYY-MM-DD/`), tooling notes (Playwright / Puppeteer / headless Chrome — must be a real browser engine, not static-HTML-to-image converters). Trigger event: 2026-05-13 review of M3 mocks j6-j12 (consumer-c-legacy) found multiple bugs an LLM author would have caught with one render-and-look pass.
+- **`docs/concepts/ux-track.md`** §17 + new §17.1 (#98) — mandates author self-render and self-audit before requesting human review. Adds step 2 to §17 QA discipline (renumbers existing 2→3, 3→4). New §17.1 sub-section with: 11-point visible-failure checklist (clipped CTAs, overflowing text, broken kerning/fallback fonts, mis-sized grids, invisible bar fills, sticky overlaps, mis-aligned decorations, mock-content leaking, duplicate headers, dark-mode regressions), screenshot-as-evidence requirement (`docs/ux/_review-screenshots-YYYY-MM-DD/`), tooling notes (Playwright / Puppeteer / headless Chrome — must be a real browser engine, not static-HTML-to-image converters).
 
 ## [0.19.5] — 2026-05-25 — Worktree retirement helpers (`wt_remove` + `wt_sweep`)
 
@@ -2583,12 +2612,12 @@ bumping a real consumer (geeplo) to v0.19.x:
 ### Changed
 
 - **`templates/rendered/mcp-servers-base.yaml.tmpl`**: removed the `rag`
-  server entry. Its `command: "python -m consumer-d.rag"` was a redacted
+  server entry. Its `command: "python -m project-d.rag"` was a redacted
   literal that never matched any real consumer install. The base layer is
   now reserved for servers whose every field is parametric; tenant-specific
   `command` / `endpoint` values belong in the project or personal layer.
 - **`scripts/mcp/validate.py::resolve_personal_file()`**: removed the
-  legacy `~/Projects/consumer-d/mcp-servers.yaml` + `C:/Projects/consumer-d/
+  legacy `~/Projects/project-d/mcp-servers.yaml` + `C:/Projects/project-d/
   mcp-servers.yaml` fallback paths. They were a pre-flip maintainer
   convenience that only resolved against a redacted name no longer matching
   any real local checkout. The resolver now walks: explicit `--personal-file`
@@ -3283,9 +3312,8 @@ fans out to three gitignored mirrors at the consumer side.
 
 Why now: the multi-source pattern shipped 2026-04-26 with 2 submodules + 3
 scripts + 1 workflow + 1 pre-commit guard, paid by every consumer for a
-feature **no consumer actually used**. consumer-a had already deviated locally
-(PR #125, 2026-05-18) with a simpler `sync_skills_local.py`. This release
-promotes that pattern upstream and removes the legacy machinery.
+feature **no consumer actually used**. This release
+promotes a simpler single-source pattern upstream and removes the legacy machinery.
 
 Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
 **D17** (skills perpendicular rules), **D19** (versioning to v0.20.0).
@@ -3312,15 +3340,13 @@ Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
   `<consumer>/.claude/skills/`, `<consumer>/.gemini/skills/`. CLI flags
   `--consumer`, `--source`, `--dry-run`, `--quiet`. Exit codes 0/1/2 per spec.
 - **`scripts/gemini_start.py`** (NEW). Cross-platform Gemini CLI wrapper that
-  runs the materialiser + `inject_context.py` before exec'ing `gemini`. Brings
-  upstream the wrapper consumer-a authored locally; adapted to derive `bank_id`
-  from cwd (no `consumer-a` hard-codes). POSIX `os.execvp` + Windows `subprocess.run`.
+  runs the materialiser + `inject_context.py` before exec'ing `gemini`. Derives
+  `bank_id` from cwd (no project-specific hard-codes). POSIX `os.execvp` + Windows `subprocess.run`.
 - **`templates/new-project/scripts/gemini_start.py.tmpl`** (NEW). Thin pointer
   template — invokes the upstream `.ai-playbook/scripts/gemini_start.py` per D2.
 - **`templates/new-project/scripts/install-playbook-hooks.sh.tmpl`** (NEW). Bash
   installer that points `core.hooksPath` at `scripts/git-hooks/` and runs the
-  first skills materialisation + zombie cleanup pass. Replaces consumer-a's local
-  `install-skills-hooks.sh` with a broader-scope upstream template.
+  first skills materialisation + zombie cleanup pass.
 - **`tests/test_materialise_skills.py`** (NEW, 15 tests). Covers fresh consumer,
   idempotency, orphan removal, mirror parity (Claude vs Gemini vs generic),
   dry-run, source missing, partial mirror regeneration, nested skill assets,
@@ -3368,7 +3394,7 @@ Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
 - **`templates/new-project/scripts/git-hooks/post-checkout.tmpl`** and
   **`post-merge.tmpl`** — both now prefer
   `.ai-playbook/scripts/materialise_skills.py` (upstream) over a consumer-local
-  `scripts/sync_skills_local.py` (legacy consumer-a path). Fall-back to the legacy
+  `scripts/sync_skills_local.py` (legacy path). Fall-back to the legacy
   path preserved for consumers still on v0.16.x.
 - **`.pre-commit-config.yaml`** — `validate-skills-mirror` hook entry removed
   (comment retained for archeology).
@@ -3399,18 +3425,17 @@ Decisions cited: **D1** (single-source skills), **D2** (scripts not mirrored),
 
 ### Notes
 
-- Consumers that never migrated to the multi-source pattern (4 of 5 active:
-  consumer-c, consumer-d, consumer-b, consumer-e) require **no migration** —
+- Consumers that never migrated to the multi-source pattern require **no migration** —
   their `consumers.yaml.<name>.skills_pins:` keys lingering as dead text is
   the only artefact, and cleanup-zombies surfaces it as a Tier 3 advisory.
-- consumer-a (the one consumer that DID migrate) already deviated with
+- A consumer that DID migrate and already deviated with
   `sync_skills_local.py`; the new upstream materialiser matches its pattern
   byte-for-byte, so the only consumer-side fix needed is to point
   `scripts/git-hooks/post-merge` at `.ai-playbook/scripts/materialise_skills.py`
   instead of the local copy.
 - The new `templates/new-project/scripts/install-playbook-hooks.sh.tmpl` runs
   the materialiser + zombie cleanup on first install; the existing
-  consumer-a-local `install-skills-hooks.sh` (single-purpose) is now a Tier 3
+  consumer-local `install-skills-hooks.sh` (single-purpose) is now a Tier 3
   zombie via `pre-commit-deprecated-hooks`.
 
 ## [0.16.0] — 2026-05-19 — doc-drift CI enforcement + audit drift fixes
@@ -3436,7 +3461,7 @@ Additive MINOR. Slice 2 of the architectural reset plan v0.15.0 → v0.20.0 (see
 - **`docs/concepts/project-board-sync.md`** × 5 dead cross-refs: `templates/workflows/project-*.yml` (path never existed) → `templates/new-project/.github/workflows/project-*.yml.tmpl` (canonical location).
 - **`docs/concepts/release-management.md`** × 1: `templates/new-project/.github/workflows/propagate-playbook-bump.yml.tmpl` (does not exist; bump-bot is a playbook-internal workflow) → `.github/workflows/propagate-playbook-bump.yml` (correct location) + clarifying note.
 - **`docs/tutorials/05-curriculum.md`** × 1: `../CLAUDE.md` (playbook itself does not ship a `CLAUDE.md`) → consumer-side guidance with explicit note that the playbook dogfoods AGENTS.md only.
-- **`docs/runbooks/coderabbit-fallback.md`** × 1: `../../consumer-e/docs/gotchas.md` (cross-repo broken relative path) → generic consumer-side reference.
+- **`docs/runbooks/coderabbit-fallback.md`** × 1: `../../project-e/docs/gotchas.md` (cross-repo broken relative path) → generic consumer-side reference.
 
 ### Validation
 
@@ -3455,7 +3480,7 @@ Additive MINOR. Slice 2 of the architectural reset plan v0.15.0 → v0.20.0 (see
 
 ## [0.15.0] — 2026-05-19 — consumer-side zombie cleanup hook (declarative manifest + auto-fire)
 
-Additive MINOR. Solves a long-standing hygiene gap: bumping `.ai-playbook` advances the submodule pin but never cleans what prior pins deposited in consumer trees. Patterns observed in `consumer-a` (PR #125, 2026-05-18): orphan `.skills-sources/` submodule + `.git/modules/.skills-sources/` metadata after a single-source simplification, stale `consumer-c-legacy` literals in MCP YAMLs after the v0.14.1 rename, drained-but-fat `hindsight-queue.jsonl` files, orphan `<!-- BEGIN auto-managed: <source> -->` markdown blocks.
+Additive MINOR. Solves a long-standing hygiene gap: bumping `.ai-playbook` advances the submodule pin but never cleans what prior pins deposited in consumer trees. Patterns observed: orphan `.skills-sources/` submodule + `.git/modules/.skills-sources/` metadata after a single-source simplification, stale `project-c-legacy` literals in MCP YAMLs after the v0.14.1 rename, drained-but-fat `hindsight-queue.jsonl` files, orphan `<!-- BEGIN auto-managed: <source> -->` markdown blocks.
 
 This release ships a **declarative zombie manifest** + a **single cleanup script** that consumers invoke automatically from their `post-merge` / `post-checkout` hooks (same pattern as `sync_skills_local.py`).
 
@@ -3482,30 +3507,24 @@ This release ships a **declarative zombie manifest** + a **single cleanup script
    ```
 3. Append `.ai-playbook/zombie-report.md` to `.gitignore`.
 
-First adoption: `consumer-a` (already has `scripts/git-hooks/` from PR #125; single-line addition).
-
 ### Notes
 
 - Manifest is **rolling**: future releases that remove/rename consumer-surface artefacts MUST append an entry here. The release.md checklist now gates this.
 - No breaking changes. Consumers that don't bump remain unaffected. Consumers that bump but don't wire the hook keep running but accumulate (the script never auto-installs).
 
-## [0.14.1] — 2026-05-18 — finish consumer-c-legacy → consumer-c rename (templates + schema)
+## [0.14.1] — 2026-05-18 — finish project-c-legacy → project-c rename (templates + schema)
 
 Additive PATCH. Bundles PR #59 (already merged but untagged) plus stragglers it missed in two templates and the AGENTS.md JSON schema example. No spec/script/runbook contract changes — docs/examples only.
 
 ### Changed
 
-- **`templates/gotcha.md.tmpl`**: example gotcha now references `consumer-c-api` instead of `consumer-c-legacy-api` so consumers copy a current project name.
-- **`templates/projects.yaml.example`**: example registry entry now shows the canonical `consumer-c` slug + nested bare-worktree path `C:/Projects/consumer-c/master` (per the rename layout adopted 2026-05-18).
-- **`specs/agents-md-v1.schema.json`**: `examples[0].project` is now `consumer-c` (was `consumer-c-legacy`); the camelCase justification `$comment` no longer cites the renamed repo — reworded to generic historical framing.
-
-### Notes
-
-CHANGELOG entries from prior releases that reference `consumer-c-legacy` are intentionally left as historical record. GitHub redirects the renamed repo URL so no link rot.
+- **`templates/gotcha.md.tmpl`**: example gotcha now references `project-c-api` instead of `project-c-legacy-api` so consumers copy a current project name.
+- **`templates/projects.yaml.example`**: example registry entry now shows the canonical `project-c` slug + nested bare-worktree path `C:/Projects/project-c/master` (per the rename layout adopted 2026-05-18).
+- **`specs/agents-md-v1.schema.json`**: `examples[0].project` is now `project-c` (was `project-c-legacy`); the camelCase justification `$comment` no longer cites the renamed repo — reworded to generic historical framing.
 
 ## [0.14.0] — 2026-05-15 — apply-phase orchestration enforcement (L1+L2+L3)
 
-Additive MINOR. Closes a real failure mode observed in consumer-a's Revalid v1.0 epic (2026-05-14, PRs #1-#4): four slices implemented with manual `Edit`/`Write` on declared `write_paths` instead of through the `openspec-apply-change` skill. Symptoms — tests appended at end (not TDD-red-first), citation-drift preflight (skill §4b, v0.11.0) skipped, self-validation gates (runbook §3.4) silent. The work landed but retros could not distinguish skill-orchestrated work from manual work.
+Additive MINOR. Closes a real failure mode: slices implemented with manual `Edit`/`Write` on declared `write_paths` instead of through the `openspec-apply-change` skill. Symptoms — tests appended at end (not TDD-red-first), citation-drift preflight (skill §4b, v0.11.0) skipped, self-validation gates (runbook §3.4) silent. The work landed but retros could not distinguish skill-orchestrated work from manual work.
 
 This release ships three coordinated enforcement layers:
 
@@ -3523,7 +3542,7 @@ This release ships three coordinated enforcement layers:
 ### Changed
 
 - **`docs/concepts/runbook-bmad-openspec.md`** §3.1.1 (NEW subsection). Documents the apply-phase orchestration rule + the two enforcement vectors + cross-references to QA pairing (§3.2) and self-validation gates (§3.4).
-- **`docs/concepts/agentic-failures.md`** §1 catalog: new row `apply_phase_bypass` (S2, Detectable: Yes). §2 catalog detail: new section §2.13 with Signal/First-response/Detector/Example. Example cites the consumer-a Revalid incident.
+- **`docs/concepts/agentic-failures.md`** §1 catalog: new row `apply_phase_bypass` (S2, Detectable: Yes). §2 catalog detail: new section §2.13 with Signal/First-response/Detector/Example.
 - **`docs/concepts/enforcement-status.md`**: new row for `apply-skill-enforcement.md` at ✅ wired. `agentic-failures.md` row flipped from 📋 spec-only to 🟡 partial (mode 2.13 now wired via the hook).
 - **`templates/new-project/.claude/settings.json.tmpl`**: registers the new `PreToolUse` hook for `Edit|Write|MultiEdit` matcher.
 
@@ -3536,8 +3555,6 @@ This release ships three coordinated enforcement layers:
 3. Register the hook in `.claude/settings.json` (PreToolUse matcher `Edit|Write|MultiEdit`).
 4. Update `AGENTS.md` to reference the new spec.
 5. (Custom-schema projects) declare `apply.handler: openspec-apply-change` in `openspec/schemas/<name>/schema.yaml`.
-
-First-class adoption: `consumer-a` (concurrent follow-up PR; dogfooded by resuming the paused `revalid-bulk-action-sse` slice under the new regime).
 
 ### Tests
 
@@ -3552,13 +3569,13 @@ First-class adoption: `consumer-a` (concurrent follow-up PR; dogfooded by resumi
 
 ## [0.13.4] — 2026-05-14 — worker-agent delegation prompt contract (`release-management.md` §4.5.5 + §4.5.6)
 
-Patch release. Additive — codifies two prompt-engineering patterns that emerged across 4 consecutive worker-agent-delegated PRs in the `Wizarck/consumer-e` dashboard wave (#149, #150, #151, #152) plus one CI-recovery cycle (PR #152 L2 re-run).
+Patch release. Additive — codifies two prompt-engineering patterns for worker-agent-delegated PRs.
 
 Both failure modes affect the **whole-slice worker-agent delegation** flow (main agent invokes `Agent(isolation="worktree", ...)` to ship apply → lint → push → open PR end-to-end). Neither was previously covered: §4.5.4 only covers *automation* PRs (bump / chore-archive scripts), not *worker-AI* delegation. The new subsections close that gap.
 
-New: [`docs/concepts/release-management.md`](docs/concepts/release-management.md) §4.5.5 — **Worker-agent delegation: STOP-after-`gh pr create` directive.** Prompts MUST embed the literal "STOP after `gh pr create` returns the PR URL. Do NOT poll CI." instruction. Verified on consumer-e PRs #149-#152: worker wall-time dropped from ~16 min to 4-8 min (263 seconds on PR #151, new record) after the directive landed.
+New: [`docs/concepts/release-management.md`](docs/concepts/release-management.md) §4.5.5 — **Worker-agent delegation: STOP-after-`gh pr create` directive.** Prompts MUST embed the literal "STOP after `gh pr create` returns the PR URL. Do NOT poll CI." instruction.
 
-New: [`docs/concepts/release-management.md`](docs/concepts/release-management.md) §4.5.6 — **Worker-agent delegation: AI-reviewer signoff canonical block in prompt.** Prompts MUST embed the literal §4.5.3 block (three markers `Profile:`, `Reviewer:`, `Self-review findings:`) verbatim, not a free-form "write a self-review section" instruction. Failure surfaced on consumer-e PR #152 (substantive prose, no markers → L2 re-run cycle, +6 min recovery).
+New: [`docs/concepts/release-management.md`](docs/concepts/release-management.md) §4.5.6 — **Worker-agent delegation: AI-reviewer signoff canonical block in prompt.** Prompts MUST embed the literal §4.5.3 block (three markers `Profile:`, `Reviewer:`, `Self-review findings:`) verbatim, not a free-form "write a self-review section" instruction.
 
 Tracked at [`openspec/changes/agent-spawn-template-improvements/proposal.md`](openspec/changes/agent-spawn-template-improvements/proposal.md).
 
@@ -3569,8 +3586,6 @@ Tracked at [`openspec/changes/agent-spawn-template-improvements/proposal.md`](op
 ## [0.13.3] — 2026-05-13 — fusion-integration-pattern spec + new-project template polish
 
 Patch release. Additive — codifies the integration pattern for consumer projects that already have a mature OpenSpec custom workflow (their own `openspec/schemas/<name>/schema.yaml` with N artefacts and project-specific Karpathy/discipline rules). The pattern preserves the consumer's accumulated workflow investment and imports the formal contracts the playbook ships (verdict-contract S1-S4, parallel-review context isolation, agentic-failures taxonomy, output-completeness rules, verification-before-completion iron law, agent-contract write_paths, Hindsight recall) without replacing the custom workflow.
-
-First reference implementation: `consumer-a` (FastAPI + Next.js modular monolith, `consumer-a-team` schema with 9 artefacts, 18 changes pre-fusion).
 
 New: [`docs/concepts/fusion-integration-pattern.md`](docs/concepts/fusion-integration-pattern.md) — fusion decision matrix, AGENTS.md §7 template structure, migration policy (existing changes exempt), N-layer parallel review (3 isolated playbook layers + 1 holistic project-reviewer layer with M custom checks; no size opt-out), dual canonical memory sources (Markdown SSOT + Hindsight recall), verdict mapping reference (legacy → canonical), pre-commit hook profile with documented opt-out conditions, worked example.
 
@@ -3602,9 +3617,9 @@ Spec adds the rule, a 4-step recipe (merge → resolve digest → bump pin → r
 
 ## [0.13.1] — 2026-05-13 — enforcement-status row 47 refresh (Phase 1 closure docs)
 
-Patch release. Docs-only — refreshes the `model-routing.md` row in `docs/concepts/enforcement-status.md` (line 47) to reflect post-Phase-1 reality of OpenSpec change `add-litellm-enforcement` in consumer-d. No code or behaviour change.
+Patch release. Docs-only — refreshes the `model-routing.md` row in `docs/concepts/enforcement-status.md` (line 47) to reflect post-Phase-1 reality of OpenSpec change `add-litellm-enforcement`. No code or behaviour change.
 
-The row now documents: drift detector covers BOTH direct-SDK and `_llm.call(...)` missing `application=` (v0.13.0 AST check); call-site migrations CLOSED for `prompt_injection_filter.py` (v0.12.1) and `consumer-d/lib/advisor.py:_call_via_litellm` (consumer-d PR #166); application tag lands end-to-end (v0.12.0 + roster in §5 of model-routing.md); CI step `Drift detector (warn-only)` wired in test.yml on 2026-05-13; strict-mode promotion target 2026-06-05 still pending.
+The row now documents: drift detector covers BOTH direct-SDK and `_llm.call(...)` missing `application=` (v0.13.0 AST check); call-site migrations CLOSED for `prompt_injection_filter.py` (v0.12.1); application tag lands end-to-end (v0.12.0 + roster in §5 of model-routing.md); CI step `Drift detector (warn-only)` wired in test.yml on 2026-05-13; strict-mode promotion target 2026-06-05 still pending.
 
 ### Notes for consumers
 
@@ -3614,7 +3629,7 @@ The row now documents: drift detector covers BOTH direct-SDK and `_llm.call(...)
 
 Additive MINOR release. `scripts/verify_llm_routing.py` gains a second detection rule beyond direct-SDK callers: every `_llm.call(...)` invocation MUST carry an explicit `application=` keyword (or rely on `AIPLAYBOOK_APPLICATION` env at runtime). Without static enforcement, new callers shipping post-v0.12.0 could silently land with `metadata.application = null` and render in downstream observability as "untagged" — defeating the purpose of the application dimension.
 
-Closes T7.5 + T7.8 of parent consumer-d change `add-litellm-enforcement`. Tracked here at [`openspec/changes/llm-drift-detector-app-kwarg/proposal.md`](openspec/changes/llm-drift-detector-app-kwarg/proposal.md).
+Tracked here at [`openspec/changes/llm-drift-detector-app-kwarg/proposal.md`](openspec/changes/llm-drift-detector-app-kwarg/proposal.md).
 
 ### Added
 
@@ -3634,12 +3649,12 @@ Closes T7.5 + T7.8 of parent consumer-d change `add-litellm-enforcement`. Tracke
 ### Notes for consumers
 
 - Bump submodule `.ai-playbook` to `v0.13.0`. The new CI step will start flagging any `_llm.call(...)` in consumer code missing `application=`. Findings are warnings only — exit code 0 — but they appear in the CI log and are visible in pre-commit local runs.
-- Existing callers that already pass `application=` (e.g. consumer-d's `lib/advisor.py` adopted in v0.12.1's wave) are unaffected.
+- Existing callers that already pass `application=` are unaffected.
 - To migrate a flagged call, add the canonical `application="<name>"` per `docs/concepts/model-routing.md` §5 roster, OR annotate with `# llm-routing-allow: env-fallback` if the caller relies on `AIPLAYBOOK_APPLICATION` env in its deployment manifest.
 
 ## [0.12.1] — 2026-05-13 — prompt-injection-filter adopts application tag
 
-Patch release. `scripts/prompt_injection_filter.py:_run_layer2()` now passes `application="prompt-injection-filter"` to its existing `_llm.call(task_class="safety_judge", ...)` invocation (the parameter shipped in v0.12.0). Without the explicit kwarg, the trace's `metadata.application` was null and downstream observability tooling (consumer-d's cost-by-application widget, Phase 3) would have rendered the entries in the "untagged" bucket.
+Patch release. `scripts/prompt_injection_filter.py:_run_layer2()` now passes `application="prompt-injection-filter"` to its existing `_llm.call(task_class="safety_judge", ...)` invocation (the parameter shipped in v0.12.0). Without the explicit kwarg, the trace's `metadata.application` was null and downstream observability tooling (such as a cost-by-application widget) would have rendered the entries in the "untagged" bucket.
 
 First caller in the playbook to adopt the application dimension. No behavior change beyond OTel metadata.
 
@@ -3649,19 +3664,19 @@ First caller in the playbook to adopt the application dimension. No behavior cha
 
 ## [0.12.0] — 2026-05-12 — LLM application tag (second observability dimension orthogonal to consumer)
 
-Additive MINOR release. Adds a second tagging dimension (`application`) parallel to the existing `consumer`, enabling cost attribution by functional subsystem in downstream observability tooling (cost-by-tag dashboard in consumer-d, similar surfaces in other consumers).
+Additive MINOR release. Adds a second tagging dimension (`application`) parallel to the existing `consumer`, enabling cost attribution by functional subsystem in downstream observability tooling (such as cost-by-tag dashboards).
 
 Motivation: consumers like `WORKFLOWS` fan out to many functional subsystems (`aiops-workflow-vps-maintainer`, `aiops-workflow-retro-generator`, `langgraph-doc-writer`, ...). Attribution by `consumer` alone collapses these into one bucket, breaking *"which subsystem is driving Opus cost?"*. Collapsing the two dimensions instead (one tag per app) explodes the LiteLLM virtual-key roster and breaks the budget abstraction. Decouple from day 1.
 
-Origin: cost-by-tag-dashboard project in consumer-d (Phase 1), see [`openspec/changes/llm-application-tag/proposal.md`](openspec/changes/llm-application-tag/proposal.md).
+See [`openspec/changes/llm-application-tag/proposal.md`](openspec/changes/llm-application-tag/proposal.md).
 
 ### Added
 
 - **`scripts/_llm.py`** — `call()` accepts new `application: str | None = None` kwarg. `_resolve_application()` mirrors `_resolve_consumer()` with `AIPLAYBOOK_APPLICATION` env fallback (kebab-lowercase normalisation). All 4 OTel emission points propagate `ai_playbook.application`. CLI surface gains `--application`. `LLMResponse` dataclass gains `application` field. 16/16 existing tests pass — backwards-compatible.
 - **`docs/concepts/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (`hermes-bot`, `dashboard-backend`, `aiops-workflow-<name>`, `prompt-injection-filter`, `lib-advisor`, `hindsight-internal`, `claude-code` reserved) + "how to add a new application" recipe + worked examples showing `consumer × application` M:M. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
 - **`docs/concepts/env-vars.md`** §Per-consumer virtual keys — new "How to add a new consumer" 7-step subsection (provider key generation → SOPS encryption → k8s sync → LiteLLM wiring → table registration → budget cap script → smoke test).
-- **`configs/litellm-router.yaml`** — top-of-file warning section documenting the production-deploy mirror contract: LiteLLM accepts only ONE `--config` file, so this yaml MUST be mirrored into the consumer's project-local ConfigMap. The companion sync test lives in the consumer's repo (e.g. `consumer-d/dashboard/tests/test_litellm_config_sync.py`), NOT here — it reads the consumer's local deploy template, which doesn't exist inside the playbook standalone.
-- **`openspec/changes/llm-application-tag/`** — new openspec change folder tracking the playbook-side of this work, cross-referenced to the parent project in consumer-d.
+- **`configs/litellm-router.yaml`** — top-of-file warning section documenting the production-deploy mirror contract: LiteLLM accepts only ONE `--config` file, so this yaml MUST be mirrored into the consumer's project-local ConfigMap. The companion sync test lives in the consumer's repo (e.g. `project-d/dashboard/tests/test_litellm_config_sync.py`), NOT here — it reads the consumer's local deploy template, which doesn't exist inside the playbook standalone.
+- **`openspec/changes/llm-application-tag/`** — new openspec change folder tracking the playbook-side of this work.
 
 ### Changed
 
@@ -3675,36 +3690,36 @@ Origin: cost-by-tag-dashboard project in consumer-d (Phase 1), see [`openspec/ch
 
 - Bump submodule `.ai-playbook` to `v0.12.0` via `propagate_bump.py` (or manually `cd .ai-playbook && git checkout v0.12.0`).
 - Existing callers that don't pass `application=` continue to work; the resulting trace's `metadata.application` will be `null` until adopted.
-- Each consumer SHOULD ship a sync test that asserts strict-subset against their local LiteLLM ConfigMap / docker-compose volume mount. See consumer-d for the reference implementation.
+- Each consumer SHOULD ship a sync test that asserts strict-subset against their local LiteLLM ConfigMap / docker-compose volume mount.
 
 ## [0.11.0] — 2026-05-06 — cross-project pattern consolidation: migration slots, Protocol+InTreeFake, additive extension, HITL approval, multi-layer defense
 
 ## [0.11.0] — 2026-05-06 — cross-project pattern consolidation: migration slots, Protocol+InTreeFake, additive extension, HITL approval, multi-layer defense
 
-Major cross-project lessons-consolidation release. Mined 14 consumer-e retros + 22 consumer-c-legacy retros + 28 consumer-d ADRs + consumer-b docs/archive for recurring patterns; produced 7 new normative specs, 1 new skill, 2 new runbook surfaces, 3 new templates, and 5 spec extensions.
+Major cross-project lessons-consolidation release. Produced 7 new normative specs, 1 new skill, 2 new runbook surfaces, 3 new templates, and 5 spec extensions.
 
 ### Added
 
 #### Tier-1 specs (HIGH-severity cross-project patterns)
 
-- **`docs/rules/migration-slot-reservation.rule.md`** (v1.0.0) — universal contract for **reserving monotonic / append-only namespace slots** across parallel slices (DB migrations, gotcha IDs, ADR numbers, seed entity IDs). Subsumes + generalises `release-management.md` §6.4.1/§6.4.2. Closes the **6-consecutive migration-slot-collision pattern** in consumer-e Wave 2-3 (R1/R2/R5/R3/T2/O2 all picked slot `0007`/`0008` independently). Validated by consumer-c-legacy m2-data-model + cost-rollup parallel m2 races.
-- **`docs/concepts/protocol-fake-deferred-install.md`** (v1.0.0) — canonical **Protocol + InTreeFake + DeferredProductionInstall** pattern for isolating heavy / security-sensitive vendor SDKs. Cross-validated by 6+ consumer-e Wave 3 slices (R5/T2/R3/O2 + 2 more) + consumer-c-legacy m2-recipes-core service IoC + consumer-d ADR-018/-028 sidecar isolation. Defines the four artefacts (Protocol / fake / deferred-install row / production adapter) + cross-language guidance (Python / TypeScript-NestJS / Elixir-behaviour).
-- **`docs/rules/cross-slice-additive-extension.rule.md`** (v1.0.0) — three additive shapes (nullable / `NOT NULL DEFAULT <sentinel>` / JSONB) for parallel slices extending shared entities. Drawn from 4+ consumer-e R-series slices (`dedupe_key`, `audit_trail_id`, `client_order_id`) + consumer-c-legacy m2-data-model array/jsonb columns. Codifies migration-chain discipline + read-side discipline.
-- **`docs/rules/hitl-approval-pattern.rule.md`** (v1.0.0) — runtime **HITL gating for state-mutating actions** in single-operator AI systems. Cross-validated by **3 projects** (consumer-e P1 Telegram approval-channels + consumer-d ADR-028 WABA-MCP rollout gating + consumer-b operator-gated deploys). Defines the five Protocol artefacts (mutation request DTO / channel Protocol / HMAC correlation / decision persistence / TTL+escalation ladder) + a canonical 3-tier channel ladder + cross-project mutation taxonomy.
+- **`docs/rules/migration-slot-reservation.rule.md`** (v1.0.0) — universal contract for **reserving monotonic / append-only namespace slots** across parallel slices (DB migrations, gotcha IDs, ADR numbers, seed entity IDs). Subsumes + generalises `release-management.md` §6.4.1/§6.4.2. Closes the **migration-slot-collision pattern**.
+- **`docs/concepts/protocol-fake-deferred-install.md`** (v1.0.0) — canonical **Protocol + InTreeFake + DeferredProductionInstall** pattern for isolating heavy / security-sensitive vendor SDKs. Defines the four artefacts (Protocol / fake / deferred-install row / production adapter) + cross-language guidance (Python / TypeScript-NestJS / Elixir-behaviour).
+- **`docs/rules/cross-slice-additive-extension.rule.md`** (v1.0.0) — three additive shapes (nullable / `NOT NULL DEFAULT <sentinel>` / JSONB) for parallel slices extending shared entities. Codifies migration-chain discipline + read-side discipline.
+- **`docs/rules/hitl-approval-pattern.rule.md`** (v1.0.0) — runtime **HITL gating for state-mutating actions** in single-operator AI systems. Defines the five Protocol artefacts (mutation request DTO / channel Protocol / HMAC correlation / decision persistence / TTL+escalation ladder) + a canonical 3-tier channel ladder + cross-project mutation taxonomy.
 
 #### Tier-2 specs (MED-severity recurring patterns)
 
-- **`docs/concepts/dependency-injection-patterns.md`** (v1.0.0) — provider deduplication (NestJS `@Global()` rule + Python `app.dependency_overrides` + Phoenix `Application.put_env` equivalents) + **seam-then-consume DI tokens** for cross-slice extension. Cross-validated by consumer-c-legacy m2-mcp-write-capabilities (`payload_before:null` bug from `@Global()` re-declaration) + m2-cost-rollup-and-audit (`INVENTORY_COST_RESOLVER` token rebinding) + consumer-d ADR-028 (action-class dispatcher dict). Includes the **class-level cache reset autouse fixture** pattern for test isolation.
-- **`docs/concepts/database-numeric-boundaries.md`** (v1.0.0) — **money/decimal column boundary rule** (explicit coercion at ORM, never per-call). Surfaced by consumer-c-legacy m2-cost-rollup numeric-string-multiplication bug (`"1000NaN"` shipped to BI ingest). Per-stack recipes for TypeORM / Prisma / SQLAlchemy / Ecto. Generalises the AGENTS.md "no float for money" universal rule.
-- **`docs/concepts/multi-layer-defense-single-operator.md`** (v1.0.0) — canonical **5-layer defense pattern** (L1 Identity / L2 Ingress / L3 Network / L4 State-RBAC / L5 Ergonomic) for single-operator AI systems. Cross-validated by consumer-d ADRs 017/018/019/020/024 + consumer-b `MERGE-ORDERS-SECURITY-AUDIT.md` zero-permission plugin fork. Decision matrix for when each layer is warranted.
+- **`docs/concepts/dependency-injection-patterns.md`** (v1.0.0) — provider deduplication (NestJS `@Global()` rule + Python `app.dependency_overrides` + Phoenix `Application.put_env` equivalents) + **seam-then-consume DI tokens** for cross-slice extension. Includes the **class-level cache reset autouse fixture** pattern for test isolation.
+- **`docs/concepts/database-numeric-boundaries.md`** (v1.0.0) — **money/decimal column boundary rule** (explicit coercion at ORM, never per-call). Per-stack recipes for TypeORM / Prisma / SQLAlchemy / Ecto. Generalises the AGENTS.md "no float for money" universal rule.
+- **`docs/concepts/multi-layer-defense-single-operator.md`** (v1.0.0) — canonical **5-layer defense pattern** (L1 Identity / L2 Ingress / L3 Network / L4 State-RBAC / L5 Ergonomic) for single-operator AI systems. Decision matrix for when each layer is warranted.
 
 #### Spec extensions (added sections to existing canonical specs)
 
-- **`docs/concepts/release-management.md` §4.5.4**: codifies that **auto-generated bump / chore-archive PRs MUST pre-populate the §4.5 AI-reviewer signoff block**. Closes the v0.10.3 CHANGELOG gap surfaced 2026-05-06 by 5 failed bump PRs + 3 failed chore-archive PRs in consumer-e (PRs #90/#92/#94 all required manual body-edit roundtrips).
-- **`docs/concepts/release-management.md` §6.6.1**: canonical **subagent prompt template** + mandatory verification commands contract for intra-slice parallelism. Cross-validated by consumer-c-legacy Wave 1.7-1.9 (3 subagent slices, 0 boundary violations, ~22 min/slice saved). Template at `templates/subagent-prompt.md.tmpl`.
-- **`docs/concepts/release-management.md` §6.7**: **post-merge OpenSpec archive automation**. Closes the second v0.10.3 CHANGELOG gap (28h archive drift in consumer-e Wave 2 PRs #68+#69). Workflow template fires on `slice/*` PR squash-merge to main; opens `chore/archive-<id>` PR with §4.5-marker-populated body and auto-merge enabled.
-- **`docs/concepts/event-and-data-patterns.md` §9**: async event-emission ordering — `tap()` vs `mergeMap+emitAsync` for read-after-write coherence + cascade self-emission guard (one-line ID equality check). Cross-stack equivalents for NestJS RxJS / Phoenix LiveView / FastAPI / Express. Cross-validated by consumer-c-legacy m2-mcp-write-capabilities + m2-cost-rollup race conditions.
-- **`docs/concepts/runbook-bmad-openspec.md` §3.7.2**: **proposal-only-first** for tech-seam slices (new tech stack, architectural seams, cross-cutting infrastructure). Cross-validated by consumer-c-legacy m2-ui-foundation + consumer-e api-foundation-rfc7807. Defers design.md/tasks.md/apply until Gate D approval lands; saves rework when design is rescinded mid-apply.
+- **`docs/concepts/release-management.md` §4.5.4**: codifies that **auto-generated bump / chore-archive PRs MUST pre-populate the §4.5 AI-reviewer signoff block**. Closes the v0.10.3 CHANGELOG gap.
+- **`docs/concepts/release-management.md` §6.6.1**: canonical **subagent prompt template** + mandatory verification commands contract for intra-slice parallelism. Template at `templates/subagent-prompt.md.tmpl`.
+- **`docs/concepts/release-management.md` §6.7**: **post-merge OpenSpec archive automation**. Closes the second v0.10.3 CHANGELOG gap. Workflow template fires on `slice/*` PR squash-merge to main; opens `chore/archive-<id>` PR with §4.5-marker-populated body and auto-merge enabled.
+- **`docs/concepts/event-and-data-patterns.md` §9**: async event-emission ordering — `tap()` vs `mergeMap+emitAsync` for read-after-write coherence + cascade self-emission guard (one-line ID equality check). Cross-stack equivalents for NestJS RxJS / Phoenix LiveView / FastAPI / Express.
+- **`docs/concepts/runbook-bmad-openspec.md` §3.7.2**: **proposal-only-first** for tech-seam slices (new tech stack, architectural seams, cross-cutting infrastructure). Defers design.md/tasks.md/apply until Gate D approval lands; saves rework when design is rescinded mid-apply.
 - **`skills/openspec-apply-change/SKILL.md` §4b**: **preflight re-grep** of cited identifiers (class names, file paths, migration slot numbers, ADR numbers) on `main` before apply. Catches state divergence between propose and apply (proposals written days earlier may cite renamed/removed identifiers). Refuses to proceed if ≥3 identifiers drifted; warns + asks if 1-2.
 - **`docs/runbooks/release.md` §10**: mandatory **first-run smoke test** for every new script / workflow / skill against ONE real consumer before rc → stable promotion. Closes the v0.10.x cascade pattern (3 hotfixes within 5 days because tests stubbed boundaries that hid environmental constraints — API limits, locale encoding, missing markers).
 
@@ -3717,11 +3732,11 @@ Major cross-project lessons-consolidation release. Mined 14 consumer-e retros + 
 
 #### New runbooks
 
-- **`docs/runbooks/cascade-failure-template.md`** (v1.0.0) — template runbook for **service-dependency cascade failures**. 5-section structure (symptom list / precondition check / impact map / recovery sequence / postmortem trigger). Cross-validated by consumer-d `runbook-litellm-down-cascade.md` (LiteLLM → Hindsight → Hermes → Paperclip cascade) + consumer-b gotchas.
+- **`docs/runbooks/cascade-failure-template.md`** (v1.0.0) — template runbook for **service-dependency cascade failures**. 5-section structure (symptom list / precondition check / impact map / recovery sequence / postmortem trigger).
 
 #### New skill
 
-- **`skills/bmad-extract-lessons-from-adrs/`** (v1.0) — mining skill for projects without populated `retros/` directories. Walks ADRs / gotchas / runbooks / docs/archive / CHANGELOGs / postmortems for cross-project patterns. Used to mine consumer-d (28 ADRs) + consumer-b (docs/archive) for v0.11.0 patterns. Reusable for future ai-playbook releases.
+- **`skills/bmad-extract-lessons-from-adrs/`** (v1.0) — mining skill for projects without populated `retros/` directories. Walks ADRs / gotchas / runbooks / docs/archive / CHANGELOGs / postmortems for cross-project patterns. Reusable for future ai-playbook releases.
 
 ### Migration
 
@@ -3750,7 +3765,7 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 
 ### Fixed
 
-- **`scripts/verify_board_state.py`** — added `sys.stdout/sys.stderr.reconfigure(encoding="utf-8")` at module top. v0.10.1's success path printed `✅ Project item ... matches expected` which crashed with `UnicodeEncodeError` on Windows cp1252 consoles. Pattern mirrors `scripts/notify.py` and `scripts/verify_llm_routing.py`. Surfaced 2026-05-06 during first invocation from `/c/Projects/consumer-e/.ai-playbook/scripts/verify_board_state.py` on Windows. Linux CI was unaffected (default UTF-8). The crash masked exit code 0 (success) and surfaced as exit code 1, which would cause spurious `--enforce-board` failures on Windows for slices that ARE actually in the expected state.
+- **`scripts/verify_board_state.py`** — added `sys.stdout/sys.stderr.reconfigure(encoding="utf-8")` at module top. v0.10.1's success path printed `✅ Project item ... matches expected` which crashed with `UnicodeEncodeError` on Windows cp1252 consoles. Pattern mirrors `scripts/notify.py` and `scripts/verify_llm_routing.py`. Linux CI was unaffected (default UTF-8). The crash masked exit code 0 (success) and surfaced as exit code 1, which would cause spurious `--enforce-board` failures on Windows for slices that ARE actually in the expected state.
 
 ### Notes
 
@@ -3760,7 +3775,7 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 
 ### Fixed
 
-- **`scripts/verify_board_state.py`** — replaced `items(first: 200)` with paginated `items(first: 100, after: $cursor)` walking via `pageInfo.hasNextPage` / `endCursor`. Surfaced 2026-05-06 during first real invocation against `consumer-e` project board: GitHub GraphQL connection limit on `first` is 100, not 200, producing `HTTP 422: Requesting 200 records on the connection exceeds the 'first' limit of 100 records`. v0.10.0's tests mocked the GraphQL transport with `subprocess.run` patches that returned a single response; they never hit the real API limit. The pagination loop now terminates cleanly via `pageInfo.hasNextPage=false`.
+- **`scripts/verify_board_state.py`** — replaced `items(first: 200)` with paginated `items(first: 100, after: $cursor)` walking via `pageInfo.hasNextPage` / `endCursor`. GitHub GraphQL connection limit on `first` is 100, not 200, producing `HTTP 422: Requesting 200 records on the connection exceeds the 'first' limit of 100 records`. v0.10.0's tests mocked the GraphQL transport with `subprocess.run` patches that returned a single response; they never hit the real API limit. The pagination loop now terminates cleanly via `pageInfo.hasNextPage=false`.
 - **`tests/test_verify_board_state.py`** — added 2 pagination tests (`test_pagination_walks_to_second_page`, `test_pagination_stops_after_last_page_when_not_found`) covering the cursor-following loop. Also extended `_make_graphql_response` helper to accept `has_next_page` + `end_cursor` so existing tests stay compatible.
 
 ### Notes
@@ -3771,10 +3786,10 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 
 ### Added
 
-- **`docs/concepts/project-board-sync.md`** — new normative spec (v1.0.0) codifying a 7-layer defense-in-depth contract for GitHub Project board sync during AI-driven OpenSpec work. L1 built-in workflows, L2 custom Actions workflow, L3 required status check (`project-board-synced`), L4 state-machine validator (gh-aw ProjectOps pattern), L5 OTLP agent telemetry, L6 companion script `--enforce-board` flag, L7 archive skill Step 0 verification. Five truly-independent layers (server-side + telemetry) plus two tool-level reinforcers. Authored after consumer-e Wave 2 retro surfaced silent board drift (slices merged with `Status=Backlog`, no audit trail). Research-grounded justifications cite OWASP AI Security Guide 2026, GitHub gh-aw ProjectOps pattern, EU AI Act forward-looking compliance, and the LLM-structured-outputs syntax-vs-semantics distinction.
+- **`docs/concepts/project-board-sync.md`** — new normative spec (v1.0.0) codifying a 7-layer defense-in-depth contract for GitHub Project board sync during AI-driven OpenSpec work. L1 built-in workflows, L2 custom Actions workflow, L3 required status check (`project-board-synced`), L4 state-machine validator (gh-aw ProjectOps pattern), L5 OTLP agent telemetry, L6 companion script `--enforce-board` flag, L7 archive skill Step 0 verification. Five truly-independent layers (server-side + telemetry) plus two tool-level reinforcers. Research-grounded justifications cite OWASP AI Security Guide 2026, GitHub gh-aw ProjectOps pattern, EU AI Act forward-looking compliance, and the LLM-structured-outputs syntax-vs-semantics distinction.
 - **`docs/concepts/agent-telemetry.md`** — new normative spec (v1.0.0) codifying the Claude Code OTLP exporter → Langfuse ingestion pattern. Four-environment-variable configuration, resource attributes for slice/wave tagging, OpenTelemetry GenAI semantic conventions mapping, "reuse over reinvent" default for projects with existing Langfuse instances (or Langfuse Cloud free tier as minimum-viable for greenfield consumers). Anti-patterns: standing up a custom OTel collector, inventing custom JSONL audit logs, logging traces to the project's `data/` directory, disabling telemetry "for performance".
-- **`docs/concepts/event-and-data-patterns.md`** — new normative spec (v1.0.0) codifying 7 stack-agnostic patterns surfaced by consumer-c-legacy Wave 1.7-1.9 + consumer-e Wave 1-2: (1) hybrid translation pattern for cross-cutting concern extraction without forcing N upstream emitters to migrate, (2) two-name pattern (bus channel name preserves module ownership; persisted name is module-agnostic), (3) same-transaction migration with backfill, (4) `hasTable`/`hasColumn` guards on backfill SELECTs, (5) open-enum text columns + CHECK over native enums, (6) stateless proxy + stateful caller, (7) failure-collapse-to-null. Each pattern has a "when it applies", "when NOT", failure-mode-prevented, and reference implementation citation.
-- **`docs/concepts/cross-language-tooling.md`** — new normative spec (v1.0.0) codifying the `tools/<name>/` peer-subdirectory convention for non-primary-language tools (Python services in TS monorepos, MCP servers in Python monorepos). Each tool has its own complete toolchain (`pyproject.toml`, ruff/mypy/pytest, Dockerfile multi-stage, `.env.example`, separate CI workflow with path filter). Anti-patterns: faking Python as a TS workspace, mixing primary-language code into `tools/`, reaching across language boundaries via filesystem. Reference implementations: consumer-c-legacy `tools/rag-proxy/` (Wave 1.8) and planned consumer-e `tools/openbb-sidecar/` (R4 slice).
+- **`docs/concepts/event-and-data-patterns.md`** — new normative spec (v1.0.0) codifying 7 stack-agnostic patterns: (1) hybrid translation pattern for cross-cutting concern extraction without forcing N upstream emitters to migrate, (2) two-name pattern (bus channel name preserves module ownership; persisted name is module-agnostic), (3) same-transaction migration with backfill, (4) `hasTable`/`hasColumn` guards on backfill SELECTs, (5) open-enum text columns + CHECK over native enums, (6) stateless proxy + stateful caller, (7) failure-collapse-to-null. Each pattern has a "when it applies", "when NOT", failure-mode-prevented, and reference implementation citation.
+- **`docs/concepts/cross-language-tooling.md`** — new normative spec (v1.0.0) codifying the `tools/<name>/` peer-subdirectory convention for non-primary-language tools (Python services in TS monorepos, MCP servers in Python monorepos). Each tool has its own complete toolchain (`pyproject.toml`, ruff/mypy/pytest, Dockerfile multi-stage, `.env.example`, separate CI workflow with path filter). Anti-patterns: faking Python as a TS workspace, mixing primary-language code into `tools/`, reaching across language boundaries via filesystem.
 - **`docs/runbooks/windows-dev-environment.md`** — new operational runbook (v1.0.0) capturing Windows-specific dev-loop gotchas: (1) `python -m venv` doesn't include pip on Windows Store Python without `--upgrade-deps`, (2) `pip install --user` is silent + glacially slow on Windows Store Python, (3) Jest workers crash with `spawn UNKNOWN errno -4094` on Windows + Node 24+ (fix: `--runInBand`), (4) `git worktree remove --force` fails "Device or resource busy" on Windows when IDE / file watcher / AV holds handles. Linux CI is unaffected; this runbook is for Windows developer pain only.
 - **`templates/new-project/.github/workflows/project-status-slice-progress.yml.tmpl`** — L2 server-side workflow per project-board-sync.md. On `push` to `slice/**` populates Branch field + Base SHA + Status=In Progress on the matching project item via GraphQL; on PR opened sets Status=Review. Idempotent. Reuses existing `PROJECT_AUTOMATION_TOKEN` secret + `PROJECT_OWNER`/`PROJECT_NUMBER` vars from the existing `project-status.yml` template (which it complements, not replaces — that one handles Wave-N Blocked → Todo transitions).
 - **`templates/new-project/.github/workflows/project-board-synced-check.yml.tmpl`** — L3 required status check per project-board-sync.md. Asserts (a) Status ∈ {In Progress, Review}, (b) Branch field matches PR head ref, (c) Base SHA field populated. Designed to be added to required-status-checks list in branch protection so the merge button physically blocks until board is synced. Actionable error messages name `opsx_apply_companion.py` as the fix path.
@@ -3789,14 +3804,14 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 
 ### Changed
 
-- **`docs/rules/verification-before-completion.rule.md` §4.1** — added §4.1.1 "Broadest-scope rule" (run lint/typecheck at the broadest scope CI uses, not the slice subdirectory; retro-proven by consumer-e Wave 2 P1 where 6 mypy errors in test files were invisible at the contexts/<slice>/ scope but immediately surfaced at apps/api/ scope) and §4.1.2 "Tool-exit-code-over-text rule" (verdict messages cite the tool's exit code, not paraphrase the tool's output; LLM structured outputs guarantee syntax not semantics, so AI text claims about tool results are not proof — only non-AI-controlled process exit codes are).
-- **`docs/concepts/release-management.md` §4.4** — added §4.4.1 "Gitleaks scans full PR commit history" (squash + force-push to clear history when leak is fixed in a later commit but earlier commit's leak still triggers the scanner) and §4.4.2 "Markdown style guide: avoid `KEY=<placeholder>` syntax" (shell-syntax placeholder fires gitleaks generic-api-key matcher; use bullet lists or inline narrative instead). Both retro-proven on consumer-c-legacy PR #89 (`m2-wrap-up`).
-- **`docs/concepts/release-management.md` §6.4** — added §6.4.1 "Append-only doc files: numbering ranges per slice" (gotchas.md, CHANGELOG.md, append-only ADR indexes require explicit numeric range per slice; recommended convention: foundation 1-29, Wave 2 bounded contexts 30-79 in 10-blocks, Wave 3 adapters 80-199 in 20-blocks). Added §6.4.2 "Migration revision strings: verbose-form from scaffold" (alembic/sqlx/prisma migrations MUST use `<NNNN>_<topic>` from scaffold; latent chain breakage retro from consumer-e Wave 2 R1/T1 mismatch).
-- **`docs/concepts/release-management.md` §6.6** — refined "When it does NOT apply" guidance for intra-slice parallelism: explicitly NOT applied to slices with cross-BC verification gates (cost ↔ allergens ↔ labels ↔ audit; trading → risk → kill-switch). The serial verification path beats subagent recombination + cross-BC test orchestration overhead. Validated on consumer-c-legacy Wave 1.9 + consumer-e K1.
+- **`docs/rules/verification-before-completion.rule.md` §4.1** — added §4.1.1 "Broadest-scope rule" (run lint/typecheck at the broadest scope CI uses, not the slice subdirectory) and §4.1.2 "Tool-exit-code-over-text rule" (verdict messages cite the tool's exit code, not paraphrase the tool's output; LLM structured outputs guarantee syntax not semantics, so AI text claims about tool results are not proof — only non-AI-controlled process exit codes are).
+- **`docs/concepts/release-management.md` §4.4** — added §4.4.1 "Gitleaks scans full PR commit history" (squash + force-push to clear history when leak is fixed in a later commit but earlier commit's leak still triggers the scanner) and §4.4.2 "Markdown style guide: avoid `KEY=<placeholder>` syntax" (shell-syntax placeholder fires gitleaks generic-api-key matcher; use bullet lists or inline narrative instead).
+- **`docs/concepts/release-management.md` §6.4** — added §6.4.1 "Append-only doc files: numbering ranges per slice" (gotchas.md, CHANGELOG.md, append-only ADR indexes require explicit numeric range per slice; recommended convention: foundation 1-29, Wave 2 bounded contexts 30-79 in 10-blocks, Wave 3 adapters 80-199 in 20-blocks). Added §6.4.2 "Migration revision strings: verbose-form from scaffold" (alembic/sqlx/prisma migrations MUST use `<NNNN>_<topic>` from scaffold).
+- **`docs/concepts/release-management.md` §6.6** — refined "When it does NOT apply" guidance for intra-slice parallelism: explicitly NOT applied to slices with cross-BC verification gates (cost ↔ allergens ↔ labels ↔ audit; trading → risk → kill-switch). The serial verification path beats subagent recombination + cross-BC test orchestration overhead.
 - **`docs/concepts/release-management.md`** — added §9.5 "Project board sync contract" cross-referencing the new `project-board-sync.md` spec; updated §10 cross-references.
-- **`docs/concepts/runbook-bmad-openspec.md` §3** — added §3.7.1 "Design-mock HTML for dense designs" (optional review aid for slices spanning ≥3 bounded contexts; visual mock with arch-flow + schema cards + sample API + Gate D recap, using project's design-system palette per `ux-track.md`). Validated on consumer-c-legacy Wave 1.9 where the mock surfaced a column-name mismatch pre-implementation.
-- **`docs/concepts/runbook-bmad-openspec.md` §4** — added §4.1 "Forward-authored retros" (recommended pattern: author retro DURING slice's implementation, not after merge; squash SHA + merge date filled in post-merge during the archive step; reduces after-merge cognitive drop-off; validated across consumer-c-legacy Wave 1.7-1.9 + consumer-e Wave 2).
-- **`scripts/notify.py`** — warn/error path now prefers the consumer-side durable queue (Phase 5 Change B `add-durable-notification-queue`) when `CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED=1` AND a `notifications.queue` package is importable; falls through to the legacy synchronous SMTP path otherwise. The two transports are mutually exclusive per emission. Other consumers (consumer-b, consumer-c-legacy, consumer-e, livekit) continue with SMTP unchanged.
+- **`docs/concepts/runbook-bmad-openspec.md` §3** — added §3.7.1 "Design-mock HTML for dense designs" (optional review aid for slices spanning ≥3 bounded contexts; visual mock with arch-flow + schema cards + sample API + Gate D recap, using project's design-system palette per `ux-track.md`).
+- **`docs/concepts/runbook-bmad-openspec.md` §4** — added §4.1 "Forward-authored retros" (recommended pattern: author retro DURING slice's implementation, not after merge; squash SHA + merge date filled in post-merge during the archive step; reduces after-merge cognitive drop-off).
+- **`scripts/notify.py`** — warn/error path now prefers the consumer-side durable queue (Phase 5 Change B `add-durable-notification-queue`) when `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED=1` AND a `notifications.queue` package is importable; falls through to the legacy synchronous SMTP path otherwise. The two transports are mutually exclusive per emission. Other consumers continue with SMTP unchanged.
 - **`scripts/prompt_injection_filter.py`** layer-2 migrated from direct `anthropic` SDK to `scripts._llm.call("safety_judge", consumer="INJECTION", ...)` per Change C P5.4 follow-up. The opt-in env var `ANTHROPIC_API_KEY_INJECTION` is preserved as a budget gate; actual provider key resolution now happens at the LiteLLM proxy via the `safety_judge` task class. Drift detector confirms 0 in-tree direct-SDK callers remain.
 - **`scripts/verify_llm_routing.py`** — added Windows-safe UTF-8 stdio reconfigure so the success sigil (`✓`) prints under cp1252.
 - **`docs/concepts/notification-queue.md`** — extended with §8 Durable queue layer (Phase 5 Change B): activation gate, SQLite schema, async worker model, backoff schedule, channel routing, MCP outbox tool, observability events, restart-survival contract. The legacy JSONL+SMTP layers (§3-§7) are unchanged.
@@ -3809,8 +3824,8 @@ Migration is **non-destructive**: existing artefacts are preserved; only new sca
 
 ### Notes
 
-- Closes 2/3 deferred items from v0.9.3 follow-up note (Change C). Remaining: `consumer-d/lib/advisor.py` migration (separate consumer PR, manual 2-call paths to `_llm.call`; native Anthropic advisor-tool beta retains an inline-allow comment since LiteLLM cannot tunnel the `advisor_20260301` tool block). The "Hermes adapter" deferred item is a no-op — no Python adapter exists in-tree (Hermes is a separate container that already consumes the LiteLLM proxy directly via OpenAI-compatible API).
-- The Change B wiring lands as a chore-level upstream PR because the contract change is consumer-driven (the OpenSpec proposal lives in consumer-d under `openspec/changes/add-durable-notification-queue/`); the upstream playbook absorbs the integration as documented mechanical follow-up.
+- Closes 2/3 deferred items from v0.9.3 follow-up note (Change C). Remaining: `lib/advisor.py` migration (separate consumer PR, manual 2-call paths to `_llm.call`; native Anthropic advisor-tool beta retains an inline-allow comment since LiteLLM cannot tunnel the `advisor_20260301` tool block). The "Hermes adapter" deferred item is a no-op — no Python adapter exists in-tree (Hermes is a separate container that already consumes the LiteLLM proxy directly via OpenAI-compatible API).
+- The Change B wiring lands as a chore-level upstream PR because the contract change is consumer-driven; the upstream playbook absorbs the integration as documented mechanical follow-up.
 
 ## [0.9.3] — 2026-05-05 — dev-flow industrialization + Phase 5 P5.4/P5.6/P5.7
 
@@ -3855,7 +3870,7 @@ Major milestone release codifying the canonical task↔PR↔release pattern as t
 ### Migration
 
 - **New consumers** bootstrapped via `scripts/bootstrap.py` after v0.9.3 inherit the cross-ref row from the updated `AGENTS.md.tmpl`.
-- **Existing consumers** (consumer-d, consumer-c-legacy, consumer-b, consumer-e, livekit) receive the cross-ref row automatically as part of the v0.9.3 bump PR opened by `propagate-playbook-bump.yml` — idempotent insertion via `propagate_bump.py::ensure_dev_flow_cross_ref()`.
+- **Existing consumers** receive the cross-ref row automatically as part of the v0.9.3 bump PR opened by `propagate-playbook-bump.yml` — idempotent insertion via `propagate_bump.py::ensure_dev_flow_cross_ref()`.
 - **Auto-tick git hook** is per-developer per-checkout (git does not version `.git/hooks/`). Manual install:
   ```
   cp .ai-playbook/templates/git-hooks/prepare-commit-msg .git/hooks/
@@ -3865,7 +3880,7 @@ Major milestone release codifying the canonical task↔PR↔release pattern as t
 
 ### Notes
 
-- Pending follow-ups (separate PRs after v0.9.3): migrate historical call sites (`lib/advisor.py`, `prompt_injection_filter.py:182`, Hermes adapter) to `_llm.call`; wire `verify_llm_routing.py` into pre-commit; archive 2 OpenSpec changes from PR #31 in consumer-d (`add-litellm-enforcement`, `complete-ir-and-model-migration-specs`).
+- Pending follow-ups (separate PRs after v0.9.3): migrate historical call sites (`lib/advisor.py`, `prompt_injection_filter.py:182`, Hermes adapter) to `_llm.call`; wire `verify_llm_routing.py` into pre-commit.
 - Dev-flow `--strict-dev-flow-cross-ref` flag stays default-off for the v0.9.3 → v0.10.x window; flip to default-on after 30 days green + ≥4/5 consumers migrated.
 
 ## [0.9.2] — 2026-05-01 — `openspec-apply-parallel` skill + filed followup #4
@@ -3879,7 +3894,7 @@ Patch release that ships a guided skill for the §6.6 intra-slice parallelism co
 
 ### Filed (open)
 
-- **Followup 4** in `docs/concepts/v0.9.0-roadmap.md` — `/opsx:apply` skill doesn't enforce `tasks.md` checkbox-update discipline. Surfaced by consumer-e slice 3 archive (merged with 0/55 tasks ticked despite being feature-complete). Three fix options outlined: (1) conventional-commit scope → checkbox auto-tick via `prepare-commit-msg` hook, (2) PR-open warning workflow, (3) `openspec archive --strict` mode. Recommended: ship 1 + 2 in a future v0.9.x patch; defer 3.
+- **Followup 4** in `docs/concepts/v0.9.0-roadmap.md` — `/opsx:apply` skill doesn't enforce `tasks.md` checkbox-update discipline. Three fix options outlined: (1) conventional-commit scope → checkbox auto-tick via `prepare-commit-msg` hook, (2) PR-open warning workflow, (3) `openspec archive --strict` mode. Recommended: ship 1 + 2 in a future v0.9.x patch; defer 3.
 
 ### Notes
 
@@ -3887,13 +3902,13 @@ Patch release that ships a guided skill for the §6.6 intra-slice parallelism co
 
 ## [0.9.1] — 2026-05-01 — close v0.9.0 followups (#1 #2 #3)
 
-Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0 stable release. Each was a real production gap surfaced during the consumer-e cascade dogfood. Now all three are fixed + covered by tests.
+Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0 stable release. Each was a real production gap. Now all three are fixed + covered by tests.
 
 ### Fixed
 
 - **Followup #1 — `propagate_bump.py` now bumps `AGENTS.md inherits_from` for every consumer.** Previously only `propagate_skills_bump.py` rewrote frontmatter pins, and only for consumers with `skills_pins:` declared in `consumers.yaml`. livekit (no skills tracking) ended every cascade with stale `inherits_from:` and required a manual fix-PR each time. The `_edit_frontmatter_skills_source` helper has been moved to `scripts/_bumper.py::bump_agents_md_pin` and is now called by BOTH propagation scripts. The same regex matches `inherits_from:` items (with the `github.com/` prefix) and `skills_sources:` items (without) in one pass.
 - **Followup #2 — `_bumper.supersede_open_bump_prs()` is now semver-aware.** Previously it used "newer-PR-by-creation-time wins" — when multiple tags pushed close together (rc1 + rc2 cycle 2026-05-01), workflow scheduling determined order, not semver, and v0.8.7's PRs closed the newer v0.9.0-rc2 PRs (recovery required deleting + re-pushing the rc2 tag). The function now parses the head-branch's version (`chore/bump-(playbook|skills-*)-vX.Y.Z[-rc.N]`), compares via tuple key (stable releases sort above their rcs of the same series; older series sort below newer), and only closes an open PR whose parsed version is `<=` the new bump's. Backward-compatible: callers that omit the new `new_branch` argument fall back to chronological mode + log a warning.
-- **Followup #3 — `block_manual_spec_edit.py::read_commit_message()` now handles CI mode.** Previously it only read `$PRE_COMMIT_COMMIT_MSG_FILE` (commit-msg stage) and `.git/COMMIT_EDITMSG` (fallback) — but in CI's `pre-commit run --from-ref/--to-ref` mode neither is set, so every archive PR saw "commit message unavailable" and required `--admin` merge to bypass (consumer-e PR #57 was the surfacing case). The function now ALSO runs `git log --format=%B%x00 $FROM..$TO` and concatenates every commit message in the range, so the `openspec-archive:` marker is detected if it appears in ANY commit on the branch.
+- **Followup #3 — `block_manual_spec_edit.py::read_commit_message()` now handles CI mode.** Previously it only read `$PRE_COMMIT_COMMIT_MSG_FILE` (commit-msg stage) and `.git/COMMIT_EDITMSG` (fallback) — but in CI's `pre-commit run --from-ref/--to-ref` mode neither is set, so every archive PR saw "commit message unavailable" and required `--admin` merge to bypass. The function now ALSO runs `git log --format=%B%x00 $FROM..$TO` and concatenates every commit message in the range, so the `openspec-archive:` marker is detected if it appears in ANY commit on the branch.
 
 ### Added (operational guard)
 
@@ -3910,19 +3925,11 @@ Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0
 
 ## [0.9.0] — 2026-05-01 — CodeRabbit fallback STABLE — slice 3 dogfood validated end-to-end
 
-Promotes v0.9.0-rc1 (CodeRabbit fallback 3-layer defense) → stable after the validation milestone (`docs/concepts/v0.9.0-roadmap.md`) completed successfully on consumer-e slice 3 (`persistence-tenant-enforcement`).
-
-### Validation evidence (consumer-e cascade 2026-05-01)
-
-- **PR #52** (`coderabbit-fallback-l2-setup`): bootstrap dogfood. Submodule + L2 workflow installed via `docs/runbooks/onboard-new-project.md` Step 11. CodeRabbit was rate-limited at the moment of PR open (the EXACT scenario the L2 design exists for). L2 fired at 5m11s, classified `rate-limited`, posted the structured checklist as a PR comment when §4.5 was empty/stubbed, and turned `ai-self-review-required` ✅ after the PR body was updated with the 3 schema markers (`Profile:`, `Reviewer:`, `Self-review findings:`). Squash-merged into `main`.
-- **PR #55** (`slice/persistence-tenant-enforcement`): L1 in-session §4.5 populated by claude-code-action; CodeRabbit reviewed without rate-limit; L2 skipped silently (status check ✅). 56 tasks / 30 new tests / 95% coverage on `persistence/*` / 154 passed combined / mypy strict clean / pre-commit clean.
-- **PR #56** (`chore/ux-scaffolding-draft`): L1 in-session §4.5 populated; CodeRabbit reviewed; L2 skipped silently. Squash-merged.
-
-The 3-layer architecture worked exactly as designed: L0 (CodeRabbit primary) handled the bulk; L1 (worker self-review) covered every PR; L2 (CI safety net) caught the rate-limit case on PR #52 without false positives on the others.
+Promotes v0.9.0-rc1 (CodeRabbit fallback 3-layer defense) → stable after the validation milestone (`docs/concepts/v0.9.0-roadmap.md`) completed successfully.
 
 ### Changed (since v0.9.0-rc3)
 
-- **`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: add `token: ${{ secrets.CONSUMER_D_GOD_MODE }}` to `actions/checkout@v4` step. Required when the consumer pins `.ai-playbook` (and optionally `.skills-sources/ai-playbook`) as submodules of the PRIVATE `Wizarck/ai-playbook` repo. The default `GITHUB_TOKEN` scope is consumer-repo only; cross-repo submodule clone needs `Contents:R` on the playbook + skills repos. Mirrors `ci.yml`. Caught during PR #52 dogfood; consumer-e's runtime workflow was patched in-PR. Per gotchas #7. Followup tracked from v0.9.0-rc1 closed.
+- **`templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: add `token: ${{ secrets.AIPLAYBOOK_GOD_MODE }}` to `actions/checkout@v4` step. Required when the consumer pins `.ai-playbook` (and optionally `.skills-sources/ai-playbook`) as submodules of the PRIVATE `Wizarck/ai-playbook` repo. The default `GITHUB_TOKEN` scope is consumer-repo only; cross-repo submodule clone needs `Contents:R` on the playbook + skills repos. Mirrors `ci.yml`. Per gotchas #7. Followup tracked from v0.9.0-rc1 closed.
 
 ### Added (since v0.9.0-rc3)
 
@@ -3937,7 +3944,7 @@ The 3-layer architecture worked exactly as designed: L0 (CodeRabbit primary) han
 
 ## [0.9.0-rc3] — 2026-05-01 — bare-repo + per-branch worktree layout (default for new consumers)
 
-Codifies the directory layout senior-developer practice (Cugerone, Medeski, ChristopherA) recommends for projects that ship in waves of 5–10 concurrent OpenSpec slices. The implicit pre-v0.9.0 default (single working tree at `<repo>/`) saturated in consumer-c-legacy Module 2 (11 concurrent changes); the new layout makes every change-id a peer subdirectory under one parent, sharing one `.bare/` git database.
+Codifies the directory layout senior-developer practice (Cugerone, Medeski, ChristopherA) recommends for projects that ship in waves of 5–10 concurrent OpenSpec slices. The implicit pre-v0.9.0 default (single working tree at `<repo>/`) saturated at 11 concurrent changes; the new layout makes every change-id a peer subdirectory under one parent, sharing one `.bare/` git database.
 
 Existing consumers on the legacy single-tree layout keep working — migration is opt-in via the new runbook §3.
 
@@ -3956,18 +3963,18 @@ Existing consumers on the legacy single-tree layout keep working — migration i
 ### Notes
 
 - Migration from legacy is **not breaking**: the `path` entry in `~/.ai-playbook/projects.yaml` is unchanged (the dispatcher resolution treats it as parent-of-cwd, so cwd in `<repo>/master/` still resolves through the same registry entry as cwd in `<repo>/` did).
-- First real-world migration: consumer-c-legacy, 2026-05-01. Lessons folded back into the runbook §3.5 (Windows cwd-lock workaround) and §3.6 (`git worktree repair` as the recovery step after the rename).
-- The naming rule "worktree dir == openspec change-id" is enforced by `wt_add.py` but **not** retroactively imposed: consumer-c-legacy still has `m1-ingredients/` while its change-id is `module-1-ingredients-implementation`. This mismatch is cosmetic and will be cleaned up after the slice merges. Future slices use exact names.
+- Migration lessons are folded into the runbook §3.5 (Windows cwd-lock workaround) and §3.6 (`git worktree repair` as the recovery step after the rename).
+- The naming rule "worktree dir == openspec change-id" is enforced by `wt_add.py` but **not** retroactively imposed: an existing worktree may still be named `m1-ingredients/` while its change-id is `module-1-ingredients-implementation`. This mismatch is cosmetic and will be cleaned up after the slice merges. Future slices use exact names.
 
 ## [0.9.0-rc2] — 2026-05-01 — rolls v0.8.7 forward into the v0.9.0 line
 
-Cut to recover from a tag-ordering miss: the v0.8.7 fix (`opsx_apply_companion` default-branch auto-detect, commit `8ea91e4`) landed on `main` 3m34s **AFTER** v0.9.0-rc1 was tagged + propagated. Consumers that merged the v0.9.0-rc1 bump PR (all 5) ended up with the **broken** companion that hardcodes `origin/main` — which fails on `master`-default repos (consumer-c-legacy, by design).
+Cut to recover from a tag-ordering miss: the v0.8.7 fix (`opsx_apply_companion` default-branch auto-detect, commit `8ea91e4`) landed on `main` 3m34s **AFTER** v0.9.0-rc1 was tagged + propagated. Consumers that merged the v0.9.0-rc1 bump PR (all 5) ended up with the **broken** companion that hardcodes `origin/main` — which fails on `master`-default repos.
 
 rc2 is the v0.9.0-rc1 bundle PLUS the v0.8.7 fix folded in. Also adds the retroactive `v0.8.7` and `v0.8.8` tags (info-only — `v0.8.8` content was already in rc1's bundle; `v0.8.7` content is new in rc2).
 
 ### Fixed (carried forward from v0.8.7)
 
-- **`scripts/opsx_apply_companion.py::_detect_default_branch()`** — reads `origin/HEAD` (e.g. `refs/remotes/origin/main`), falling back to a literal probe of `origin/main` then `origin/master` then any other ref present. Slice branches now rebase against the actual default branch instead of a hardcoded `main`. Critical for consumer-c-legacy (default branch = `master`).
+- **`scripts/opsx_apply_companion.py::_detect_default_branch()`** — reads `origin/HEAD` (e.g. `refs/remotes/origin/main`), falling back to a literal probe of `origin/main` then `origin/master` then any other ref present. Slice branches now rebase against the actual default branch instead of a hardcoded `main`. Critical for repos whose default branch is `master`.
 
 ### Notes
 
@@ -3981,7 +3988,7 @@ Codifies the manual Profile-B fallback the worker AI applies when CodeRabbit is 
 ### Added
 
 - **L1 — `scripts/check_coderabbit_status.py`** (~80 LOC): polls `gh pr view --comments` for CodeRabbit; classifies into `available` / `rate-limited` / `silent` / `error`. Returns JSON on stdout + exit codes (0/1/2/3). Pure stdlib + `gh` CLI; no API token.
-- **L1 — [`docs/runbooks/coderabbit-fallback.md`](docs/runbooks/coderabbit-fallback.md)**: structured guide for the worker AI when L1 fires. 7-category diff inspection (type / async / errors / security / edge cases / public API / spec compliance) + canonical §4.5 schema + 5 anti-patterns + reference run (consumer-e PR #41).
+- **L1 — [`docs/runbooks/coderabbit-fallback.md`](docs/runbooks/coderabbit-fallback.md)**: structured guide for the worker AI when L1 fires. 7-category diff inspection (type / async / errors / security / edge cases / public API / spec compliance) + canonical §4.5 schema + 5 anti-patterns.
 - **L2 — `scripts/post_self_review_checklist.py`** (~280 LOC): reads PR diff + body; if §4.5 is populated (3 markers + non-stub), exits silently and marks status check ✅; if empty/stubbed, posts a structured fallback checklist as a PR comment + marks status check ❌. Markdown bold (`**Profile**:`) is normalised to plain (`Profile:`) before matching.
 - **L2 — `templates/new-project/.github/workflows/coderabbit-fallback.yml.tmpl`**: GH Action (`pull_request: [opened, synchronize]`). Sleeps 5 min, runs detection + checklist scripts. Skips dependabot/renovate/github-actions PRs. `secrets.GITHUB_TOKEN` only — no PAT.
 - **`scripts/bootstrap_gh_project.py`**: `apply_profile()` now copies the new workflow under both Profile A and Profile B (the L2 status check is informational unless added to required-checks manually). Helper: `write_coderabbit_fallback_workflow()`. Idempotent; "delete to refresh" semantics.
@@ -3996,12 +4003,12 @@ Codifies the manual Profile-B fallback the worker AI applies when CodeRabbit is 
 ### Notes
 
 - **Status check `ai-self-review-required` is opt-in** by default — informational, not in required-checks. Profile A consumers add it manually if they want strict enforcement (avoids breaking in-flight PRs at v0.9.0 rollout).
-- **Validation plan**: validate L1 + L2 on `consumer-e` slice 3 (`persistence-tenant-enforcement`) before tagging stable. If both layers behave clean → tag `v0.9.0` stable → cascade to all 5 consumers.
+- **Validation plan**: validate L1 + L2 on a real slice before tagging stable. If both layers behave clean → tag `v0.9.0` stable → cascade to all 5 consumers.
 - **Trade-offs documented in roadmap**: L1 blocks the AI session for ~5 min per PR (acceptable; evolve to background-poll if annoying); L2 generates a redundant comment if L1 was slow (mitigated by body-check just-before-post; small race window); 4 alternatives rejected (Ollama, only-L1, only-L2, GH Merge Queue).
 
 ## [0.8.8] — 2026-05-01 — propagate-skills-bump ships submodule advance + skills mirror in one PR
 
-Surfaced 2026-05-01 in consumer-c-legacy: `AGENTS.md` frontmatter said `Wizarck/ai-playbook@v0.8.6` but `.skills-sources/ai-playbook` submodule pointer was still at v0.7.1 (`8d5f68c`), and `skills/` tracked mirror was stale relative to the new tag's contents. Every consumer would have needed a manual `bootstrap.py --refresh-skills` after merging the bump PR — silent half-propagation.
+`AGENTS.md` frontmatter said `Wizarck/ai-playbook@v0.8.6` but `.skills-sources/ai-playbook` submodule pointer was still at v0.7.1 (`8d5f68c`), and `skills/` tracked mirror was stale relative to the new tag's contents. Every consumer would have needed a manual `bootstrap.py --refresh-skills` after merging the bump PR — silent half-propagation.
 
 ### Fixed
 
@@ -4016,14 +4023,11 @@ Surfaced 2026-05-01 in consumer-c-legacy: `AGENTS.md` frontmatter said `Wizarck/
 
 ### Migration
 
-Bump submodule (previous → v0.8.8). Verified end-to-end against consumer-c-legacy:
-- Pre-fix state: AGENTS.md@v0.8.6 + submodule@v0.7.1 (drift).
-- `materialise_skills(consumer-c-legacy-m1)` → 123 skills materialised from 2 sources, 2 mirrors regenerated, submodule advanced 8d5f68c → cd31441 (v0.8.6), no errors.
-- Post-fix state: AGENTS.md@v0.8.6 + submodule@v0.8.6 + skills/* tracked mirror regenerated.
+Bump submodule (previous → v0.8.8).
 
 ## [0.8.7] — 2026-05-01 — opsx_apply_companion supports `master` default branch
 
-Surfaced when consumer-c-legacy (`master` default branch) ran the companion before its first M1 slice commit and got `git rev-parse origin/main` exit 128.
+Surfaced when a `master`-default-branch repo ran the companion before its first slice commit and got `git rev-parse origin/main` exit 128.
 
 ### Fixed
 
@@ -4039,7 +4043,7 @@ Surfaced when consumer-c-legacy (`master` default branch) ran the companion befo
 ### Migration
 
 Bump submodule v0.8.6 → v0.8.7. Verified against:
-- consumer-c-legacy (`master` default) — runs cleanly, captures Base SHA from `origin/master`.
+- a `master`-default repo — runs cleanly, captures Base SHA from `origin/master`.
 - ai-playbook (`main` default) — backwards-compatible.
 
 ## [0.8.6] — 2026-05-01 — DESIGN.md format spec + Google design.md tier 1 adoption
@@ -4067,10 +4071,6 @@ Extends `docs/concepts/ux-track.md` con tier 1 adoptions de [google-labs-code/de
 
 - **`docs/concepts/ux-track.md` §11..§19 renumbered to §12..§20** (per-journey docs format → §12, Components catalogue → §13, ...). Internal §-references updated atomically.
 
-### Pilot validated
-
-`consumer-d/docs/ux/DESIGN.md` (Z.2 Phase 2 consumer-d dashboard, palette D Things 3 Night, variant D Structured timeline). Format verified production-ready: YAML schema consumido por agentes, OKLCH canonical en CSS runtime, hex equivalents en YAML, Iconography section preservada como ai-playbook extension sin breaking Google CLI tooling.
-
 ### Compatibility
 
 ai-playbook keeps unique value:
@@ -4093,8 +4093,7 @@ Adopted from Google (5 deltas):
 ### Migration
 
 Bump submodule v0.8.5 → v0.8.6. No code change required for consumer
-projects; pilot consumer (`consumer-d`) already shipped a DESIGN.md in
-the new format (commit ee41792). Other UI-consumer projects can adopt
+projects, which can adopt
 the format incrementally — old DESIGN.md files without YAML frontmatter
 remain valid (defensive parsing per §11.6).
 
@@ -4149,7 +4148,7 @@ companion, date refresh, auto-transition + dep-check scripts).
 - **`docs/runbooks/onboard-new-project.md` v1.1.0**: adds Profile A/B
   decision matrix as a "decisión previa"; adds Step 7 "Bootstrap GH
   Project + Profile A/B enforcement"; adds Step 8 "Install CodeRabbit
-  GH App" (Profile A only); adds Step 9 "Configure CONSUMER_D_GOD_MODE
+  GH App" (Profile A only); adds Step 9 "Configure AIPLAYBOOK_GOD_MODE
   secret" for private-submodule CI; adds Step 11 "Copy auto-transition
   + dep-check workflow templates"; refreshes cross-references with new
   scripts + templates.
@@ -4204,8 +4203,8 @@ overhaul.
 - **`scripts/propagate_skills_bump.py`** (gotcha surfaced 2026-05-01):
   `_edit_frontmatter_skills_source()` now refreshes the `updated:` line
   in lockstep with `skills_sources` rewrites. Previously, automated
-  bumps left AGENTS.md frontmatter with a stale date — observed in
-  consumer-e's PR #32 (rc7 bump) where AGENTS.md kept `updated:
+  bumps left AGENTS.md frontmatter with a stale date — e.g.
+  AGENTS.md kept `updated:
   2026-04-30` after a 2026-05-01 bump.
 
 ### Migration
@@ -4236,9 +4235,7 @@ templates shipped in v0.8.0 now have their backing scripts.
   CLI: `python -m scripts.auto_transition_blocked_todo --owner X --project-number N --slicing-file docs/openspec-slice.md`
 
   Wired by `templates/new-project/.github/workflows/project-status.yml.tmpl`
-  on push to main. Smoke-tested on consumer-e Project #2 (correctly
-  identifies 1 transitionable + 17 still-blocked-with-unmet-deps + 2
-  other-status items across the 20-slice plan).
+  on push to main.
 
 - **`scripts/check_slice_dependencies.py`** (per release-management.md §6.2):
   hard enforcement of the dependency graph at PR merge time. Given a
@@ -4291,7 +4288,7 @@ v0.8.1 codifies the contract.
   - **gotcha #13**: `apply_branch_protection()` now auto-detects the
     repo's default branch via `detect_default_branch()` (queries
     `gh repo view --json defaultBranchRef`). No longer hardcodes `main`.
-    consumer-c-legacy (default `master`) and other legacy consumers now work.
+    Repos with a `master` default branch (legacy consumers) now work.
   - **gotcha #12**: `apply_branch_protection()` now UNIONS `required_checks`
     with the existing protection's contexts via
     `fetch_existing_required_checks()`. Re-running bootstrap no longer
@@ -4311,7 +4308,7 @@ UNION semantics will preserve them on subsequent calls.
 
 ## [0.8.0] — 2026-05-01 — Profile A/B + Branch+SHA + supersede + spec-edit fix (stable)
 
-Promotes v0.8.0-rc7 to stable after validation against consumer-e. The
+Promotes v0.8.0-rc7 to stable after validation. The
 supersede logic was demonstrated **end-to-end in production**: when the rc7
 propagate-bump fired against 5 consumers, 30+ stale `chore/bump-playbook-*`
 PRs (v0.7.0 through rc6, accumulated across 6 prior tag pushes in 4 of the
@@ -4319,22 +4316,12 @@ PRs (v0.7.0 through rc6, accumulated across 6 prior tag pushes in 4 of the
 pile-up failure mode the supersede helper was designed to prevent.
 
 This stable promotion contains zero functional changes vs rc7. See the
-rc7 entry below for the full feature list. The rc7 → stable validation
-matrix:
-
-- consumer-e (Profile A, public): bumped, both bump PRs CI green incl.
-  CodeRabbit review, merged via `--admin`. `bootstrap_gh_project.py
-  --profile auto` ran idempotently — 0 schema additions (everything was
-  already manually applied 2026-04-30→05-01), Profile A re-applied.
-- 4 other consumers received clean rc7 bump PRs with all prior PRs
-  superseded: consumer-c-legacy (closed 8 stale PRs), consumer-d (closed 8),
-  consumer-b (closed 8), livekit (closed 8). Net: 32 PRs auto-closed,
-  4 fresh PRs opened.
+rc7 entry below for the full feature list.
 
 ## [0.8.0-rc7] — 2026-05-01 — Profile A/B + Branch+SHA + supersede + spec-edit fix
 
-Substantial release-management upgrade surfaced through consumer-e slice 1
-dogfooding (2026-04-29 → 2026-05-01). Codifies the visibility-driven
+Substantial release-management upgrade.
+Codifies the visibility-driven
 enforcement model so consumer projects pick the right setup automatically,
 adds trace fields for slice-branch diagnostics, and fixes two upstream bugs
 that made every consumer PR fail.
@@ -4371,21 +4358,12 @@ that made every consumer PR fail.
   newer bump PR opens. Wired into both `propagate_bump.py` (prefix
   `chore/bump-playbook-`) and `propagate_skills_bump.py` (per-source prefix
   `chore/bump-skills-<source>-`). Prevents the rc1→rc6 pile-up of 10 stacked
-  pairwise-conflicting PRs observed in consumer-e.
+  pairwise-conflicting PRs.
 - **`scripts/block_manual_spec_edit.py`** (PR #16): hook now intersects
   input candidates with the actual diff (`git diff --cached` /
   `--from-ref/--to-ref` / `HEAD~1..HEAD`) before applying the archive-marker
   check. Fixes false-positive that broke every consumer PR running pre-commit
   with `--all-files` after openspec/specs/ files existed in main.
-
-### Validated against
-
-- consumer-e (Profile A, public): branch protection + auto-merge applied
-  manually 2026-04-30; trace fields added to Project #2 manually 2026-05-01.
-  PRs #22 (slice 1) + #23 (CodeRabbit config) shipped through new flow.
-- Migration matrix (§8.1) reflects audit results: ai-playbook + 4 consumers
-  stay private (Profile B); consumer-e + consumer-c-legacy + consumer-d-skills go
-  public (Profile A).
 
 ### Migration
 
@@ -4403,7 +4381,7 @@ Idempotent — only applies what's missing.
 
 ## [0.8.0-rc6] — 2026-04-30 — agents-md-v1 schema accepts pre-release semver suffix
 
-Hot fix surfaced when bumping consumer-e's `inherits_from` pin to
+Hot fix surfaced when bumping an `inherits_from` pin to
 `v0.8.0-rc5`: the schema regex didn't allow the `-rcN` suffix, so the
 `schema-validate-agents` pre-commit hook rejected it. This is a real
 limitation — pinning to an rc tag during dogfooding (before stable
@@ -4425,16 +4403,12 @@ Hot fix surfaced when re-running `bootstrap_gh_project.py` against a populated p
 
 - `scripts/bootstrap_gh_project.py` — all four `subprocess.run` calls now pass `encoding="utf-8"` explicitly. This is portable (UTF-8 is also the modern default on Linux/macOS) and prevents the silent-drop on Windows.
 
-### Validated against
-
-Re-run on Wizarck/consumer-e#2 with cards already populated: 20 items inspected via `list_items` (response includes accented characters), 0 errors, body-refresh diff computed correctly.
-
 ## [0.8.0-rc4] — 2026-04-30 — mcp-validate pre-commit context + GH Project card body template
 
-Two friction fixes surfaced during consumer-e's slice 1 implementation:
+Two friction fixes:
 (a) `mcp-validate` pre-commit hook failed on missing env vars (live in
 SOPS-encrypted dotenv files, not sourced before `git commit`) and on
-consumer-d's stale personal layer; (b) GH Project cards rendered the
+a stale personal layer; (b) GH Project cards rendered the
 scope note as a wall of text without back-references to the source
 artefacts in the repo (violates DRY — the truth is in `docs/openspec-
 slice.md`, the card should *link* to it).
@@ -4447,7 +4421,7 @@ slice.md`, the card should *link* to it).
   fired). CI / explicit runs still hard-fail. Add `--skip-env-check`
   for offline CI parity.
 - **Personal-layer fallback notice**: when the resolver falls back to
-  `~/Projects/consumer-d/mcp-servers.yaml` (or Windows equivalent),
+  `~/Projects/project-d/mcp-servers.yaml` (or Windows equivalent),
   emit a stderr notice so the dev sees the cross-project read happening.
   Set `$AIPLAYBOOK_PERSONAL_MCP_FILE` or create `~/.config/mcp-servers.yaml`
   to override.
@@ -4472,18 +4446,9 @@ slice.md`, the card should *link* to it).
   for repo-link) now run in dry-run mode so the diff report is accurate.
   Mutations remain skipped.
 
-### Validated against
-
-- `mcp-validate` no longer fails consumer-e's `pre-commit run --all-files`
-  on a fresh shell with no env vars sourced.
-- consumer-e's Project #2: 20 cards body-refreshed; one example shows
-  bounded-context · deps · FRs header + scope note + 4-link References
-  block (slice plan row anchor + proposal + arch/data/structure docs +
-  HITL gates log).
-
 ## [0.8.0-rc3] — 2026-04-30 — repo linking + visibility for bootstrap_gh_project
 
-Surfaced when consumer-e's GH Project #2 didn't appear in the repo's
+Surfaced when a GH Project didn't appear in the repo's
 Projects tab after the initial bootstrap — Projects v2 always live at
 user/org scope and need an explicit link mutation to be visible from
 the repo page. v0.8.0-rc1's `bootstrap_gh_project.py` knew how to
@@ -4504,21 +4469,15 @@ closed.
 - **`docs/concepts/release-management.md` §5.4** new subsection covering the
   user/org-vs-repo scope distinction + visibility independence.
 
-### Validated against
-
-Wizarck/consumer-e#2 (already linked from the manual `gh project link`
-that surfaced the gap): dry-run reports "already linked" + skips the
-mutation, exit 0 — confirms idempotency.
-
 ## [0.8.0-rc2] — 2026-04-30 — bootstrap_gh_project script bug fixes
 
 (see PR #8 for full details — unchanged)
 
 ## [0.8.0-rc1] — 2026-04-30 — release management contract
 
-Codifies the source-control + project-board side of the BMAD+OpenSpec hybrid flow. Until now the runbook said "implementation in `slice/<id>` branch" and Gate F said "implementation diff + tests pass" without normatively answering: **is each `tasks.md` checkbox a separate branch + PR, or do all tasks of a change ship in one PR?** The implicit answer (one branch per change, tasks as PR checklist) was correct but undocumented; that gap surfaced in `consumer-e` 2026-04-29 when slicing reached Gate E. v0.8.0-rc1 closes the gap.
+Codifies the source-control + project-board side of the BMAD+OpenSpec hybrid flow. Until now the runbook said "implementation in `slice/<id>` branch" and Gate F said "implementation diff + tests pass" without normatively answering: **is each `tasks.md` checkbox a separate branch + PR, or do all tasks of a change ship in one PR?** The implicit answer (one branch per change, tasks as PR checklist) was correct but undocumented. v0.8.0-rc1 closes the gap.
 
-This is a **release candidate** — the contract is validated via consumer-e Wave 0 (slices 1-3) before promoting to v0.8.0 stable. Existing consumers on v0.7.x are NOT auto-bumped; they migrate per `release-management.md` §8 when ready.
+This is a **release candidate** — the contract is validated before promoting to v0.8.0 stable. Existing consumers on v0.7.x are NOT auto-bumped; they migrate per `release-management.md` §8 when ready.
 
 ### Added — Release management contract
 
@@ -4531,13 +4490,9 @@ This is a **release candidate** — the contract is validated via consumer-e Wav
 - **`docs/concepts/runbook-bmad-openspec.md` §5** — Gate F row now mentions "CI green on slice branch" as prerequisite (was implicit before).
 - **`docs/concepts/runbook-bmad-openspec.md` §6** — cross-refs add `release-management.md` + `issue-tracking.md`.
 
-### Validated against
-
-- **consumer-e (Wizarck/consumer-e)** — bootstrap of GH Project #2 successful in dry-run mode (3 status options already aligned, 2 added: `Blocked`, `Review`; both recommended custom fields already present; 20 slice rows parsed; 20 draft items would be created). Real run pending v0.8.0-rc1 merge to playbook main + consumer-e bump.
-
 ### Roadmap
 
-- v0.8.0 stable promotion: after consumer-e Wave 0 (slices 1-3) lands, retro confirms the contract works under load. Items 1-10 from `docs/concepts/v0.8.0-roadmap.md` are still tracked separately; this RC is **scoped only** to release management.
+- v0.8.0 stable promotion: after a first wave of slices lands, retro confirms the contract works under load. Items 1-10 from `docs/concepts/v0.8.0-roadmap.md` are still tracked separately; this RC is **scoped only** to release management.
 - Optional follow-ups (not blocking v0.8.0 stable):
   - GH Action template `.github/workflows/project-status.yml` for auto Status transitions (commit-passing-CI → Review; squash-merge → Done; downstream-deps-merged → Blocked-to-Todo). Doc placeholder in spec §6.3; implementation deferred.
   - Optional hard dependency-check workflow `.github/workflows/dep-check.yml` per spec §6.2.
@@ -4552,13 +4507,12 @@ Adds the `apply-fix-contract.md` spec — the canonical contract any workflow MU
 
 ### Stale references retired (in consumers)
 
-- The strings `"T29"` and `"break-glass.md §propose-only ceiling"` no longer appear in any new code authored against v0.7.1+. The `§propose-only ceiling` section never existed in `break-glass.md`; the citation was a forward-reference to a milestone that was never scheduled. Consumers updating to v0.7.1 should also update their own `langgraph-aiops/workflows/hitl.py` and `langgraph-aiops/consumer-d_ops/tools.py` to drop the `NotImplementedError("APPLY_FIX mode deferred to T29")` guards and reference `apply-fix-contract.md` instead. consumer-d lands this companion change in its own commit (Change A Phase 1).
+- The strings `"T29"` and `"break-glass.md §propose-only ceiling"` no longer appear in any new code authored against v0.7.1+. The `§propose-only ceiling` section never existed in `break-glass.md`; the citation was a forward-reference to a milestone that was never scheduled. Consumers updating to v0.7.1 should also update their own `langgraph-aiops/workflows/hitl.py` and `langgraph-aiops/project-d_ops/tools.py` to drop the `NotImplementedError("APPLY_FIX mode deferred to T29")` guards and reference `apply-fix-contract.md` instead.
 
 ### Notes
 
 - v0.7.1 is **additive** — no existing spec is modified, no contract is broken. v0.7.0 consumers can adopt at their own pace.
-- The companion code refactor (replacing the `NotImplementedError` guards in `hitl.py` and `tools.py`) lives in consumer-d, not in this repo. The v0.7.1 bump in consumers via `propagate-playbook-bump.yml` opens the playbook-pin PR; the consumer-d code refactor is a separate consumer-d commit gated by the new pin.
-- Phase 5 background: the `apply-fix-contract.md` spec, the consumer-d code refactor, and the upcoming HITL channel adapters (Telegram + WhatsApp via wa-mcp + Hermes), durable notification queue, LiteLLM enforcement, and incident-response/model-migration spec completion are tracked in `consumer-d/docs/openspec-slice-phase5.md` as 4 OpenSpec changes (one of which — `add-hitl-channels-and-apply-fix` — authored this v0.7.1 spec).
+- The companion code refactor (replacing the `NotImplementedError` guards in `hitl.py` and `tools.py`) lives in the consuming project, not in this repo. The v0.7.1 bump in consumers via `propagate-playbook-bump.yml` opens the playbook-pin PR; the code refactor is a separate consumer commit gated by the new pin.
 
 ## [0.7.0] — 2026-04-28 — alignment + bridges + audit incorporation
 
@@ -4591,7 +4545,7 @@ Major hardening of the BMAD↔OpenSpec hybrid flow. v0.7.0 closes the seam betwe
 ### Roadmap
 
 - **`docs/concepts/v0.8.0-roadmap.md`** v0.1.0 — records design objectives + work items deferred from v0.7.0 to v0.8.0. Highlights:
-  - **KISS single-versioning** (Master, 2026-04-28): collapse `ai-playbook` + `consumer-d-skills` semver streams to one. Reduces AGENTS.md drift and per-consumer pin inconsistency.
+  - **KISS single-versioning** (Master, 2026-04-28): collapse `ai-playbook` + `project-d-skills` semver streams to one. Reduces AGENTS.md drift and per-consumer pin inconsistency.
   - Complete the `bmad-create-ux-design` v1→v2 migration (workflow.md was rewritten in v0.6.0; the steps/ files underneath still produce the v1 monolithic doc).
   - Vendor / lift `systematic-debugging` from `obra/superpowers` for the `/opsx:apply` worker debug path; wire the "3 failed fixes" rule to emit `⛔ ARCHITECTURE QUESTIONED`.
   - Two-stage review split (spec-compliance vs code-quality) per the superpowers audit.
@@ -4602,7 +4556,7 @@ Major hardening of the BMAD↔OpenSpec hybrid flow. v0.7.0 closes the seam betwe
 
 - v0.7.0 is **additive**. Existing consumers' v0.6.x docs and skill folders are valid; the new rules apply going forward.
 - Skill fixes (5 surgical edits to bmad-create-prd, bmad-create-architecture, bmad-code-review, openspec-propose, openspec-archive-change) align them with the new specs. None breaks backwards compatibility — they add the right next-step pointers and verdict literals where they were missing or wrong.
-- Consumer propagation via the existing zero-touch loop will open auto-bump PRs across the 5 consumers (consumer-c-legacy, consumer-b, consumer-d, consumer-e, livekit) once this lands on `main`.
+- Consumer propagation via the existing zero-touch loop will open auto-bump PRs across the 5 consumers once this lands on `main`.
 
 ## [0.6.1] — 2026-04-27 — declarative tracker_kind + notify drift fix
 
@@ -4611,7 +4565,7 @@ Hardening pass on the consumers-routing layer that surfaced during the v0.6.0 PR
 ### Fixed
 
 - **`scripts/propagate_bump.py`** — was importing `emit` from `scripts/notify.py`, which exports `notify`. The mismatch logged `notify failed: cannot import name 'emit'` warnings during propagation but did not block PRs. Aligned the import + call site. Notifications now reach the JSONL queue + SMTP again.
-- **`scripts/issue_sync.py`** — replaced the implicit "private repo → Jira fallback" heuristic with a **declarative `tracker_kind` field** read from `consumers.yaml`. The previous flow had two latent failure modes: (a) any consumer name not in `CONSUMER_B_PROJECTS` fell silently to `consumer-a`, regardless of whether a Jira project should exist for it; (b) `gh` CLI unavailability triggered the Jira branch even for GH-only consumers. Both are gone. `decide_surface` now raises `RuntimeError` for any active consumer without a valid `tracker_kind` instead of silently picking a default. The class of drift the v0.6.0 PR caught (tests asserted `consumer-b`, code returned `consumer-a`) cannot recur.
+- **`scripts/issue_sync.py`** — replaced the implicit "private repo → Jira fallback" heuristic with a **declarative `tracker_kind` field** read from `consumers.yaml`. The previous flow had two latent failure modes: (a) any consumer name missing from a hard-coded table fell silently to a default Jira project, regardless of whether one should exist for it; (b) `gh` CLI unavailability triggered the Jira branch even for GH-only consumers. Both are gone. `decide_surface` now raises `RuntimeError` for any active consumer without a valid `tracker_kind` instead of silently picking a default. The class of drift the v0.6.0 PR caught (tests asserted one project key, code returned another) cannot recur.
 - **`scripts/release_cut.py`** — the Jira-fixVersion path now reads the project key via the new `issue_sync.jira_project_for(consumer_root)` public helper (registry-driven). The private `_jira_project_for(name)` heuristic was removed.
 
 ### Added
@@ -4623,7 +4577,7 @@ Hardening pass on the consumers-routing layer that surfaced during the v0.6.0 PR
 
 ### Removed
 
-- `scripts/issue_sync.py` private constants `CONSUMER_B_PROJECTS`, `CONSUMER_A_PROJECTS`, and `_jira_project_for(consumer_name)` function — replaced by the registry lookup.
+- `scripts/issue_sync.py` private per-consumer project constants and `_jira_project_for(consumer_name)` function — replaced by the registry lookup.
 - `tests/test_issue_sync.py::test_jira_project_for_names` (function deleted).
 - `tests/test_issue_sync.py::test_decide_surface_private_falls_back_to_jira` (asserts behaviour that should not exist — there is no silent fallback to Jira).
 
@@ -4634,7 +4588,7 @@ Hardening pass on the consumers-routing layer that surfaced during the v0.6.0 PR
 
 ## [0.6.0] — 2026-04-27 — UX Track v2: three-step order, palette decoupling, OKLCH-canonical, components catalogue
 
-Substantial expansion of the UX Track from v0.5.0's framing into operational rules, based on consumer learnings (consumer-c-legacy Module 2 UX track). Additive against v0.5.0; existing consumers may migrate at their own pace.
+Substantial expansion of the UX Track from v0.5.0's framing into operational rules, based on consumer learnings. Additive against v0.5.0; existing consumers may migrate at their own pace.
 
 ### Added
 
@@ -4667,7 +4621,7 @@ Substantial expansion of the UX Track from v0.5.0's framing into operational rul
 
 - v0.6.0 is **additive**. Existing consumers' UX docs from v0.5.0 are valid; the new rules apply going forward. Migration is opt-in; no consumer is forced to retrofit.
 - Star counts and license fields for the 5 engines verified via `gh api repos/{owner}/{repo}` on 2026-04-27. Refresh annually.
-- Consumer propagation via the existing zero-touch playbook propagation loop will open auto-bump PRs across the 5 consumers (consumer-c-legacy, consumer-b, consumer-d, consumer-d-rag, consumer-d-skills) once this lands on `main`.
+- Consumer propagation via the existing zero-touch playbook propagation loop will open auto-bump PRs across the 5 consumers once this lands on `main`.
 
 ## [0.5.2] — 2026-04-27 — docs-deploy: gate the deploy job behind PAGES_ENABLED
 
@@ -4738,23 +4692,17 @@ changes, and component sprawl during `/opsx:apply`.
   DESIGN.md format land in the consumer's `AGENTS.md` §7.
 - **No-op** for headless / API-only consumers via the one-line escape hatch.
 
-### Validating use-case
-
-consumer-c-legacy Module 2 (Recipes/Escandallo) PRD discovery (2026-04-26 — 2026-04-27)
-surfaced the UX gap in real time. Five external skill repos analysed; star
-counts + licenses verified via `gh api repos/{owner}/{repo}` on 2026-04-27.
-
 ## [0.4.0] — 2026-04-26 — skills distribution: copy-paste → semver-pinned submodule
 
 Implements [RFC-0001](rfcs/RFC-0001-skills-distribution.md). Skills now ship
 with the same audit/versioning posture the playbook itself enjoys: source repos
-(`ai-playbook`, `consumer-d-skills`) cut independent semver tags; consumers pin per
+(`ai-playbook`, `project-d-skills`) cut independent semver tags; consumers pin per
 source via `AGENTS.md.skills_sources` + `consumers.yaml.skills_pins`; bootstrap
 materialises content via git submodule sparse-checkout into a vendor-neutral
 `<consumer>/skills/` path; per-LLM mirrors at `.claude/skills/` and
 `.gemini/skills/` are gitignored copies regenerated deterministically.
 
-The HTTP registry at `consumer-d-skills.consumer-bfood.com` keeps its discovery role
+The HTTP registry at `project-d-skills.example.com` keeps its discovery role
 (catalog of `{name, description, scope, version, source, updated}`) — content
 distribution moves to git, where it belongs. The `source` field in the catalog
 now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
@@ -4762,8 +4710,7 @@ now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
 ### Added
 
 - `skills/` (1067 files) — canonical methodology skills tree under the playbook
-  itself, populated from `consumer-c-legacy/.claude/skills/` (the de-facto canonical
-  copy). 65 BMAD agents/workflows/QA + 4 OpenSpec commands = 69 skills.
+  itself. 65 BMAD agents/workflows/QA + 4 OpenSpec commands = 69 skills.
 - `rfcs/RFC-0001-skills-distribution.md` — full design rationale, alternatives
   considered, KPIs, FRs/NFRs, migration recipe per consumer.
 - `docs/concepts/skills-distribution.md` — formal contract for the new distribution
@@ -4805,18 +4752,18 @@ now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
   pre-migration consumers).
 - `consumers.yaml`: schema gains optional `skills_pins` field (dict of
   `<source-repo-slug>: <git-ref>`). No existing consumer rows modified.
-- `consumer-d-skills` (companion repo): catalog moves from root to
-  `consumer-d-skills/skills/` (68 git-mv'd renames at 100% similarity, history
+- `project-d-skills` (companion repo): catalog moves from root to
+  `project-d-skills/skills/` (68 git-mv'd renames at 100% similarity, history
   preserved). `Dockerfile` env updated (`SKILLS_CATALOG_DIR=/app/skills`,
   scoped `COPY skills`). README + `docs/api-contract.md` reflect the new
   canonical layout. Backend (`backend/`), tests (`tests/`), docs (`docs/`),
-  `claude-plugins-official/` and `hindsight/` stay at root. consumer-d-skills cut
+  `claude-plugins-official/` and `hindsight/` stay at root. project-d-skills cut
   as v0.2.0 in parallel with this playbook release.
 
 ### Deprecated
 
 - `Wizarck/skills-manager-personal` — frozen since 2026-04-07, content
-  identical to `consumer-d-skills` for shared skills, no installer remaining
+  identical to `project-d-skills` for shared skills, no installer remaining
   (CLI lived on a now-decommissioned PC). Will be archived on GitHub as part
   of Phase 5.
 
@@ -4824,14 +4771,11 @@ now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
 
 - 568 unit tests pass globally (45 new + 523 pre-existing); 2 skipped E2E
   guard `AIPLAYBOOK_E2E=1`. The 2 pre-existing failures in
-  `tests/test_issue_sync.py` (`consumer-b → consumer-a` mapping) are unrelated
+  `tests/test_issue_sync.py` (`project-b → project-a` mapping) are unrelated
   to this release — verified to fail also at parent commit `01fccf9`.
 - Smoke test (Win11 Pro, Git Bash + native PowerShell): bootstrap dry-run +
   live materialisation + drift inject + `--fix` regen + drift re-check all
   pass per `docs/runbooks/skills-version-bump.md` smoke recipe.
-- `consumer-d-skills` test suite (21 tests) green post-restructure. Catalog
-  smoke test detects 64 valid skills with `SKILLS_CATALOG_DIR=./skills` (4
-  pre-existing broken-frontmatter skills are tracked as backlog cleanup).
 
 ### Migration
 
@@ -4927,7 +4871,7 @@ honestly, close the manual-vs-automation script duplication.
 ### Changed (BREAKING — see Migration below)
 
 - `mcp-servers-base.yaml` — restructured. Removed tenant-named entries
-  (`google-workspace-arturo`, `trello-arturo`, `atlassian-consumer-a`, etc).
+  (`google-workspace-arturo`, `trello-arturo`, `atlassian-project-a`, etc).
   Base now ships only generic templates (`atlassian`, `google-workspace`,
   `trello`) plus truly universal servers (`hindsight`, `litellm`,
   `guardrails-mcp`, `skills-registry`, `crm`, `rag`). Tenant-named
@@ -4942,8 +4886,8 @@ honestly, close the manual-vs-automation script duplication.
   the deprecated "Call MCP `hindsight.recall`" wording (the MCP tool isn't
   loaded in vanilla Claude Code sessions; the file-based delivery is canon).
   Consumer AGENTS.md files updated.
-- `consumer-d/mcp-servers.yaml` — `hindsight` entry's `url` no longer
-  includes the deprecated `/mcp/consumer-d/` path; aligned with the v1 layer
+- `project-d/mcp-servers.yaml` — `hindsight` entry's `url` no longer
+  includes the deprecated `/mcp/project-d/` path; aligned with the v1 layer
   file. `notes` field documents that REST API uses
   `/v1/default/banks/{bank}/...`.
 - `scripts/mcp/validate.py` already accepts `mcp-servers.project.yaml` as
@@ -4958,7 +4902,7 @@ honestly, close the manual-vs-automation script duplication.
 
 ### Migration (consumer + dev impact)
 
-For consumers (consumer-c-legacy, consumer-d, consumer-b): nothing breaks.
+For consumers: nothing breaks.
 The propagation Action handles the submodule bump as usual.
 
 For devs invoking scripts directly:
@@ -4970,7 +4914,7 @@ The shim still works through v0.x; will emit a stderr warning. Update
 your runbook bookmarks + shell aliases.
 
 For YOUR personal layer (`~/.config/mcp-servers.yaml`): no change — your
-existing entries (`google-workspace-arturo`, `trello-consumer-b`, etc) keep
+existing entries (`google-workspace-arturo`, `trello-project-b`, etc) keep
 working. They're now solely in the personal layer instead of being
 duplicated as `scope: universal` in the base.
 
@@ -4983,20 +4927,16 @@ across 6+ files.
 
 - 550 unit tests pass (was 522 in v0.2.3); +28 new tests across
   check_mcp_drift, propagate_bump, init_org, retain_memory shim.
-- `scripts/check_mcp_drift.py --consumer-root /c/Projects/consumer-d`
-  reports `✅ no drift across 1 server(s)` after the legacy yaml
-  endpoint cleanup.
 - `scripts/init_org.py --org-name acme --dry-run` produces a clean
   25-replacement plan touching exactly 4 files; no specs/* drift.
-- Re-rendered `.mcp.json` for consumer-c-legacy shows 9 generic servers (was
+- Re-rendered `.mcp.json` shows 9 generic servers (was
   11 incl. `*-arturo` leak in v0.2.3).
 
-## [0.2.3] — 2026-04-25 — consumer-b onboarded + consumer-d mcp render + hook validated
+## [0.2.3] — 2026-04-25 — project-b onboarded + project-d mcp render + hook validated
 
 ### Added
 
-- `consumer-b/` (third active consumer) — `.ai-playbook/` submodule pinned to v0.2.2; `AGENTS.md` (v1 dispatcher); `mcp-servers.project.yaml` (project layer with `consumer-b` bank); `.claude/settings.json` (SessionStart hook); `.mcp.json` + `.gemini/settings.json` rendered. `consumers.yaml` updated.
-- `consumer-d/mcp-servers.project.yaml` — playbook-side project layer for the render pipeline. The legacy `mcp-servers.yaml` (v2-metadata SSOT for helm + desktop-stack + scripts) stays untouched; the playbook validator now resolves `mcp-servers.project.yaml` first, falls back to `mcp-servers.yaml` only when the legacy file declares `schema: mcp-servers/v1`. consumer-d's `.mcp.json` rendered (23 servers across base+project+personal).
+- `project-d/mcp-servers.project.yaml` — playbook-side project layer for the render pipeline. The legacy `mcp-servers.yaml` (v2-metadata SSOT for helm + desktop-stack + scripts) stays untouched; the playbook validator now resolves `mcp-servers.project.yaml` first, falls back to `mcp-servers.yaml` only when the legacy file declares `schema: mcp-servers/v1`.
 - `docs/runbooks/rotate-secrets.md` §"Fine-grained PAT scope" — explicit GitHub UI fields (token name, description, resource owner, expiration, repos-to-select, exact permission grants).
 
 ### Changed
@@ -5005,13 +4945,9 @@ across 6+ files.
 
 ### Verified end-to-end on 2026-04-25
 
-- SessionStart hook fires correctly: `sops exec-env ../consumer-d/secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id consumer-c-legacy` writes `injected-context.md` with 7 entries (semantic indexing breaks one retained lesson into multiple recall results, as designed).
-- Retain CLI works against production: `retain_lesson.py --bank consumer-c-legacy --content "..."` lazy-creates the bank, sanitises, POSTs, returns `✅ retained 1 item(s) to bank=consumer-c-legacy; usage=4844 tokens`.
+- SessionStart hook fires correctly: `sops exec-env ../project-d/secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id project-c-legacy` writes `injected-context.md` with 7 entries (semantic indexing breaks one retained lesson into multiple recall results, as designed).
+- Retain CLI works against production: `retain_lesson.py --bank project-c-legacy --content "..."` lazy-creates the bank, sanitises, POSTs, returns `✅ retained 1 item(s) to bank=project-c-legacy; usage=4844 tokens`.
 - Loop closed: retain → semantic indexing → recall → injected context all working against production Hindsight v0.5.4 behind CF Access.
-
-### Fixes (in consumer-d, related)
-
-- `secrets/secrets.env` — added `HINDSIGHT_URL=https://consumer-d-hindsight.consumer-bfood.com` (was missing; SessionStart hooks were failing silently via `|| true`).
 
 ## [0.2.2] — 2026-04-24 — Hindsight loop closed (read + write + sessionstart wiring)
 
@@ -5020,8 +4956,6 @@ across 6+ files.
 - `scripts/_hindsight.py` — shared HTTP client (CF Access auth + bearer fallback + 45 s default timeout). 9 tests.
 - `scripts/retain_lesson.py` — write side. CLI: `--content`, `--bulk JSONL`, `--replay-queue`. Sanitises through `secrets_scan` before POST. Hard-blocks API-key shapes, soft-redacts softer matches. Queues to `.ai-playbook/hindsight-queue.jsonl` when Hindsight is unreachable. 9 tests.
 - `docs/runbooks/hindsight-retain.md` — when to retain, how to invoke, sanitisation contract, degraded-mode replay, verify-it-landed.
-- `consumer-c-legacy/.claude/settings.json` + `consumer-d/.claude/settings.json` — SessionStart hooks invoking `inject_context.py` with the project bank id (timeout 60 s).
-- `consumer-c-legacy/mcp-servers.yaml` (project layer, schema mcp-servers/v1) + rendered `consumer-c-legacy/.mcp.json` + `consumer-c-legacy/.gemini/settings.json` (11 servers from base+project layers; personal layer excluded since consumer-c-legacy is public AGPL).
 
 ### Changed
 
@@ -5030,22 +4964,14 @@ across 6+ files.
 - `docs/concepts/memory-hierarchy.md` §5 — added the canonical retain CLI invocation as the lead bullet.
 - `docs/concepts/session-start-hook.md` — bumped hook timeout from 15 s to 60 s; updated command to use full path + `--bank-id <slug>`.
 
-### Replayed to Hindsight
-
-Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-project personal knowledge): zero-touch propagation loop architecture, runbooks-as-AI-executable doctrine, 3 GitHub Actions gotchas (setuptools / x-access-token / submodule auth via insteadOf), Hindsight production deployment shape (CF Access + REST endpoints + 30 s cold recall).
-
-### Known gap (deferred)
-
-`consumer-d/.mcp.json` not rendered — the existing `consumer-d/mcp-servers.yaml` follows a legacy v2-metadata schema that pre-dates the playbook's mcp-servers/v1 layer schema. Migrating it is a separate piece of work (touches helm chart consumers, sync-configs.py, etc.). The SessionStart hook wired in consumer-d works regardless because it shells out to `inject_context.py` directly — `.mcp.json` is only needed for in-session MCP tool registration which isn't load-bearing today.
-
 ## [0.2.1] — 2026-04-24 — docs + propagation automation
 
 ### Added
-- `consumers.yaml` — committed org-level registry of downstream repos consuming the playbook (distinct from per-dev `~/.ai-playbook/projects.yaml`). Schema `ai-playbook/consumers/v1`; active entries: consumer-c-legacy, consumer-d.
+- `consumers.yaml` — committed org-level registry of downstream repos consuming the playbook (distinct from per-dev `~/.ai-playbook/projects.yaml`). Schema `ai-playbook/consumers/v1`.
 - `scripts/bump_consumers.py` — manual CLI to bump every consumer's `.ai-playbook/` submodule pin against `~/.ai-playbook/projects.yaml`. Flags: `--tag`, `--dry-run`, `--only`, `--push`, `--open-pr`, `--allow-dirty`, `--force`, `--force-with-reason`.
 - `scripts/propagate_bump.py` — CI-side twin that reads `consumers.yaml` + `$GH_TOKEN`, clones each active consumer, bumps submodule, opens PR via `gh`. Idempotent (skips if PR already open). Emits `warn` notifications per PR.
 - `.github/workflows/propagate-playbook-bump.yml` — event-driven primary propagation path: fires `on: push: tags: v*.*.*`, runs `propagate_bump.py`, uploads notifications.jsonl. Needs repo secret `PLAYBOOK_PROPAGATION_TOKEN`.
-- `consumer-d/langgraph-aiops/workflows/playbook_bump_propagator.py` + CronJob wiring — daily circuit-breaker for the GH Action: queries consumer submodule SHAs, re-invokes propagator for laggards, emits `warn` on every firing (meaning the Action missed a fire).
+- `project-d/langgraph-aiops/workflows/playbook_bump_propagator.py` + CronJob wiring — daily circuit-breaker for the GH Action: queries consumer submodule SHAs, re-invokes propagator for laggards, emits `warn` on every firing (meaning the Action missed a fire).
 - `docs/concepts/dispatcher-chain.md`, `docs/rules/bootstrap-directive.rule.md`, `docs/tutorials/03-bootstrap-new-project.md` — 3 real v0.1.0 stubs closed to full v1.0.0 content.
 - `schemas/schema-agent-contract.json` — JSON Schema file extracted from the spec prose (was "stub pending T06 follow-up"); now the authoritative validation target.
 - README.md — full directory map (35 specs, 24 scripts, templates, docs, routers, rfcs, tests) + 4 persona getting-started paths + honest status.
@@ -5062,7 +4988,7 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
   - `docs/concepts/incident-response.md` activates at first paying client.
   - `docs/concepts/model-migration.md` activates at first pinned-model retirement.
   - `docs/concepts/notification-queue.md` full spec is T25+ (Phase 5).
-- Consumer pins today: consumer-c-legacy + consumer-d still at v0.1.0. The propagation loop above will open bump-to-v0.2.1 PRs on tag push; humans merge per propose-only HITL convention.
+- The propagation loop above will open bump-to-v0.2.1 PRs on tag push; humans merge per propose-only HITL convention.
 
 ## [0.2.0] — 2026-04-23 — MVP complete (T01–T23)
 
@@ -5083,32 +5009,30 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 - `docs/tutorials/05-curriculum.md` — 4-week dev learning path (Operator / Reviewer / Contributor / Maintainer candidate) with exit criteria.
 - `docs/concepts/channels.md` — solo-state + 8-row channels-by-purpose table + team-growth path + anti-patterns.
 
-**Subagent C — T23 upstream sync (ai-playbook + consumer-d):**
+**Subagent C — T23 upstream sync (ai-playbook + project-d):**
 - `docs/concepts/upstream-sync.md` + `templates/PATCHES.md.tmpl` + `docs/tutorials/07-fork-inventory.md` (with `TODO: clarify` on 4 upstream URLs).
 - `scripts/upstream_sync.py` (~528 lines) — local inspection tool, `list`/`status`/`refresh`/`mark-merged` subcommands. Refresh is propose-only — no auto-merge.
 - `tests/test_upstream_sync.py` — 20 tests.
-- `consumer-d/langgraph-aiops/workflows/upstream_refresher.py` (~538 lines) — weekly LangGraph workflow; propose-only, gated by `hitl.request_approval`; decision log written to `reports/upstream-refresh/`.
-- `consumer-d/tests/test_upstream_refresher.py` — 20 tests.
+- `project-d/langgraph-aiops/workflows/upstream_refresher.py` (~538 lines) — weekly LangGraph workflow; propose-only, gated by `hitl.request_approval`; decision log written to `reports/upstream-refresh/`.
+- `project-d/tests/test_upstream_refresher.py` — 20 tests.
 
 ### Test suite totals (MVP close)
 
 - **ai-playbook: 425 passed, 0 skipped, 0 failures** (359 previous + 66 new from Batch 10A+C; `test_bootstrap.py` finally unskipped).
-- **consumer-d: 92 passed** (72 previous + 20 new from upstream_refresher); 2 pre-existing failures in `lib/test_advisor.py` that require live `ANTHROPIC_API_KEY` (unrelated to Batch work).
-- **consumer-d-skills: no test suite yet.**
 
 ### Open TODOs remaining at v0.2.0
 
 - Upstream URLs for 4 forks (hindsight/hermes/paperclip/lightrag) — Arturo to confirm in `docs/tutorials/07-fork-inventory.md`.
 - `Last rebase` timestamp convention in `PATCHES.md` — default ISO-8601; flagged in `docs/concepts/upstream-sync.md`.
-- T18 LangGraph workflows (Batch 8B) — NOT deployed; Arturo runs `consumer-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure) to activate on VPS.
-- T19 Dashboard (Batch 9A) — deploy helm/consumer-d-stack/ manifest; 5-step runbook.
-- `consumer-d-skills` HTTP service — only the API contract is spec'd (Batch 9B `docs/api-contract.md`); the service itself is future work.
+- T18 LangGraph workflows (Batch 8B) — NOT deployed; Arturo runs `project-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure) to activate on VPS.
+- T19 Dashboard (Batch 9A) — deploy helm/project-d-stack/ manifest; 5-step runbook.
+- `project-d-skills` HTTP service — only the API contract is spec'd (Batch 9B `docs/api-contract.md`); the service itself is future work.
 - IR runbook (Batch 10A `docs/concepts/incident-response.md`) — deferred until first paying client.
 - APPLY_FIX mode (T29 Phase 5) — every propose-mode helper carries the stub; real write capability after stability proof.
 
 ### MVP summary
 
-23 tracks (T01–T23) landed across 10 batches. 3 repos touched (ai-playbook, consumer-d, consumer-d-skills + consumer-c-legacy for T02). Full test suite 425/0/0 green. 0 skips. All scripts dogfood pre-commit + schema + verdict + break-glass contracts.
+23 tracks (T01–T23) landed across 10 batches. Full test suite 425/0/0 green. 0 skips. All scripts dogfood pre-commit + schema + verdict + break-glass contracts.
 
 ---
 
@@ -5116,32 +5040,30 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 
 ### Added (Batch 9 — Dashboard + Skills registry, 2 parallel subagents)
 
-**Subagent A — T19 Dashboard (consumer-d, commit `02b640a`):**
+**Subagent A — T19 Dashboard:**
 - `dashboard/backend/` FastAPI app on port 9020 (new; coexists with legacy MVP on :8090).
-  - Routes: `/health`, `/api/status` (wraps `consumer-d_ops.tools.stack_health`), `/api/events` + `/api/events/kinds`, `/api/cost/month/{yyyymm}` (subprocess wrapper, 5 min in-memory cache), `/api/lifecycle/current` (file-first, `--dry-run` fallback), `/api/stream/events` (SSE tailer, 1 s poll + 15 s keep-alive).
+  - Routes: `/health`, `/api/status` (wraps `project-d_ops.tools.stack_health`), `/api/events` + `/api/events/kinds`, `/api/cost/month/{yyyymm}` (subprocess wrapper, 5 min in-memory cache), `/api/lifecycle/current` (file-first, `--dry-run` fallback), `/api/stream/events` (SSE tailer, 1 s poll + 15 s keep-alive).
 - `dashboard/frontend/` vanilla JS single-page dashboard — header + degradation pill + 4 cards (stack health / events / cost / lifecycle). No framework / no build step.
 - `dashboard/Dockerfile` — multi-stage, port 9020, curl healthcheck.
 - `dashboard/tests/test_app.py` — 19 tests (all pass): SSE init+live frame, CORS, cost caching + 400-on-bad-month, lifecycle file→dry-run fallback, stack_health degradation branches.
 - Manual deploy via the T18 5-step runbook; helm values bump pending Arturo.
 
-**Subagent B — T20 Skills Registry Integration (ai-playbook `b44833c` + consumer-d-skills `6d58f20`):**
+**Subagent B — T20 Skills Registry Integration (ai-playbook `b44833c`):**
 - `scripts/skills_registry.py` (~391 lines) — `list` / `show` CLI + importable `list_skills()` / `skill_by_name()`. Stdlib `urllib` only. Canonical errors; `--force-with-reason` degrades to empty list.
 - `tests/test_skills_registry.py` — 26 tests (all pass; mocks `urlrequest.urlopen`).
 - `docs/concepts/skills-registry.md` — purpose, API contract, scope model, caching, fallback, security, cross-refs.
 - `docs/concepts/mcp-servers-schema.md` — expanded from 28-line stub to 249-line full spec (3-layer merge, field contract, skills-registry deep dive, validator/render rules, anti-patterns).
 - `docs/concepts/env-vars.md` — added `SKILLS_REGISTRY_*` table.
-- `consumer-d-skills/docs/api-contract.md` + `README.md` — documents the HTTP contract the playbook integration expects; the service implementation itself remains future work.
+- `project-d-skills/docs/api-contract.md` + `README.md` — documents the HTTP contract the playbook integration expects; the service implementation itself remains future work.
 
 ### Test suite totals (Batch 9 close)
 
 - **ai-playbook: 359 passed, 1 skipped** (333 previous + 26 new).
-- **consumer-d: 72 passed** (53 previous + 19 new).
-- **consumer-d-skills: no test suite** (currently skills data + docs only).
 
 ### Open TODOs
 
-- `consumer-d-skills` service implementation (FastAPI/Node serving `/api/v1/skills`) — spec'd, not built. Arturo or a future track owns.
-- Dashboard helm deploy manifest — Arturo adds to `helm/consumer-d-stack/` following the T18 5-step runbook.
+- `project-d-skills` service implementation (FastAPI/Node serving `/api/v1/skills`) — spec'd, not built. Arturo or a future track owns.
+- Dashboard helm deploy manifest — Arturo adds to `helm/project-d-stack/` following the T18 5-step runbook.
 
 
 
@@ -5154,23 +5076,22 @@ Four lessons from the 2026-04-24 session retained to bank `consumer-d` (cross-pr
 - `tests/test_auto_managed.py` (24 tests) + `tests/test_drift_check.py` (18 tests, skip marker removed).
 - `.github/workflows/drift-check.yml` — active weekly cron (MON 07:00 UTC) with 48-hour T18a sentinel stagger via `heartbeat-t18a.txt` mtime check.
 
-**Subagent B — T18 LangGraph workflows backbone (consumer-d, commit `0011bb9`):**
+**Subagent B — T18 LangGraph workflows backbone:**
 - `langgraph-aiops/workflows/{drift_detector,retro_generator,cost_reporter,metrics_buffer,hitl}.py` — 4 propose-only workflows + shared HITL gate. Each wraps a LangGraph StateGraph; lazy-imports langgraph so tests don't hard-depend. `drift_detector` touches `.ai-playbook/heartbeat-t18a.txt` on success → closes the loop with 8A's GitHub Action stagger.
 - `docs/subsystems/langgraph-workflows.md` + `docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops embedded + T18 CronJob additions + 48h stagger note) + `LEGACY_MIGRATION.md`.
-- `tests/test_workflows.py` — 34 new tests (consumer-d suite 53/53).
+- `tests/test_workflows.py` — 34 new tests.
 
 ### Test suite totals (Batch 8 close)
 
 - **ai-playbook: 333 passed, 1 skipped** (291 previous + 42 new). Remaining skip: `test_bootstrap.py` (out of scope).
-- **consumer-d: 53 passed** (19 previous + 34 new).
 
 ### Deploy gate (manual)
 
-T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure + CronJob additions). The 48h T17h stagger starts from first successful DriftDetector run (heartbeat file touched on VPS).
+T18 workflows are NOT live on the VPS until Arturo runs `project-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure + CronJob additions). The 48h T17h stagger starts from first successful DriftDetector run (heartbeat file touched on VPS).
 
 
 
-### Added (Batch 7 — docs hub + consumer-d-ops meta-agent, 2 parallel subagents)
+### Added (Batch 7 — docs hub + project-d-ops meta-agent, 2 parallel subagents)
 
 **Subagent A — T16a/b/c docs hub + MkDocs (ai-playbook):**
 - `mkdocs.yml` (76 lines) — Material config, slate palette, `pymdownx.*` extensions, explicit nav (Home / Start here / Onboarding / Architecture / Specs).
@@ -5180,12 +5101,12 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 - `tests/test_gen_indexes.py` — 22 tests (all pass).
 - `pyproject.toml` — new `[project.optional-dependencies].docs` group (mkdocs, mkdocs-material, pymdown-extensions).
 
-**Subagent B — T16c/d/e/f consumer-d-ops meta-agent (consumer-d, commit `18ad17e`):**
-- `langgraph-aiops/consumer-d_ops/{__init__,server,tools,README}.py/md` — MCP stdio server + 5 read-only tools (`watchdog_status`, `recent_incidents`, `recent_retains`, `stack_health`, `suggest_remediation`).
-- `docs/subsystems/consumer-d-ops.md` + `.claude/skills/consumer-d-ops/SKILL.md` — subsystem doc + skill file.
-- `tests/test_consumer-d_ops.py` — 19 tests (all pass).
+**Subagent B — T16c/d/e/f project-d-ops meta-agent:**
+- `langgraph-aiops/project-d_ops/{__init__,server,tools,README}.py/md` — MCP stdio server + 5 read-only tools (`watchdog_status`, `recent_incidents`, `recent_retains`, `stack_health`, `suggest_remediation`).
+- `docs/subsystems/project-d-ops.md` + `.claude/skills/project-d-ops/SKILL.md` — subsystem doc + skill file.
+- `tests/test_project-d_ops.py` — 19 tests (all pass).
 - `suggest_remediation` returns propose-only candidates with `command_preview` + `risk` tier; `APPLY_FIX_MODE=apply` raises `NotImplementedError("APPLY_FIX mode deferred to T29")`.
-- `watchdogs.py` untouched — consumer-d-ops reads its output files only.
+- `watchdogs.py` untouched — project-d-ops reads its output files only.
 
 ### Test suite totals (Batch 7 close, ai-playbook)
 
@@ -5271,7 +5192,7 @@ T18 workflows are NOT live on the VPS until Arturo runs `consumer-d/docs/operati
 **Subagent B (T08 MCP SSOT pipeline):**
 - `scripts/mcp/validate.py` — 3-layer YAML loader + deep merge + schema validation + env.required union check + drift detection against committed `.mcp.json` / `.gemini/settings.json`. Canonical error emitter, break-glass integration.
 - `scripts/mcp/render.py` — renders `.mcp.json` (Claude Code) + `.gemini/settings.json` (Gemini/Antigravity); `--dry-run`, `--only claude|gemini`, provenance summary.
-- `mcp-servers-base.yaml` — 11 well-known server templates (hindsight, litellm, guardrails-mcp, atlassian-consumer-a, google-workspace-arturo/consumer-b, trello-arturo/consumer-b, skills-registry, crm, rag).
+- `mcp-servers-base.yaml` — 11 well-known server templates (hindsight, litellm, guardrails-mcp, atlassian-project-a, google-workspace-arturo/project-b, trello-arturo/project-b, skills-registry, crm, rag).
 - Tests: 28/28 pass (`test_mcp_validate.py`, `test_mcp_render.py`).
 
 **Subagent C (T09 scripts + pre-commit + env-vars):**

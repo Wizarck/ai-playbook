@@ -28,15 +28,13 @@ notify(event, severity, summary, ...)
    ├─► severity ∈ {warn, error}:
    │     ┌──────────────────────────────────────────────────┐
    │     │ §8 Durable queue   (when consumer opts in via    │
-   │     │   CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED=1 AND        │
-   │     │   `notifications.queue` package importable —     │
-   │     │   consumer-d only at v1)                         │
+   │     │   AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED=1 AND        │
+   │     │   `notifications.queue` package importable)      │
    │     │   → SQLite enqueue → worker → Telegram/WhatsApp  │
    │     └──────────────────────────────────────────────────┘
    │     ┌──────────────────────────────────────────────────┐
    │     │ §6 SMTP fallback  (queue disabled OR             │
-   │     │   not vendored — consumer-b, consumer-c,      │
-   │     │   consumer-e, livekit, dev laptops)            │
+   │     │   not vendored — livekit, dev laptops)           │
    │     └──────────────────────────────────────────────────┘
    │
    └─► severity ∈ {silent, info}: JSONL only.
@@ -84,7 +82,7 @@ Example:
   "severity": "info",
   "summary": "Created TRATT-42 for module-1-ingredients-impl",
   "detail": "",
-  "attrs": {"tracker_id": "TRATT-42", "change_id": "module-1-ingredients-impl", "project": "consumer-c"},
+  "attrs": {"tracker_id": "TRATT-42", "change_id": "module-1-ingredients-impl", "project": "project-c"},
   "trace_id": "0196f34a8c7e7b2f9d013e8a9b4c2f11",
   "actor": "23051550+Wizarck@users.noreply.github.com"
 }
@@ -177,7 +175,7 @@ Failures in email transport must not raise to the caller — they're logged as
 
 ## 7. Dashboard consumer (`/api/notifications`)
 
-Owned by Subagent B (consumer-d). Contract the dashboard implements:
+Owned by Subagent B. Contract the dashboard implements:
 
 - Tails the JSONL file and broadcasts each new line over SSE to subscribers.
 - Filters by severity (`?severity=warn,error`) and by `actor` (`?actor=<email>`).
@@ -188,7 +186,7 @@ Owned by Subagent B (consumer-d). Contract the dashboard implements:
 Subagent B is responsible for authentication, CORS, and the UI. This repo owns
 the file-format guarantees.
 
-## 8. Durable queue layer (Phase 5 Change B — opt-in, consumer-d)
+## 8. Durable queue layer (Phase 5 Change B — opt-in)
 
 The JSONL+SMTP layers above guarantee audit but NOT delivery: if Telegram is
 down for 30 s during a `request_approval` emission, the user never sees the
@@ -201,22 +199,21 @@ sends until they land or the TTL expires.
 
 Two AND-gated conditions:
 
-1. `CONSUMER_D_NOTIFICATIONS_QUEUE_ENABLED=1` is set in the consumer's environment
+1. `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED=1` is set in the consumer's environment
    (default: unset → legacy SMTP path).
 2. The consumer-side Python package `notifications.queue` is importable.
-   Today this means **only consumer-d** at v1 — the queue lives at
-   `langgraph-aiops/notifications/` in that repo and is wired into
+   The queue lives at `langgraph-aiops/notifications/` and is wired into
    `langgraph-aiops/watchdogs.py::run_continuous` as an `asyncio.Task`
    sibling to the watchdog loop.
 
 When either condition is missing, `notify()` falls through to the legacy
-SMTP path (§6) without raising. Other consumers (consumer-b, consumer-c,
-consumer-e, livekit) are unaffected by this change.
+SMTP path (§6) without raising. Consumers without the queue are unaffected
+by this change.
 
 ### Storage
 
-SQLite at `~/.consumer-d/state/notifications-queue.db` (host-writer pattern;
-overridable via `CONSUMER_D_NOTIFICATIONS_DB`). Schema (full DDL in
+SQLite at `~/.project-d/state/notifications-queue.db` (host-writer pattern;
+overridable via `AIPLAYBOOK_NOTIFICATIONS_DB`). Schema (full DDL in
 `scripts/db/migrations/notifications-queue-001.sql`):
 
 ```sql
@@ -257,7 +254,7 @@ A single `asyncio.Task` (no multi-worker — D2.2). Polling cycle every 10 s:
    envelope + `last_error`).
 
 Disable the worker (e.g. for unit tests of just the watchdog) via
-`CONSUMER_D_NOTIFICATIONS_WORKER_DISABLED=1`.
+`AIPLAYBOOK_NOTIFICATIONS_WORKER_DISABLED=1`.
 
 ### Backoff schedule
 
@@ -292,7 +289,7 @@ channels.
 
 ### MCP outbox tool
 
-`langgraph-aiops/consumer-d_ops/tools.py::recent_undelivered_notifications(limit=10)`
+`langgraph-aiops/project-d_ops/tools.py::recent_undelivered_notifications(limit=10)`
 exposes the pending rows as an MCP tool — used by the dashboard "outbox"
 widget and by Hermes to answer "did anything fail to deliver?". Returns
 `channel`, `severity`, `attempt_count`, `next_retry_at`, `last_error`, and a
@@ -310,12 +307,12 @@ Every queue state transition emits a `gen_ai.notification.<verb>` event to
 | `notification.retry_scheduled` | `silent` | row marked failed; backoff reset |
 | `notification.dropped` | `error` | row exceeded TTL; envelope included |
 
-`scripts/telemetry/report.py (absorbed in Slice 6)` and the consumer-d dashboard already aggregate
+`scripts/telemetry/report.py (absorbed in Slice 6)` and the dashboard already aggregate
 `events.jsonl` — no new metrics infrastructure required.
 
 ### Restart survival
 
-Container/process restart (`docker compose restart consumer-d-aiops`,
+Container/process restart (`docker compose restart project-d-aiops`,
 `systemctl restart`) must not lose pending rows. Validated by a unit test
 that reimports `notifications.queue` after enqueue and verifies the row is
 still readable from the SQLite file (host-writer pattern guarantees the file

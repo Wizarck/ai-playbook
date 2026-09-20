@@ -6,7 +6,7 @@ summary: |
   A per-dev, gitignored YAML file mapping project logical names to absolute
   paths on the current machine. Dispatchers resolve project locations through
   the registry, NOT through hardcoded paths. Benefit: - the maintainer moves
-  consumer-c from C:\consumer-c to C:\Projects\consumer-c →…
+  project-c from C:\project-c to C:\Projects\project-c →…
 last_validated: "2026-05-19"
 ---
 
@@ -17,7 +17,7 @@ last_validated: "2026-05-19"
 A **per-dev, gitignored YAML file** mapping project logical names to absolute paths on the current machine. Dispatchers resolve project locations through the registry, NOT through hardcoded paths.
 
 Benefit:
-- The maintainer moves `consumer-c` from `C:\consumer-c` to `C:\Projects\consumer-c` → rerun discovery → dispatchers keep working. No markdown edits.
+- The maintainer moves `project-c` from `C:\project-c` to `C:\Projects\project-c` → rerun discovery → dispatchers keep working. No markdown edits.
 - A second dev clones projects under `/Users/jane/code/` → same dispatcher files work.
 - Mac / Linux / Windows / WSL coexist with the same sources.
 
@@ -35,20 +35,20 @@ The file lives in the **user's home** (not in any repo) because it encodes local
 ```yaml
 schema: ai-playbook/projects-registry/v1
 projects:
-  consumer-c:
-    path: C:/Projects/consumer-c
+  project-c:
+    path: C:/Projects/project-c
     owner: 23051550+Wizarck@users.noreply.github.com
     version: 1.0.0
     inherits_from:
       - github.com/Wizarck/ai-playbook@v0.1.0
-  consumer-d:
-    path: C:/Projects/consumer-d
+  project-d:
+    path: C:/Projects/project-d
     owner: 23051550+Wizarck@users.noreply.github.com
     version: 1.0.0
     inherits_from:
       - github.com/Wizarck/ai-playbook@v0.1.0
     personal: true
-    personal_addon: C:/Projects/consumer-d/consumer-d.md
+    personal_addon: C:/Projects/project-d/project-d.md
 ```
 
 ### Fields
@@ -60,7 +60,7 @@ projects:
 | `version` | no | `AGENTS.md` frontmatter | Project's AGENTS.md version. |
 | `inherits_from` | no | `AGENTS.md` frontmatter | Playbook pin list. |
 | `personal` | no | `AGENTS.md` frontmatter | `true` if this is the maintainer's personal repo (loads the add-on). Default `false`. |
-| `personal_addon` | no | computed | Absolute path to the add-on file (e.g. `consumer-d.md`). Resolved from frontmatter `personal_addon` relative to project root. |
+| `personal_addon` | no | computed | Absolute path to the add-on file (e.g. `project-d.md`). Resolved from frontmatter `personal_addon` relative to project root. |
 
 ## Discovery script
 

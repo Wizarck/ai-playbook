@@ -4,9 +4,9 @@ slug: issue-tracking
 title: Issue Tracking
 summary: |
   How user stories, features, bugs, and releases flow through two tracker
-  surfaces: - Jira — enterprise / private work (Paperclip tenants, consumer-c
+  surfaces: - Jira — enterprise / private work (Paperclip tenants, project-c
   Enterprise, any closed-source SaaS). - GitHub Projects + Issues — community
-  / open-source work (consumer-c, awesome-paperclip,…
+  / open-source work (project-c, awesome-paperclip,…
 last_validated: "2026-05-19"
 ---
 
@@ -14,11 +14,10 @@ last_validated: "2026-05-19"
 
 How user stories, features, bugs, and releases flow through **two** tracker surfaces:
 
-- **Jira** — enterprise / private work (Paperclip tenants, consumer-c Enterprise, any closed-source SaaS).
-- **GitHub Projects + Issues** — community / open-source work (consumer-c, awesome-paperclip, any public repo under the org).
+- **Jira** — enterprise / private work (Paperclip tenants, project-c Enterprise, any closed-source SaaS).
+- **GitHub Projects + Issues** — community / open-source work (project-c, awesome-paperclip, any public repo under the org).
 
-The split is intentional and mirrors the dual-repo strategy already documented in
-`consumer-c/AGENTS.md` §4 and ADR-010 (community AGPL-3.0 vs enterprise private). This spec
+The split is intentional and mirrors the dual-repo strategy (community AGPL-3.0 vs enterprise private). This spec
 extends that split from **issues** to full **product planning** (user stories → features →
 releases) so the two audiences stay on surfaces they expect.
 
@@ -30,16 +29,16 @@ Decision rule (apply to every repo under the org):
 
 | Repo class | Examples | Planning surface | Release surface | Ticket prefix |
 |---|---|---|---|---|
-| Public AGPL-3.0 (community) | `consumer-c`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
-| Private with public OS counterpart (dual-repo) | `consumer-c Enterprise` (mirrors consumer-c), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-consumer-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
-| Private standalone (no public counterpart) | `consumer-d`, `consumer-b`, `consumer-b-hub`, `ESILDA`, future closed-source SaaS without an OSS half | **GitHub Project** (per-repo board) + GitHub Issues | git tag + optional GitHub Release | `#<issue-number>` |
-| Tooling / lightweight | `ai-playbook`, `consumer-d-skills`, `skills-manager-personal`, `diakopa`, `GTM-Helper` | GitHub Issues (no project board) | git tag only | `#<issue-number>` |
+| Public AGPL-3.0 (community) | `project-c`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
+| Private with public OS counterpart (dual-repo) | `project-c Enterprise` (mirrors project-c), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-project-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
+| Private standalone (no public counterpart) | `project-d`, `project-b`, `project-b-hub`, `ESILDA`, future closed-source SaaS without an OSS half | **GitHub Project** (per-repo board) + GitHub Issues | git tag + optional GitHub Release | `#<issue-number>` |
+| Tooling / lightweight | `ai-playbook`, `project-d-skills`, `skills-manager-personal`, `diakopa`, `GTM-Helper` | GitHub Issues (no project board) | git tag only | `#<issue-number>` |
 
 **Rule of thumb**: Jira is reserved for the *enterprise half* of a dual-repo (community public + enterprise private) so the two audiences live on the surface they expect. A private repo without a public counterpart has no audience split → GH is sufficient. Per-repo project boards (vs the org-level board) are used for private standalone repos so the work stays scoped to the repo's collaborators.
 
 Mixed-mode repos (the maintainer runs some public + some private inside the same org) follow the
 visibility of the repo where the work lands; never straddle. A feature that ships in
-`consumer-c` (public) AND `consumer-c Enterprise` (private) gets two tickets — one per surface —
+`project-c` (public) AND `project-c Enterprise` (private) gets two tickets — one per surface —
 linked to each other by URL in the description.
 
 ---
@@ -91,7 +90,7 @@ commit-message` lands later if friction warrants.
 - **Trigger**: merge to `main` that bumps semver tag.
 - **Surface**: GitHub Release auto-generated from the tag. Release notes = relevant
   `CHANGELOG.md` section.
-- **Assets**: `consumer-c` publishes `@consumer-c/types` to npm from the release; `ai-playbook`
+- **Assets**: `project-c` publishes `@project-c/types` to npm from the release; `ai-playbook`
   publishes nothing (consumed via git submodule).
 - **Timeline**: semver discipline — breaking change needs major bump; `rollout-strategy.md`
   applies to every public repo too.
@@ -99,10 +98,10 @@ commit-message` lands later if friction warrants.
 ### 3.2 Enterprise (Jira)
 
 - **Trigger**: same semver tag; release workflow creates a Jira "Release" version under the
-  relevant project (`PROJ`, `consumer-b`, etc.) AND marks all tickets in that fixVersion as
+  relevant project (`PROJ`, `project-b`, etc.) AND marks all tickets in that fixVersion as
   Released.
 - **Surface**: Jira's native Release tab, plus a private-repo git tag.
-- **Assets**: Docker images pushed to `ghcr.io/wizarck/<service>:<tag>`; `helm/consumer-d-stack`
+- **Assets**: Docker images pushed to `ghcr.io/wizarck/<service>:<tag>`; `helm/project-d-stack`
   chart version bump; internal changelog email via the enterprise notification channel.
 - **Timeline**: calendar-driven (monthly or quarterly) — enterprise releases batch changes;
   community releases can be lightweight per-feature.
@@ -136,7 +135,7 @@ personal: true | false          # optional; always GH Issues regardless of track
 ```
 
 - **`scripts/issue_sync.py`** — scans `openspec/changes/*/proposal.md`, creates Jira issues
-  (private repos via Atlassian REST / `atlassian-consumer-a` tenant) OR GH Issues + optional GH
+  (private repos via Atlassian REST / `atlassian-project-a` tenant) OR GH Issues + optional GH
   Project add (public repos). Reads `tracker_kind`/`jira_project` from the consumer's
   own AGENTS.md frontmatter. Embeds `tracker_id: PROJ-42` (Jira) or `tracker_issue: 42`
   (GitHub) in the proposal frontmatter via a follow-up commit. Idempotent; failed creates
@@ -176,14 +175,14 @@ secrets mirrored by the same names.
 
 From `mcp-servers-base.yaml` + what's live on the VPS:
 
-- `atlassian-consumer-a` — Jira read/write for the consumer-a tenant (PROJ + consumer-b + whatever
+- `atlassian-project-a` — Jira read/write for the project-a tenant (PROJ + project-b + whatever
   lives there). Tools: `searchJiraIssuesUsingJql`, `createJiraIssue`, `editJiraIssue`,
   `transitionJiraIssue`, `addCommentToJiraIssue`, `getTransitionsForJiraIssue`. Already used
   by Hermes for operational queries.
 - `gh` CLI (not MCP; wrapped by `scripts/openspec_validate.py`, `scripts/skills_registry.py`,
   and any contributor). Has `repo`, `issue`, `pr`, `search`, and `project` subcommands.
 
-For public-repo issue creation: `gh issue create --repo Wizarck/consumer-c --title ... --body
+For public-repo issue creation: `gh issue create --repo Wizarck/project-c --title ... --body
 ...` + `gh project item-add <project-number> --owner Wizarck --url <issue-url>`.
 
 ---
@@ -210,5 +209,3 @@ For public-repo issue creation: `gh issue create --repo Wizarck/consumer-c --tit
 - `docs/concepts/retrospective-cadence.md` — monthly lifecycle check flags orphan tickets.
 - `docs/rules/verdict-contract.rule.md` — QA verdict → ticket transition mapping.
 - `docs/tutorials/07-fork-inventory.md` — determines which repos are public vs private.
-- `consumer-c/AGENTS.md` §4 + ADR-010 — dual-repo strategy (origin of the split this spec
-  extends).
