@@ -25,6 +25,18 @@ All notable changes to `ai-playbook` are documented here. Semver.
   had set the old names): `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED`, `AIPLAYBOOK_NOTIFICATIONS_WORKER_DISABLED`,
   `AIPLAYBOOK_NOTIFICATIONS_DB`, `AIPLAYBOOK_FLAG_DIR`, and the `AIPLAYBOOK_GOD_MODE` CI secret (the workflow
   template referenced an invalid secret name, since GitHub secret names cannot contain a hyphen).
+- **No real project is baked into the code any more** (breaking where a consumer relied on the old default).
+  The Jira project key of the `jira-ticket-standard` and `jira-closure-evidence` rules comes from `--project`
+  or `$AIPLAYBOOK_JIRA_PROJECT` (default `PROJ`); it used to be a built-in real key. `scripts/mcp/render.py`
+  finds the SOPS secrets file through `$AIPLAYBOOK_SECRETS_ENV`, else the only sibling `*/secrets/secrets.env`
+  (several candidates: it refuses to guess whose credentials to decrypt). The global Antigravity config no
+  longer invents a Hindsight bank: `HINDSIGHT_BANK_ID` used to default to a real project, so set it explicitly.
+- **Real project names are gone from the whole tree**, not only the masked ones: incident citations, example
+  names, ticket ids and site names, private-repo commit SHAs, product module names, and the real ticket text
+  behind `tests/fixtures/jira_ticket_example.md` (renamed and sanitised). `specs/wiring-assertions.example.yaml`
+  is a generalised example. Authorship metadata (LICENSE, CONTRIBUTING, pyproject authors) is unchanged.
+- **The per-dev projects registry stays local.** `projects.yaml` was already in this repo's `.gitignore`; the
+  consumer `.gitignore.tmpl` now ignores it too.
 
 ### Removed
 - `init_org.py --secrets-env-path`: it replaced a string no template contains, so it silently did nothing.
