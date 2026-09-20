@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.RULES_INVENTORY = {
   "schema": "rules-inventory/v1",
-  "generated_at": "2026-08-16T21:31:17.393499+00:00",
+  "generated_at": "2026-09-20T08:27:19.875824+00:00",
   "rules": [
     {
       "slug": "absence-is-not-evidence",
@@ -667,7 +667,7 @@ window.RULES_INVENTORY = {
       ],
       "break_glass_env": null,
       "triggers": [],
-      "description": "Linters that gate CI MUST also run at pre-commit with the same pin — a linter that only exists in CI is discovered post-push, and on repos without branch protection the red merges and becomes ambient debt (geeplo 2026-07-13 merged a wave with 41 ruff errors nobody saw locally); v1 scope is ruff, `apply` appends the ruff-pre-commit block pinned to the CI-detected version.",
+      "description": "Linters that gate CI MUST also run at pre-commit with the same pin — a linter that only exists in CI is discovered post-push, and on repos without branch protection the red merges and becomes ambient debt (a production codebase on 2026-07-13 merged a wave with 41 ruff errors nobody saw locally); v1 scope is ruff, `apply` appends the ruff-pre-commit block pinned to the CI-detected version.",
       "doc_path": "docs/rules/lint-parity-precommit.rule.md"
     },
     {
@@ -701,7 +701,7 @@ window.RULES_INVENTORY = {
       ],
       "break_glass_env": null,
       "triggers": [],
-      "description": "Repos with BOTH an alembic migrations tree AND a DB seed script MUST have a CI job that applies migrations to a fresh database and runs the seed twice — otherwise a migration adding a NOT NULL column the seeder never learned about explodes days later in the e2e job of an unrelated PR (geeplo 2026-07-13, migrations 0070/0072 vs bootstrap-test-db.py) instead of failing the schema-changing PR in one minute; validate-only, drop-in job at templates/ci/migrate-seed-smoke.yml.",
+      "description": "Repos with BOTH an alembic migrations tree AND a DB seed script MUST have a CI job that applies migrations to a fresh database and runs the seed twice — otherwise a migration adding a NOT NULL column the seeder never learned about explodes days later in the e2e job of an unrelated PR (a production codebase, 2026-07-13, migrations 0070/0072 vs bootstrap-test-db.py) instead of failing the schema-changing PR in one minute; validate-only, drop-in job at templates/ci/migrate-seed-smoke.yml.",
       "doc_path": "docs/rules/migrate-seed-smoke.rule.md"
     },
     {

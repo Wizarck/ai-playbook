@@ -13,7 +13,7 @@ structural orientation (callers, dependency chains, blast radius) at a fraction
 of the tokens of raw grep/read. The graph is *meant to be committed* so the
 whole team shares one map.
 
-The trigger: a consuming repo (geeplo) committed the graph the wrong way —
+The trigger: a consuming repo committed the graph the wrong way —
 one developer's absolute machine paths (`.graphify_python`,
 `.graphify_uncached.txt`), per-run `cost.json`, 1814 `cache/` files, and a
 duplicate ~28 MB dated snapshot — making the "shared" graph effectively

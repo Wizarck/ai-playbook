@@ -111,7 +111,7 @@ Every LLM call wrapped by the router emits a span with at minimum:
 | `gen_ai.usage.cache_read_input_tokens` | int | Cached-prefix tokens read (0 if provider did not report). |
 | `ai_playbook.task_class` | string | Canonical class from §1 (e.g., `daily-dev`, `code-review-blind-hunter`, `llm-as-judge`). |
 | `ai_playbook.consumer` | string \| null | Budget bucket (LiteLLM virtual-key consumer): `ADVISOR`, `EXECUTOR`, `HERMES`, `JUDGE`, `WORKFLOWS`, ... See env-vars.md `## Per-consumer virtual keys`. Null when the caller doesn't set it. |
-| `ai_playbook.application` | string \| null | Functional grouping (see §5). Examples: `hermes-bot`, `dashboard-backend`, `aiops-workflow-vps-maintainer`. Null when the caller doesn't set it (drift detector flags). Added v2.1.0. |
+| `ai_playbook.application` | string \| null | Functional grouping (see §5). Examples: `chat-bot`, `dashboard-backend`, `aiops-workflow-maintainer`. Null when the caller doesn't set it (drift detector flags). Added v2.1.0. |
 | `ai_playbook.routing.fallback_depth` | int | 0 on primary, 1 on first fallback, etc. |
 | `ai_playbook.routing.reason` | string | Present when `fallback_depth > 0`; enum-ish: `rate_limit`, `timeout`, `error`, `health_probe`. |
 
@@ -134,9 +134,9 @@ The roster is intentionally short — additions go through the recipe below.
 
 | Application | What it is | Set by |
 |---|---|---|
-| `hermes-bot` | Telegram + WhatsApp conversational adapter | `AIPLAYBOOK_APPLICATION` env in `/opt/hermes/.env` |
+| `chat-bot` | Telegram + WhatsApp conversational adapter | `AIPLAYBOOK_APPLICATION` env in `/opt/hermes/.env` |
 | `dashboard-backend` | FastAPI app (Langfuse meta-queries, audit summarisation, ad-hoc smoke tests) | env in `helm/project-d-stack/templates/dashboard.yaml` deployment |
-| `aiops-workflow-<name>` | One per workflow in `langgraph-aiops/workflows/`. Examples: `aiops-workflow-vps-maintainer`, `aiops-workflow-retro-generator`, `aiops-workflow-playbook-bump-propagator` | env per-workflow in `langgraph-aiops/Dockerfile` ENTRYPOINT wrapper |
+| `aiops-workflow-<name>` | One per workflow in `aiops/workflows/`. Examples: `aiops-workflow-maintainer`, `aiops-workflow-report`, `aiops-workflow-sync` | env per-workflow in `aiops/Dockerfile` ENTRYPOINT wrapper |
 | `prompt-injection-filter` | The safety-judge gate (layer-2 Haiku) | env in the script wrapper |
 | `lib-advisor` | The executor/advisor session pair | env via `project-d/lib/advisor.py` defaults |
 | `hindsight-internal` | Hindsight's recall summarizer (calls LiteLLM via `HINDSIGHT_API_LLM_BASE_URL=http://litellm:4000`) | env in `helm/project-d-stack/templates/hindsight.yaml` |
@@ -148,7 +148,7 @@ The `claude-code` row is reserved — the dashboard's cost-by-application widget
 
 An `application` is a **functional bucket** (what subsystem is making the call). Add one when a new caller can't reasonably be classified under an existing app — typically when it has its own deployment manifest or its own runbook for restarting.
 
-1. **Choose a kebab-lowercase name.** Convention: short, function-descriptive. Prefix with `aiops-workflow-` if it's one workflow inside the `langgraph-aiops/workflows/` directory.
+1. **Choose a kebab-lowercase name.** Convention: short, function-descriptive. Prefix with `aiops-workflow-` if it's one workflow inside the `aiops/workflows/` directory.
 2. **Register in the table above.** Same PR adds the row + the deployment manifest change that sets `AIPLAYBOOK_APPLICATION=<name>`.
 3. **Set the env at process startup.** Either via the deployment env block (k8s) OR via a wrapper shell script (`AIPLAYBOOK_APPLICATION=<name> exec python -m mymodule.entry`).
 4. **Verify trace metadata.** Trigger one LLM call from the new application; the Langfuse Cloud trace browser should show `metadata.application = <name>`. The cost-by-application widget (once Phase 3 lands) will render a bucket for the app once total calls ≥ 3.
@@ -158,9 +158,9 @@ An `application` is a **functional bucket** (what subsystem is making the call).
 
 ```
 consumer=WORKFLOWS                        ← one budget bucket
-  ├─ application=aiops-workflow-vps-maintainer    (task_class=retrospective)
-  ├─ application=aiops-workflow-retro-generator   (task_class=retrospective)
-  └─ application=langgraph-doc-writer             (task_class=doc_writing_*)
+  ├─ application=aiops-workflow-maintainer    (task_class=retrospective)
+  ├─ application=aiops-workflow-report   (task_class=retrospective)
+  └─ application=doc-writer             (task_class=doc_writing_*)
                                                    ↑ same app, different task_classes
 
 consumer=ADVISOR
@@ -168,7 +168,7 @@ consumer=ADVISOR
                                           (task_class=daily_dev)
 
 consumer=HERMES
-  └─ application=hermes-bot               (task_class=conversational_agent)
+  └─ application=chat-bot               (task_class=conversational_agent)
 
 consumer=JUDGE
   └─ application=prompt-injection-filter  (task_class=safety_judge)

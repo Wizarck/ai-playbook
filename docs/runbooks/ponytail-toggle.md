@@ -35,7 +35,7 @@ Default: enable the lazy ruleset with `full` intensity:
 
 ```bash
 cd C:/Projects/ai-playbook
-python -m scripts.ponytail on --project C:/Projects/eligia-core
+python -m scripts.ponytail on --project C:/Projects/my-project
 ```
 
 What this does:
@@ -68,7 +68,7 @@ emits a per-turn reminder against drift back to over-building.
 python -m scripts.ponytail on \
   --mode full \
   --components code_style,review_ponytail,audit_ponytail,debt_ponytail \
-  --project C:/Projects/eligia-core
+  --project C:/Projects/my-project
 ```
 
 `review_ponytail` / `audit_ponytail` / `debt_ponytail` are pure capability
@@ -89,15 +89,15 @@ body. No need to `off` first.
 ## Checking status
 
 ```bash
-python -m scripts.ponytail status --project C:/Projects/eligia-core
+python -m scripts.ponytail status --project C:/Projects/my-project
 ```
 
 Human-readable output:
 
 ```
 ponytail: ON (mode=full)
-project: C:/Projects/eligia-core
-state:   C:/Projects/eligia-core/.ai-playbook/ponytail.json
+project: C:/Projects/my-project
+state:   C:/Projects/my-project/.ai-playbook/ponytail.json
 ladder block in AGENTS.md: yes
 components:
   ✓ code_style
@@ -111,7 +111,7 @@ For UI / scripting: `python -m scripts.ponytail status --json --project ...`.
 ## Turning ponytail OFF
 
 ```bash
-python -m scripts.ponytail off --project C:/Projects/eligia-core
+python -m scripts.ponytail off --project C:/Projects/my-project
 ```
 
 What this does:
@@ -128,7 +128,7 @@ net against accidental data loss).
 ### Restore the latest AGENTS.md backup
 
 ```bash
-ls C:/Projects/eligia-core/.ai-playbook/backups/agents/
+ls C:/Projects/my-project/.ai-playbook/backups/agents/
 # pick the newest .bak
 cp .ai-playbook/backups/agents/AGENTS.md.<ts>.bak ./AGENTS.md
 python -m scripts.ponytail off --project .  # sync the state file
@@ -139,7 +139,7 @@ python -m scripts.ponytail off --project .  # sync the state file
 ### Confirm the materialise block is correct
 
 ```bash
-grep -A 1000 "BEGIN auto-managed: ponytail" C:/Projects/eligia-core/AGENTS.md \
+grep -A 1000 "BEGIN auto-managed: ponytail" C:/Projects/my-project/AGENTS.md \
   | grep -B 1000 "END auto-managed" | head -50
 ```
 
@@ -153,7 +153,7 @@ silent-fail: present always, emits only when `code_style` is ON. If the per-turn
 reminder is not firing, confirm the entry exists:
 
 ```bash
-cat C:/Projects/eligia-core/.claude/settings.json | python -m json.tool \
+cat C:/Projects/my-project/.claude/settings.json | python -m json.tool \
   | grep -A 8 UserPromptSubmit
 ```
 
@@ -175,7 +175,7 @@ caveman runbook uses for its hook).
 ### Verify the toggle file is schema-valid
 
 ```bash
-python -c "from scripts.ponytail.toggle import read_state; from pathlib import Path; print(read_state(Path(r'C:/Projects/eligia-core')))"
+python -c "from scripts.ponytail.toggle import read_state; from pathlib import Path; print(read_state(Path(r'C:/Projects/my-project')))"
 ```
 
 ## See also

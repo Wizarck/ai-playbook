@@ -34,7 +34,7 @@ notify(event, severity, summary, ...)
    │     └──────────────────────────────────────────────────┘
    │     ┌──────────────────────────────────────────────────┐
    │     │ §6 SMTP fallback  (queue disabled OR             │
-   │     │   not vendored — livekit, dev laptops)           │
+   │     │   not vendored — my-project, dev laptops)        │
    │     └──────────────────────────────────────────────────┘
    │
    └─► severity ∈ {silent, info}: JSONL only.
@@ -202,8 +202,8 @@ Two AND-gated conditions:
 1. `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED=1` is set in the consumer's environment
    (default: unset → legacy SMTP path).
 2. The consumer-side Python package `notifications.queue` is importable.
-   The queue lives at `langgraph-aiops/notifications/` and is wired into
-   `langgraph-aiops/watchdogs.py::run_continuous` as an `asyncio.Task`
+   The queue lives at `aiops/notifications/` and is wired into
+   `aiops/watchdogs.py::run_continuous` as an `asyncio.Task`
    sibling to the watchdog loop.
 
 When either condition is missing, `notify()` falls through to the legacy
@@ -289,7 +289,7 @@ channels.
 
 ### MCP outbox tool
 
-`langgraph-aiops/project-d_ops/tools.py::recent_undelivered_notifications(limit=10)`
+`aiops/project-d_ops/tools.py::recent_undelivered_notifications(limit=10)`
 exposes the pending rows as an MCP tool — used by the dashboard "outbox"
 widget and by Hermes to answer "did anything fail to deliver?". Returns
 `channel`, `severity`, `attempt_count`, `next_retry_at`, `last_error`, and a

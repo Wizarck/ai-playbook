@@ -1,6 +1,6 @@
 """The closure gate must fire on the four real closures that prompted it.
 
-Each case below is a REAL wrong closure from the geeplo campaign of
+Each case below is a REAL wrong closure from a real campaign of
 2026-08-15/16, reduced to the ticket text and the comment that was actually
 posted. That is the point: a gate justified by an anecdote should be tested
 against the anecdote, not against an invented example that was written to pass.
@@ -85,46 +85,46 @@ def test_a_minimal_but_honest_closure_passes():
     """
     assert not _failed(
         "A ticket written as prose with no cited paths and no numbered list.",
-        "**STALE** — already remediated by #485; adapters/shared_drive.py:158 "
+        "**STALE** — already remediated by #485; adapters/s3.py:158 "
         "stores the name today.",
     )
 
 
 # ---------------------------------------------------------------------------
-# C4 — path fidelity. The GPLO-1388 and GPLO-1497 clause.
+# C4 — path fidelity. The PROJ-1388 and PROJ-1497 clause.
 # ---------------------------------------------------------------------------
 
 
-GPLO_1388 = (
+PROJ_1388 = (
     "## Contexto / Problema\n\n"
-    "`backend/app/blueprints/datashield/router.py:818` exposes the flagged "
+    "`backend/app/blueprints/beta/router.py:818` exposes the flagged "
     "employee list without an admin gate.\n"
 )
 
 
 def test_reading_the_directory_the_label_suggests_is_refused():
-    """The exact GPLO-1388 mistake: `[DataScout]` in the title, `datashield/`
+    """The exact PROJ-1388 mistake: `[Alpha]` in the title, `beta/`
     in the body. The closure followed the label."""
     comment = (
-        "CANNOT-REPRODUCE — read backend/app/blueprints/datascout/router.py "
+        "CANNOT-REPRODUCE — read backend/app/blueprints/alpha/router.py "
         "and the gate is present."
     )
-    assert "C5" in _failed(GPLO_1388, comment)
+    assert "C5" in _failed(PROJ_1388, comment)
 
 
 def test_opening_the_path_the_ticket_cites_passes():
     """NEGATIVE CONTROL for C6."""
     comment = (
-        "FIXED — backend/app/blueprints/datashield/router.py:818 now takes "
+        "FIXED — backend/app/blueprints/beta/router.py:818 now takes "
         "require_internal_admin. test_a_plain_member_cannot_reach_the_flagged_list"
     )
-    assert "C5" not in _failed(GPLO_1388, comment)
+    assert "C5" not in _failed(PROJ_1388, comment)
 
 
 def test_a_loose_path_reference_still_counts():
     """Compared on the last two segments, so an honest closure that writes
-    `datashield/router.py` is not failed on formatting."""
-    assert "C5" not in _failed(GPLO_1388, "FIXED — datashield/router.py:818 gated.")
+    `beta/router.py` is not failed on formatting."""
+    assert "C5" not in _failed(PROJ_1388, "FIXED — beta/router.py:818 gated.")
 
 
 def test_c4_stays_quiet_when_the_ticket_cites_no_paths():
@@ -136,7 +136,7 @@ def test_c4_stays_quiet_when_the_ticket_cites_no_paths():
 
 
 # ---------------------------------------------------------------------------
-# C5 — one artefact per enumerated requirement. The GPLO-1469 clause.
+# C5 — one artefact per enumerated requirement. The PROJ-1469 clause.
 # ---------------------------------------------------------------------------
 
 
@@ -146,12 +146,12 @@ THREE_REQUIREMENTS = (
     "## Esperado vs Actual\n\n"
     "1. the L2 sample must cover descendants\n"
     "2. the reparent gate must count what should have moved\n"
-    "3. `test_shared_drive_adapter.py` must have a verify test\n"
+    "3. `test_s3_adapter.py` must have a verify test\n"
 )
 
 
 def test_closing_three_requirements_on_one_artefact_is_refused():
-    comment = "FIXED — the gate is in adapters/shared_drive.py:354."
+    comment = "FIXED — the gate is in adapters/s3.py:354."
     assert "C6" in _failed(THREE_REQUIREMENTS, comment)
 
 
@@ -159,9 +159,9 @@ def test_naming_one_artefact_per_requirement_passes():
     """NEGATIVE CONTROL for C6."""
     comment = (
         "**FIXED** — verified against HEAD.\n"
-        "1. adapters/shared_drive.py:354 — descendants sampled\n"
+        "1. adapters/s3.py:354 — descendants sampled\n"
         "2. adapters/_common.py:412 — gate counts the manifest\n"
-        "3. tests/transfer/test_shared_drive_adapter.py — verify test added\n"
+        "3. tests/delta/test_s3_adapter.py — verify test added\n"
     )
     assert "C6" not in _failed(THREE_REQUIREMENTS, comment)
 
@@ -174,8 +174,8 @@ def test_repeating_one_path_does_not_satisfy_the_count():
     uniform.
     """
     comment = (
-        "FIXED\n1. adapters/shared_drive.py\n2. adapters/shared_drive.py\n"
-        "3. adapters/shared_drive.py\n"
+        "FIXED\n1. adapters/s3.py\n2. adapters/s3.py\n"
+        "3. adapters/s3.py\n"
     )
     assert "C6" in _failed(THREE_REQUIREMENTS, comment)
 
@@ -245,8 +245,8 @@ def test_paths_inside_backticks_are_seen():
     `test_reading_the_directory_the_label_suggests_is_refused` going green when
     it should have gone red, which is the only reason it was caught at all.
     """
-    body = "See `backend/app/blueprints/datashield/router.py:818` for the route."
-    assert RULE._cited_paths(body, SPEC) == {"datashield/router.py"}
+    body = "See `backend/app/blueprints/beta/router.py:818` for the route."
+    assert RULE._cited_paths(body, SPEC) == {"beta/router.py"}
     assert RULE._artefact_refs("FIXED — `app/x/y.py:3`", SPEC)
 
 
@@ -293,12 +293,12 @@ def _transition_event(key: str, tid: str = "31") -> dict:
 
 GOOD = (
     "FIXED - verified against HEAD.\n"
-    "1. the gate counts moved ids - adapters/shared_drive.py:354\n"
-    "2. the verify test exists - test_shared_drive_adapter.py\n"
+    "1. the gate counts moved ids - adapters/s3.py:354\n"
+    "2. the verify test exists - test_s3_adapter.py\n"
 )
 BLANK_HALF = (
     "FIXED\n"
-    "1. the gate counts moved ids - adapters/shared_drive.py:354\n"
+    "1. the gate counts moved ids - adapters/s3.py:354\n"
     "2. recursive source inventory\n"
 )
 
@@ -491,9 +491,9 @@ def test_evidence_on_the_following_line_still_counts():
     comment = (
         "FIXED\n"
         "1. the gate counts moved ids\n"
-        "   see adapters/shared_drive.py:354\n"
+        "   see adapters/s3.py:354\n"
         "2. the verify test exists\n"
-        "   test_shared_drive_adapter.py\n"
+        "   test_s3_adapter.py\n"
     )
     assert "C4" not in _failed("", comment)
 
@@ -501,8 +501,8 @@ def test_evidence_on_the_following_line_still_counts():
 def test_prose_bullets_are_not_treated_as_claims():
     """NEGATIVE CONTROL: bullets carry context, not coverage claims."""
     comment = (
-        "FIXED - adapters/shared_drive.py:354\n\n"
-        "- point one was already resolved by GPLO-1511\n"
+        "FIXED - adapters/s3.py:354\n\n"
+        "- point one was already resolved by PROJ-1511\n"
         "- point three is a design call for the transfer owner\n"
     )
     assert "C4" not in _failed("", comment)

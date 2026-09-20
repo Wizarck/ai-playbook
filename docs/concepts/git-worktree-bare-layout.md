@@ -103,7 +103,7 @@ Three layout candidates were considered:
 
 **A. Bare + per-branch siblings** (this spec). One database, every branch a peer subdir, atomic per-branch cleanup, no parent-dir pollution. Tradeoff: per-worktree `node_modules/` and build caches duplicate disk usage (acceptable cost for the isolation gain).
 
-**B. Sibling-suffix in the project parent** (`repo/`, `repo-featureA/`, `repo-bugfix-123/`). The implicit pre-v0.9.0 default. Works for 1–3 worktrees; pollutes `~/Projects/` listings past 3–4; surface area for accidental "wrong-repo" actions when names collide across projects (`project-b-feature-x` vs `livekit-feature-x`).
+**B. Sibling-suffix in the project parent** (`repo/`, `repo-featureA/`, `repo-bugfix-123/`). The implicit pre-v0.9.0 default. Works for 1–3 worktrees; pollutes `~/Projects/` listings past 3–4; surface area for accidental "wrong-repo" actions when names collide across projects (`project-b-feature-x` vs `project-c-feature-x`).
 
 **C. Centralised worktree pool** (`~/.worktrees/<repo>-<branch>/`). Hides the pool entirely. Tradeoff: editor multi-root workspaces get awkward; the `cd ~/projects/<repo>` muscle memory breaks; no co-location with the project's `.bare/`.
 

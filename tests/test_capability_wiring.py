@@ -9,7 +9,7 @@ Contracts under test:
 - docs/concepts/code-entropy.md               (axis 4, `unwired-capability`)
 
 THE CENTRAL TEST is `test_beat_schedule_decoy_does_not_satisfy_the_route`. It
-reproduces geeplo `47717de3` hermetically: a Celery task that is imported AND
+reproduces a real incident hermetically: a Celery task that is imported AND
 present in `beat_schedule` but absent from `task_routes`. A bare-name regex
 passes on that shape — which is exactly how the bug reached `main`. If that
 test ever goes green with a loose `by`, this rule has become decoration.
@@ -93,7 +93,7 @@ BASIC = {
 
 
 # ---------------------------------------------------------------------------
-# The regression proof — geeplo 47717de3
+# The regression proof
 # ---------------------------------------------------------------------------
 
 
@@ -101,7 +101,7 @@ CELERY_BY = "(?<!\"task\": )[\"']app\\.tasks\\.{stem}\\.{symbol}[\"']\\s*(?:\\]\
 
 
 def _celery_tree(root: Path, *, routed: bool) -> Path:
-    """Reproduce the shape of geeplo `47717de3^`.
+    """Reproduce the shape of the tree before the fix.
 
     The task exists, is imported, and HAS a `beat_schedule` entry. Only the
     `task_routes` line is absent. Everything a human reviewer would look for is

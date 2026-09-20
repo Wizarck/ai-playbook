@@ -5,7 +5,7 @@ migrations tree AND a DB seed script (e2e fixtures) must exercise them together
 in CI — a job that applies migrations to a FRESH database and then runs the
 seed (twice, for idempotency). Without it, a migration that adds a NOT NULL
 column the seeder never learned about explodes days later in the e2e job of an
-unrelated PR (geeplo 2026-07-13: 0070/0072 vs bootstrap-test-db.py), instead of
+unrelated PR (migrations 0070/0072 vs bootstrap-test-db.py), instead of
 failing the schema-changing PR itself in one minute.
 
 Validate-only: workflows are too heterogeneous for a safe auto-append. A

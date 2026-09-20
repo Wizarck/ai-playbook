@@ -6,7 +6,7 @@ Two jobs, one contract (`specs/jira-ticket-standard.yaml`, read via `_ticket_kit
   * ``pretooluse`` — the PREVENTIVE half. Intercepts the Atlassian MCP
     create/edit calls and refuses a description that does not meet the standard.
     This is where the enforcement actually lands: the overwhelming majority of
-    GPLO tickets are authored by an agent in session through that tool, not by
+    Jira tickets are authored by an agent in session through that tool, not by
     the OpenSpec sync. A rule doc and a skill are advice that fades with context
     compaction; a PreToolUse hook re-fires on every single call with no memory of
     the last one, which is the only property that survives a long session.
@@ -322,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     check = sub.add_parser("check", help="Report non-conformant tickets in Jira.")
-    check.add_argument("--project", default="GPLO")
+    check.add_argument("--project", default=os.environ.get("AIPLAYBOOK_JIRA_PROJECT", "PROJ"))
     check.add_argument("--jql", default=None, help="Override the whole query.")
     check.add_argument("--since", default=None,
                        help="Only tickets created on/after this date (YYYY-MM-DD). "

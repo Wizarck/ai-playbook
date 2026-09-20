@@ -159,7 +159,7 @@ A Bash block on a write_path bypass emits the enriched fields:
   "block_tool": "Bash",
   "change_id": "transfer-tech-debt-sweep",
   "matched_pattern": "backend/**/*.py",
-  "target_rel": "backend/app/blueprints/transfer/router.py",
+  "target_rel": "backend/app/blueprints/delta/router.py",
   "bash_pattern_kind": "sed-i",
   "marker_present": false,
   "feature_flag": {"bash_inspection": "1"}

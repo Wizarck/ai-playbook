@@ -36,7 +36,7 @@ A Claude Code session at the repo root then auto-recalls from Hindsight bank `<p
 >
 > **Pre-existing `.mcp.json` (≥ v0.19.22).** If the repo already had an inline
 > `.mcp.json`, run `python .ai-playbook/scripts/mcp/render.py --absorb` once.
-> Tenant instances (`<server-type>-<tenant>`, e.g. `google-workspace-arturo`) are
+> Tenant instances (`<server-type>-<tenant>`, e.g. `google-workspace-jane`) are
 > migrated into your local personal layer (`~/.config/mcp-servers.yaml`); every
 > other server is **reported, not written** — add genuinely-shared ones to the
 > committed `mcp-servers.project.yaml` by hand. Nothing personal can land in a

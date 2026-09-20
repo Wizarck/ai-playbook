@@ -8,7 +8,7 @@ WHAT THIS DETECTS
 A capability that was BUILT but never WIRED into the registry that makes it
 reachable. The code exists, imports cleanly, type-checks, and is dead.
 
-Precedent (geeplo `47717de3`): `app.tasks.heartbeat_tasks.emit_liveness_heartbeat`
+Precedent: `app.tasks.heartbeat_tasks.emit_liveness_heartbeat`
 existed, was imported, and had a `beat_schedule` entry — but no `task_routes`
 entry, so Beat published it to `default` instead of `scheduled`. Nothing was
 missing; nothing was broken; one line of registry was absent.

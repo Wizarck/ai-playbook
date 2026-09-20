@@ -75,7 +75,7 @@ python .ai-playbook/scripts/sweep_execute.py plan --ledger ledger.json
 python .ai-playbook/scripts/sweep_execute.py authorize \
   --ledger ledger.json \
   --id orphan-app-lib-sanitizeurl-ts-4f2ac118 \
-  --actor "arturo" \
+  --actor "maintainer" \
   --rationale "No importer by path or by name. Not in any registry, no dynamic \
 import, no build-config reference. 12 lines, unused since 2026-06-25."
 ```

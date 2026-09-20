@@ -1,7 +1,7 @@
 ---
 schema: rule/v1
 slug: migrate-seed-smoke
-description: Repos with BOTH an alembic migrations tree AND a DB seed script MUST have a CI job that applies migrations to a fresh database and runs the seed twice — otherwise a migration adding a NOT NULL column the seeder never learned about explodes days later in the e2e job of an unrelated PR (geeplo 2026-07-13, migrations 0070/0072 vs bootstrap-test-db.py) instead of failing the schema-changing PR in one minute; validate-only, drop-in job at templates/ci/migrate-seed-smoke.yml.
+description: Repos with BOTH an alembic migrations tree AND a DB seed script MUST have a CI job that applies migrations to a fresh database and runs the seed twice — otherwise a migration adding a NOT NULL column the seeder never learned about explodes days later in the e2e job of an unrelated PR (a production codebase, 2026-07-13, migrations 0070/0072 vs bootstrap-test-db.py) instead of failing the schema-changing PR in one minute; validate-only, drop-in job at templates/ci/migrate-seed-smoke.yml.
 paired_hardrule: scripts/rules/migrate-seed-smoke.rule.py
 activation: manual
 status: enforced

@@ -439,7 +439,7 @@ Non-terminating neighbours stay allowed and are covered by tests:
 
 - **New clause C4 — no blank halves.** If a closure enumerates its work as an
   ordered list, every item must carry its own artefact. Catches the error the
-  rule was built for (GPLO-1469, closed after verifying 1 requirement of 3)
+  rule was built for (PROJ-1469, closed after verifying 1 requirement of 3)
   using only the comment. Ordered lists only — bullets carry prose.
 
 ### Changed
@@ -621,12 +621,12 @@ Non-terminating neighbours stay allowed and are covered by tests:
   An agent memory with the same content — "'verified' has to name WHICH HALF;
   follow the paths a ticket cites, not its label" — was written after two wrong
   closures and was loaded in context when two more were made. Four in one
-  campaign (geeplo, 2026-08-15/16), each with a confident comment attached and
-  none with a mechanical reason to be complete: GPLO-1469 (1 of 3 requirements
-  checked → C5), GPLO-1388 (read the directory the `[DataScout]` label suggested
-  while the ticket's first line named `datashield/router.py:818` → C4),
-  GPLO-1473 (a `grep -v` that filtered out where the fix lived, then the backend
-  half of a two-half ticket → C5), GPLO-1497 (backend half closed while the
+  campaign (2026-08-15/16), each with a confident comment attached and
+  none with a mechanical reason to be complete: PROJ-1469 (1 of 3 requirements
+  checked → C5), PROJ-1388 (read the directory the `[Alpha]` label suggested
+  while the ticket's first line named `beta/router.py:818` → C4),
+  PROJ-1473 (a `grep -v` that filtered out where the fix lived, then the backend
+  half of a two-half ticket → C5), PROJ-1497 (backend half closed while the
   Playwright half named in the ticket's own regression section was still pinned
   `test.fail()` → C4).
 
@@ -691,7 +691,7 @@ Non-terminating neighbours stay allowed and are covered by tests:
 
   Canonical stays Spanish so nothing already written moves, and the change is
   purely additive: no description that validated before it stops validating
-  after. `tests/fixtures/jira_ticket_gplo_1350.md` — the real production
+  after. `tests/fixtures/jira_ticket_example.md` — the
   ticket the suite is anchored on — is asserted unchanged as the C regression.
 
   The negative control is the one worth reading: `## Background` is plausible
@@ -781,7 +781,7 @@ Non-terminating neighbours stay allowed and are covered by tests:
   exists to catch: built-but-unregistered code imports cleanly and passes its own
   tests.
 
-## [0.22.8] — 2026-08-02 — feat: enforce the ticket-authoring standard (GPLO-1350)
+## [0.22.8] — 2026-08-02 — feat: enforce the ticket-authoring standard (PROJ-1350)
 
 ### Added
 - **`specs/jira-ticket-standard.yaml`** — one contract: required sections per issue
@@ -813,7 +813,7 @@ Non-terminating neighbours stay allowed and are covered by tests:
 
 ### Measured
 - **Conformance on 2026-08-02: 1 of 16 (6%).** The only conformant ticket is
-  GPLO-1350 itself. Fifteen others, three of them filed carefully earlier the same
+  PROJ-1350 itself. Fifteen others, three of them filed carefully earlier the same
   day, are not.
 - **Three false-positive classes were found by measuring against real tickets and
   fixed before shipping**, each of which would have made the standard fire hardest
@@ -823,7 +823,7 @@ Non-terminating neighbours stay allowed and are covered by tests:
     file paths, shell commands, commit SHAs, a GUID, and Helm templating inside a
     ticket that was *about* Helm templating. Now `<<...>>`, plus code spans are
     stripped before the scan.
-  - The heading/metric-type normaliser rejected all four metric lines of GPLO-1350
+  - The heading/metric-type normaliser rejected all four metric lines of PROJ-1350
     over markdown emphasis and a trailing full stop (`_cobertura / compliance_.`).
   - `min_words_per_section` started at 12, rejected four legitimate tickets, then 6,
     which rejected "Ampliar el walker de ADF". It is 3: a word count can only ever
@@ -844,7 +844,7 @@ Non-terminating neighbours stay allowed and are covered by tests:
 - **`code-entropy.md` flips 🟡 partial → ✅ enforced** in
   [`enforcement-status.md`](docs/concepts/enforcement-status.md). The row has only
   ever claimed what was measured, and the condition it named — "no consumer has
-  frozen a number with it yet" — is now met: geeplo runs all three detectors in an
+  frozen a number with it yet" — is now met: a consumer runs all three detectors in an
   always-on `entropy-gate` job on every PR, froze `SWEEP_ORPHAN_BASELINE` at 10 and
   then at 0, and `sweep_execute.py` performed its first real deletions (8 files,
   each with a restore command).
@@ -1152,14 +1152,14 @@ Non-terminating neighbours stay allowed and are covered by tests:
   cannot be imported in isolation. It runs identically in pre-commit, in CI and
   in an agent self-check.
 
-  Acceptance gate: the engine reproduces geeplo `47717de3`, where
+  Acceptance gate: the engine reproduces a production bug, where
   `emit_liveness_heartbeat` was imported AND present in `beat_schedule` but
-  absent from `task_routes`. Run against that commit's parent it exits 1 naming
+  absent from `task_routes`. Run against the pre-fix tree it exits 1 naming
   the task; run against the fix it exits 0. A negative-control test asserts that
   the naive bare-name regex **passes** on the buggy tree — which is exactly why
   the anchored `by` is mandatory.
 
-  Measured against the real geeplo tree, the six assertions in
+  Measured against a real production tree, the six assertions in
   `specs/wiring-assertions.example.yaml` reproduce their documented counts
   exactly: 251 items across 6 registries, 2 live S3 findings.
 
@@ -1320,7 +1320,7 @@ it wrong costs an edit rather than a rewrite.
   subsystems materialise auto-managed blocks — `auto_managed.py` for `specs/*`,
   plus the caveman and ponytail toggles for their own prefixes — so "this block
   has no owner" is a judgement across three state files, not a safe basis for
-  auto-deletion. Detected in geeplo, where the entry destroyed **623 lines
+  auto-deletion. Detected in a consumer, where the entry destroyed **623 lines
   across 7 files** of the playbook's own tree, truncating several mid-sentence
   and removing a `verdict-contract` FOOTER (an instructional-defense control).
 - **Safety `auto_managed_orphan` now delegates to `auto_managed.find_sections`**
@@ -1359,14 +1359,14 @@ it wrong costs an edit rather than a rewrite.
   gate CI must also run at pre-commit with the same pin (v1 scope: ruff).
   `apply` appends the ruff-pre-commit block using the CI-detected pin
   (append-only; refuses to invent a rev; warns on pin drift). Born from the
-  2026-07-13 geeplo incident: a wave merged with 41 ruff errors nobody saw
+  2026-07-13 incident: a wave merged with 41 ruff errors nobody saw
   locally because pre-commit never ran ruff.
 - **Rule `migrate-seed-smoke`** (#143) — enforced, validate-only. Repos with an
   alembic tree AND a DB seed script must exercise the migrate→seed contract in
   CI: fresh database → `alembic upgrade head` → seed twice (idempotency).
   Drop-in job at `templates/ci/migrate-seed-smoke.yml`. Kills the class where a
   NOT NULL migration outruns the e2e seeder and explodes days later in an
-  unrelated PR's e2e job (geeplo 0070/0072 vs bootstrap-test-db.py).
+  unrelated PR's e2e job.
 - **Concept `anti-drift-gates`** (#143) — the four-layer defense-in-depth model
   (laptop / PR CI / merge lock / continuous), the breakage-class→layer map, and
   ratchet-only-down guidance (baselines block growth AND demand lowering when
@@ -1512,7 +1512,7 @@ Slice B (final) of the `lossless-adoption` change.
 - `scripts/mcp/absorb.py` + `render.py --absorb`: a repo adopting the playbook with
   a hand-authored inline `.mcp.json` can migrate its servers into the source layers
   (otherwise they vanish on the next render). **Safe-default contract:** tenant
-  instances (`<base-server-type>-<tenant-slug>`, e.g. `google-workspace-arturo`) are
+  instances (`<base-server-type>-<tenant-slug>`, e.g. `google-workspace-jane`) are
   auto-written to the LOCAL personal layer (`~/.config/mcp-servers.yaml`); every
   other server is **reported, never auto-written**, so a misclassification can never
   leak a personal server into the committed `mcp-servers.project.yaml`. Only env-var
@@ -1574,7 +1574,7 @@ personal/tenant MCP servers land in a committed work artifact.
   local-render model, the one-time `git rm --cached` migration for repos that
   committed these files before, and the fresh-clone render step.
 - Genericised the one personal-flavoured example in `mcp-servers-schema.md`
-  (`google-workspace-arturo` → `google-workspace-<you>`).
+  (`google-workspace-jane` → `google-workspace-<you>`).
 
 ### Added
 - Regression test: the shipped `.gitignore.tmpl` ignores both rendered MCP
@@ -1781,7 +1781,7 @@ feature alongside caveman.
   resolution, graceful degrade, plus `--base auto` resolution across
   main/master/trunk and origin/non-origin remotes).
 - Registered in `AGENTS.md` Rule Map, `docs/rules/INDEX.md`, and the config-UI
-  rules inventory. Origin: the `033_*` two-head fork that broke geeplo
+  rules inventory. Origin: the `033_*` two-head fork that broke
   deploys + e2e api boot on 2026-06-03.
 
 ## [0.19.9] — 2026-06-01 — config-UI file:// + green CI
@@ -2334,7 +2334,7 @@ The UI surfaces are **opt-in**: no state file = all rules ON, caveman OFF, no en
 
 ### Previous Unreleased entries (continue here)
 
-- **`scripts/mcp/render.py`** — SOPS-decrypted secrets resolution + Antigravity global config update (#94). Three new functions: `find_secrets_env(consumer_root)` probes two known siblings for `eligia-core/secrets/secrets.env`; `decrypt_sops_env(secrets_path)` shells out to `sops -d` (auto-setting `SOPS_AGE_KEY_FILE` from `~/.config/sops/age/keys.txt`) and parses the result as `KEY=VALUE`; `update_global_antigravity_mcp(merged, resolved_env, dry_run)` writes the merged MCP spec to `~/.gemini/antigravity/mcp_config.json` (when present) with CF-Access headers added for `auth: cf-access` servers and the known cf-access name prefixes (`google-workspace*`, `atlassian*`, `hindsight*`). The `run()` orchestrator wires them: SOPS file → `os.environ` fallback for `CF_ACCESS_CLIENT_{ID,SECRET}` before the Antigravity update. Dry-run preserved end-to-end. Known hardcodes documented in the PR body (sibling path, server-name heuristic, `HINDSIGHT_BANK_ID` "geeplo" fallback) — pragmatic, grep-and-fix later.
+- **`scripts/mcp/render.py`** — SOPS-decrypted secrets resolution + Antigravity global config update (#94). Three new functions: `find_secrets_env(consumer_root)` probes two known siblings for `my-project/secrets/secrets.env`; `decrypt_sops_env(secrets_path)` shells out to `sops -d` (auto-setting `SOPS_AGE_KEY_FILE` from `~/.config/sops/age/keys.txt`) and parses the result as `KEY=VALUE`; `update_global_antigravity_mcp(merged, resolved_env, dry_run)` writes the merged MCP spec to `~/.gemini/antigravity/mcp_config.json` (when present) with CF-Access headers added for `auth: cf-access` servers and the known cf-access name prefixes (`google-workspace*`, `atlassian*`, `hindsight*`). The `run()` orchestrator wires them: SOPS file → `os.environ` fallback for `CF_ACCESS_CLIENT_{ID,SECRET}` before the Antigravity update. Dry-run preserved end-to-end. Known hardcodes documented in the PR body (sibling path, server-name heuristic, `HINDSIGHT_BANK_ID` "my-project" fallback) — pragmatic, grep-and-fix later.
 
 - **`scripts/bootstrap.py`** + **`scripts/auto_managed.py`** + **`AGENTS.md`** + **playbook self** — caveman default-on for new projects (#95). Bootstrap now activates caveman as step 4.6 (post-templates, pre-mcp-render) with `mode=full` and all six components, so the `mcp_shrink` post-render hook wraps `.mcp.json` + `.gemini/settings.json` on the first pass. Opt out with `--no-caveman`; existing consumers flip it manually with `python -m scripts.caveman on`. The playbook itself dogfoods caveman: `.ai-playbook/caveman.json` toggle is committed (gitignore exception added so only the toggle is tracked, not `notifications.jsonl` / `overrides.log` / `backups/`), and `AGENTS.md` carries the materialised `caveman/ruleset:full` block. `scripts/auto_managed.py` grew a special-case for `caveman/ruleset:<mode>` that delegates to `materialise.render_block_content` — byte-identical to `caveman on` by construction. 4 new bootstrap tests covering default-on invocation, `--no-caveman` opt-out, dry-run no-op, and best-effort failure handling. Runbook updated with the default-on policy + opt-out path.
 
@@ -2390,7 +2390,7 @@ Consumer projects accumulated "zombie" local branches because:
 2. Squash-merge creates a new commit on main; the original slice tip is not
    reachable from main, so `git branch --merged` cannot detect it.
 
-Discovered while cleaning up after a geeplo hotfix (`GPLO-1027`) — the
+Discovered while cleaning up after a hotfix — a consumer
 project had accumulated 33 zombie local `slice/*` branches, only 1 of which
 corresponded to an open PR. This release codifies the cleanup logic.
 
@@ -2450,7 +2450,7 @@ old helpers continue to work as before.
 ## [0.19.4] — 2026-05-20 — Windows UTF-8 stdout + dispatcher-cursor sibling warning
 
 Two follow-ups surfaced while dogfooding v0.19.3's orchestrator against a
-Windows consumer (geeplo). Both backwards-compatible; no consumer action
+Windows consumer. Both backwards-compatible; no consumer action
 required beyond the submodule bump.
 
 ### Fixed
@@ -2607,7 +2607,7 @@ incomplete, etc.).
 ## [0.19.2] — 2026-05-19 — MCP tenant-specific decoupling (post-flip cleanup)
 
 Fixes two latent issues from the v0.18.x public-flip that surfaced when
-bumping a real consumer (geeplo) to v0.19.x:
+bumping a real consumer to v0.19.x:
 
 ### Changed
 
@@ -2887,7 +2887,7 @@ each rejection class, missing-file → exit 2, SKIP env var).
 - `docs/rules/hitl-approval-pattern.rule.md`
 
 All five rules now carry `paired_hardrule: null` + `status: advisory`. The
-runtime surface for each (`scripts/notifications/`, `langgraph-aiops/`,
+runtime surface for each (`scripts/notifications/`, `aiops/`,
 `hitl.request_approval`, mutation-class DTOs) lives in consumer projects,
 not in the playbook tree. A playbook-side hardrule would only see
 references that do not resolve here. Consumers MAY mirror the contract
@@ -3666,14 +3666,14 @@ First caller in the playbook to adopt the application dimension. No behavior cha
 
 Additive MINOR release. Adds a second tagging dimension (`application`) parallel to the existing `consumer`, enabling cost attribution by functional subsystem in downstream observability tooling (such as cost-by-tag dashboards).
 
-Motivation: consumers like `WORKFLOWS` fan out to many functional subsystems (`aiops-workflow-vps-maintainer`, `aiops-workflow-retro-generator`, `langgraph-doc-writer`, ...). Attribution by `consumer` alone collapses these into one bucket, breaking *"which subsystem is driving Opus cost?"*. Collapsing the two dimensions instead (one tag per app) explodes the LiteLLM virtual-key roster and breaks the budget abstraction. Decouple from day 1.
+Motivation: a consumer can fan out to many functional subsystems (`aiops-workflow-maintainer`, `aiops-workflow-report`, `doc-writer`, ...). Attribution by `consumer` alone collapses these into one bucket, breaking *"which subsystem is driving Opus cost?"*. Collapsing the two dimensions instead (one tag per app) explodes the LiteLLM virtual-key roster and breaks the budget abstraction. Decouple from day 1.
 
 See [`openspec/changes/llm-application-tag/proposal.md`](openspec/changes/llm-application-tag/proposal.md).
 
 ### Added
 
 - **`scripts/_llm.py`** — `call()` accepts new `application: str | None = None` kwarg. `_resolve_application()` mirrors `_resolve_consumer()` with `AIPLAYBOOK_APPLICATION` env fallback (kebab-lowercase normalisation). All 4 OTel emission points propagate `ai_playbook.application`. CLI surface gains `--application`. `LLMResponse` dataclass gains `application` field. 16/16 existing tests pass — backwards-compatible.
-- **`docs/concepts/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (`hermes-bot`, `dashboard-backend`, `aiops-workflow-<name>`, `prompt-injection-filter`, `lib-advisor`, `hindsight-internal`, `claude-code` reserved) + "how to add a new application" recipe + worked examples showing `consumer × application` M:M. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
+- **`docs/concepts/model-routing.md`** v2.1.0 — new §5 "Application tags" with canonical roster (`chat-bot`, `dashboard-backend`, `aiops-workflow-<name>`, `prompt-injection-filter`, `lib-advisor`, `hindsight-internal`, `claude-code` reserved) + "how to add a new application" recipe + worked examples showing `consumer × application` M:M. §4 OTel attributes table gains `ai_playbook.application` and `ai_playbook.consumer` rows (the latter was implicitly required but never documented). Existing §5 "Hooks and existing code" renumbered to §6; §6 "Break-glass" to §7. Additive.
 - **`docs/concepts/env-vars.md`** §Per-consumer virtual keys — new "How to add a new consumer" 7-step subsection (provider key generation → SOPS encryption → k8s sync → LiteLLM wiring → table registration → budget cap script → smoke test).
 - **`configs/litellm-router.yaml`** — top-of-file warning section documenting the production-deploy mirror contract: LiteLLM accepts only ONE `--config` file, so this yaml MUST be mirrored into the consumer's project-local ConfigMap. The companion sync test lives in the consumer's repo (e.g. `project-d/dashboard/tests/test_litellm_config_sync.py`), NOT here — it reads the consumer's local deploy template, which doesn't exist inside the playbook standalone.
 - **`openspec/changes/llm-application-tag/`** — new openspec change folder tracking the playbook-side of this work.
@@ -3906,7 +3906,7 @@ Patch release that addresses the 3 followups carried into v0.9.x from the v0.9.0
 
 ### Fixed
 
-- **Followup #1 — `propagate_bump.py` now bumps `AGENTS.md inherits_from` for every consumer.** Previously only `propagate_skills_bump.py` rewrote frontmatter pins, and only for consumers with `skills_pins:` declared in `consumers.yaml`. livekit (no skills tracking) ended every cascade with stale `inherits_from:` and required a manual fix-PR each time. The `_edit_frontmatter_skills_source` helper has been moved to `scripts/_bumper.py::bump_agents_md_pin` and is now called by BOTH propagation scripts. The same regex matches `inherits_from:` items (with the `github.com/` prefix) and `skills_sources:` items (without) in one pass.
+- **Followup #1 — `propagate_bump.py` now bumps `AGENTS.md inherits_from` for every consumer.** Previously only `propagate_skills_bump.py` rewrote frontmatter pins, and only for consumers with `skills_pins:` declared in `consumers.yaml`. A consumer with no skills tracking ended every cascade with stale `inherits_from:` and required a manual fix-PR each time. The `_edit_frontmatter_skills_source` helper has been moved to `scripts/_bumper.py::bump_agents_md_pin` and is now called by BOTH propagation scripts. The same regex matches `inherits_from:` items (with the `github.com/` prefix) and `skills_sources:` items (without) in one pass.
 - **Followup #2 — `_bumper.supersede_open_bump_prs()` is now semver-aware.** Previously it used "newer-PR-by-creation-time wins" — when multiple tags pushed close together (rc1 + rc2 cycle 2026-05-01), workflow scheduling determined order, not semver, and v0.8.7's PRs closed the newer v0.9.0-rc2 PRs (recovery required deleting + re-pushing the rc2 tag). The function now parses the head-branch's version (`chore/bump-(playbook|skills-*)-vX.Y.Z[-rc.N]`), compares via tuple key (stable releases sort above their rcs of the same series; older series sort below newer), and only closes an open PR whose parsed version is `<=` the new bump's. Backward-compatible: callers that omit the new `new_branch` argument fall back to chronological mode + log a warning.
 - **Followup #3 — `block_manual_spec_edit.py::read_commit_message()` now handles CI mode.** Previously it only read `$PRE_COMMIT_COMMIT_MSG_FILE` (commit-msg stage) and `.git/COMMIT_EDITMSG` (fallback) — but in CI's `pre-commit run --from-ref/--to-ref` mode neither is set, so every archive PR saw "commit message unavailable" and required `--admin` merge to bypass. The function now ALSO runs `git log --format=%B%x00 $FROM..$TO` and concatenates every commit message in the range, so the `openspec-archive:` marker is detected if it appears in ANY commit on the branch.
 
@@ -3938,7 +3938,7 @@ Promotes v0.9.0-rc1 (CodeRabbit fallback 3-layer defense) → stable after the v
 
 ### Open followups (carried into v0.9.x)
 
-- **`scripts/propagate_bump.py`**: doesn't bump `AGENTS.md` `inherits_from` field on consumers. Manual fix in livekit PR #36 surfaced this. Filed in `docs/concepts/v0.9.0-roadmap.md`.
+- **`scripts/propagate_bump.py`**: doesn't bump `AGENTS.md` `inherits_from` field on consumers. Manual fix in a consumer PR surfaced this. Filed in `docs/concepts/v0.9.0-roadmap.md`.
 - **`scripts/_bumper.py` supersede logic**: uses tag-push chronology, not semver order. Out-of-order tag push superseded newer PRs with older ones during the v0.9.0-rc1/rc2 cycle. Filed in `docs/concepts/v0.9.0-roadmap.md`.
 - **`/opsx:apply` skill**: doesn't enforce tasks.md checkbox-update discipline. Slice 3 implementation merged with 0/55 boxes checked despite being feature-complete (verified by tests + coverage). To file as a v0.9.x followup.
 
@@ -4336,7 +4336,7 @@ that made every consumer PR fail.
   - §5.5 Trace fields `Branch` + `Base SHA` on every consumer's project board.
   - §5.6 Visibility-driven enforcement profile (A: Public OSS, B: Private Solo).
   - §6.5 Pre-flight rebase before slice start.
-  - §8.1 Migration matrix for Arturo's 8-consumer constellation (May 2026).
+  - §8.1 Migration matrix for the maintainer's 8-consumer constellation (May 2026).
 - **`scripts/bootstrap_gh_project.py` `--profile {auto,public,private}`** (PR #14):
   - Detects repo visibility and applies branch protection + auto-merge
     + .coderabbit.yaml (Profile A) or repo settings only (Profile B).
@@ -4499,7 +4499,7 @@ This is a **release candidate** — the contract is validated before promoting t
 
 ## [0.7.1] — 2026-04-29 — apply-fix contract (Phase 5 bring-forward)
 
-Adds the `apply-fix-contract.md` spec — the canonical contract any workflow MUST honor when mutating prod state via human-in-the-loop approval. Lifts the propose-only ceiling that previously kept all `langgraph-aiops/workflows/*.py` write paths blocked behind `NotImplementedError("APPLY_FIX mode deferred to T29")`. Sibling to `break-glass.md`; different audiences (CLI gate overrides vs workflow mutation contracts).
+Adds the `apply-fix-contract.md` spec — the canonical contract any workflow MUST honor when mutating prod state via human-in-the-loop approval. Lifts the propose-only ceiling that previously kept all `aiops/workflows/*.py` write paths blocked behind `NotImplementedError("APPLY_FIX mode deferred to T29")`. Sibling to `break-glass.md`; different audiences (CLI gate overrides vs workflow mutation contracts).
 
 ### Added
 
@@ -4507,7 +4507,7 @@ Adds the `apply-fix-contract.md` spec — the canonical contract any workflow MU
 
 ### Stale references retired (in consumers)
 
-- The strings `"T29"` and `"break-glass.md §propose-only ceiling"` no longer appear in any new code authored against v0.7.1+. The `§propose-only ceiling` section never existed in `break-glass.md`; the citation was a forward-reference to a milestone that was never scheduled. Consumers updating to v0.7.1 should also update their own `langgraph-aiops/workflows/hitl.py` and `langgraph-aiops/project-d_ops/tools.py` to drop the `NotImplementedError("APPLY_FIX mode deferred to T29")` guards and reference `apply-fix-contract.md` instead.
+- The strings `"T29"` and `"break-glass.md §propose-only ceiling"` no longer appear in any new code authored against v0.7.1+. The `§propose-only ceiling` section never existed in `break-glass.md`; the citation was a forward-reference to a milestone that was never scheduled. Consumers updating to v0.7.1 should also update their own `aiops/workflows/hitl.py` and `aiops/project-d_ops/tools.py` to drop the `NotImplementedError("APPLY_FIX mode deferred to T29")` guards and reference `apply-fix-contract.md` instead.
 
 ### Notes
 
@@ -4762,7 +4762,7 @@ now points to the canonical pin (`<owner>/<repo>@<tag>:skills/<name>/`).
 
 ### Deprecated
 
-- `Wizarck/skills-manager-personal` — frozen since 2026-04-07, content
+- The legacy personal skills repo — frozen since 2026-04-07, content
   identical to `project-d-skills` for shared skills, no installer remaining
   (CLI lived on a now-decommissioned PC). Will be archived on GitHub as part
   of Phase 5.
@@ -4871,7 +4871,7 @@ honestly, close the manual-vs-automation script duplication.
 ### Changed (BREAKING — see Migration below)
 
 - `mcp-servers-base.yaml` — restructured. Removed tenant-named entries
-  (`google-workspace-arturo`, `trello-arturo`, `atlassian-project-a`, etc).
+  (`google-workspace-jane`, `trello-jane`, `atlassian-project-a`, etc).
   Base now ships only generic templates (`atlassian`, `google-workspace`,
   `trello`) plus truly universal servers (`hindsight`, `litellm`,
   `guardrails-mcp`, `skills-registry`, `crm`, `rag`). Tenant-named
@@ -4914,7 +4914,7 @@ The shim still works through v0.x; will emit a stderr warning. Update
 your runbook bookmarks + shell aliases.
 
 For YOUR personal layer (`~/.config/mcp-servers.yaml`): no change — your
-existing entries (`google-workspace-arturo`, `trello-project-b`, etc) keep
+existing entries (`google-workspace-jane`, `trello-project-b`, etc) keep
 working. They're now solely in the personal layer instead of being
 duplicated as `scope: universal` in the base.
 
@@ -4930,7 +4930,7 @@ across 6+ files.
 - `scripts/init_org.py --org-name acme --dry-run` produces a clean
   25-replacement plan touching exactly 4 files; no specs/* drift.
 - Re-rendered `.mcp.json` shows 9 generic servers (was
-  11 incl. `*-arturo` leak in v0.2.3).
+  11 incl. `*-jane` leak in v0.2.3).
 
 ## [0.2.3] — 2026-04-25 — project-b onboarded + project-d mcp render + hook validated
 
@@ -4971,7 +4971,7 @@ across 6+ files.
 - `scripts/bump_consumers.py` — manual CLI to bump every consumer's `.ai-playbook/` submodule pin against `~/.ai-playbook/projects.yaml`. Flags: `--tag`, `--dry-run`, `--only`, `--push`, `--open-pr`, `--allow-dirty`, `--force`, `--force-with-reason`.
 - `scripts/propagate_bump.py` — CI-side twin that reads `consumers.yaml` + `$GH_TOKEN`, clones each active consumer, bumps submodule, opens PR via `gh`. Idempotent (skips if PR already open). Emits `warn` notifications per PR.
 - `.github/workflows/propagate-playbook-bump.yml` — event-driven primary propagation path: fires `on: push: tags: v*.*.*`, runs `propagate_bump.py`, uploads notifications.jsonl. Needs repo secret `PLAYBOOK_PROPAGATION_TOKEN`.
-- `project-d/langgraph-aiops/workflows/playbook_bump_propagator.py` + CronJob wiring — daily circuit-breaker for the GH Action: queries consumer submodule SHAs, re-invokes propagator for laggards, emits `warn` on every firing (meaning the Action missed a fire).
+- `project-d/aiops/workflows/playbook_bump_propagator.py` + CronJob wiring — daily circuit-breaker for the GH Action: queries consumer submodule SHAs, re-invokes propagator for laggards, emits `warn` on every firing (meaning the Action missed a fire).
 - `docs/concepts/dispatcher-chain.md`, `docs/rules/bootstrap-directive.rule.md`, `docs/tutorials/03-bootstrap-new-project.md` — 3 real v0.1.0 stubs closed to full v1.0.0 content.
 - `schemas/schema-agent-contract.json` — JSON Schema file extracted from the spec prose (was "stub pending T06 follow-up"); now the authoritative validation target.
 - README.md — full directory map (35 specs, 24 scripts, templates, docs, routers, rfcs, tests) + 4 persona getting-started paths + honest status.
@@ -5013,7 +5013,7 @@ across 6+ files.
 - `docs/concepts/upstream-sync.md` + `templates/PATCHES.md.tmpl` + `docs/tutorials/07-fork-inventory.md` (with `TODO: clarify` on 4 upstream URLs).
 - `scripts/upstream_sync.py` (~528 lines) — local inspection tool, `list`/`status`/`refresh`/`mark-merged` subcommands. Refresh is propose-only — no auto-merge.
 - `tests/test_upstream_sync.py` — 20 tests.
-- `project-d/langgraph-aiops/workflows/upstream_refresher.py` (~538 lines) — weekly LangGraph workflow; propose-only, gated by `hitl.request_approval`; decision log written to `reports/upstream-refresh/`.
+- `project-d/aiops/workflows/upstream_refresher.py` (~538 lines) — weekly LangGraph workflow; propose-only, gated by `hitl.request_approval`; decision log written to `reports/upstream-refresh/`.
 - `project-d/tests/test_upstream_refresher.py` — 20 tests.
 
 ### Test suite totals (MVP close)
@@ -5022,9 +5022,9 @@ across 6+ files.
 
 ### Open TODOs remaining at v0.2.0
 
-- Upstream URLs for 4 forks (hindsight/hermes/paperclip/lightrag) — Arturo to confirm in `docs/tutorials/07-fork-inventory.md`.
+- Upstream URLs for 4 forks (hindsight/hermes/paperclip/lightrag) — the maintainer to confirm in `docs/tutorials/07-fork-inventory.md`.
 - `Last rebase` timestamp convention in `PATCHES.md` — default ISO-8601; flagged in `docs/concepts/upstream-sync.md`.
-- T18 LangGraph workflows (Batch 8B) — NOT deployed; Arturo runs `project-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure) to activate on VPS.
+- T18 LangGraph workflows (Batch 8B) — NOT deployed; the maintainer runs `project-d/docs/operations/deploy-t18-workflows.md` (5-step aiops deploy procedure) to activate on VPS.
 - T19 Dashboard (Batch 9A) — deploy helm/project-d-stack/ manifest; 5-step runbook.
 - `project-d-skills` HTTP service — only the API contract is spec'd (Batch 9B `docs/api-contract.md`); the service itself is future work.
 - IR runbook (Batch 10A `docs/concepts/incident-response.md`) — deferred until first paying client.
@@ -5046,7 +5046,7 @@ across 6+ files.
 - `dashboard/frontend/` vanilla JS single-page dashboard — header + degradation pill + 4 cards (stack health / events / cost / lifecycle). No framework / no build step.
 - `dashboard/Dockerfile` — multi-stage, port 9020, curl healthcheck.
 - `dashboard/tests/test_app.py` — 19 tests (all pass): SSE init+live frame, CORS, cost caching + 400-on-bad-month, lifecycle file→dry-run fallback, stack_health degradation branches.
-- Manual deploy via the T18 5-step runbook; helm values bump pending Arturo.
+- Manual deploy via the T18 5-step runbook; helm values bump pending the maintainer.
 
 **Subagent B — T20 Skills Registry Integration (ai-playbook `b44833c`):**
 - `scripts/skills_registry.py` (~391 lines) — `list` / `show` CLI + importable `list_skills()` / `skill_by_name()`. Stdlib `urllib` only. Canonical errors; `--force-with-reason` degrades to empty list.
@@ -5062,8 +5062,8 @@ across 6+ files.
 
 ### Open TODOs
 
-- `project-d-skills` service implementation (FastAPI/Node serving `/api/v1/skills`) — spec'd, not built. Arturo or a future track owns.
-- Dashboard helm deploy manifest — Arturo adds to `helm/project-d-stack/` following the T18 5-step runbook.
+- `project-d-skills` service implementation (FastAPI/Node serving `/api/v1/skills`) — spec'd, not built. The maintainer or a future track owns.
+- Dashboard helm deploy manifest — the maintainer adds to `helm/project-d-stack/` following the T18 5-step runbook.
 
 
 
@@ -5077,8 +5077,8 @@ across 6+ files.
 - `.github/workflows/drift-check.yml` — active weekly cron (MON 07:00 UTC) with 48-hour T18a sentinel stagger via `heartbeat-t18a.txt` mtime check.
 
 **Subagent B — T18 LangGraph workflows backbone:**
-- `langgraph-aiops/workflows/{drift_detector,retro_generator,cost_reporter,metrics_buffer,hitl}.py` — 4 propose-only workflows + shared HITL gate. Each wraps a LangGraph StateGraph; lazy-imports langgraph so tests don't hard-depend. `drift_detector` touches `.ai-playbook/heartbeat-t18a.txt` on success → closes the loop with 8A's GitHub Action stagger.
-- `docs/subsystems/langgraph-workflows.md` + `docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops embedded + T18 CronJob additions + 48h stagger note) + `LEGACY_MIGRATION.md`.
+- `aiops/workflows/{drift_detector,retro_generator,cost_reporter,metrics_buffer,hitl}.py` — 4 propose-only workflows + shared HITL gate. Each wraps a LangGraph StateGraph; lazy-imports langgraph so tests don't hard-depend. `drift_detector` touches `.ai-playbook/heartbeat-t18a.txt` on success → closes the loop with 8A's GitHub Action stagger.
+- `docs/subsystems/langgraph-workflows.md` + `docs/operations/deploy-t18-workflows.md` (5-step aiops deploy procedure embedded + T18 CronJob additions + 48h stagger note) + `LEGACY_MIGRATION.md`.
 - `tests/test_workflows.py` — 34 new tests.
 
 ### Test suite totals (Batch 8 close)
@@ -5087,7 +5087,7 @@ across 6+ files.
 
 ### Deploy gate (manual)
 
-T18 workflows are NOT live on the VPS until Arturo runs `project-d/docs/operations/deploy-t18-workflows.md` (5-step Blindar aiops procedure + CronJob additions). The 48h T17h stagger starts from first successful DriftDetector run (heartbeat file touched on VPS).
+T18 workflows are NOT live on the VPS until the maintainer runs `project-d/docs/operations/deploy-t18-workflows.md` (5-step aiops deploy procedure + CronJob additions). The 48h T17h stagger starts from first successful DriftDetector run (heartbeat file touched on VPS).
 
 
 
@@ -5102,7 +5102,7 @@ T18 workflows are NOT live on the VPS until Arturo runs `project-d/docs/operatio
 - `pyproject.toml` — new `[project.optional-dependencies].docs` group (mkdocs, mkdocs-material, pymdown-extensions).
 
 **Subagent B — T16c/d/e/f project-d-ops meta-agent:**
-- `langgraph-aiops/project-d_ops/{__init__,server,tools,README}.py/md` — MCP stdio server + 5 read-only tools (`watchdog_status`, `recent_incidents`, `recent_retains`, `stack_health`, `suggest_remediation`).
+- `aiops/project-d_ops/{__init__,server,tools,README}.py/md` — MCP stdio server + 5 read-only tools (`watchdog_status`, `recent_incidents`, `recent_retains`, `stack_health`, `suggest_remediation`).
 - `docs/subsystems/project-d-ops.md` + `.claude/skills/project-d-ops/SKILL.md` — subsystem doc + skill file.
 - `tests/test_project-d_ops.py` — 19 tests (all pass).
 - `suggest_remediation` returns propose-only candidates with `command_preview` + `risk` tier; `APPLY_FIX_MODE=apply` raises `NotImplementedError("APPLY_FIX mode deferred to T29")`.
@@ -5192,7 +5192,7 @@ T18 workflows are NOT live on the VPS until Arturo runs `project-d/docs/operatio
 **Subagent B (T08 MCP SSOT pipeline):**
 - `scripts/mcp/validate.py` — 3-layer YAML loader + deep merge + schema validation + env.required union check + drift detection against committed `.mcp.json` / `.gemini/settings.json`. Canonical error emitter, break-glass integration.
 - `scripts/mcp/render.py` — renders `.mcp.json` (Claude Code) + `.gemini/settings.json` (Gemini/Antigravity); `--dry-run`, `--only claude|gemini`, provenance summary.
-- `mcp-servers-base.yaml` — 11 well-known server templates (hindsight, litellm, guardrails-mcp, atlassian-project-a, google-workspace-arturo/project-b, trello-arturo/project-b, skills-registry, crm, rag).
+- `mcp-servers-base.yaml` — 11 well-known server templates (hindsight, litellm, guardrails-mcp, atlassian-project-a, google-workspace-jane/project-b, trello-jane/project-b, skills-registry, crm, rag).
 - Tests: 28/28 pass (`test_mcp_validate.py`, `test_mcp_render.py`).
 
 **Subagent C (T09 scripts + pre-commit + env-vars):**

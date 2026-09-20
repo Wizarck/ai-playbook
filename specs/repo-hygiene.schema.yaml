@@ -13,7 +13,7 @@
 #          commits it).
 #
 # WHY THE OBVIOUS DETECTOR IS THE WRONG ONE
-# Both axes were MEASURED against geeplo before this contract was designed, and
+# Both axes were MEASURED against a production codebase before this contract was designed, and
 # both naive detectors failed:
 #
 #   axis 3: `declared − imported` produced 16 candidates. All 16 were FALSE
@@ -21,7 +21,7 @@
 #           without ever being imported by name (see `channels` below). Acting
 #           on that output would have deleted `scikit-learn`, which no line of
 #           the repo imports: it loads when `joblib.load()` deserialises the
-#           vendored pipeline in the piracy detector. The break would surface
+#           vendored pipeline in a classifier module. The break would surface
 #           only when that code path runs, as an ImportError buried inside
 #           joblib.
 #
@@ -169,7 +169,7 @@ dependency_check:
 
   # THE PROOF, and the heart of this check. A dependency counts as USED when ANY
   # channel proves it. The list exists because "imported by name" is only one of
-  # the ways a package is legitimately used; the geeplo measurement found five
+  # the ways a package is legitimately used; the measurement found five
   # more, and every one of them was a false positive under the naive detector:
   #   - console script      -> `uvicorn` in a Dockerfile CMD, `flower` in compose
   #   - plugin entry point  -> `pytest-timeout`, `opentelemetry-instrumentation-*`
@@ -281,7 +281,7 @@ artifact_check:
   # Assert the artefact is excluded from version control (`git check-ignore`).
   # Two distinct findings, because the remedies differ:
   #   COMMITTABLE — exists, untracked, NOT ignored. The next `git add -A`
-  #                 commits it. This is the footgun: geeplo's `graph.json` is
+  #                 commits it. This is the footgun: a consumer's `graph.json` is
   #                 ~762k lines and churns on every change.
   #   TRACKED     — already in the index. Ignoring it now changes nothing; it
   #                 has to be `git rm --cached`ed first.
@@ -358,7 +358,7 @@ shared_fields:
     allowed: [enforced, advisory]
 
   # Provenance: the commit, PR, ticket or ADR that motivated the check. Cite the
-  # ORIGINAL source (`GH: #N`, `Jira: GPLO-N`, a sha), never an intermediary.
+  # ORIGINAL source (`GH: #N`, `Jira: PROJ-N`, a sha), never an intermediary.
   evidence:
     type: string
     required: false
@@ -375,7 +375,7 @@ allow_entry:
   # WHY this is correctly exempt. MUST name the mechanism, not the symptom.
   # "not imported anywhere" is not a reason; "loaded by `joblib.load()` when
   # deserialising the vendored pipeline in
-  # backend/app/blueprints/datashield/piracy_detector.py" is.
+  # backend/app/blueprints/beta/classifier.py" is.
   reason:
     type: string
     required: true

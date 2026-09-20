@@ -48,7 +48,7 @@ ON with the lazy ruleset materialised, full intensity:
     "debt_ponytail": true
   },
   "applied_at": "2026-06-16T11:32:14+00:00",
-  "applied_by": "arturo"
+  "applied_by": "maintainer"
 }
 ```
 
@@ -79,8 +79,8 @@ Returns the current state plus computed derived flags:
 
 ```json
 {
-  "project_root": "C:/Projects/eligia-core",
-  "state_path": "C:/Projects/eligia-core/.ai-playbook/ponytail.json",
+  "project_root": "C:/Projects/my-project",
+  "state_path": "C:/Projects/my-project/.ai-playbook/ponytail.json",
   "state": { ... },
   "derived": { "materialised": true }
 }
@@ -208,7 +208,7 @@ python -m scripts.ponytail off --project .
 import json
 import subprocess
 
-PROJECT = "C:/Projects/eligia-core"
+PROJECT = "C:/Projects/my-project"
 PLAYBOOK = "C:/Projects/ai-playbook"  # cwd MUST be the playbook checkout
 
 def get_state() -> dict:

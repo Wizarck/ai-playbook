@@ -6,9 +6,9 @@
 # WHAT THIS DETECTS
 # A capability that was BUILT but never WIRED into the registry that makes it
 # reachable. The code exists, imports cleanly, type-checks, and is dead. Real
-# precedent (geeplo `47717de3`): `app.tasks.heartbeat_tasks.emit_liveness_heartbeat`
+# precedent (a consumer incident): `app.tasks.heartbeat_tasks.emit_liveness_heartbeat`
 # existed and had a `beat_schedule` entry, but no `task_routes` entry — so Beat
-# published it to the `default` queue instead of `scheduled`, and the GPLO-890
+# published it to the `default` queue instead of `scheduled`, and the PROJ-890
 # routing-audit test went latently red on `main`. Nothing was missing. Nothing
 # was broken. One line of registry was absent.
 #
@@ -27,7 +27,7 @@
 # YAML, never by writing code.
 #
 # This is a SCHEMA, not a manifest. It documents the fields; it declares no
-# assertions of its own. A worked instantiation is `wiring-example-geeplo.yaml`.
+# assertions of its own. A worked instantiation is `wiring-assertions.example.yaml`.
 #
 # NOT WHAT THIS DETECTS
 #   - Dead code with no registry (that is `docs/rules/cleanup-zombies.rule.md`).
@@ -302,7 +302,7 @@ assertion:
 
   # Provenance: the commit, PR, ticket, or ADR that motivated the assertion.
   # Free text; the engine only prints it. Cite the ORIGINAL source (`GH: #N`,
-  # `Jira: GPLO-N`, a commit sha), never an intermediary summary.
+  # `Jira: PROJ-N`, a commit sha), never an intermediary summary.
   # If wrong (absent): no engine failure, but a future reader cannot tell
   # whether the assertion encodes a real outage or someone's hunch.
   evidence:
@@ -425,18 +425,18 @@ interpolation:
   # parent path, and not the grandparent. The workhorse for
   # `<dir>/<fixed-filename>` layouts (one directory per capability).
   # `backend/app/blueprints/auth/router.py` -> `auth`
-  # `backend/app/blueprints/naming_patterns/router.py` -> `naming_patterns`
+  # `backend/app/blueprints/user_profiles/router.py` -> `user_profiles`
   "{dir}": "basename of the matched file's immediate parent directory"
 
   # Name of the selected symbol. Bound ONLY when `every` carries a `::`
   # suffix. For `kind: member` this is the string literal's VALUE (e.g.
-  # `datashield_drive_changes`), not the container's name.
+  # `alpha_changes`), not the container's name.
   # Using `{symbol}` with no `::` suffix is exit 2.
   "{symbol}": "selected symbol's name; for `member`, the literal value"
 
   # Value of the `value` named group from `capture`, read from the matched
   # file. Bound ONLY when `capture` is set; using it otherwise is exit 2.
-  # Alembic: `revision = "0090_org_unit_dimension_expand"` -> `0090_org_unit_dimension_expand`
+  # Alembic: `revision = "0090_add_reporting_dimension"` -> `0090_add_reporting_dimension`
   "{capture}": "the `capture` regex's `value` group, read from the matched file"
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """upstream_sync.py — local inspection + manual-triage tool for tracked forks.
 
 Populated in T23a. Implements the human-side half of `docs/concepts/upstream-sync.md`.
-The LangGraph `upstream_refresher.py` workflow in acme-corp is the automated
+A consumer-side refresher workflow is the automated
 half; this CLI is the read-only / manually-triggered counterpart.
 
 Commands
@@ -412,7 +412,7 @@ def cmd_refresh(
     ahead, behind = git_ahead_behind(fork)
     print(f"fork={fork_name} fetched={message}")
     print(f"ahead={ahead} behind={behind}")
-    print("NOTE: refresh is read-only. Use the upstream_refresher workflow "
+    print("NOTE: refresh is read-only. Use the consumer's refresher workflow "
           "(HITL-gated) to actually merge.")
     return 0
 

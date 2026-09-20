@@ -4,7 +4,7 @@ Verifies that linters gating the consumer's CI also run at pre-commit with the
 same pin. v1 scope: ruff (the Python linter every playbook consumer's backend
 CI runs). A linter that only exists in CI is a linter developers discover
 post-push; without branch protection the red merges and becomes ambient debt
-(geeplo 2026-07-13: a wave merged with 41 ruff errors nobody saw locally).
+(2026-07-13: a wave merged with 41 ruff errors nobody saw locally).
 
 `apply` inserts the canonical ruff-pre-commit repo at the end of the `repos:`
 sequence of `.pre-commit-config.yaml` — after the playbook marker block or

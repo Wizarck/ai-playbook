@@ -131,7 +131,7 @@ The two-mode design is aligned with Terraform (`plan` / `apply`), Ansible (`--ch
 
 #### Relationship to `apply-fix-contract`
 
-The `apply-fix-contract` rule ([docs/rules/apply-fix-contract.rule.md](../rules/apply-fix-contract.rule.md)) covers a DIFFERENT surface: HITL-gated production mutations in `langgraph-aiops/` workflows. That rule mandates `hitl.request_approval` + `verify_apply_safety` + `record_apply_outcome` for runtime workflow mutations. This `.rule.py apply` contract covers local repo-state remediation invoked by a developer or the `ai-playbook-check` orchestrator — no HITL, no production blast radius, idempotent local file edits only. Same word ("apply"), different scopes.
+The `apply-fix-contract` rule ([docs/rules/apply-fix-contract.rule.md](../rules/apply-fix-contract.rule.md)) covers a DIFFERENT surface: HITL-gated production mutations in `aiops/` workflows. That rule mandates `hitl.request_approval` + `verify_apply_safety` + `record_apply_outcome` for runtime workflow mutations. This `.rule.py apply` contract covers local repo-state remediation invoked by a developer or the `ai-playbook-check` orchestrator — no HITL, no production blast radius, idempotent local file edits only. Same word ("apply"), different scopes.
 
 #### Where `apply` is invoked from
 

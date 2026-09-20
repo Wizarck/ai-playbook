@@ -53,7 +53,7 @@ ON with response style + MCP shrink (typical "everything terse" setup):
     "mcp_shrink": true
   },
   "applied_at": "2026-05-23T11:32:14+00:00",
-  "applied_by": "arturo"
+  "applied_by": "maintainer"
 }
 ```
 
@@ -85,8 +85,8 @@ Returns the current state plus computed derived flags:
 
 ```json
 {
-  "project_root": "C:/Projects/eligia-core",
-  "state_path": "C:/Projects/eligia-core/.ai-playbook/caveman.json",
+  "project_root": "C:/Projects/my-project",
+  "state_path": "C:/Projects/my-project/.ai-playbook/caveman.json",
   "state": { ... },
   "derived": {
     "materialised": true
@@ -308,7 +308,7 @@ last toggle" from `state.applied_at` and `derived.materialised`.
 import json
 import subprocess
 
-PROJECT = "C:/Projects/eligia-core"  # from a project selector
+PROJECT = "C:/Projects/my-project"  # from a project selector
 
 def get_state() -> dict:
     res = subprocess.run(
@@ -339,7 +339,7 @@ def toggle_on(mode: str, components: list[str]) -> dict:
 ```ts
 import { spawnSync } from "node:child_process";
 
-const PROJECT = "C:/Projects/eligia-core";
+const PROJECT = "C:/Projects/my-project";
 const PLAYBOOK = "C:/Projects/ai-playbook";
 
 function getState(): unknown {
@@ -375,8 +375,8 @@ registry at `~/.ai-playbook/projects.yaml`:
 ```yaml
 schema: ai-playbook/projects-registry/v1
 projects:
-  eligia-core:
-    path: C:/Projects/eligia-core
+  my-project:
+    path: C:/Projects/my-project
     personal: true
   ai-playbook:
     path: C:/Projects/ai-playbook

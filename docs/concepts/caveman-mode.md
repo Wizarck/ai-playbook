@@ -91,8 +91,8 @@ mutation, and `caveman off` undoes everything.
 ## Why the per-project state file (not global)
 
 A developer working across multiple projects often wants caveman ON
-for, say, `eligia-core` (long-form architecture work) and OFF for
-`palafito-b2b` (lots of API surface where verbose is safer). A global
+for, say, `project-a` (long-form architecture work) and OFF for
+`project-b` (lots of API surface where verbose is safer). A global
 state file would force all-or-nothing.
 
 The trade-off: there's no default for projects that haven't been

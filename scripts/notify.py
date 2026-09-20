@@ -326,7 +326,7 @@ def _send_email(
 # ---------------------------------------------------------------------------
 #
 # The durable queue lives in the consumer (acme-corp) under
-# `langgraph-aiops/notifications/`. When it's importable AND
+# `aiops/notifications/`. When it's importable AND
 # `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED=1`, warn/error notifications are
 # enqueued to a SQLite-backed retry layer instead of fired through SMTP
 # synchronously. Consumers that lack the queue package fall through to SMTP unchanged.

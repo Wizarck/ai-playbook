@@ -4,6 +4,9 @@
 # CONTAIN when it is filed; this one governs what must be DEMONSTRATED when it
 # is closed. Consumed by `scripts/rules/jira-closure-evidence.rule.py`.
 #
+# The Jira project this standard applies to is not encoded here: it is set with
+# `--project` or the env var `AIPLAYBOOK_JIRA_PROJECT` (default `PROJ`).
+#
 # WHY THIS EXISTS, and the evidence for it being a gate rather than a norm.
 #
 # A soft rule with the same content already existed, as an agent memory written
@@ -11,13 +14,13 @@
 # a ticket cites, not its label." It was in context. The same error was then made
 # twice more — four in total across one campaign (2026-08-15/16):
 #
-#   GPLO-1469  closed after verifying 1 of the ticket's 3 requirements
-#   GPLO-1388  closed after reading `blueprints/datascout/`, when the ticket's
-#              first line names `blueprints/datashield/router.py:818` — the
+#   PROJ-1469  closed after verifying 1 of the ticket's 3 requirements
+#   PROJ-1388  closed after reading `blueprints/alpha/`, when the ticket's
+#              first line names `blueprints/beta/router.py:818` — the
 #              product LABEL was followed instead of the cited PATH
-#   GPLO-1473  closed twice: once on a `grep -v` that filtered out exactly where
+#   PROJ-1473  closed twice: once on a `grep -v` that filtered out exactly where
 #              the fix lived, once on the backend half of a two-half ticket
-#   GPLO-1497  closed on the backend half; the Playwright half was still pinned
+#   PROJ-1497  closed on the backend half; the Playwright half was still pinned
 #              with `test.fail()` on the very assertion the ticket was about
 #
 # Every one of those closures HAD a comment, and every comment was confident.
@@ -94,15 +97,15 @@ artefact_patterns:
   test: '\btest_[\w]+\b|\bit\([''"]|\btest\([''"]'
 
 # ---------------------------------------------------------------------------
-# C4 — path fidelity  (the GPLO-1388 / GPLO-1497 clause)
+# C4 — path fidelity  (the PROJ-1388 / PROJ-1497 clause)
 # ---------------------------------------------------------------------------
 # If the ticket BODY cites file paths, the closure comment must reference at
 # least one of them.
 #
 # This is the mechanical form of "follow the paths a ticket cites, not its
-# label". GPLO-1388's title carried a `[DataScout]` product tag while its first
-# line named `datashield/router.py:818`; the closure read the directory the tag
-# suggested, found nothing wrong, and closed. GPLO-1497's regression section
+# label". PROJ-1388's title carried a `[Alpha]` product tag while its first
+# line named `beta/router.py:818`; the closure read the directory the tag
+# suggested, found nothing wrong, and closed. PROJ-1497's regression section
 # named a Playwright spec that the closure never opened.
 #
 # "At least one" rather than "all": a ticket often cites background paths that
@@ -117,7 +120,7 @@ path_fidelity:
   ignore_sections: []
 
 # ---------------------------------------------------------------------------
-# C5 — requirement coverage  (the GPLO-1469 clause)
+# C5 — requirement coverage  (the PROJ-1469 clause)
 # ---------------------------------------------------------------------------
 # If the ticket enumerates N requirements, the closure comment must carry at
 # least N artefact references — one per half, which is exactly the discipline

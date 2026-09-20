@@ -79,12 +79,12 @@ Session-id resolution: `--session-id` flag → `$CLAUDE_SESSION_ID` env → deri
 
 **Preferred** — agent invokes the skill `/openspec-apply-change <change-id>` first; skill step 0 writes the `start` record; subsequent `Edit`/`Write` calls on `write_paths` pass the hook.
 
-**Avoided** — agent runs `Edit` directly on `backend/app/blueprints/revalid/service_bulk.py` (declared in change `revalid-bulk-tasks`'s write_paths) with no `start` record in `.apply_log.jsonl`. The hook blocks with:
+**Avoided** — agent runs `Edit` directly on `backend/app/blueprints/example/service_bulk.py` (declared in change `example-bulk-tasks`'s write_paths) with no `start` record in `.apply_log.jsonl`. The hook blocks with:
 
 ```
-❌ apply phase bypass detected at backend/app/blueprints/revalid/service_bulk.py
-   FIX: invoke the skill `/openspec-apply-change revalid-bulk-tasks` first,
-        or run `python .ai-playbook/scripts/openspec_apply_marker.py start --change-id revalid-bulk-tasks`.
+❌ apply phase bypass detected at backend/app/blueprints/example/service_bulk.py
+   FIX: invoke the skill `/openspec-apply-change example-bulk-tasks` first,
+        or run `python .ai-playbook/scripts/openspec_apply_marker.py start --change-id example-bulk-tasks`.
    OVERRIDE: export AIPLAYBOOK_APPLY_ENFORCE_OVERRIDE="<≥10-char reason>"
 ```
 

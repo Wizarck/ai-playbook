@@ -119,17 +119,17 @@ Two real bugs surfaced while propagating v0.9.0-rc1 / rc2 across the 5 consumers
 
 ### Followup 1 — `propagate_bump.py` doesn't bump `AGENTS.md` `inherits_from:` — **RESOLVED v0.9.1 (2026-05-01)**
 
-Closed by [`fix(release-management/v0.9.1)`](https://github.com/Wizarck/ai-playbook/pull/29). Validated end-to-end during the v0.9.1 cascade dogfood: livekit's auto-generated bump PR ([Wizarck/livekit#40](https://github.com/Wizarck/livekit/pull/40)) included `AGENTS.md` `inherits_from:` change automatically — no manual fix-PR required. The `_edit_frontmatter_skills_source` helper was extracted to `scripts/_bumper.py::bump_agents_md_pin` and is now invoked from BOTH propagation scripts.
+Closed by [`fix(release-management/v0.9.1)`](https://github.com/Wizarck/ai-playbook/pull/29). Validated end-to-end during the v0.9.1 cascade dogfood: a consumer's auto-generated bump PR included `AGENTS.md` `inherits_from:` change automatically — no manual fix-PR required. The `_edit_frontmatter_skills_source` helper was extracted to `scripts/_bumper.py::bump_agents_md_pin` and is now invoked from BOTH propagation scripts.
 
-**Surfaced**: livekit ended the rc2 cascade with `.ai-playbook/` submodule at v0.9.0-rc2 (correct) but `AGENTS.md` `inherits_from: ai-playbook@v0.3.0` (stale). Required a manual bump PR (Wizarck/livekit#36) to fix.
+**Surfaced**: a consumer ended the rc2 cascade with `.ai-playbook/` submodule at v0.9.0-rc2 (correct) but `AGENTS.md` `inherits_from: ai-playbook@v0.3.0` (stale). Required a manual bump PR to fix.
 
-**Root cause**: `scripts/propagate_bump.py` only writes the submodule pointer file (`.ai-playbook` gitlink); it never touches `AGENTS.md`. `scripts/propagate_skills_bump.py` DOES rewrite `AGENTS.md` frontmatter — but only fires for consumers that have `skills_pins:` in `consumers.yaml`. livekit doesn't (it's a personal project with no skills tracking), so neither propagation path bumps its `inherits_from:`.
+**Root cause**: `scripts/propagate_bump.py` only writes the submodule pointer file (`.ai-playbook` gitlink); it never touches `AGENTS.md`. `scripts/propagate_skills_bump.py` DOES rewrite `AGENTS.md` frontmatter — but only fires for consumers that have `skills_pins:` in `consumers.yaml`. That consumer doesn't (it's a personal project with no skills tracking), so neither propagation path bumps its `inherits_from:`.
 
 **Why this matters**: `inherits_from:` is the canonical declaration of which playbook semver tag the project tracks. Stale value confuses humans + AIs reading AGENTS.md and breaks the audit trail.
 
 **Fix**: extend `propagate_bump.py` to ALSO rewrite `AGENTS.md` frontmatter `inherits_from:` line for the consumer it's bumping. Same regex pattern as `_edit_frontmatter_skills_source` already uses (it already matches `inherits_from:` lines incidentally — confirmed by inspection during the cycle). Move the regex helper into `_bumper.py` so both propagation scripts share it.
 
-**Test plan**: re-run propagation on livekit at next playbook release; confirm `inherits_from:` bumps automatically without needing a manual PR.
+**Test plan**: re-run propagation on that consumer at next playbook release; confirm `inherits_from:` bumps automatically without needing a manual PR.
 
 ### Followup 2 — Supersede uses tag-push chronology, not semver order — **RESOLVED v0.9.1 (2026-05-01)**
 
@@ -151,7 +151,7 @@ Recommend **#2 long-term** + **#1 documented as the operational guard** so devs 
 
 Closed by [`fix(release-management/v0.9.1)`](https://github.com/Wizarck/ai-playbook/pull/29). `read_commit_message()` now ALSO reads `$PRE_COMMIT_FROM_REF/$PRE_COMMIT_TO_REF` and runs `git log --format=%B%x00 $FROM..$TO` to concatenate every commit message in the range. The `openspec-archive:` marker is detected if it appears in ANY commit on the branch. Covered by 4 new tests in `tests/test_block_manual_spec_edit.py` (real git repo, real env vars).
 
-**Surfaced**: on a slice-archive PR. The commit body INCLUDED the `openspec-archive: persistence-tenant-enforcement` marker on its own line. Local pre-commit (commit-msg stage) read the marker correctly via `$PRE_COMMIT_COMMIT_MSG_FILE` and allowed the commit. CI's `pre-commit run --from-ref ... --to-ref ...` then re-flagged `openspec/specs/persistence-layer/spec.md` as a "hand-edit" with: `❌ openspec/specs/*.md hand-edit detected and commit message unavailable at openspec/specs/persistence-layer/spec.md`. Required `--admin` merge to bypass.
+**Surfaced**: on a slice-archive PR. The commit body INCLUDED the `openspec-archive: persistence-layer` marker on its own line. Local pre-commit (commit-msg stage) read the marker correctly via `$PRE_COMMIT_COMMIT_MSG_FILE` and allowed the commit. CI's `pre-commit run --from-ref ... --to-ref ...` then re-flagged `openspec/specs/persistence-layer/spec.md` as a "hand-edit" with: `❌ openspec/specs/*.md hand-edit detected and commit message unavailable at openspec/specs/persistence-layer/spec.md`. Required `--admin` merge to bypass.
 
 **Root cause**: [`scripts/block_manual_spec_edit.py::read_commit_message()`](../../scripts/block_manual_spec_edit.py) only resolves the message via:
 1. `$PRE_COMMIT_COMMIT_MSG_FILE` (commit-msg stage; works locally)
@@ -196,5 +196,4 @@ It does NOT iterate the commits in `$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF` (C
 
 - [`docs/concepts/release-management.md`](release-management.md) §4.5 — the AI-reviewer feedback loop this release extends.
 - [`docs/runbooks/release.md`](../runbooks/release.md) — release flow, this release follows the rc-first pattern (substantial release).
-- `livekit` PR #36 — the manual `inherits_from:` bump that surfaced followup #1.
 - `ai-playbook` v0.9.0-rc1 → rc2 cycle — the supersede mishap that surfaced followup #2.

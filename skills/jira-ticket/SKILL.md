@@ -1,6 +1,6 @@
 ---
 name: jira-ticket
-description: Use when creating a Jira ticket for the GPLO project — the user types /jira-ticket, asks to "open a ticket", "file a bug", "create an issue", or asks you to record work in Jira. Builds the ticket from the canonical template, fills what it can infer from the session, and refuses to emit one that misses a required section. Pairs with the jira-ticket-standard rule, which blocks the raw MCP call.
+description: Use when creating a Jira ticket — the user types /jira-ticket, asks to "open a ticket", "file a bug", "create an issue", or asks you to record work in Jira. The Jira project comes from `--project` / `$AIPLAYBOOK_JIRA_PROJECT`. Builds the ticket from the canonical template, fills what it can infer from the session, and refuses to emit one that misses a required section. Pairs with the jira-ticket-standard rule, which blocks the raw MCP call.
 license: MIT
 metadata:
   author: ai-playbook
@@ -12,7 +12,7 @@ metadata:
 You are filling in a form whose contract is machine-checked. The contract is
 `specs/jira-ticket-standard.yaml`; the human face of it is
 `templates/jira-ticket.md.tmpl`; the canonical worked example is
-[GPLO-1350](https://geeplo.atlassian.net/browse/GPLO-1350).
+`tests/fixtures/jira_ticket_example.md`.
 
 **Draft first, then submit.** The PreToolUse hook will reject a non-conformant
 `createJiraIssue` call, and a rejected call costs a round trip. Assemble the
@@ -120,7 +120,8 @@ rather than a section you forgot.
   exempt: their content of record is the OpenSpec proposal, and duplicating an
   A/B/C into the stub creates a second copy that drifts from the first.
 - **Editing a ticket's fields other than the description** — nothing to validate.
-- **Non-GPLO projects.** The contract is scoped to this project's conventions.
+- **Other Jira projects.** The contract applies only to the Jira project set by
+  `--project` / `$AIPLAYBOOK_JIRA_PROJECT`.
 
 ## See also
 

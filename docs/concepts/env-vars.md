@@ -40,7 +40,7 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 |---|---|---|---|---|---|
 | `AIPLAYBOOK_PROJECTS_FILE` | `AIPLAYBOOK_` | Override the projects-registry YAML path. | no | `~/.ai-playbook/projects.yaml` | `scripts/discover_projects.py::resolve_registry_path` |
 | `AIPLAYBOOK_PROJECTS_ROOTS` | `AIPLAYBOOK_` | Extra scan roots (comma- or OS-pathsep-separated). | no | empty (falls back to `~/Projects`, `~/projects`, `C:/Projects`, `/opt`, `/srv`) | `scripts/discover_projects.py::get_default_roots` |
-| `AIPLAYBOOK_SECRETS_ENV` | `AIPLAYBOOK_` | Path to the SOPS-encrypted `secrets.env` the seeded `SessionStart` hook decrypts for Hindsight recall. Unset: the hook is a no-op. | no | unset | `templates/new-project/.claude/settings.json.tmpl` |
+| `AIPLAYBOOK_SECRETS_ENV` | `AIPLAYBOOK_` | Path to the SOPS-encrypted `secrets.env` used by the seeded `SessionStart` hook (unset: the hook is a no-op) and by `scripts/mcp/render.py` (unset: it takes the only sibling `*/secrets/secrets.env`, and refuses to guess when there are several). | no | unset | `templates/new-project/.claude/settings.json.tmpl`, `scripts/mcp/render.py::find_secrets_env` |
 | `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED` | `AIPLAYBOOK_` | `1` routes warn/error notifications to the consumer-side durable queue instead of SMTP (needs the queue package importable). | no | unset (SMTP) | `scripts/notify.py` |
 | `AIPLAYBOOK_FLAG_DIR` | `AIPLAYBOOK_` | Directory holding the `budget-disabled-<provider>.flag` files. | no | `/var/lib/acme-corp` | `scripts/telemetry/report.py::_budget_flag_path` |
 | `AIPLAYBOOK_DEBUG` | `AIPLAYBOOK_` | Verbose trace logging from playbook scripts. Truthy = on. | no | unset (off) | any script's logger (T07c) |
@@ -214,6 +214,7 @@ STARTTLS with certificate and hostname verification (`ssl.create_default_context
 | `ATLASSIAN_USERNAME` | `ATLASSIAN_` | Atlassian account email (for REST basic auth). | yes (for private-repo tracker sync) | unset | same |
 | `ATLASSIAN_API_TOKEN` | `ATLASSIAN_` | Personal API token (SOPS-decrypted). | yes (for private-repo tracker sync) | unset | same |
 | `AIPLAYBOOK_JIRA_DEFAULT_PROJECT` | `AIPLAYBOOK_` | Jira project key for private consumers without an explicit mapping. | no | `project-a` | `scripts/issue_sync.py` |
+| `AIPLAYBOOK_JIRA_PROJECT` | `AIPLAYBOOK_` | Jira project key the ticket-standard rules check (default of `--project`). | no | `PROJ` | `scripts/rules/jira-ticket-standard.rule.py` |
 | `AIPLAYBOOK_JIRA_DEFAULT_ISSUE_TYPE` | `AIPLAYBOOK_` | Jira issue type for auto-created stories. | no | `Story` | `scripts/issue_sync.py` |
 
 ---

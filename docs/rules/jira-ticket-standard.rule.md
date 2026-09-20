@@ -45,7 +45,7 @@ places stops being closed within a week.
 
 ## Process supervision
 
-**This rule binds agents, not people.** That is a scope decision (Arturo,
+**This rule binds agents, not people.** That is a scope decision (the maintainer,
 2026-08-02), not a gap waiting to be closed: the structure drifts because tickets
 are written at machine speed by something that has no memory of the last one, and
 that is the thing worth gating. A human writing a ticket by hand is already

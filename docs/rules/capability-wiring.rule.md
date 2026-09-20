@@ -135,7 +135,7 @@ all.** A `by` regex that is too loose passes on the exact bug it was written
 for — quietly, forever, while its presence in `wiring.yaml` tells every reader
 the class is covered.
 
-The precedent is geeplo `47717de3`. The task
+The precedent is a real production bug. The task
 `app.tasks.heartbeat_tasks.emit_liveness_heartbeat` existed, was imported, and
 had a `beat_schedule` entry — but had **no `task_routes` entry**, so Beat
 published it to the `default` queue instead of `scheduled` and the routing-audit
@@ -162,13 +162,13 @@ name the alternative wiring, not the symptom.
 **Preferred** — anchored on the registration, with the proof beside it:
 
 ```yaml
-- id: transfer-adapter-in-type-registry
-  every: backend/app/blueprints/transfer/adapters/*.py
-  exclude: ["backend/app/blueprints/transfer/adapters/_*.py"]
-  referenced_in: backend/app/blueprints/transfer/type_registry.py
+- id: delta-adapter-in-type-registry
+  every: backend/app/blueprints/delta/adapters/*.py
+  exclude: ["backend/app/blueprints/delta/adapters/_*.py"]
+  referenced_in: backend/app/blueprints/delta/type_registry.py
   by: |-
     ["\x27]module["\x27]\s*:\s*{stem}_adapter\b
-  # verified against: `        "module": shared_drive_adapter,`  (type_registry.py:93)
+  # verified against: `        "module": s3_adapter,`  (type_registry.py:93)
   expect: exactly_one
   severity: S1
 ```
@@ -184,7 +184,7 @@ silence a real finding:
 - id: celery-task-routed
   every: backend/app/tasks/*_tasks.py::@celery_app.task* def:*
   referenced_in: backend/app/celery_app.py
-  by: '{symbol}'                       # matches the beat_schedule entry: passes on 47717de3^
+  by: '{symbol}'                       # matches the beat_schedule entry: passes on the buggy revision
   # (no `# verified against:` line — unreviewable)
   severity: S1
   allow:

@@ -1,4 +1,4 @@
-"""GPLO-1378: real negative guardrail events reach both Dashboard panels."""
+"""PROJ-1378: real negative guardrail events reach both Dashboard panels."""
 
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ def test_real_negative_events_render_in_matrix_and_honesty(tmp_path, monkeypatch
     state_dir.mkdir(parents=True)
     (consumer / ".ai-playbook").mkdir()
     monkeypatch.setenv("AI_PLAYBOOK_STATE_DIR", str(state_dir))
-    monkeypatch.setenv("AI_PLAYBOOK_SESSION_ID", "gplo-1378-negative-control")
+    monkeypatch.setenv("AI_PLAYBOOK_SESSION_ID", "proj-1378-negative-control")
     monkeypatch.setenv("AI_PLAYBOOK_HOOK_TRIGGER", "test:negative-control")
 
     negative_inputs = _negative_inputs(tmp_path)
@@ -156,7 +156,7 @@ def test_real_negative_events_render_in_matrix_and_honesty(tmp_path, monkeypatch
                     "description": "Se rompe algo.",
                 },
                 "model": llm,
-                "session_id": "gplo-1378-negative-control",
+                "session_id": "proj-1378-negative-control",
             }
             for _ in range(EVENTS_PER_GUARDRAIL):
                 blocked, _, fired = hook_dispatcher.run_rules(

@@ -1,7 +1,7 @@
 ---
 schema: rule/v1
 slug: lint-parity-precommit
-description: Linters that gate CI MUST also run at pre-commit with the same pin — a linter that only exists in CI is discovered post-push, and on repos without branch protection the red merges and becomes ambient debt (geeplo 2026-07-13 merged a wave with 41 ruff errors nobody saw locally); v1 scope is ruff, `apply` appends the ruff-pre-commit block pinned to the CI-detected version.
+description: Linters that gate CI MUST also run at pre-commit with the same pin — a linter that only exists in CI is discovered post-push, and on repos without branch protection the red merges and becomes ambient debt (a production codebase on 2026-07-13 merged a wave with 41 ruff errors nobody saw locally); v1 scope is ruff, `apply` appends the ruff-pre-commit block pinned to the CI-detected version.
 paired_hardrule: scripts/rules/lint-parity-precommit.rule.py
 activation: manual
 status: enforced

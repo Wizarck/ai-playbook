@@ -35,7 +35,7 @@ L3 workflow `pr-tracker-reference.rule.yml` runs `python .ai-playbook/scripts/ru
 
 ## Examples
 
-**Preferred** — PR title `GPLO-77: cleanup transfer-tool audit` plus body containing `Closes #114` (when the issue exists on GitHub). Either alone is sufficient.
+**Preferred** — PR title `PROJ-77: cleanup transfer-tool audit` plus body containing `Closes #114` (when the issue exists on GitHub). Either alone is sufficient.
 
 **Avoided** — PR body says "see ticket" / "tracker linked above"; title carries the slice ID but not the prefix; reference lives only in a commit message (the gate inspects PR title + body, not commit log).
 

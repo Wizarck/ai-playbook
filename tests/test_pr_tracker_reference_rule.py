@@ -29,7 +29,7 @@ def test_github_closes_in_body_passes(tmp_path: Path) -> None:
 
 def test_jira_prefix_in_title_passes(tmp_path: Path) -> None:
     p = _make(tmp_path, "no github ref here\n")
-    rc = _ptr.main(["validate", "--pr-title", "GPLO-1234: bump", "--pr-body-file", str(p)])
+    rc = _ptr.main(["validate", "--pr-title", "PROJ-1234: bump", "--pr-body-file", str(p)])
     assert rc == 0
 
 

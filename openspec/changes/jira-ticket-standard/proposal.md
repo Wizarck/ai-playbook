@@ -1,6 +1,6 @@
 ---
 change_id: jira-ticket-standard
-tracker_id: GPLO-1350
+tracker_id: PROJ-1350
 status: proposed
 ---
 
@@ -8,10 +8,10 @@ status: proposed
 
 ## Why
 
-GPLO tickets are supposed to carry a fixed structure — an A/B/C test plan and
+PROJ tickets are supposed to carry a fixed structure — an A/B/C test plan and
 metrics with a declared type — and that has depended on manual discipline, so it
 drifts. Measured on the sixteen tickets created on 2026-08-02: **1 conformant, 6%**.
-The only one that passes is GPLO-1350 itself, the ticket asking for the standard.
+The only one that passes is PROJ-1350 itself, the ticket asking for the standard.
 The other fifteen include three filed carefully hours earlier in the same session.
 Careful authors drift too, because there was nothing to drift against.
 
@@ -45,7 +45,7 @@ parses.
 - **Rewriting the 126 open legacy tickets.** They are measured and reported as
   their own cohort.
 - **Jira UI layers** — Automation `validate-on-create` and required custom fields.
-  Originally deferred as "configuration only Arturo can apply"; **dropped outright
+  Originally deferred as "configuration only the maintainer can apply"; **dropped outright
   on 2026-08-02** once the intent was stated plainly: the standard exists to bind
   agents, which write tickets at machine speed with no memory across calls, not
   people choosing what to type. Two costs settled it — required fields in a

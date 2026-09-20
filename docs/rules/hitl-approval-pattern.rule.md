@@ -37,7 +37,7 @@ The rule is **advisory** in the playbook tree because the mutation-class surface
 For each HITL-gated mutation class, the project ships:
 
 1. **Mutation request DTO** — typed, self-contained, designed to read on a phone screen. Money fields `Decimal`. Dates ISO 8601 UTC. No internal IDs without human-readable context.
-2. **Approval channel Protocol** per [../concepts/protocol-fake-deferred-install.md](../concepts/protocol-fake-deferred-install.md) — production adapters (Telegram, WABA-MCP, Slack); test fakes (`InMemoryApprovalChannel` auto-approve / auto-reject / hang-until-TTL).
+2. **Approval channel Protocol** per [../concepts/protocol-fake-deferred-install.md](../concepts/protocol-fake-deferred-install.md) — production adapters (Telegram, WhatsApp, Slack); test fakes (`InMemoryApprovalChannel` auto-approve / auto-reject / hang-until-TTL).
 3. **HMAC reply correlation** — HMAC-SHA256 of `proposal_id + nonce + project_secret`. Prevents replay (different proposal_id → different token), forgery (third party lacks the secret), cross-tenant leakage (per-tenant secret). Secret stored encrypted (SOPS / KMS), rotated on a defined schedule.
 4. **`approval_decisions` table** — append-only; row per request on reply or TTL expiry; `decision` enum `approved|rejected|deferred|expired`; FK from the mutation table REQUIRES non-NULL `approval_decision_id` (DB-layer block).
 5. **TTL + escalation ladder** — declared TTL per mutation class; on expiry re-ask once via primary, fall back to secondary at `TTL/2`, hard expiry persists `decision='expired'` and emits paged alert. TTL is in the DTO so chat client shows countdown.

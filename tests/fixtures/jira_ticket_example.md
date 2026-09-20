@@ -1,10 +1,10 @@
 ## Contexto / Problema
 
-Los tickets GPLO deben seguir una estructura fija —**plan de prueba A/B/C** + **métricas y tipos de métrica**— que hoy depende de disciplina manual y driftea. Queremos **obligar** a esa estructura en **cada creación de ticket**, con enforcement por capas, e implementarlo como parte del **ai-playbook** (el framework que gobierna _cómo_ se trabaja). Este ticket **dogfoodea** su propia estructura.
+Los tickets del proyecto deben seguir una estructura fija —**plan de prueba A/B/C** + **métricas y tipos de métrica**— que hoy depende de disciplina manual y driftea. Queremos **obligar** a esa estructura en **cada creación de ticket**, con enforcement por capas, e implementarlo como parte del **ai-playbook** (el framework que gobierna _cómo_ se trabaja). Este ticket **dogfoodea** su propia estructura.
 
 ## Alcance / Entregables
 
-0. **Taxonomía canónica (bloqueante)**: fijar la estructura obligatoria del ticket + la **lista cerrada de tipos de métrica** (p.ej. cobertura/compliance · calidad/exactitud · tendencia/burn-down · rendimiento/eficiencia · coste). Reconstruida desde el audit de taxonomía 2026-08-01 → **confirmar con Arturo**.
+0. **Taxonomía canónica (bloqueante)**: fijar la estructura obligatoria del ticket + la **lista cerrada de tipos de métrica** (p.ej. cobertura/compliance · calidad/exactitud · tendencia/burn-down · rendimiento/eficiencia · coste). Reconstruida desde el audit de taxonomía 2026-08-01 → **confirmar con el equipo**.
 1. **Template canónico** en el ai-playbook = fuente de verdad de la estructura.
 2. **Regla dura en** `AGENTS.md` (+ rule spec en `.ai-playbook/docs/rules/`) que vincula a **todo agente**: no emitir ticket sin A/B/C + métricas.
 3. **Skill** `/jira-ticket` que construye el ticket desde el template y **se niega** a emitirlo si falta cualquier sección obligatoria.
@@ -26,7 +26,7 @@ Los tickets GPLO deben seguir una estructura fija —**plan de prueba A/B/C** + 
 
 ## Prerrequisitos / Notas
 
-* **Cross-repo**: el grueso vive en **ai-playbook** (template + rule + skill + validador); GPLO sólo **trackea** este item.
-* GPLO es **team-managed** → los campos custom requeridos (capa 1) tienen límites; la Automation (capa 2) es el backstop realista para humanos-en-UI.
-* Épica provisional **Platform (GPLO-1100)** por ser tooling/gates; **movible** si se crea una épica de proceso/gobernanza del playbook.
-* Origen: sesión de migración CX53 (2026-08-02), pregunta de Arturo "cómo obligamos a la estructura de tickets".
+* **Cross-repo**: el grueso vive en **ai-playbook** (template + rule + skill + validador); el proyecto sólo **trackea** este item.
+* El proyecto es **team-managed** → los campos custom requeridos (capa 1) tienen límites; la Automation (capa 2) es el backstop realista para humanos-en-UI.
+* Épica provisional **Platform (PROJ-100)** por ser tooling/gates; **movible** si se crea una épica de proceso/gobernanza del playbook.
+* Origen: pregunta del equipo, "cómo obligamos a la estructura de tickets".

@@ -34,7 +34,7 @@ The board schema is the trust anchor for `verify_board_state.py` and sprint-stat
 
 ## Examples
 
-**Preferred** — board has the canonical 5 options; worker transitioning slice GPLO-77 from Todo → In Progress updates `Status` and writes `Slice ID = GPLO-77 / Last Update = 2026-05-19 ✓ scaffolded`.
+**Preferred** — board has the canonical 5 options; worker transitioning slice PROJ-77 from Todo → In Progress updates `Status` and writes `Slice ID = PROJ-77 / Last Update = 2026-05-19 ✓ scaffolded`.
 
 **Avoided** — renaming `In Review` to `Review` (drift; verifier skips); adding a sixth option `Deferred` (use `Blocked` with the rationale in `Last Update`); leaving `Slice ID` blank on Todo → In Progress (verifier flags as "stalled work missing metadata"); transitioning to In Progress without `Last Update` (sprint-status cannot age-rank the slice).
 

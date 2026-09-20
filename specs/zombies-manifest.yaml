@@ -388,7 +388,7 @@ entries:
       `.github/workflows/issue-sync.yml` was deleted from the playbook in
       v0.17.1 (slice root-folder-audit). The workflow opened Jira tickets
       or GH Issues on every merged `openspec/changes/**/proposal.md`;
-      sole consumer (Arturo) does not use it. Consumers that bootstrapped a
+      sole consumer (the maintainer) does not use it. Consumers that bootstrapped a
       copy at `.github/workflows/issue-sync.yml` should remove it. The
       underlying `scripts/issue_sync.py` is NOT deleted; slice 6 (telemetry,
       v0.19.1) may absorb it.

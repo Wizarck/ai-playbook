@@ -97,7 +97,7 @@ def run(repo: Path, *argv: str) -> int:
 def authorize(repo: Path, ledger: Path) -> None:
     assert run(repo, "authorize", "--ledger", str(ledger),
                "--id", "orphan-app-orphan-py-deadbeef",
-               "--actor", "arturo",
+               "--actor", "maintainer",
                "--rationale", "No importer, no dynamic load, no alias. Verified by hand.") == 0
 
 
@@ -138,7 +138,7 @@ def test_the_row_carries_the_reasoning_not_just_the_path(repo: Path) -> None:
     text = (repo / "docs" / "operations" / "removed-code.md").read_text(encoding="utf-8")
     assert "app/orphan.py" in text
     assert "No importer, no dynamic load" in text
-    assert "arturo" in text
+    assert "maintainer" in text
     assert "orphan-app-orphan-py-deadbeef" in text          # back-link to the ledger row
 
 
@@ -191,7 +191,7 @@ def test_a_dismissed_finding_cannot_be_authorised(repo: Path, capsys) -> None:
     ledger = make_ledger(repo, decision="dismiss")
     rc = run(repo, "authorize", "--ledger", str(ledger),
              "--id", "orphan-app-orphan-py-deadbeef",
-             "--actor", "arturo", "--rationale", "x")
+             "--actor", "maintainer", "--rationale", "x")
     assert rc == 2
     assert "not a confirmed finding" in capsys.readouterr().err
     assert (repo / "app" / "orphan.py").exists()

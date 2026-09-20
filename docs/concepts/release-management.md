@@ -494,7 +494,7 @@ This is enforced by the `.github/workflows/project-status.yml` template at §6.
 The dependency graph from the slicing artefact is the merge-order contract. Wave 0 → Wave 1 → Wave 2 → Wave 3 → Wave 4 (where wave N items only run after their declared deps from wave M<N are merged). Concrete example:
 
 ```
-Wave 0 (sequential):  bootstrap-monorepo → shared-primitives → persistence-tenant-enforcement
+Wave 0 (sequential):  bootstrap-monorepo → shared-primitives → persistence-layer
 Wave 1 (parallel ×2):  auth-jwt-cookie  ║  api-foundation-rfc7807   (after Wave 0)
 Wave 2 (parallel ×6):  6 bounded-context bootstraps                   (after Wave 1)
 Wave 3 (parallel ×7):  7 adapter / strategy slices                     (after Wave 2)

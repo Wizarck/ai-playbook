@@ -55,7 +55,7 @@ coverage is overstated is worse than one whose limits are on the page.
 
 ### The measured incident
 
-geeplo, 2026-08-16. A 40-minute full-suite run was in flight to answer a real
+2026-08-16. A 40-minute full-suite run was in flight to answer a real
 question: whether 743 previously ungated tests stay green when interleaved with
 the rest of the suite in one process and one database. Two short pytest
 invocations were started alongside it. Backend pytest **drops and recreates the
@@ -123,7 +123,7 @@ shared-test-db-mutex: another test run holds this database.
 **Allowed** — a different database, so no contention:
 
 ```bash
-DATABASE_URL=postgresql+asyncpg://…/geeplo_scratch python -m pytest backend/tests/sam
+DATABASE_URL=postgresql+asyncpg://…/my_project_scratch python -m pytest backend/tests/sam
 ```
 
 ## Break-glass
@@ -132,7 +132,7 @@ DATABASE_URL=postgresql+asyncpg://…/geeplo_scratch python -m pytest backend/te
 
 Legitimate when the two runs genuinely do not share state — separate schemas, or
 a suite that provisions its own database per run, as
-`test_migration_alembic.py` does with `geeplo_test_migrations`.
+`test_migration_alembic.py` does with `my_project_test_migrations`.
 
 ## Known limit: a live PID with dead work
 
