@@ -33,7 +33,7 @@ def _canonical_settings() -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": "python .claude/hooks/openspec-apply-enforce.py",
+                            "command": 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py"',
                             "timeout": 10,
                         }
                     ],
@@ -202,7 +202,7 @@ def _caveman_userpromptsubmit_entry() -> dict:
         "hooks": [
             {
                 "type": "command",
-                "command": "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py",
+                "command": 'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py"',
                 "timeout": 5,
             }
         ]
@@ -261,5 +261,101 @@ def test_apply_adds_openspec_without_touching_caveman_userpromptsubmit(tmp_path:
     )
     # caveman UserPromptSubmit preserved byte-for-byte
     assert new["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"] == (
-        "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py"
+        'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py"'
     )
+
+
+# --- cwd-independent hook commands ----------------------------------------------
+#
+# Claude Code runs hooks in the session's CURRENT directory. A bare relative
+# `.ai-playbook/...` path breaks the moment the agent cd's into a subdirectory,
+# and a failing UserPromptSubmit hook blocks every prompt.
+
+_RELATIVE_CAVEMAN = "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py"
+_RELATIVE_SESSION_START = (
+    "sops exec-env ../consumer-a/secrets/secrets.env -- "
+    "python .ai-playbook/scripts/inject_context.py --bank-id x 2>/dev/null || true"
+)
+
+
+def _settings_with_relative_hooks() -> dict:
+    s = _canonical_settings()
+    s["hooks"]["UserPromptSubmit"] = [{"hooks": [{"type": "command", "command": _RELATIVE_CAVEMAN, "timeout": 5}]}]
+    s["hooks"]["SessionStart"] = [{"hooks": [{"type": "command", "command": _RELATIVE_SESSION_START, "timeout": 60}]}]
+    return s
+
+
+def test_validate_flags_cwd_relative_hook_command(tmp_path: Path, capsys) -> None:
+    root = _make_consumer(tmp_path)
+    (root / ".claude" / "settings.json").write_text(json.dumps(_settings_with_relative_hooks()), encoding="utf-8")
+    assert _cs.validate(root) == 1
+    err = capsys.readouterr().err
+    assert "cwd-relative" in err
+    assert "caveman-reinforce.rule.py" in err
+
+
+def test_apply_anchors_relative_hook_commands_then_validates(tmp_path: Path) -> None:
+    root = _make_consumer(tmp_path)
+    settings = root / ".claude" / "settings.json"
+    settings.write_text(json.dumps(_settings_with_relative_hooks()), encoding="utf-8")
+    assert _cs.apply(dry_run=False, cwd=root) == 0
+    hooks = json.loads(settings.read_text(encoding="utf-8"))["hooks"]
+    assert hooks["UserPromptSubmit"][0]["hooks"][0]["command"] == (
+        'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py"'
+    )
+    assert hooks["SessionStart"][0]["hooks"][0]["command"] == (
+        'sops exec-env "$CLAUDE_PROJECT_DIR/../consumer-a/secrets/secrets.env" -- '
+        'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py" --bank-id x 2>/dev/null || true'
+    )
+    assert _cs.validate(root) == 0
+    # Idempotent: a second apply is a no-op.
+    before = settings.read_text(encoding="utf-8")
+    assert _cs.apply(dry_run=False, cwd=root) == 0
+    assert settings.read_text(encoding="utf-8") == before
+
+
+def test_relative_hook_in_the_non_preferred_settings_file_is_caught_and_anchored(tmp_path: Path) -> None:
+    """Claude Code merges settings.json and settings.local.json, so a relative
+    hook in either one breaks — even when the rule's primary target is .local."""
+    root = _make_consumer(tmp_path)
+    (root / ".claude" / "settings.local.json").write_text(json.dumps(_canonical_settings()), encoding="utf-8")
+    main = root / ".claude" / "settings.json"
+    main.write_text(json.dumps({"hooks": {"SessionStart": [
+        {"hooks": [{"type": "command", "command": _RELATIVE_SESSION_START}]},
+    ]}}), encoding="utf-8")
+    assert _cs.validate(root) == 1
+    assert _cs.apply(dry_run=False, cwd=root) == 0
+    cmd = json.loads(main.read_text(encoding="utf-8"))["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+    assert '"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py"' in cmd
+    assert _cs.validate(root) == 0
+
+
+def test_relative_hook_really_breaks_outside_project_root_and_anchor_fixes_it(tmp_path: Path) -> None:
+    """Not a string check: run both forms from a subdirectory, the failure the
+    user hit. The relative one cannot find the script; the anchored one can."""
+    import os
+    import shutil
+    import subprocess
+    import sys
+
+    bash = shutil.which("bash")
+    py_dir = os.path.dirname(sys.executable)
+    if bash is None or "system32" in bash.lower() or shutil.which("python", path=py_dir) is None:
+        pytest.skip("needs a POSIX shell (as Claude Code uses for hooks) and `python` beside sys.executable")
+    root = _make_consumer(tmp_path)
+    script = root / ".ai-playbook" / "scripts" / "rules" / "probe.rule.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("print('ran')\n", encoding="utf-8")
+    sub = root / "deep" / "sub"
+    sub.mkdir(parents=True)
+    relative = "python .ai-playbook/scripts/rules/probe.rule.py"
+    anchored = _cs._settings_merge().anchor_command(relative)
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(root), "PATH": py_dir + os.pathsep + os.environ.get("PATH", "")}
+
+    def run(cmd: str) -> subprocess.CompletedProcess:
+        return subprocess.run([bash, "-c", cmd], cwd=sub, env=env, capture_output=True, text=True)
+
+    assert run(relative).returncode != 0
+    ok = run(anchored)
+    assert ok.returncode == 0, ok.stderr
+    assert ok.stdout.strip() == "ran"

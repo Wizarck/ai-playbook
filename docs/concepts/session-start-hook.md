@@ -27,7 +27,7 @@ Add to the consumer's `.claude/settings.json` (project-level) OR the dev's `~/.c
         "hooks": [
           {
             "type": "command",
-            "command": "sops exec-env secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id <project-bank> 2>/dev/null || true",
+            "command": "sops exec-env \"$CLAUDE_PROJECT_DIR/secrets/secrets.env\" -- python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py\" --bank-id <project-bank> 2>/dev/null || true",
             "timeout": 60
           }
         ]

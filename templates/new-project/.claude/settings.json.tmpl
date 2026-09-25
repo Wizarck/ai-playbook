@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sops exec-env ../consumer-a/secrets/secrets.env -- python .ai-playbook/scripts/inject_context.py --bank-id {{PROJECT_BANK}} 2>/dev/null || true",
+            "command": "sops exec-env \"$CLAUDE_PROJECT_DIR/../consumer-a/secrets/secrets.env\" -- python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py\" --bank-id {{PROJECT_BANK}} 2>/dev/null || true",
             "timeout": 60
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/openspec-apply-enforce.py",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py\"",
             "timeout": 10
           }
         ]
@@ -39,12 +39,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py\"",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "python .ai-playbook/scripts/rules/ponytail-reinforce.rule.py",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/ponytail-reinforce.rule.py\"",
             "timeout": 5
           }
         ]

@@ -4,7 +4,8 @@ Verifies that a consumer repository configured for Claude Code declares the
 playbook's required hooks in `.claude/settings.json` (or its `.local.json`
 variant). The canonical hook surface is `templates/new-project/.claude/settings.json.tmpl`
 in the playbook submodule; at minimum the PreToolUse matcher
-`Edit|Write|MultiEdit` MUST wire `python .claude/hooks/openspec-apply-enforce.py`.
+`Edit|Write|MultiEdit` MUST wire `.claude/hooks/openspec-apply-enforce.py`, and
+every hook command MUST be cwd-independent (anchored to `$CLAUDE_PROJECT_DIR`).
 
 `apply` performs an idempotent deep-merge of the missing declarations into the
 existing JSON, preserving user-added keys (formatters, telemetry, custom
@@ -22,6 +23,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
@@ -36,7 +38,7 @@ SKIP_ENV = "AIPLAYBOOK_CLAUDE_SETTINGS_SKIP"
 # placeholder, so it cannot be auto-merged generically — the rule requires
 # only the PreToolUse matcher, which is the LLM-agnostic invariant.
 REQUIRED_PRE_TOOL_USE_MATCHER = "Edit|Write|MultiEdit"
-REQUIRED_PRE_TOOL_USE_COMMAND = "python .claude/hooks/openspec-apply-enforce.py"
+REQUIRED_PRE_TOOL_USE_COMMAND = 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py"'
 REQUIRED_PRE_TOOL_USE_TIMEOUT = 10
 
 
@@ -74,6 +76,52 @@ def _load_settings(path: Path) -> dict[str, Any] | None:
         return None
     text = path.read_text(encoding="utf-8")
     return json.loads(text)
+
+
+def _settings_merge():
+    """The door's settings helpers — one source for the anchoring rewrite.
+
+    Loaded by file path: importing the ``scripts._renderers`` package would pull
+    pyyaml in via its ``__init__``, and this rule must stay stdlib-only.
+    """
+    mod = sys.modules.get("_aipb_settings_merge")
+    if mod is None:
+        src = Path(__file__).resolve().parents[1] / "_renderers" / "_settings_merge.py"
+        spec = importlib.util.spec_from_file_location("_aipb_settings_merge", src)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["_aipb_settings_merge"] = mod
+        spec.loader.exec_module(mod)
+    return mod
+
+
+def _anchor_hook_commands(settings: dict[str, Any]) -> dict[str, Any]:
+    return _settings_merge().anchor_hook_commands(settings)
+
+
+def _hook_files(root: Path):
+    """Yield ``(path, parsed)`` for each readable settings file carrying hooks."""
+    for name in ("settings.json", "settings.local.json"):
+        p = root / ".claude" / name
+        try:
+            data = _load_settings(p)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if isinstance(data, dict):
+            yield p, data
+
+
+def _relative_hook_commands(settings: dict[str, Any]) -> list[str]:
+    """Hook commands whose paths still resolve against the session's cwd."""
+    anchor = _settings_merge().anchor_command
+    hooks = settings.get("hooks")
+    out: list[str] = []
+    for event, entries in (hooks.items() if isinstance(hooks, dict) else []):
+        for entry in entries if isinstance(entries, list) else []:
+            for h in (entry.get("hooks") or []) if isinstance(entry, dict) else []:
+                cmd = h.get("command") if isinstance(h, dict) else None
+                if isinstance(cmd, str) and anchor(cmd) != cmd:
+                    out.append(f"{event}: {cmd}")
+    return out
 
 
 def _has_required_pretooluse(settings: dict[str, Any]) -> bool:
@@ -145,15 +193,29 @@ def validate(cwd: Path | None = None) -> int:
         _emit_error(why=".claude/settings.json unreadable", where=str(path), fix="re-create the file.")
         return 1
 
+    rc = 0
     if not _has_required_pretooluse(settings):
         _emit_error(
             why="PreToolUse matcher 'Edit|Write|MultiEdit' for openspec-apply-enforce.py missing",
             where=str(path),
             fix="run `python .ai-playbook/scripts/rules/claude-settings.rule.py apply` to merge it.",
         )
-        return 1
+        rc = 1
 
-    return 0
+    for hook_file, data in _hook_files(root):
+        relative = _relative_hook_commands(data)
+        if relative:
+            _emit_error(
+                why="hook command uses a cwd-relative path (breaks once the session cd's away)",
+                where=str(hook_file),
+                fix="run `python .ai-playbook/scripts/rules/claude-settings.rule.py apply` "
+                "to anchor it to $CLAUDE_PROJECT_DIR.",
+            )
+            for cmd in relative:
+                print(f"   - {cmd}", file=sys.stderr)
+            rc = 1
+
+    return rc
 
 
 def _merge_required_pretooluse(settings: dict[str, Any]) -> dict[str, Any]:
@@ -237,26 +299,34 @@ def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
             print(f"error: cannot read {path}: {exc}", file=sys.stderr)
             return 2
 
-    merged = _merge_required_pretooluse(existing)
+    merged = _anchor_hook_commands(_merge_required_pretooluse(existing))
+    writes: list[tuple[Path, dict[str, Any]]] = []
+    if not (merged == existing and _has_required_pretooluse(existing)):
+        writes.append((path, merged))
+    # Claude Code merges both settings files, so hooks in the other one run too.
+    for other, data in _hook_files(root):
+        if other != path:
+            anchored = _anchor_hook_commands(data)
+            if anchored != data:
+                writes.append((other, anchored))
 
-    if merged == existing and _has_required_pretooluse(existing):
+    if not writes:
         print(f"ok: {path} already declares required hooks (no-op)")
         return 0
 
-    new_text = json.dumps(merged, indent=2, ensure_ascii=False) + "\n"
-
-    if dry_run:
-        print(f"[dry-run] would write {path}")
-        print(new_text)
-        return 0
-
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(new_text, encoding="utf-8")
-    except OSError as exc:
-        print(f"error: cannot write {path}: {exc}", file=sys.stderr)
-        return 2
-    print(f"wrote {path}")
+    for target, data in writes:
+        new_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+        if dry_run:
+            print(f"[dry-run] would write {target}")
+            print(new_text)
+            continue
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(new_text, encoding="utf-8")
+        except OSError as exc:
+            print(f"error: cannot write {target}: {exc}", file=sys.stderr)
+            return 2
+        print(f"wrote {target}")
     return 0
 
 
