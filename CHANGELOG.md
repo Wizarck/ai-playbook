@@ -2,6 +2,38 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.24.1] — 2026-09-25 — hooks stop depending on the session's cwd
+
+Claude Code runs hooks in the session's *current* directory, not the project
+root. A hook wired as `python .ai-playbook/scripts/...` works until the agent
+`cd`s into a subdirectory; then Python cannot open the file, and a failing
+`UserPromptSubmit` hook blocks every prompt. v0.19.23 anchored the dispatcher
+hook to `$CLAUDE_PROJECT_DIR`; the caveman, ponytail, openspec-enforce and
+SessionStart hooks were still relative, in the template and in every consumer
+bootstrapped from it.
+
+### Fixed
+- **Template:** every hook in `templates/new-project/.claude/settings.json.tmpl`
+  is anchored to `$CLAUDE_PROJECT_DIR`, including the `sops exec-env` secrets
+  file of the SessionStart hook.
+- **Existing consumers self-heal.** New `anchor_hook_commands` in
+  `scripts/_renderers/_settings_merge.py` rewrites cwd-relative `.ai-playbook/…`
+  / `.claude/…` paths (and a relative `sops exec-env <file>`). The
+  `.claude/settings.json` renderer applies it on every `bootstrap.py --update`,
+  and `claude-settings.rule.py apply` applies it to both `settings.json` and
+  `settings.local.json` (Claude Code runs the hooks of both). Commands that already
+  mention `CLAUDE_PROJECT_DIR` or contain quotes are hand-written shell and are
+  left untouched.
+- **`claude-settings.rule.py validate` flags a relative hook path as drift**
+  (exit 1, lists the commands), so `ai_playbook_check` reports it.
+- **`command_identity` ignores quotes.** The anchored openspec command's last
+  token ended in `"`, so dedup missed an existing relative entry and appended a
+  second one.
+
+### Consumer action
+Bump the pin, then `python .ai-playbook/scripts/rules/claude-settings.rule.py apply`
+(or `bootstrap.py --update`). `validate` should exit 0.
+
 ## [0.24.0] — 2026-09-06 — scope: removing a skill stops needing anyone's cooperation
 
 v0.23.0 removed eleven skills and shipped a migration step: every consumer had to
