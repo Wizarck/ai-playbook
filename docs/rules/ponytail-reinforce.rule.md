@@ -35,7 +35,7 @@ each silently no-ops when its own feature is OFF. Registered in the consumer's
     "hooks": [
       {
         "type": "command",
-        "command": "python .ai-playbook/scripts/rules/ponytail-reinforce.rule.py",
+        "command": "python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/ponytail-reinforce.rule.py\"",
         "timeout": 5
       }
     ]

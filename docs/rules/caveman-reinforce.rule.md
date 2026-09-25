@@ -30,7 +30,7 @@ responds. Registered via the consumer's ``.claude/settings.json``:
     "hooks": [
       {
         "type": "command",
-        "command": "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py",
+        "command": "python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py\"",
         "timeout": 5
       }
     ]

@@ -7,12 +7,14 @@ content — only ENSURE that a required hook exists, deduping by the command's
 script identity (basename) rather than by an exact matcher string. Matching by
 basename is what lets the canonical template's ``Edit|Write|MultiEdit|Bash``
 matcher satisfy the ``Edit|Write|MultiEdit`` invariant without producing a
-duplicate PreToolUse entry.
+duplicate PreToolUse entry. The one rewrite allowed is ``anchor_hook_commands``,
+which anchors cwd-relative script paths to ``$CLAUDE_PROJECT_DIR``.
 
 Stdlib-only; pure functions (no filesystem, no mutation of inputs).
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # Canonical PreToolUse invariant. Source of truth:
@@ -20,7 +22,7 @@ from typing import Any
 # e.g. with `|Bash`). The invariant is satisfied as long as the enforce hook's
 # script is wired under PreToolUse by *some* matcher.
 REQUIRED_PRE_TOOL_USE_MATCHER = "Edit|Write|MultiEdit"
-REQUIRED_PRE_TOOL_USE_COMMAND = "python .claude/hooks/openspec-apply-enforce.py"
+REQUIRED_PRE_TOOL_USE_COMMAND = 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py"'
 REQUIRED_PRE_TOOL_USE_TIMEOUT = 10
 REQUIRED_PRE_TOOL_USE_IDENTITY = "openspec-apply-enforce.py"
 
@@ -31,10 +33,10 @@ def command_identity(command: str) -> str:
     ``"sops exec-env -- python .claude/hooks/openspec-apply-enforce.py"`` and
     ``"python .claude/hooks/openspec-apply-enforce.py"`` both reduce to
     ``"openspec-apply-enforce.py"`` so the invariant is matched regardless of
-    wrapper prefixes or path separators.
+    wrapper prefixes, path separators or a quoted ``"$CLAUDE_PROJECT_DIR/…"`` path.
     """
     token = command.replace("\\", "/").split()[-1] if command.strip() else command
-    return token.rsplit("/", 1)[-1]
+    return token.strip("\"'").rsplit("/", 1)[-1]
 
 
 def has_hook(settings: dict[str, Any], event: str, identity: str) -> bool:
@@ -173,6 +175,57 @@ def merge_required_dispatcher(
     }])
 
 
+# Hooks run in the session's CURRENT cwd, which drifts whenever the agent `cd`s
+# (into a subdirectory or a sibling repo). A bare `.ai-playbook/...` path then
+# names a missing file, and a UserPromptSubmit / PreToolUse hook that exits
+# non-zero blocks the prompt or every tool call. Claude Code sets
+# $CLAUDE_PROJECT_DIR for every hook, so anchoring to it removes the drift.
+_REL_PROJECT_PATH_RE = re.compile(r"(?<![\w$/.{}-])((?:\.ai-playbook|\.claude)/[\w./-]+)")
+_SOPS_REL_ENV_FILE_RE = re.compile(r"(\bsops\s+exec-env\s+)(?![A-Za-z]:)([\w.][\w./-]*)")
+
+
+def anchor_command(command: str) -> str:
+    """Anchor a hook command's project-relative paths to ``$CLAUDE_PROJECT_DIR``.
+
+    Rewrites ``.ai-playbook/…`` / ``.claude/…`` script paths and a relative
+    ``sops exec-env <file>`` argument. Commands that already mention
+    ``CLAUDE_PROJECT_DIR`` or contain quotes are hand-written shell (a ``cd``
+    prefix, nested ``sh -c "…"`` strings) and are returned untouched rather
+    than risk breaking their quoting.
+    """
+    if "CLAUDE_PROJECT_DIR" in command or '"' in command or "'" in command:
+        return command
+    out = _SOPS_REL_ENV_FILE_RE.sub(r'\1"$CLAUDE_PROJECT_DIR/\2"', command)
+    return _REL_PROJECT_PATH_RE.sub(r'"$CLAUDE_PROJECT_DIR/\1"', out)
+
+
+def anchor_hook_commands(settings: dict[str, Any]) -> dict[str, Any]:
+    """Apply :func:`anchor_command` to every hook command. Returns a new dict;
+    everything else (events, matchers, timeouts, other keys) is kept as-is."""
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return dict(settings)
+    new_hooks: dict[str, Any] = {}
+    for event, entries in hooks.items():
+        if not isinstance(entries, list):
+            new_hooks[event] = entries
+            continue
+        new_entries = []
+        for entry in entries:
+            if isinstance(entry, dict) and isinstance(entry.get("hooks"), list):
+                entry = dict(entry)
+                entry["hooks"] = [
+                    {**h, "command": anchor_command(h["command"])}
+                    if isinstance(h, dict) and isinstance(h.get("command"), str) else h
+                    for h in entry["hooks"]
+                ]
+            new_entries.append(entry)
+        new_hooks[event] = new_entries
+    out = dict(settings)
+    out["hooks"] = new_hooks
+    return out
+
+
 def merge_permissions(
     settings: dict[str, Any],
     *,
@@ -218,6 +271,8 @@ __all__ = [
     "REQUIRED_PRE_TOOL_USE_IDENTITY",
     "REQUIRED_PRE_TOOL_USE_MATCHER",
     "REQUIRED_PRE_TOOL_USE_TIMEOUT",
+    "anchor_command",
+    "anchor_hook_commands",
     "command_identity",
     "ensure_hooks",
     "has_hook",

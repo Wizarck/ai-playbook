@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from scripts._marker_blocks import CommentStyle, parse_blocks
 from scripts._renderers import (
     render_agents_md,
@@ -14,6 +16,7 @@ from scripts._renderers import (
     render_pre_commit,
     render_settings_json,
 )
+from scripts._renderers._settings_merge import anchor_command
 from scripts._template_classifier import compute_sha
 
 # ---------------------------------------------------------------------------
@@ -471,7 +474,7 @@ _SETTINGS_TMPL_WITH_BASH = json.dumps({
                 "matcher": "Edit|Write|MultiEdit|Bash",
                 "hooks": [
                     {"type": "command",
-                     "command": "python .claude/hooks/openspec-apply-enforce.py",
+                     "command": 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py"',
                      "timeout": 10},
                 ],
             },
@@ -479,7 +482,7 @@ _SETTINGS_TMPL_WITH_BASH = json.dumps({
                 "matcher": "Edit|Write|MultiEdit|Bash",
                 "hooks": [
                     {"type": "command",
-                     "command": "python .ai-playbook/scripts/hook_dispatcher.py PreToolUse",
+                     "command": 'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/hook_dispatcher.py" PreToolUse',
                      "timeout": 10},
                 ],
             },
@@ -593,6 +596,78 @@ def test_settings_json_dispatcher_anchored_to_project_dir() -> None:
     ]
     assert len(dispatch) == 1
     assert "$CLAUDE_PROJECT_DIR" in dispatch[0]
+
+
+def test_settings_json_anchors_cwd_relative_hook_commands() -> None:
+    """A consumer wired before the anchored template self-heals on reconcile:
+    bare relative paths break every hook once the session cd's away."""
+    current = json.dumps({
+        "hooks": {
+            "PreToolUse": [{"matcher": "Edit|Write|MultiEdit", "hooks": [
+                {"type": "command", "command": "python .claude/hooks/openspec-apply-enforce.py", "timeout": 10},
+            ]}],
+            "UserPromptSubmit": [{"hooks": [
+                {"type": "command",
+                 "command": "python .ai-playbook/scripts/rules/caveman-reinforce.rule.py", "timeout": 5},
+            ]}],
+        },
+    }) + "\n"
+    out = render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH, substitutions={},
+        bundle={"settings": {}}, current_text=current,
+    )
+    hooks = json.loads(out)["hooks"]
+    cmds = [h["command"] for ev in hooks.values() for e in ev for h in e["hooks"]]
+    assert 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py"' in cmds
+    assert 'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py"' in cmds
+    assert sum("openspec-apply-enforce.py" in c for c in cmds) == 1
+    # Converged: re-rendering is a byte-level no-op.
+    assert render_settings_json(
+        template=_SETTINGS_TMPL_WITH_BASH, substitutions={},
+        bundle={"settings": {}}, current_text=out,
+    ) == out
+
+
+def test_canonical_template_hook_commands_are_all_anchored() -> None:
+    from pathlib import Path
+
+    tmpl = Path(__file__).resolve().parent.parent / "templates" / "new-project" / ".claude" / "settings.json.tmpl"
+    hooks = json.loads(tmpl.read_text(encoding="utf-8"))["hooks"]
+    cmds = [h["command"] for ev in hooks.values() for e in ev for h in e["hooks"]]
+    assert cmds
+    assert all(anchor_command(c) == c for c in cmds), cmds
+
+
+@pytest.mark.parametrize(("command", "expected"), [
+    ("python .ai-playbook/scripts/rules/caveman-reinforce.rule.py",
+     'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/caveman-reinforce.rule.py"'),
+    ("python .ai-playbook/scripts/hook_dispatcher.py PreToolUse",
+     'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/hook_dispatcher.py" PreToolUse'),
+    ("sops exec-env secrets/secrets.env -- "
+     "python .ai-playbook/scripts/inject_context.py --bank-id b 2>/dev/null || true",
+     'sops exec-env "$CLAUDE_PROJECT_DIR/secrets/secrets.env" -- '
+     'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py" --bank-id b 2>/dev/null || true'),
+    ("python .claude/hooks/x.py; echo done",
+     'python "$CLAUDE_PROJECT_DIR/.claude/hooks/x.py"; echo done'),
+])
+def test_anchor_command_rewrites_project_relative_paths(command: str, expected: str) -> None:
+    assert anchor_command(command) == expected
+    assert anchor_command(expected) == expected  # idempotent
+
+
+@pytest.mark.parametrize("command", [
+    'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/hook_dispatcher.py" PreToolUse',
+    'cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0; python3 .ai-playbook/scripts/inject_context.py',
+    'sh -c "python .ai-playbook/scripts/x.py"',  # nested quoting: hand-written, left alone
+    "python ~/.claude/hooks/global.py",
+    "python $HOME/.claude/hooks/global.py",
+    "python /opt/proj/.ai-playbook/scripts/x.py",
+    "sops exec-env /abs/secrets.env -- echo hi",
+    "sops exec-env D:/Projects/core/secrets.env -- echo hi",
+    "echo hi",
+])
+def test_anchor_command_leaves_other_commands_alone(command: str) -> None:
+    assert anchor_command(command) == command
 
 
 def test_settings_json_preserves_user_keys() -> None:
