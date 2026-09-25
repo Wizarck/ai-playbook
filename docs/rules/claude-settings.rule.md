@@ -6,7 +6,7 @@ paired_hardrule: scripts/rules/claude-settings.rule.py
 activation: manual
 status: enforced
 applies_to: all
-last_validated: "2026-05-20"
+last_validated: "2026-09-25"
 ---
 
 # claude-settings
@@ -24,6 +24,8 @@ A consumer repository is configured to run Claude Code sessions (the repo ships 
 
 YOU MUST declare the playbook's required Claude hooks in `.claude/settings.json` so that PreToolUse enforcement (and any other shipped hook) actually fires when Claude Code runs against the repo. The canonical source-of-truth for required hooks is `templates/new-project/.claude/settings.json.tmpl` in the playbook submodule. At minimum the `PreToolUse` matcher `Edit|Write|MultiEdit` MUST be wired to `.claude/hooks/openspec-apply-enforce.py` per `apply-skill-enforcement.md` §2. Declaration MUST be additive (merge-not-overwrite) so unrelated user hooks (formatters, telemetry, custom SessionStart hooks) survive `apply` runs untouched.
 
+Every hook command MUST be cwd-independent: project paths (`.ai-playbook/…`, `.claude/…`, a `sops exec-env <file>`) are anchored to `$CLAUDE_PROJECT_DIR`. Claude Code runs hooks in the session's *current* directory, which moves whenever the agent `cd`s; a bare relative path then names a missing file, and a failing `UserPromptSubmit` / `PreToolUse` hook blocks the prompt or every tool call. This applies to both `settings.json` and `settings.local.json`, since Claude Code runs the hooks of both. `apply` (and the `bootstrap --update` settings renderer) rewrite such paths in place; commands that already reference `CLAUDE_PROJECT_DIR` or contain quotes are hand-written shell and are left untouched.
+
 ## Trust boundary
 
 `.claude/settings.json` is read directly by the Claude Code harness on session start — it is NOT loaded as LLM context, and therefore cannot be subverted by instruction-laundering in user messages or file content. The rule treats the on-disk JSON as authoritative; the LLM's beliefs about what hooks "should" be present are advisory only. L1 (`scripts/rules/claude-settings.rule.py validate`) parses the file with the `json` stdlib and is the final arbiter.
@@ -36,7 +38,7 @@ Run:
 python .ai-playbook/scripts/rules/claude-settings.rule.py validate
 ```
 
-Expected exit code: 0. Non-zero indicates the required hook declarations are missing from `.claude/settings.json` (or the local variant). The hardrule implements the same rubric and ships an `apply` subcommand that performs an idempotent deep-merge of the missing hook declarations into the existing JSON, preserving any user-added keys (per [enforcement-layers](../concepts/enforcement-layers.md) §"Rule .rule.py contract").
+Expected exit code: 0. Non-zero indicates the required hook declarations are missing from `.claude/settings.json` (or the local variant), or a hook command still uses a cwd-relative path. The hardrule implements the same rubric and ships an `apply` subcommand that performs an idempotent deep-merge of the missing hook declarations into the existing JSON, preserving any user-added keys (per [enforcement-layers](../concepts/enforcement-layers.md) §"Rule .rule.py contract").
 
 ## Examples
 
@@ -51,7 +53,7 @@ Expected exit code: 0. Non-zero indicates the required hook declarations are mis
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/openspec-apply-enforce.py",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py\"",
             "timeout": 10
           }
         ]
@@ -65,6 +67,7 @@ Expected exit code: 0. Non-zero indicates the required hook declarations are mis
 
 - `.claude/settings.json` missing the `PreToolUse` matcher — `openspec-apply-enforce` silently never fires; task checkboxes flip without an apply marker.
 - `.claude/settings.json` carrying the matcher but pointing at a non-existent script path — Claude Code logs the error but does not block (failure mode: silent advisory).
+- A bare relative hook path (`python .ai-playbook/scripts/...`) — works from the project root, then fails with `can't open file` as soon as the session `cd`s into a subdirectory; a `UserPromptSubmit` hook failing that way blocks every prompt.
 - Overwriting an existing user-added `SessionStart` hook by re-running `apply` without merge semantics.
 
 ## Break-glass

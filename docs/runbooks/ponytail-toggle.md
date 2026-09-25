@@ -164,7 +164,7 @@ the `UserPromptSubmit` array in `.claude/settings.json` — it coexists with
 ```json
 {
   "type": "command",
-  "command": "python .ai-playbook/scripts/rules/ponytail-reinforce.rule.py",
+  "command": "python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/rules/ponytail-reinforce.rule.py\"",
   "timeout": 5
 }
 ```
