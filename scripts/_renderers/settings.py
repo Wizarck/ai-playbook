@@ -19,6 +19,7 @@ import json
 from typing import Any
 
 from scripts._renderers._settings_merge import (
+    anchor_hook_commands,
     ensure_hooks,
     merge_permissions,
     merge_required_dispatcher,
@@ -101,6 +102,9 @@ def render(
         if d not in dirs:
             dirs.append(d)
     merged = merge_permissions(merged, allow=allow, additional_directories=dirs)
+    # Self-heal consumers wired before the anchored template (bare relative paths
+    # break every hook once the session's cwd leaves the project root).
+    merged = anchor_hook_commands(merged)
 
     # No semantic change ⇒ preserve the consumer's exact bytes (formatting,
     # key order, comments). Only a real merge re-serialises. This keeps a
