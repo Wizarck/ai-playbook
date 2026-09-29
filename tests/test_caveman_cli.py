@@ -101,6 +101,24 @@ def test_on_with_mode_and_components(project: Path) -> None:
     assert state["components"]["subagents_cavecrew"] is False
 
 
+def test_on_deselecting_components_undoes_their_side_effects(project: Path) -> None:
+    """Regression S1-25: re-running `on` without a component reverts that component."""
+    mcp = project / ".mcp.json"
+    original_mcp = {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+    mcp.write_text(json.dumps(original_mcp), encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    assert "caveman/" in (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert json.loads(mcp.read_text(encoding="utf-8"))["mcpServers"]["a"]["command"] == "npx"
+
+    assert cli.main(["--project", str(project), "on", "--components", "commit_caveman"]) == 0
+    state = toggle.read_state(project)
+    assert state["components"]["response_style"] is False
+    assert state["components"]["mcp_shrink"] is False
+    assert "caveman/" not in (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert json.loads(mcp.read_text(encoding="utf-8")) == original_mcp
+
+
 def test_on_rejects_invalid_mode(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
     rc = cli.main(["--project", str(project), "on", "--mode", "telegraphic"])
     assert rc == 1
