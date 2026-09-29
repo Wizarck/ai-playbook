@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -124,17 +125,22 @@ def _exec_gemini(args: list[str]) -> int:
     """Exec the `gemini` binary. POSIX uses os.execvp; Windows uses subprocess."""
     is_windows = os.name == "nt"
     gemini_args = ["gemini", *args]
-    if is_windows:
-        # On Windows, `gemini` is usually a .cmd/.bat shim on PATH; shell=True
-        # resolves it. os.execvp does NOT cleanly replace the parent process
-        # on Windows, so we wait + propagate the exit code.
-        try:
-            return subprocess.run(" ".join(gemini_args), shell=True).returncode
-        except KeyboardInterrupt:
-            return 0
-    # POSIX: replace the wrapper process in memory so Gemini takes the
-    # terminal cleanly.
     try:
+        if is_windows:
+            # On Windows `gemini` is usually a .cmd shim; shutil.which finds it
+            # via PATHEXT. Pass an argv list, never a shell string: joining the
+            # user's args for cmd.exe split prompts on spaces and ran `>`/`&`.
+            # os.execvp does NOT cleanly replace the parent process on Windows,
+            # so we wait + propagate the exit code.
+            exe = shutil.which("gemini")
+            if exe is None:
+                raise FileNotFoundError("gemini")
+            try:
+                return subprocess.run([exe, *args]).returncode
+            except KeyboardInterrupt:
+                return 130
+        # POSIX: replace the wrapper process in memory so Gemini takes the
+        # terminal cleanly.
         os.execvp("gemini", gemini_args)
     except FileNotFoundError:
         print(
