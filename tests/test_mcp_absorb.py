@@ -155,5 +155,39 @@ def test_to_layer_entry_http_and_stdio() -> None:
     assert http["auth"] == "cf-access"
     stdio = ab.to_layer_entry("z", {"command": "python", "args": ["-m", "z"]})
     assert stdio["transport"] == "stdio"
-    assert stdio["command"] == "python"
-    assert stdio["args"] == ["-m", "z"]
+    # v1 has no `args` field: args are folded into the shell `command`.
+    assert stdio["command"] == "python -m z"
+    assert "args" not in stdio
+
+
+def test_to_layer_entry_maps_mcp_json_type_to_transport() -> None:
+    sse = ab.to_layer_entry("x-y", {"type": "sse", "url": "https://e/sse"})
+    assert sse["transport"] == "sse"
+    assert sse["endpoint"] == "https://e/sse"
+
+
+def test_absorb_then_render_round_trips_stdio_args(tmp_path: Path) -> None:
+    """Regression S1-41: absorbed stdio args must survive into the render."""
+    import shlex
+
+    from scripts.mcp import validate as mv
+
+    argv = ["npx", "-y", "@acme/hindsight-mcp", "--bank", "me", "--label", "two words"]
+    playbook = _playbook(tmp_path)
+    consumer = _consumer(tmp_path, {"mcpServers": {
+        "hindsight-local": {"type": "stdio", "command": argv[0], "args": argv[1:]},
+    }})
+    personal = tmp_path / "personal.yaml"
+    res = ab.absorb_mcp_json(
+        consumer_root=consumer, playbook_root=playbook,
+        personal_file=personal, dry_run=False,
+    )
+    assert res.written_personal == ["hindsight-local"]
+
+    layers = mv.load_layers(
+        playbook_root=playbook, consumer_root=consumer, personal_file=personal,
+    )
+    merged, _ = mv.merge_servers(*layers)
+    for doc in (mv.render_claude_code(merged), mv.render_gemini(merged)):
+        item = doc["mcpServers"]["hindsight-local"]
+        assert shlex.split(item["command"]) == argv
