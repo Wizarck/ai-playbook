@@ -201,6 +201,8 @@ A `consumer` is a **budget bucket** (a LiteLLM virtual key with its own monthly 
 
 When any of `SMTP_USER` / `SMTP_PASSWORD` is unset, email delivery is **silently disabled**; the JSONL queue still writes and the dashboard bell still surfaces every event.
 
+STARTTLS with certificate verification (`ssl.create_default_context()`) is **mandatory**: if the server does not offer STARTTLS or the handshake fails, the email is not sent (reason `smtp-error:starttls`) and credentials are never sent in cleartext. Plain-SMTP relays are not supported.
+
 ### Notification tuning (under `AIPLAYBOOK_*`)
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
