@@ -269,3 +269,55 @@ def test_write_slash_replaces_block() -> None:
 ])
 def test_style_for_filename(name: str, expected: CommentStyle) -> None:
     assert style_for_filename(name) is expected
+
+
+# ---------------------------------------------------------------------------
+# Line anchoring — markers only count when they occupy a whole line
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("style", "quoted", "begin", "end"),
+    [
+        (
+            CommentStyle.HASH,
+            "# see the `# >>> ai-playbook:begin id=x >>>` block below\n",
+            "# >>> ai-playbook:begin id=x >>>",
+            "# <<< ai-playbook:end x <<<",
+        ),
+        (
+            CommentStyle.HTML,
+            "Prose quoting `<!-- ai-playbook:begin id=x -->` inline.\n",
+            "<!-- ai-playbook:begin id=x -->",
+            "<!-- ai-playbook:end x -->",
+        ),
+        (
+            CommentStyle.SLASH,
+            "/* e.g. // ai-playbook:begin id=x */\n",
+            "// ai-playbook:begin id=x",
+            "// ai-playbook:end x",
+        ),
+    ],
+)
+def test_marker_quoted_mid_line_is_not_a_marker(
+    style: CommentStyle, quoted: str, begin: str, end: str,
+) -> None:
+    text = f"{quoted}\n{begin}\nREAL\n{end}\n"
+    parsed = parse_blocks(text, style)
+    assert parsed.blocks["x"].content == "REAL"
+    assert parsed.custom_segments[0] == f"{quoted}\n"
+    # Round-trip must not splice anything into the quoting line.
+    new = MarkerBlock(id="x", content="NEW", sha="ab12", style=style)
+    out = write_blocks(text, {"x": new}, style=style)
+    assert out.startswith(quoted)
+    assert "NEW" in out and "REAL" not in out
+
+
+def test_indented_and_crlf_markers_still_parse_byte_exact() -> None:
+    text = (
+        "a\r\n  # >>> ai-playbook:begin id=x >>>\r\nbody\r\n"
+        "  # <<< ai-playbook:end x <<<\r\nz\r\n"
+    )
+    parsed = parse_blocks(text, CommentStyle.HASH)
+    assert parsed.custom_segments == ["a\r\n  ", "\r\nz\r\n"]
+    assert parsed.blocks["x"].content.strip() == "body"

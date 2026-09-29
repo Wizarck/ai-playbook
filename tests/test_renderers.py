@@ -773,3 +773,37 @@ def test_shipped_agents_template_renders_without_marker_mismatch() -> None:
     )
     ids = set(parse_blocks(out, CommentStyle.HTML).blocks)
     assert {"bootstrap-directive", "dispatcher-index", "capability-map", "mcp-sources"} <= ids
+
+
+def test_every_shipped_marker_template_renders_to_valid_output() -> None:
+    # Regression: the pre-commit template's header comment quoted the begin
+    # marker; the unanchored parser treated it as the real marker and injected
+    # `sha=… >>>\n` mid-comment, so the rendered .pre-commit-config.yaml was
+    # invalid YAML ("found character '`'") and every commit was blocked.
+    from pathlib import Path
+
+    import yaml
+
+    from scripts._managed_files import MANAGED_FILES
+
+    root = Path(__file__).resolve().parents[1] / "templates" / "new-project"
+    subs = {
+        "PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+        "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0", "DISPATCHER_AVAILABLE": "1",
+    }
+    checked = []
+    for mf in MANAGED_FILES:
+        if mf.style is None:
+            continue
+        tmpl = (root / mf.template_rel).read_text(encoding="utf-8")
+        if "ai-playbook:begin" not in tmpl:
+            continue
+        out = mf.renderer(template=tmpl, substitutions=subs, bundle={})
+        out_parsed = parse_blocks(out, mf.style)
+        assert out_parsed.order == parse_blocks(tmpl, mf.style).order, mf.rel_path
+        assert all(b.sha for b in out_parsed.blocks.values()), mf.rel_path
+        if mf.rel_path.endswith((".yaml", ".yml")):
+            assert isinstance(yaml.safe_load(out), dict), mf.rel_path
+        checked.append(mf.rel_path)
+    assert {"AGENTS.md", ".gitignore", ".pre-commit-config.yaml",
+            "mcp-servers.project.yaml"} <= set(checked)
