@@ -23,7 +23,6 @@ what was there before.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -35,7 +34,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
-from scripts.caveman.backup import latest_backup, make_backup  # noqa: E402
+from scripts.caveman.backup import make_backup  # noqa: E402
 
 SHRINK_BIN = "caveman-shrink"
 WRAPPED_MARKER = "_caveman_wrapped"
@@ -203,29 +202,29 @@ def shrink_file(project_root: Path, file_path: Path) -> tuple[Path | None, int]:
 def restore_file(project_root: Path, file_path: Path) -> tuple[Path | None, int]:
     """Unwrap every wrapped MCP entry in ``file_path``. Returns (backup_path, n_unwrapped).
 
-    Two paths to restoration:
-    1. If markers are present, transformed in-place (preferred — works even
-       if backups are missing).
-    2. Otherwise, restores from the latest .ai-playbook/backups/mcp/ backup
-       if one exists for this filename.
+    Only entries carrying the ``_caveman_wrapped`` marker are unwrapped, in
+    place. A missing file or a file with no markers is a no-op ``(None, 0)``:
+    a backup is NEVER auto-copied over the live file, because the latest
+    backup can be older than the user's later edits (and may itself be
+    wrapped). Use ``caveman rollback`` for explicit backup restores.
+
+    Raises ``ValueError`` if the file exists, cannot be parsed as JSON and
+    contains the wrap marker — refuse rather than guess.
     """
+    if not file_path.is_file():
+        return None, 0
     doc = _read_json(file_path)
     if doc is None:
-        # Try restore from backup file if no live config.
-        bp = latest_backup(project_root, "mcp", file_path.name)
-        if bp is not None and bp.is_file():
-            shutil.copy2(bp, file_path)
-            return bp, 1
+        raw = file_path.read_text(encoding="utf-8", errors="replace")
+        if WRAPPED_MARKER in raw:
+            raise ValueError(
+                f"cannot parse {file_path} as JSON but it contains caveman-wrapped "
+                "entries; fix the JSON (e.g. remove comments) and re-run."
+            )
         return None, 0
 
     new_doc, count = _process_doc(doc, wrap=False)
     if count == 0:
-        # No markers found — fall back to backup restore (handles case where
-        # someone hand-edited the wrapped command lines and lost the markers).
-        bp = latest_backup(project_root, "mcp", file_path.name)
-        if bp is not None and bp.is_file():
-            shutil.copy2(bp, file_path)
-            return bp, 1
         return None, 0
 
     backup = make_backup(project_root, "mcp", file_path)

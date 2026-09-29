@@ -160,38 +160,70 @@ def test_restore_file_unwraps_via_markers(tmp_path: Path) -> None:
     assert "_caveman_wrapped" not in doc["mcpServers"]["a"]
 
 
-def test_restore_file_falls_back_to_backup_when_no_markers(tmp_path: Path) -> None:
-    """If someone hand-edits the file and loses markers, restore from backup."""
+def test_restore_file_never_copies_backup_when_no_markers(tmp_path: Path) -> None:
+    """No markers → no-op. A stale backup is never auto-copied over the live file."""
     mcp = tmp_path / ".mcp.json"
     _write_json(mcp, {"mcpServers": {"a": {"command": "uv"}}})
-    mcp_shrink.shrink_file(tmp_path, mcp)  # creates a backup of the un-wrapped state
-
-    # Manually strip markers (simulate user editing)
+    mcp_shrink.shrink_file(tmp_path, mcp)  # creates a backup
     doc = json.loads(mcp.read_text(encoding="utf-8"))
-    entry = doc["mcpServers"]["a"]
-    entry.pop("_caveman_wrapped", None)
-    entry.pop("_caveman_original", None)
-    # Leave the wrapped command in place but markers stripped.
+    doc["mcpServers"]["a"].pop("_caveman_wrapped", None)
+    doc["mcpServers"]["a"].pop("_caveman_original", None)
     _write_json(mcp, doc)
+    before = mcp.read_bytes()
 
-    backup, count = mcp_shrink.restore_file(tmp_path, mcp)
-    assert backup is not None
-    assert count == 1
-    # File now matches the original (pre-shrink) state.
-    restored = json.loads(mcp.read_text(encoding="utf-8"))
-    assert restored["mcpServers"]["a"] == {"command": "uv"}
+    assert mcp_shrink.restore_file(tmp_path, mcp) == (None, 0)
+    assert mcp.read_bytes() == before
 
 
-def test_restore_file_handles_missing_file_with_backup(tmp_path: Path) -> None:
+def test_restore_after_restore_leaves_edited_file_byte_identical(tmp_path: Path) -> None:
+    """shrink -> restore -> user edit -> restore must NOT resurrect the wrapped backup."""
     mcp = tmp_path / ".mcp.json"
     _write_json(mcp, {"mcpServers": {"a": {"command": "uv"}}})
     mcp_shrink.shrink_file(tmp_path, mcp)
-    mcp.unlink()
+    mcp_shrink.restore_file(tmp_path, mcp)
 
-    backup, count = mcp_shrink.restore_file(tmp_path, mcp)
-    assert backup is not None
-    assert count == 1
-    assert mcp.is_file()
+    doc = json.loads(mcp.read_text(encoding="utf-8"))
+    doc["mcpServers"]["b"] = {"command": "node", "args": ["b.js"]}
+    _write_json(mcp, doc)
+    before = mcp.read_bytes()
+
+    assert mcp_shrink.restore_file(tmp_path, mcp) == (None, 0)
+    assert mcp.read_bytes() == before
+
+
+def test_restore_file_missing_file_is_noop_even_with_backup(tmp_path: Path) -> None:
+    gemini = tmp_path / ".gemini" / "settings.json"
+    _write_json(gemini, {"mcpServers": {"a": {"command": "uv"}}})
+    mcp_shrink.shrink_file(tmp_path, gemini)
+    gemini.unlink()
+    gemini.parent.rmdir()
+
+    assert mcp_shrink.restore_file(tmp_path, gemini) == (None, 0)
+    assert not gemini.exists()
+
+
+def test_restore_file_unparseable_without_markers_is_left_alone(tmp_path: Path) -> None:
+    gemini = tmp_path / ".gemini" / "settings.json"
+    _write_json(gemini, {"mcpServers": {"a": {"command": "uv"}}})
+    mcp_shrink.shrink_file(tmp_path, gemini)
+    mcp_shrink.restore_file(tmp_path, gemini)
+    jsonc = '{\n  // user comment\n  "theme": "dark"\n}\n'
+    gemini.write_text(jsonc, encoding="utf-8")
+
+    assert mcp_shrink.restore_file(tmp_path, gemini) == (None, 0)
+    assert gemini.read_text(encoding="utf-8") == jsonc
+
+
+def test_restore_file_refuses_unparseable_wrapped_file(tmp_path: Path) -> None:
+    gemini = tmp_path / ".gemini" / "settings.json"
+    _write_json(gemini, {"mcpServers": {"a": {"command": "uv"}}})
+    mcp_shrink.shrink_file(tmp_path, gemini)
+    broken = "// comment\n" + gemini.read_text(encoding="utf-8")
+    gemini.write_text(broken, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="cannot parse"):
+        mcp_shrink.restore_file(tmp_path, gemini)
+    assert gemini.read_text(encoding="utf-8") == broken
 
 
 def test_restore_file_returns_none_when_nothing_to_do(tmp_path: Path) -> None:

@@ -141,8 +141,9 @@ What this does:
 
 1. Strips the marker-fenced block from AGENTS.md (idempotent — no-op
    if no block).
-2. Unwraps every wrapped MCP entry, either via the in-file markers
-   (preferred) or by restoring the latest backup (fallback).
+2. Unwraps every MCP entry carrying the in-file `_caveman_wrapped`
+   marker. Files without markers (or missing) are left untouched — a
+   backup is never auto-copied; use `caveman rollback` for that.
 3. Writes the state file with `enabled: false` and all components
    `false`.
 
