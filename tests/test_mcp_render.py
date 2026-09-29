@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,12 @@ import yaml
 
 from scripts.mcp import render as mcp_render
 from scripts.mcp import validate as mcp_validate
+
+
+@pytest.fixture(autouse=True)
+def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """render.main() touches ~/.gemini/antigravity; never the real one in tests."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "no-home"))
 
 BASE_MIN = {
     "schema": "mcp-servers/v1",
@@ -329,3 +336,46 @@ def test_render_gemini_preserves_user_settings_keys(tmp_path: Path) -> None:
     # mcpServers fully replaced by the render (stale entry gone).
     assert set(doc["mcpServers"].keys()) == {"hindsight", "rag"}
     assert "stale-server" not in doc["mcpServers"]
+
+
+# ---------------------------------------------------------------------------
+# Regression S1-42: global Antigravity mcp_config.json (under a fake HOME)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path / "home"
+    (home / ".gemini" / "antigravity").mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    return home
+
+
+_STDIO = {"srv": {"transport": "stdio", "command": "npx srv"}}
+
+
+@pytest.mark.parametrize("broken", [
+    '{"mcpServers": {"my-private-server": {"command": "x"},}}',  # trailing comma
+    '["not", "an", "object"]',
+    '{"mcpServers": ["nope"]}',
+])
+def test_unparseable_global_config_is_never_overwritten(
+    fake_home: Path, broken: str, capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = fake_home / ".gemini" / "antigravity" / "mcp_config.json"
+    cfg.write_text(broken, encoding="utf-8")
+    assert mcp_render.update_global_antigravity_mcp(_STDIO, {}, dry_run=False) is None
+    assert cfg.read_text(encoding="utf-8") == broken
+    assert "skipping" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
+def test_global_config_written_owner_only(fake_home: Path) -> None:
+    cfg = fake_home / ".gemini" / "antigravity" / "mcp_config.json"
+    cfg.write_text('{"mcpServers": {"keep": {"command": "k"}}}', encoding="utf-8")
+    cfg.chmod(0o644)
+    out = mcp_render.update_global_antigravity_mcp(_STDIO, {}, dry_run=False)
+    assert out == cfg
+    assert cfg.stat().st_mode & 0o777 == 0o600
+    doc = json.loads(cfg.read_text(encoding="utf-8"))
+    assert set(doc["mcpServers"]) == {"keep", "srv"}
