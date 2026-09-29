@@ -155,9 +155,10 @@ python -m scripts.caveman compress path/to/file.md \
 
 - Backs up to `<file>.original.md`.
 - Calls the LiteLLM proxy via `scripts._llm` (`task_class=doc_writing_edit`).
-- Validates byte-preservation contract (headings, code blocks, URLs,
-  paths). Retries up to 2 times on violation; restores source from
-  backup on final failure.
+- Validates byte-preservation contract (whole-line headings, backtick
+  and tilde fenced code blocks at any indentation, inline code spans,
+  URLs, paths). Retries up to 2 times on violation; restores source
+  from backup on final failure.
 
 This is independent of `enabled`/`on`/`off` — it's a one-shot operation
 gated by the user, not by the toggle. (The `components.compress_docs`
