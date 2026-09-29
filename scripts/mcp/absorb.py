@@ -27,6 +27,7 @@ sibling ``.pre-absorb.bak`` backup, both gated on ``dry_run=False``.
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -97,8 +98,8 @@ def _env_names(item: dict[str, Any]) -> list[str]:
 
 def to_layer_entry(sid: str, item: dict[str, Any]) -> dict[str, Any]:
     """Map a ``.mcp.json`` server entry to a ``mcp-servers/v1`` personal entry."""
-    if item.get("transport"):
-        transport = str(item["transport"])
+    if item.get("transport") or item.get("type"):  # `.mcp.json` spells it `type`
+        transport = str(item.get("transport") or item["type"])
     elif item.get("command"):
         transport = "stdio"
     else:
@@ -112,9 +113,11 @@ def to_layer_entry(sid: str, item: dict[str, Any]) -> dict[str, Any]:
     }
     if transport == "stdio":
         if item.get("command"):
-            entry["command"] = item["command"]
-        if isinstance(item.get("args"), list):
-            entry["args"] = list(item["args"])
+            # v1 has no `args` field and render never emits one: fold args into
+            # the shell `command` (quoted) so absorb stays lossless.
+            args = item.get("args")
+            extra = (" " + shlex.join(str(a) for a in args)) if isinstance(args, list) and args else ""
+            entry["command"] = str(item["command"]) + extra
     else:
         endpoint = item.get("endpoint") or item.get("url") or item.get("httpUrl")
         if endpoint:
