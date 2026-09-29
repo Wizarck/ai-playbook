@@ -820,7 +820,7 @@ For the maintainer's current consumer constellation (May 2026):
 - **Pre-commit `--all-files` in CI**: forbidden per §4.4. Always invoke with `--from-ref/--to-ref` against the PR's base ref.
 - **Skipping pre-flight rebase**: forbidden per §6.5. AI must rebase before first commit on the slice branch.
 - **Bump-bot stacking PRs**: forbidden per §3.4. Each new bump auto-closes prior open PRs on the same logical change-stream.
-- **Manual edits to `openspec/specs/*.md`**: forbidden — must come via `openspec archive`. The `block-manual-spec-edit` pre-commit hook enforces this; CI invocation must use diff-mode (§4.4) so the hook only checks files actually modified by the PR.
+- **Manual edits to `openspec/specs/*.md`**: forbidden — must come via `openspec archive`. The `block-manual-spec-edit` hook enforces this at the `commit-msg` stage locally (the pre-commit stage runs before git writes the message, so there it defers); CI invocation must use diff-mode (§4.4) with a pre-commit-stage copy of the hook so it only checks files actually modified by the PR.
 - **Skipping AI-reviewer triage** (Profile A) or **self-review** (Profile B): forbidden per §4.5. The "AI-reviewer signoff" subsection in the PR body is the audit trail. Admin-merging without populating it skips the second pair of eyes that branch protection assumes — branch protection alone is single-line defense.
 - **Clicking "Enable auto-merge" before §4.5 is satisfied**: forbidden. Auto-merge is convenience for clean PRs after Gate F, not a bypass for the AI-review feedback loop.
 

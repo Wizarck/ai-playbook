@@ -9,22 +9,32 @@ proposal -> archive and silently corrupt the spec audit trail.
 
 CLI
 ---
+    # commit-msg stage (local commits) — pre-commit appends the message file:
+    python -m scripts.block_manual_spec_edit --commit-msg-file <msg-file>
+    # pre-commit stage / CI (`pre-commit run --from-ref A --to-ref B`):
     python -m scripts.block_manual_spec_edit <changed-file>... [--force-with-reason TEXT]
 
 Behaviour
 ---------
-- For each `<changed-file>`: if the path matches `openspec/specs/**/*.md`
-  AND was actually modified by the staged change (per `git diff --cached`
-  or `git diff HEAD~1 HEAD`, depending on context — see _modified_files),
-  the commit is BLOCKED unless the staged commit message contains the
-  marker `openspec-archive:`.
-- The commit message is resolved in this order:
-    1. `$PRE_COMMIT_COMMIT_MSG_FILE` env var (set by pre-commit's
-       `commit-msg` stage).
+- For each protected path (`openspec/specs/**/*.md`) actually modified by
+  the change (per `git diff`, see _modified_files), the commit is BLOCKED
+  unless the commit message contains the marker `openspec-archive:`.
+- `--commit-msg-file` (commit-msg stage, the local mode): the message is
+  read from that file and the protected paths from `git diff --cached`.
+  This is the only local stage where the message being committed exists:
+  git runs the `pre-commit` hook BEFORE writing it, so `.git/COMMIT_EDITMSG`
+  at that point holds the PREVIOUS commit's message (the old fallback to it
+  let hand-edits through after an archive commit and blocked real archives).
+- Without `--commit-msg-file` the message is resolved in this order:
+    1. `$PRE_COMMIT_COMMIT_MSG_FILE` env var (manual override; pre-commit
+       itself never sets it).
     2. `$PRE_COMMIT_TO_REF` and `$PRE_COMMIT_FROM_REF` env vars (set by
        pre-commit's `--from-ref/--to-ref` mode, e.g. CI on PRs).
-    3. `<repo-root>/.git/COMMIT_EDITMSG` (fallback for `pre-commit` stage).
-- If neither exists AND a protected file was staged, the commit is blocked.
+    3. Nothing staged (e.g. CI `--all-files` on a pushed commit): HEAD's
+       message, matching the `HEAD~1..HEAD` diff used in that case.
+- Local pre-commit stage (staged changes, no message yet): exit 0 with a
+  notice — the commit-msg stage decides. If the message cannot be resolved
+  for any other reason AND a protected file changed, the commit is blocked.
 - Files outside `openspec/specs/*.md` are ignored (exit 0).
 - `--force-with-reason="<text>"`: allowed; logs override and exits 0.
 
@@ -98,13 +108,26 @@ def is_protected_path(path_str: str) -> bool:
     return False
 
 
-def read_commit_message(repo_root: Path) -> str | None:
-    """Resolve the staged commit message(s). Return None if unavailable.
+def _has_staged(repo_root: Path) -> bool | None:
+    """True/False = index differs from HEAD or not; None = cannot tell (no repo)."""
+    try:
+        rc = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=str(repo_root), check=False, capture_output=True,
+        ).returncode
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {0: False, 1: True}.get(rc)
 
+
+def read_commit_message(repo_root: Path) -> str | None:
+    """Resolve the commit message(s) for pre-commit-stage / CI runs.
+
+    The commit-msg stage passes ``--commit-msg-file`` and never gets here.
     Resolution order (per v0.9.1 followup #3 — CI mode was previously broken):
 
-    1. ``$PRE_COMMIT_COMMIT_MSG_FILE`` (commit-msg stage; set locally by
-       pre-commit when the dev runs ``git commit``).
+    1. ``$PRE_COMMIT_COMMIT_MSG_FILE`` (manual override; pre-commit never
+       sets it).
     2. ``$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF`` (CI mode — set by
        ``pre-commit run --from-ref <base> --to-ref <head>``). We collect
        every commit message in that range and concatenate them so the
@@ -112,8 +135,10 @@ def read_commit_message(repo_root: Path) -> str | None:
        them. Without this branch, CI saw "commit message unavailable" on
        every archive PR (consumer-e PR #57 was the surfacing case) and
        the hook fell through to the failure path.
-    3. ``<repo-root>/.git/COMMIT_EDITMSG`` (fallback for the bare
-       ``pre-commit`` stage and rare edge cases).
+    3. Nothing staged: HEAD's message (the change under test is HEAD, cf.
+       the ``HEAD~1 HEAD`` diff fallback). With staged changes the message
+       being committed does not exist yet — ``.git/COMMIT_EDITMSG`` is the
+       PREVIOUS commit's — so return ``None``.
     """
     env_path = os.environ.get("PRE_COMMIT_COMMIT_MSG_FILE")
     if env_path:
@@ -147,12 +172,17 @@ def read_commit_message(repo_root: Path) -> str | None:
         except (OSError, subprocess.SubprocessError):
             pass
 
-    editmsg = repo_root / ".git" / "COMMIT_EDITMSG"
-    if editmsg.is_file():
-        try:
-            return editmsg.read_text(encoding="utf-8")
-        except OSError:
-            return None
+    try:
+        if _has_staged(repo_root) is False:  # nothing staged → the change is HEAD
+            r = subprocess.run(
+                ["git", "log", "-1", "--format=%B", "HEAD"],
+                cwd=str(repo_root), check=False, capture_output=True,
+                text=True, encoding="utf-8",
+            )
+            if r.returncode == 0:
+                return r.stdout
+    except (OSError, subprocess.SubprocessError):
+        pass
     return None
 
 
@@ -234,10 +264,28 @@ def main(argv: list[str] | None = None) -> int:
         nargs="*",
         help="Changed file paths (pre-commit passes these as argv).",
     )
+    parser.add_argument(
+        "--commit-msg-file",
+        default=None,
+        help="commit-msg stage: the message file pre-commit passes. Protected "
+        "paths are then taken from `git diff --cached`, not from argv.",
+    )
     add_break_glass_flag(parser)
     args = parser.parse_args(argv)
 
     repo_root = find_repo_root(Path.cwd())
+
+    commit_msg: str | None = None
+    if args.commit_msg_file:
+        try:
+            commit_msg = Path(args.commit_msg_file).read_text(encoding="utf-8")
+        except OSError:
+            commit_msg = None
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=str(repo_root), check=False, capture_output=True, text=True, encoding="utf-8",
+        )
+        args.files = staged.stdout.splitlines() if staged.returncode == 0 else []
 
     candidates = [f for f in args.files if is_protected_path(f)]
     if not candidates:
@@ -265,7 +313,19 @@ def main(argv: list[str] | None = None) -> int:
         # behaviour: treat every input file as modified.
         protected = candidates
 
-    commit_msg = read_commit_message(repo_root)
+    if not args.commit_msg_file:
+        commit_msg = read_commit_message(repo_root)
+        if commit_msg is None and _has_staged(repo_root):
+            # Local pre-commit stage: git has not written this commit's message
+            # yet, so there is nothing honest to check. The commit-msg stage
+            # (`--commit-msg-file`) makes the decision.
+            print(
+                "ℹ️  block_manual_spec_edit: message not written yet at the pre-commit "
+                "stage; deferring to the commit-msg stage (`pre-commit install "
+                "--hook-type commit-msg`).",
+                file=sys.stderr,
+            )
+            return 0
     if commit_msg and ARCHIVE_MARKER in commit_msg:
         return 0
 

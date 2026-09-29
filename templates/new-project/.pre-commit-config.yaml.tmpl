@@ -73,11 +73,16 @@ repos:
       # openspec/specs/ via the archive workflow. Projects using a custom
       # workflow that does NOT promote specs post-archive (e.g. consumer-a's
       # consumer-a-team schema) should leave this disabled. See AGENTS.md §7.5.
+      # Runs at the commit-msg stage (the commit's message does not exist yet at
+      # pre-commit time); install it with `pre-commit install --hook-type commit-msg`.
+      # For CI (`pre-commit run --from-ref/--to-ref`) add a pre-commit-stage copy
+      # without --commit-msg-file; locally that copy defers to this one.
       # - id: block-manual-spec-edit
       #   name: Block manual edits to openspec/specs/
-      #   entry: bash -c '[ ! -d .ai-playbook ] || python .ai-playbook/scripts/block_manual_spec_edit.py "$@"' --
+      #   entry: bash -c '[ ! -d .ai-playbook ] || exec python .ai-playbook/scripts/block_manual_spec_edit.py --commit-msg-file "$1"' --
       #   language: system
-      #   files: ^openspec/specs/.*\.md$
+      #   stages: [commit-msg]
+      #   pass_filenames: true
 
       # OPTIONAL — enable only if this project calls LLMs directly from code
       # (e.g. via anthropic / openai SDKs in production paths). Projects that

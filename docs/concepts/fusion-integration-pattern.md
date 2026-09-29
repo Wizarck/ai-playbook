@@ -305,9 +305,10 @@ repos:
       # OPTIONAL — disable if project does NOT promote specs to openspec/specs/ via archive workflow
       # - id: block-manual-spec-edit
       #   name: Block manual edits to openspec/specs/
-      #   entry: python .ai-playbook/scripts/block_manual_spec_edit.py
+      #   entry: python .ai-playbook/scripts/block_manual_spec_edit.py --commit-msg-file
       #   language: system
-      #   files: ^openspec/specs/.*\.md$
+      #   stages: [commit-msg]   # `pre-commit install --hook-type commit-msg`
+      #   pass_filenames: true
 
       # OPTIONAL — disable if project does NOT call LLMs directly from code
       # - id: verify-llm-routing
