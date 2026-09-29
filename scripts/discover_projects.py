@@ -230,7 +230,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="Register a specific project path without scanning.")
     parser.add_argument("--depth", type=int, default=3, help="Max scan depth (default 3).")
     parser.add_argument("--refresh", action="store_true",
-                        help="Rescan and rewrite (default behavior; flag is accepted for clarity).")
+                        help="Rescan and merge into the registry, pruning entries whose path no "
+                             "longer holds a v1 AGENTS.md (default behavior; flag is "
+                             "accepted for clarity).")
     args = parser.parse_args(argv)
 
     registry_path = resolve_registry_path(args.registry)
@@ -288,7 +290,22 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             found[entry.name] = entry
 
-    new_projects = {name: entry_to_dict(entry) for name, entry in sorted(found.items())}
+    # Merge, never replace: entries registered via --add (e.g. by bootstrap) or
+    # from a root that is currently unmounted must survive a refresh. Keep an
+    # existing entry while its path still holds a v1 AGENTS.md; prune the rest.
+    merged: dict[str, dict] = {}
+    pruned: list[str] = []
+    for name, old in projects.items():
+        if name in found:
+            continue
+        old_path = old.get("path") if isinstance(old, dict) else None
+        fm = parse_frontmatter(Path(old_path) / "AGENTS.md") if old_path else None
+        if fm and fm.get("schema") == "agents-md/v1":
+            merged[name] = old
+        else:
+            pruned.append(name)
+    merged.update({name: entry_to_dict(entry) for name, entry in found.items()})
+    new_projects = dict(sorted(merged.items()))
     data["projects"] = new_projects
 
     if args.dry_run:
@@ -301,6 +318,10 @@ def main(argv: list[str] | None = None) -> int:
     for name, entry in sorted(found.items()):
         tags = " [personal]" if entry.personal else ""
         print(f"  - {name}: {entry.path}{tags}")
+    for name in sorted(set(new_projects) - set(found)):
+        print(f"  - {name}: {new_projects[name].get('path')} (kept from registry)")
+    for name in sorted(pruned):
+        print(f"  - {name}: pruned (no agents-md/v1 AGENTS.md at its path)")
     if not found:
         print(
             "ℹ️  No consumer projects found. A project qualifies when its AGENTS.md "

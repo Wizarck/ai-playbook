@@ -163,6 +163,27 @@ def test_main_add(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "alpha" in data["projects"]
 
 
+def test_main_refresh_keeps_added_and_prunes_gone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refresh merges: --add'ed entries outside the scan roots survive; entries
+    whose path no longer holds a v1 AGENTS.md are pruned."""
+    monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
+    registry = tmp_path / "registry.yaml"
+    alpha = _write_project(tmp_path / "elsewhere", "alpha")
+    gone = _write_project(tmp_path / "elsewhere", "gone")
+    _write_project(tmp_path / "roots", "beta")
+    assert dp.main(["--add", str(alpha), "--registry", str(registry)]) == 0
+    assert dp.main(["--add", str(gone), "--registry", str(registry)]) == 0
+    (gone / "AGENTS.md").unlink()
+
+    rc = dp.main(["--roots", str(tmp_path / "roots"), "--registry", str(registry)])
+
+    assert rc == 0
+    data = yaml.safe_load(registry.read_text(encoding="utf-8"))
+    assert set(data["projects"]) == {"alpha", "beta"}
+
+
 def test_main_add_missing_agents_md(tmp_path: Path) -> None:
     target = tmp_path / "empty"
     target.mkdir()
