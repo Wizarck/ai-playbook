@@ -197,11 +197,16 @@ OUTPUT: SkillsMaterialisationResult { skills_total, mirrors_rewritten,
                    when absent (§4.1).
       stale      = (owned_prev - desired) ∩ present
       user_kept  = present - owned_prev - desired
-   c. Delete every directory in `stale`.
+   c. Delete every directory in `stale` (a symlink is unlinked, never
+      followed). A failed delete -> result.errors, and the name stays owned
+      so the next run retries.
    d. For each name in `desired`, compare the per-skill fingerprint and
       rmtree + copytree only that directory when it differs.
+      A differing directory NOT in owned_prev is a collision with a user
+      skill: it is left untouched, reported in result.errors (rename it or
+      disable the playbook skill) and not recorded as owned.
       On OSError -> append to result.errors, continue.
-   e. manifest[mirror] = desired
+   e. manifest[mirror] = (desired - collisions) ∪ failed-stale
 
 4. Persist the manifest (best-effort; skipped in dry-run). Return result.
 ```
