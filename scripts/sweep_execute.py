@@ -380,13 +380,51 @@ def cmd_apply(args: argparse.Namespace) -> int:
         )
         return 2
 
+    paths = [f["path"] for f in ready]
+    untracked = [
+        p for p in paths
+        if subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", p],
+            capture_output=True, text=True, check=False,
+        ).returncode != 0
+    ]
+    if untracked:
+        emit_error(
+            why=(
+                f"{len(untracked)} authorised path(s) are not tracked by git: "
+                f"{', '.join(untracked[:3])} — the tombstone's restore command is "
+                "`git checkout <sha> -- <path>`, and a file with no history cannot be restored"
+            ),
+            where=str(root),
+            fix="commit the file first (so the removal is revertable), or delete it by hand.",
+            override="none",
+        )
+        return 2
+
+    tomb_path = (root / args.tombstones).resolve()
+    if not tomb_path.is_relative_to(root):
+        emit_error(
+            why=f"--tombstones {args.tombstones} resolves outside the repo — it could not be staged with the deletion",
+            where=str(root),
+            fix="pass a path inside the repository.",
+            override="none",
+        )
+        return 2
+
     when = datetime.now(UTC).date().isoformat()
     rows = [tombstone_row(f, now, when) for f in ready]
 
-    for f in ready:
-        git(root, "rm", "-q", "--", f["path"])
-    tomb = append_tombstones(root, args.tombstones, rows)
-    git(root, "add", "--", str(tomb.relative_to(root)).replace("\\", "/"))
+    # One `git rm` for the whole batch: git refuses the entire command if any
+    # pathspec fails, so the tree is never left half-deleted.
+    git(root, "rm", "-q", "--", *paths)
+    try:
+        tomb = append_tombstones(root, args.tombstones, rows)
+        git(root, "add", "--", tomb.resolve().relative_to(root).as_posix())
+    except (OSError, ConfigError) as exc:
+        # No tombstone, no deletion: put the files back before surfacing the error.
+        git(root, "reset", "-q", "--", *paths)
+        git(root, "checkout", "--", *paths)
+        raise ConfigError(f"writing tombstones failed ({exc}); the deletions were rolled back") from exc
 
     print(f"sweep-execute: removed {len(ready)} file(s), {len(rows)} tombstone(s) -> {args.tombstones}")
     for f in ready:
