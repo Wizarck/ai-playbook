@@ -66,6 +66,7 @@ ensure_runtime_deps("jsonschema")
 import jsonschema  # noqa: E402
 
 from scripts import (  # noqa: E402
+    _backup_helper,  # noqa: E402
     _enforce_state,  # noqa: E402
     _managed_files,  # noqa: E402
     rules_toggle,  # noqa: E402
@@ -1169,7 +1170,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
         if playbook_root_for_mf is None:
             mf_sr_section.detail = "playbook root not found — managed_files skipped"
         else:
-            session_id = f"apply-{datetime.now(UTC).strftime('%Y-%m-%dT%H-%M-%SZ')}"
+            session_id = _backup_helper.new_session_id("apply")
             mf_result = _managed_files.apply_managed_files(
                 consumer_root=target,
                 playbook_root=playbook_root_for_mf,
