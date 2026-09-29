@@ -183,8 +183,9 @@ Authoritative module: [`scripts/caveman/policy.py`](../../scripts/caveman/policy
 5. Remove `.ai-playbook-state/` (unless `--keep-state-dir`).
 
 Pre-commit hooks in templates ship with graceful shims
-(`bash -c '[ -d .ai-playbook ] && python ... || exit 0'`) so simply
-deleting the submodule does NOT block commits.
+(`bash -c '[ ! -d .ai-playbook ] || python ...'`): with the submodule
+deleted the hook exits 0 and does not block commits; with it present the
+validator's exit code propagates, so a failing check blocks the commit.
 
 ## Follow-up scope (NOT in this PR)
 

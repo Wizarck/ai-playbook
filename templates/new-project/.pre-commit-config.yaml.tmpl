@@ -28,14 +28,14 @@ repos:
     hooks:
       - id: schema-validate-agents
         name: Validate AGENTS.md against playbook schema
-        entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/schema_validate.py AGENTS.md || exit 0'
+        entry: bash -c '[ ! -d .ai-playbook ] || python .ai-playbook/scripts/schema_validate.py AGENTS.md'
         language: system
         pass_filenames: false
         files: ^AGENTS\.md$
 
       - id: mcp-validate
         name: Validate mcp-servers.yaml layering
-        entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/mcp/validate.py || exit 0'
+        entry: bash -c '[ ! -d .ai-playbook ] || python .ai-playbook/scripts/mcp/validate.py'
         language: system
         pass_filenames: false
         files: ^mcp-servers\.yaml$|^mcp-servers\.project\.yaml$
@@ -46,7 +46,7 @@ repos:
       # registry untouched", which a filter on the registry would hide.
       - id: capability-wiring
         name: Capability is wired into its registry (code-entropy axis 4)
-        entry: bash -c '[ -f wiring.yaml ] && python .ai-playbook/scripts/rules/capability-wiring.rule.py check --changed-only || exit 0'
+        entry: bash -c '[ ! -f wiring.yaml ] || python .ai-playbook/scripts/rules/capability-wiring.rule.py check --changed-only'
         language: system
         pass_filenames: false
         always_run: true
@@ -57,14 +57,14 @@ repos:
       # walk entirely.
       - id: repo-hygiene
         name: Dependencies are used, artefacts are ignored and fresh (code-entropy axes 3+5)
-        entry: bash -c '[ -f repo-hygiene.yaml ] && python .ai-playbook/scripts/rules/repo-hygiene.rule.py check --changed-only || exit 0'
+        entry: bash -c '[ ! -f repo-hygiene.yaml ] || python .ai-playbook/scripts/rules/repo-hygiene.rule.py check --changed-only'
         language: system
         pass_filenames: false
         always_run: true
 
       - id: verdict-lint
         name: Lint review/verify verdict shape (verdict-contract.md)
-        entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/verdict_lint.py --shape artifact || exit 0'
+        entry: bash -c '[ ! -d .ai-playbook ] || python .ai-playbook/scripts/verdict_lint.py --shape artifact "$@"' --
         language: system
         files: ^openspec/changes/.*/(review|verify)\.md$
 
@@ -74,7 +74,7 @@ repos:
       # consumer-a-team schema) should leave this disabled. See AGENTS.md §7.5.
       # - id: block-manual-spec-edit
       #   name: Block manual edits to openspec/specs/
-      #   entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/block_manual_spec_edit.py || exit 0'
+      #   entry: bash -c '[ ! -d .ai-playbook ] || python .ai-playbook/scripts/block_manual_spec_edit.py "$@"' --
       #   language: system
       #   files: ^openspec/specs/.*\.md$
 
@@ -84,7 +84,7 @@ repos:
       # should leave this disabled. See AGENTS.md §7.5.
       # - id: verify-llm-routing
       #   name: Verify LLM routing (Change C drift detector — direct-SDK callers)
-      #   entry: bash -c '[ -d .ai-playbook ] && python .ai-playbook/scripts/verify_llm_routing.py || exit 0'
+      #   entry: bash -c '[ ! -d .ai-playbook ] || python .ai-playbook/scripts/verify_llm_routing.py'
       #   language: system
       #   pass_filenames: false
       #   # Warn-only initially per ai-playbook D3.5; promote to --strict after
