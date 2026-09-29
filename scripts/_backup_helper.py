@@ -6,7 +6,8 @@ persisted in the bundle):
 * ``BackupLocation.NEXT_TO_FILE`` (default — matches the user-preferred
   ergonomics of "I can see my backup right next to the file"):
   writes ``<file>.<ts>.bak`` (or ``<file>.bak`` if ``with_timestamp=False``)
-  in the same directory as the source.
+  in the same directory as the source. Timestamped names are claimed with
+  exclusive create; a same-second collision becomes ``<file>.<ts>-N.bak``.
 * ``BackupLocation.CENTRAL``: writes
   ``<consumer>/.ai-playbook-state/backups/<rel-path>.<ts>.bak`` so the
   consumer's working tree stays uncluttered.
@@ -38,6 +39,7 @@ import os
 import shutil
 import sys
 import tempfile
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -100,6 +102,28 @@ def index_path(consumer_root: Path) -> Path:
 
 def _now_ts() -> str:
     return datetime.now(UTC).strftime(TIMESTAMP_FMT)
+
+
+def new_session_id(prefix: str) -> str:
+    """Return a unique session id: ``<prefix>-<ts>-<8 hex>``.
+
+    The timestamp alone is second-granular, so two runs in the same second
+    would share an id and ``restore_session`` would roll back both.
+    """
+    return f"{prefix}-{_now_ts()}-{uuid.uuid4().hex[:8]}"
+
+
+def _claim_unique(dest: Path) -> Path:
+    """Exclusively create ``dest`` (or ``<stem>-N.bak`` if taken) and return it."""
+    stem = dest.name[: -len(".bak")]
+    n = 0
+    while True:
+        cand = dest if n == 0 else dest.with_name(f"{stem}-{n}.bak")
+        try:
+            with cand.open("x"):
+                return cand
+        except FileExistsError:
+            n += 1
 
 
 def _sha256(path: Path) -> str:
@@ -266,6 +290,11 @@ def backup_once(
         timestamp=ts if with_timestamp else None,
     )
     dest.parent.mkdir(parents=True, exist_ok=True)
+    if with_timestamp:
+        # Names are second-granular: claim a free slot atomically so two
+        # backups in the same second (e.g. a BASE snapshot followed by a
+        # CENTRAL reconcile backup) never overwrite each other.
+        dest = _claim_unique(dest)
     shutil.copy2(source_file, dest)
 
     rel = source_file.relative_to(consumer_root)
@@ -277,7 +306,7 @@ def backup_once(
         timestamp=ts or _now_ts(),
         sha256=_sha256(source_file),
         source_size=source_file.stat().st_size,
-        session_id=session_id or f"adhoc-{_now_ts()}",
+        session_id=session_id or new_session_id("adhoc"),
     )
     append_index(consumer_root, record)
     return record
@@ -458,20 +487,27 @@ def prune_backups(
         by_rel.setdefault(r.rel_path, []).append(r)
 
     keep: list[BackupRecord] = list(base_keep)
-    removed_files = 0
+    drop: list[BackupRecord] = []
     for _rel_path, group in by_rel.items():
         group_sorted = sorted(group, key=lambda r: r.timestamp)
         if len(group_sorted) <= keep_per_file:
             keep.extend(group_sorted)
             continue
-        for old in group_sorted[:-keep_per_file]:
-            backup_abs = consumer_root / old.backup_rel_path
-            try:
-                backup_abs.unlink()
-                removed_files += 1
-            except OSError:
-                pass
+        drop.extend(group_sorted[:-keep_per_file])
         keep.extend(group_sorted[-keep_per_file:])
+
+    # Several records can alias one file (single-slot ``<file>.bak`` mode, or
+    # legacy same-second names): never unlink a path a kept record references.
+    kept_paths = {r.backup_rel_path for r in keep}
+    removed_files = 0
+    for old in drop:
+        if old.backup_rel_path in kept_paths:
+            continue
+        try:
+            (consumer_root / old.backup_rel_path).unlink()
+            removed_files += 1
+        except OSError:
+            pass
 
     keep_sorted = sorted(keep, key=lambda r: r.timestamp)
     if removed_files > 0 or len(keep_sorted) != len(records):
@@ -496,6 +532,7 @@ __all__ = [
     "index_path",
     "latest_backup_for",
     "list_backups_for",
+    "new_session_id",
     "prune_backups",
     "read_index",
     "restore_backup",

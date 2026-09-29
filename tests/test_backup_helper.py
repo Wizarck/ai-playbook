@@ -396,3 +396,59 @@ def test_prune_never_removes_base(consumer: Path) -> None:
     bh.prune_backups(consumer, keep_per_file=1)
     # The base survives pruning regardless of keep_per_file.
     assert bh.base_record_for(consumer, "AGENTS.md") is not None
+
+
+# ---------------------------------------------------------------------------
+# Same-second collisions (clock pinned to one second)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bh, "_now_ts", lambda: "2026-09-28T10-00-00Z")
+
+
+def test_same_second_backups_get_distinct_files(consumer: Path, frozen_clock: None) -> None:
+    a = bh.backup_once(consumer, consumer / "AGENTS.md")
+    _write_lf(consumer / "AGENTS.md", "second\n")
+    b = bh.backup_once(consumer, consumer / "AGENTS.md")
+    assert a is not None and b is not None
+    assert a.backup_rel_path != b.backup_rel_path
+    assert (consumer / a.backup_rel_path).read_text(encoding="utf-8") == "# project agents\n"
+    assert (consumer / b.backup_rel_path).read_text(encoding="utf-8") == "second\n"
+
+
+def test_same_second_central_backup_does_not_clobber_base(consumer: Path, frozen_clock: None) -> None:
+    bh.backup_base(consumer, consumer / "AGENTS.md")
+    _write_lf(consumer / "AGENTS.md", "after first render\n")
+    bh.backup_once(consumer, consumer / "AGENTS.md", location=bh.BackupLocation.CENTRAL)
+    bh.restore_base(consumer)
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# project agents\n"
+
+
+def test_same_second_prune_keeps_file_of_kept_record(consumer: Path, frozen_clock: None) -> None:
+    for i in range(5):
+        _write_lf(consumer / "AGENTS.md", f"v{i}\n")
+        bh.backup_once(consumer, consumer / "AGENTS.md")
+    bh.prune_backups(consumer, keep_per_file=1)
+    kept = bh.list_backups_for(consumer, "AGENTS.md")
+    assert len(kept) == 1
+    assert (consumer / kept[0].backup_rel_path).read_text(encoding="utf-8") == "v4\n"
+
+
+def test_prune_never_unlinks_single_slot_file_still_referenced(consumer: Path) -> None:
+    # with_timestamp=False aliases every record onto <file>.bak by design.
+    for i in range(3):
+        _write_lf(consumer / "AGENTS.md", f"v{i}\n")
+        bh.backup_once(consumer, consumer / "AGENTS.md", with_timestamp=False)
+    bh.prune_backups(consumer, keep_per_file=1)
+    kept = bh.list_backups_for(consumer, "AGENTS.md")
+    assert len(kept) == 1
+    assert (consumer / kept[0].backup_rel_path).is_file()
+
+
+def test_adhoc_session_ids_are_unique(consumer: Path, frozen_clock: None) -> None:
+    a = bh.backup_once(consumer, consumer / "AGENTS.md")
+    b = bh.backup_once(consumer, consumer / ".gitignore")
+    assert a is not None and b is not None
+    assert a.session_id != b.session_id

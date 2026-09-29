@@ -717,3 +717,37 @@ def test_persisted_bundle_reapply_is_noop_despite_base_shas(tmp_path: Path) -> N
     assert report2.ok, report2.to_markdown()
     assert "compare-and-swap" not in report2.to_markdown()
     assert "base_shas" not in json.loads(applied.read_text(encoding="utf-8"))
+
+
+def test_apply_session_ids_unique_within_same_second(tmp_path: Path) -> None:
+    """Two applies in one second must not share a backup session id, else a
+    failed second run's restore_session also reverts the first run's files."""
+    from datetime import UTC, datetime
+
+    from scripts import _backup_helper, _managed_files
+
+    fixed = datetime(2026, 9, 28, 10, 0, 0, tzinfo=UTC)
+
+    class _FrozenDT(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return fixed
+
+    seen: list[str] = []
+    real = _managed_files.apply_managed_files
+
+    def _spy(**kw):  # type: ignore[no-untyped-def]
+        seen.append(kw.get("session_id"))
+        return real(**kw)
+
+    target = _fake_project(tmp_path)
+    bp = _write_bundle(tmp_path, {"schema": "ai-playbook-config/v1"})
+    with patch.object(apply_config, "apply_caveman") as mock_cv, \
+            patch.object(apply_config, "datetime", _FrozenDT), \
+            patch.object(_backup_helper, "_now_ts", lambda: "2026-09-28T10-00-00Z"), \
+            patch.object(_managed_files, "apply_managed_files", _spy):
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        apply_config.apply(bp, target=target)
+        apply_config.apply(bp, target=target)
+    assert len(seen) == 2 and seen[0] != seen[1]
