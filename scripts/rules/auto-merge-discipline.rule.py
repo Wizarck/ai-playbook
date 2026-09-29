@@ -64,6 +64,13 @@ def _all_checks_green(rollup: list[dict] | None) -> bool:
     for check in rollup:
         conclusion = (check.get("conclusion") or "").upper()
         status = (check.get("status") or "").upper()
+        if not conclusion and not status:
+            # StatusContext (commit status API: Vercel, Jenkins, ...) reports
+            # only `state`. Only SUCCESS is green; PENDING/EXPECTED/FAILURE/
+            # ERROR (or no state at all) are not.
+            if (check.get("state") or "").upper() != "SUCCESS":
+                return False
+            continue
         if conclusion not in {"SUCCESS", "NEUTRAL", "SKIPPED", ""}:
             return False
         if status not in {"COMPLETED", ""} and conclusion == "":
