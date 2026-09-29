@@ -4,10 +4,11 @@ Verifies that a consumer's `.pre-commit-config.yaml` declares the ai-playbook
 hooks bundle — either as a remote `repo: https://github.com/Wizarck/ai-playbook`
 entry or as a `repo: local` block invoking the playbook's individual hooks.
 
-`apply` appends a canonical block to the existing file. The append-only
-strategy (text-line append, not YAML rewrite) preserves user comments,
-formatting, and unrelated hooks intact — which matters more than canonical
-YAML output for a config file that is hand-tuned per-project.
+`apply` splices a canonical block after the last `repos:` item, re-indented to
+the file's own style (text insert, not YAML rewrite), so user comments,
+formatting, and unrelated hooks survive intact. The result must parse with
+`yaml.safe_load` and contain the new repo, otherwise nothing is written (exit 2).
+The block lists exactly the hook ids `.pre-commit-hooks.yaml` exports.
 
 CLI:
     python scripts/rules/pre-commit-hooks.rule.py validate
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +31,16 @@ from pathlib import Path
 SKIP_ENV = "AIPLAYBOOK_PRE_COMMIT_HOOKS_SKIP"
 PLAYBOOK_REPO_URL = "https://github.com/Wizarck/ai-playbook"
 PLAYBOOK_SUBSTRING = "ai-playbook"
+# Must equal the ids exported by the playbook's `.pre-commit-hooks.yaml`
+# (cross-checked by tests); an id pre-commit cannot find fails every commit.
+EXPORTED_HOOK_IDS = (
+    "validate-pairing",
+    "check-doc-language",
+    "check-link-integrity",
+    "check-agents-md-size",
+)
+# Pre-0.x `apply` wrote this id, which was never exported.
+_BOGUS_ID_RE = re.compile(r"^\s*-\s*id:\s*['\"]?ai-playbook['\"]?\s*(#.*)?$", re.MULTILINE)
 
 
 def _emit_error(why: str, where: str, fix: str) -> None:
@@ -92,14 +104,9 @@ def _detect_pinned_rev(root: Path) -> str:
 
 
 def _canonical_block(rev: str) -> str:
-    """The block appended by `apply`. Leading blank line + trailing newline."""
-    return (
-        "\n"
-        f"  - repo: {PLAYBOOK_REPO_URL}\n"
-        f"    rev: {rev}\n"
-        "    hooks:\n"
-        "      - id: ai-playbook\n"
-    )
+    """The repo item `apply` inserts (canonical column-0 form)."""
+    hooks = "".join(f"    - id: {hid}\n" for hid in EXPORTED_HOOK_IDS)
+    return f"- repo: {PLAYBOOK_REPO_URL}\n  rev: {rev}\n  hooks:\n{hooks}"
 
 
 def validate(cwd: Path | None = None) -> int:
@@ -127,11 +134,19 @@ def validate(cwd: Path | None = None) -> int:
         )
         return 1
 
+    if _BOGUS_ID_RE.search(text):
+        _emit_error(
+            why="hook id `ai-playbook` is not exported by the playbook (pre-commit fails every commit)",
+            where=str(path),
+            fix="replace `- id: ai-playbook` with: " + ", ".join(f"`- id: {h}`" for h in EXPORTED_HOOK_IDS) + ".",
+        )
+        return 1
+
     return 0
 
 
 def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
-    """Append the canonical ai-playbook block to `.pre-commit-config.yaml`. Idempotent."""
+    """Insert the canonical ai-playbook repo into `.pre-commit-config.yaml`. Idempotent."""
     root = _consumer_root(cwd)
     if root is None:
         print("error: no consumer root (AGENTS.md) found from cwd", file=sys.stderr)
@@ -160,22 +175,30 @@ def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
     block = _canonical_block(rev)
 
     if dry_run:
-        print(f"[dry-run] would append to {path} (rev={rev}):")
+        print(f"[dry-run] would insert into {path} (rev={rev}):")
         print(block, end="")
         return 0
 
-    # Ensure trailing newline before append so the block starts on its own line.
-    new_text = existing
-    if new_text and not new_text.endswith("\n"):
-        new_text += "\n"
-    new_text += block
+    from scripts.rules._precommit_yaml import insert_repo
+
+    try:
+        new_text = insert_repo(
+            existing, block, repo_url=PLAYBOOK_REPO_URL, hook_ids=list(EXPORTED_HOOK_IDS),
+        )
+    except ValueError as exc:
+        _emit_error(
+            why=f"cannot safely insert the ai-playbook repo ({exc}); nothing written",
+            where=str(path),
+            fix="add this item under `repos:` by hand:\n" + block,
+        )
+        return 2
 
     try:
         path.write_text(new_text, encoding="utf-8")
     except OSError as exc:
         print(f"error: cannot write {path}: {exc}", file=sys.stderr)
         return 2
-    print(f"appended ai-playbook block to {path} (rev={rev})")
+    print(f"inserted ai-playbook repo into {path} (rev={rev})")
     return 0
 
 
