@@ -92,7 +92,8 @@ channel that matches the tool being gated:
   reason): write the **one-shot receipt** first,
   `echo <short reason> > $TMPDIR/aiplaybook-termination-receipt`. It is
   consumed on use: one confirmation authorises exactly one stop, and a blank
-  receipt authorises nothing.
+  or non-UTF-8 receipt (e.g. PowerShell 5.1 `>` writes UTF-16) authorises
+  nothing — it is deleted all the same.
 - A hook-level env var still works where a wrapper genuinely exports it before
   the hook runs (e.g. CI harnesses).
 
