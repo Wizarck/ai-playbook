@@ -105,6 +105,19 @@ def test_status_matches_expected_returns_0() -> None:
     assert rc == verify_board_state.EXIT_OK == 0
 
 
+def test_sibling_slice_with_longer_id_does_not_match() -> None:
+    """'risk-engine-protections' (Done) must not satisfy the gate for 'risk-engine'."""
+    payload = _make_graphql_response([
+        _item(title="risk-engine-protections", status="Done"),
+        _item(title="risk-engine", status="In Progress"),
+    ])
+    with _mock_subprocess_run_returning(payload):
+        rc = verify_board_state.main(
+            ["--change-id", "risk-engine", "--owner", "Wizarck", "--project-number", "2"]
+        )
+    assert rc == verify_board_state.EXIT_STATUS_MISMATCH
+
+
 def test_default_expected_status_is_done() -> None:
     payload = _make_graphql_response([_item(title="some-slice", status="Done")])
     with _mock_subprocess_run_returning(payload):
