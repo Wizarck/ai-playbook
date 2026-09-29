@@ -611,6 +611,33 @@ def test_drifted_block_without_decision_is_a_conflict(
     assert result.file_states["AGENTS.md"]["conflict"] == ["bootstrap-directive"]
 
 
+def test_malformed_current_markers_fail_closed(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A drifted sealed block next to an unclosed marker (e.g. the syntax
+    documented in a code fence) must NOT bypass the conflict gate: the file is
+    skipped as a conflict, never silently overwritten."""
+    _seal_agents_md(fake_playbook, fake_consumer)
+    agents = fake_consumer / "AGENTS.md"
+    edited = agents.read_text(encoding="utf-8").replace(
+        "Canonical bootstrap.", "My local edit."
+    ) + (
+        "\n## 8 Gotchas\n\n```\n<!-- ai-playbook:begin id=example -->\n```\n"
+    )
+    agents.write_text(edited, encoding="utf-8")
+
+    for dry_run in (True, False):
+        result = _managed_files.apply_managed_files(
+            consumer_root=fake_consumer, playbook_root=fake_playbook,
+            bundle={"schema": "ai-playbook-config/v1",
+                    "project_meta": {"project_identity": "seed"}},
+            dry_run=dry_run,
+        )
+        assert result.ok is False
+        assert any("malformed markers" in c for c in result.changes)
+        assert agents.read_text(encoding="utf-8") == edited
+
+
 def test_drifted_block_keep_mine_preserves_and_reseals(
     fake_playbook: Path, fake_consumer: Path,
 ) -> None:
