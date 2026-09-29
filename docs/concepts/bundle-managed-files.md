@@ -73,6 +73,11 @@ JSON5 / JS:
   (computed by `_template_classifier.compute_sha`). Optional in templates;
   filled by `render_agents_md` post-substitution.
 * Block ids must be unique within a file. Nested blocks are NOT supported.
+* A marker counts only when it is the whole line (indent and trailing
+  whitespace allowed). Marker text quoted mid-line, e.g. in prose explaining
+  the syntax, is ordinary content. A file whose markers do not parse (an
+  unclosed or mismatched marker) is skipped as a conflict
+  (`malformed markers`) and never overwritten.
 
 ## End-to-end flow
 
@@ -107,7 +112,15 @@ JSON5 / JS:
    bundle — the same door as fresh install. Per managed file:
    - Read template from `<playbook>/templates/new-project/<file>.tmpl`.
    - Compute substitutions from `<consumer>/AGENTS.md` frontmatter.
-   - Run the renderer for that file.
+   - Run the renderer for that file. When the destination exists, the
+     renderer merges into it rather than regenerating it: canonical blocks
+     are refreshed in place and everything outside them is kept. The bundle
+     extras of `.pre-commit-config.yaml` and `mcp-servers.project.yaml` sit
+     between a `# Consumer … (preserved across apply_config)` header and a
+     `# (end of …)` trailer comment, and that region is replaced on every
+     apply. `.coderabbit.yaml` extras are merged into the current mapping.
+     A markerless `AGENTS.md` is still generated from the template (its prose
+     is recovered through backup + `curate`).
    - If destination exists AND content differs from rendered output:
      `backup_once` → atomic write.
    - Update `bundle.file_states[<rel_path>]` with the new SHA manifest.

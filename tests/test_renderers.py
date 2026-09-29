@@ -931,6 +931,48 @@ def test_shipped_agents_template_renders_without_marker_mismatch() -> None:
     assert {"bootstrap-directive", "dispatcher-index", "capability-map", "mcp-sources"} <= ids
 
 
+def test_agents_md_rerender_splices_blocks_into_existing_file() -> None:
+    """Re-rendering an adopted AGENTS.md must keep everything outside the
+    canonical blocks: frontmatter keys (tracker_kind/jira_project), extra
+    sections, and filled slots — and must not duplicate template prose."""
+    from pathlib import Path
+
+    from scripts.migrate_to_bundle import extract_project_meta
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    subs = {"PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+            "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0"}
+    first = render_agents_md(template=tmpl, substitutions=subs,
+                             bundle={"project_meta": {"project_identity": "Demo app."}})
+    edited = first.replace("tracker_kind: github\n",
+                           "tracker_kind: jira\njira_project: ACME\n")
+    edited += "\n## 9 Rule map\n\nCustom consumer section.\n"
+    # A stale canonical block is refreshed from the template (the drift gate
+    # lives in _managed_files, not in the renderer).
+    stale = parse_blocks(edited, CommentStyle.HTML).blocks["capability-map"]
+    edited = edited.replace(stale.content, "stale capability map")
+
+    subs2 = {**subs, "TODAY": "2026-02-02"}
+    out = render_agents_md(
+        template=tmpl, substitutions=subs2, current_text=edited,
+        bundle={"project_meta": extract_project_meta(edited)},
+    )
+    assert "tracker_kind: jira\njira_project: ACME\n" in out
+    assert "updated: 2026-01-01" in out
+    assert out.rstrip().endswith("Custom consumer section.")
+    assert "Demo app." in out
+    assert out.count("Append one-line dated entries") == 1
+    assert "stale capability map" not in out
+    assert parse_blocks(out, CommentStyle.HTML).blocks["capability-map"].content == (
+        stale.content
+    )
+    again = render_agents_md(template=tmpl, substitutions=subs2, current_text=out,
+                             bundle={"project_meta": extract_project_meta(out)})
+    assert again == out
+
+
 def test_every_shipped_marker_template_renders_to_valid_output() -> None:
     # Regression: the pre-commit template's header comment quoted the begin
     # marker; the unanchored parser treated it as the real marker and injected

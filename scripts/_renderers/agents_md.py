@@ -1,7 +1,9 @@
 """Render ``AGENTS.md`` from template + bundle.
 
-The template's structure (headers, marker positions, section ordering) is
-authoritative. The renderer:
+For a new (or markerless) file the template's structure (headers, marker
+positions, section ordering) is authoritative. For a file that already carries
+marker blocks, only the blocks are refreshed; everything outside them is kept
+verbatim (see ``render``). The renderer:
 
 1. Substitutes ``{{PLACEHOLDER}}`` tokens (PROJECT_NAME, OWNER_EMAIL, TODAY,
    PLAYBOOK_PIN, PROJECT_BANK).
@@ -140,11 +142,24 @@ def render(
     """Return the final AGENTS.md content.
 
     ``current_text`` is the consumer's existing AGENTS.md content (if any).
+
+    * No file, or a markerless (never-adopted) file: the output is generated
+      from the template, with ``project_meta`` filling the free-form slots
+      (markerless prose is recovered through backup + ``curate``, see
+      openspec/changes/lossless-adoption D2).
+    * A file that already carries marker blocks: the template's canonical
+      blocks are spliced INTO ``current_text`` (missing ones appended); the
+      frontmatter and every section outside the blocks are kept verbatim.
+      ``project_meta`` only fills placeholder tokens still present in it.
+
     When ``bundle.file_curate_intents["AGENTS.md"]`` marks blocks as
     ``keep_mine``, those blocks are taken from ``current_text`` instead of
-    the template. Without curate intents, ``current_text`` is unused.
+    the template.
     """
     body = _apply_substitutions(template, substitutions)
+    if current_text and parse_blocks(current_text, CommentStyle.HTML).blocks:
+        sealed = parse_blocks(_inject_sha_into_markers(body), CommentStyle.HTML).blocks
+        body = write_blocks(current_text, sealed, style=CommentStyle.HTML)
     body = _apply_project_meta(body, bundle.get("project_meta"))
     intents = (bundle.get("file_curate_intents") or {}).get("AGENTS.md")
     body = _apply_curate_intents(body, current_text, intents)
