@@ -147,14 +147,36 @@ def _gh_available() -> bool:
         return False
 
 
+def _run_gh(args: list[str], *, input: str | None = None, capture: bool = True) -> subprocess.CompletedProcess:
+    """Run ``gh``; raise RuntimeError (never CalledProcessError) on failure so
+    every caller's ``except RuntimeError`` and main's exit-code mapping hold."""
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            input=input,
+            check=True,
+            capture_output=capture,
+            text=True,
+            encoding="utf-8",
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(f"gh CLI not found: {e}") from e
+    except subprocess.CalledProcessError as e:
+        body = (e.stdout or "").strip()
+        detail = (e.stderr or "").strip()
+        # `gh api graphql` exits 1 on a GraphQL error, with the body (and its
+        # `errors` array) on stdout.
+        try:
+            errors = json.loads(body).get("errors") if body else None
+        except (json.JSONDecodeError, AttributeError):
+            errors = None
+        if errors:
+            raise RuntimeError(f"GraphQL error: {errors} {detail}".rstrip()) from e
+        raise RuntimeError(f"`gh {args[0]}` exited {e.returncode}: {detail or body}") from e
+
+
 def _gh(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["gh", *args],
-        check=True,
-        capture_output=capture,
-        text=True,
-        encoding="utf-8",
-    )
+    return _run_gh(args, capture=capture)
 
 
 def _gh_graphql(query: str, **variables: Any) -> dict:  # noqa: ANN401
@@ -171,18 +193,14 @@ def _gh_graphql(query: str, **variables: Any) -> dict:  # noqa: ANN401
     persisted by previous bootstrap runs).
     """
     body = json.dumps({"query": query, "variables": variables})
-    result = subprocess.run(
-        ["gh", "api", "graphql", "--input", "-"],
-        input=body,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    payload = json.loads(result.stdout)
+    result = _run_gh(["api", "graphql", "--input", "-"], input=body)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"unparseable `gh api graphql` output: {e}") from e
     if "errors" in payload:
         raise RuntimeError(f"GraphQL error: {payload['errors']}")
-    return payload.get("data", {})
+    return payload.get("data") or {}
 
 
 # ---------------------------------------------------------------------------
