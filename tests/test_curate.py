@@ -168,3 +168,57 @@ def test_curate_rejects_invalid_llm_plan(tmp_path: Path) -> None:
     ]})
     assert res.rc == 1
     assert "rejected" in res.detail
+
+
+# --- all-or-nothing apply ----------------------------------------------------
+
+
+def test_curate_unwritable_destination_leaves_source_intact(tmp_path: Path) -> None:
+    """Destination write fails → the prose must still be in the source."""
+    c, claude = _consumer_with_loose_claude(tmp_path)
+    (c / "docs" / "architecture.md").mkdir(parents=True)  # dest path is a directory
+    res = curate.curate(c, consent=True, plan_provider=lambda f: _plan_for(_PROSE))
+    assert res.rc == 1
+    assert "rolled back" in res.detail
+    assert (c / "CLAUDE.md").read_text(encoding="utf-8") == claude
+    assert not list(c.rglob("*.curate-tmp"))
+
+
+def test_curate_partial_failure_rolls_back_written_destinations(tmp_path: Path) -> None:
+    c, claude = _consumer_with_loose_claude(tmp_path)
+    agents = (c / "AGENTS.md").read_text(encoding="utf-8")
+    lines = _PROSE.split("\n")
+    first, second = "\n".join(lines[:8]), "\n".join(lines[8:])
+    (c / "docs" / "architecture.md").mkdir(parents=True)
+    plan = {"schema": "curate-plan/v1", "moves": [
+        {"source_rel_path": "CLAUDE.md", "source_excerpt": first,
+         "dest_rel_path": "docs/new-leaf.md", "pointer": "See [leaf](docs/new-leaf.md)."},
+        {"source_rel_path": "CLAUDE.md", "source_excerpt": second,
+         "dest_rel_path": "AGENTS.md", "pointer": "See [agents](AGENTS.md)."},
+        {"source_rel_path": "CLAUDE.md", "source_excerpt": "## Architecture notes",
+         "dest_rel_path": "docs/architecture.md", "pointer": "See [a](docs/architecture.md)."},
+    ]}
+    res = curate.curate(c, consent=True, plan_provider=lambda f: plan)
+    assert res.rc == 1, res.detail
+    assert (c / "CLAUDE.md").read_text(encoding="utf-8") == claude
+    assert (c / "AGENTS.md").read_text(encoding="utf-8") == agents
+    assert not (c / "docs" / "new-leaf.md").exists()
+
+
+def test_curate_per_run_backup_holds_prose_added_after_install(tmp_path: Path) -> None:
+    """BASE is taken once at install; the per-run snapshot must hold later prose."""
+    from scripts._backup_helper import backup_base, read_index
+
+    c, _ = _consumer_with_loose_claude(tmp_path)
+    original = (c / "CLAUDE.md").read_text(encoding="utf-8")
+    (c / "CLAUDE.md").write_text("# CLAUDE.md\n", encoding="utf-8")
+    backup_base(c, c / "CLAUDE.md")  # install-time BASE, before the prose existed
+    (c / "CLAUDE.md").write_text(original, encoding="utf-8")
+
+    res = curate.curate(c, consent=True, plan_provider=lambda f: _plan_for(_PROSE))
+    assert res.rc == 0, res.detail
+    snaps = [
+        (c / r.backup_rel_path).read_text(encoding="utf-8")
+        for r in read_index(c) if r.rel_path == "CLAUDE.md" and r.session_id != "base"
+    ]
+    assert any("paragraph line 7" in s for s in snaps)
