@@ -452,6 +452,39 @@ def deep_merge(base: Any, override: Any) -> Any:
     return override
 
 
+def _union(a: Any, b: Any) -> list[str] | None:
+    """Order-preserving dedup union of two str lists; None if either is not one."""
+    lists = (a, b)
+    if not all(isinstance(x, list) and all(isinstance(v, str) for v in x) for x in lists):
+        return None
+    return list(dict.fromkeys(a + b))
+
+
+def _merge_entry(prev: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
+    """deep_merge, except env.required / env.optional / capabilities_hint are unioned.
+
+    A higher layer can add required env vars but never silently drop a lower
+    layer's (list replacement would let the env gate fail open). A var that is
+    required anywhere is removed from optional.
+    """
+    out = deep_merge(prev, entry)
+    penv, eenv = prev.get("env"), entry.get("env")
+    if isinstance(penv, dict) and isinstance(eenv, dict) and isinstance(out.get("env"), dict):
+        env = dict(out["env"])
+        for key in ("required", "optional"):
+            u = _union(penv.get(key), eenv.get(key))
+            if u is not None:
+                env[key] = u
+        req, opt = env.get("required"), env.get("optional")
+        if isinstance(req, list) and isinstance(opt, list):
+            env["optional"] = [v for v in opt if v not in req]
+        out["env"] = env
+    caps = _union(prev.get("capabilities_hint"), entry.get("capabilities_hint"))
+    if caps is not None:
+        out["capabilities_hint"] = caps
+    return out
+
+
 def merge_servers(base: Layer, project: Layer, personal: Layer
                   ) -> tuple[dict[str, dict[str, Any]], dict[str, list[str]]]:
     """Return (merged_servers, layer_provenance_per_id).
@@ -469,7 +502,7 @@ def merge_servers(base: Layer, project: Layer, personal: Layer
                 continue
             provenance.setdefault(sid, []).append(layer.name)
             if sid in merged:
-                merged[sid] = deep_merge(merged[sid], entry)
+                merged[sid] = _merge_entry(merged[sid], entry)
             else:
                 merged[sid] = dict(entry)
     # Ensure each merged entry carries its canonical id.
