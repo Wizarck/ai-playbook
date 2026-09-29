@@ -124,7 +124,7 @@ python -m scripts.caveman on \
   "ok": true,
   "state": { ... },
   "side_effects": {
-    "agents_md_backup": "/path/.ai-playbook/backups/agents/AGENTS.md.2026-05-23T11-32-14Z.bak",
+    "agents_md_backup": "/path/.ai-playbook/backups/agents-caveman/AGENTS.md.2026-05-23T11-32-14-123456Z.bak",
     "mcp_shrink": {
       "claude":  {"path": ".../.mcp.json", "backup": "...", "wrapped": 13},
       "gemini":  {"path": ".../.gemini/settings.json", "backup": "...", "wrapped": 13}
@@ -177,7 +177,12 @@ These are exposed for explicit invocation but the typical flow is
 ### Not implemented yet (exit 2 with FIX guidance)
 
 - `stats`    — session-token stats from Claude Code transcripts.
-- `rollback` — manual restore-from-latest-backup across all areas.
+- `rollback` — manual restore-from-latest caveman backup (`agents-caveman`,
+  `mcp` areas). Refuses when ponytail/graphify (shared `agents` area)
+  backed up AGENTS.md after caveman's latest snapshot; re-syncs
+  `components.response_style` with the restored file. Backup names carry
+  microsecond timestamps claimed with `O_EXCL`, so same-second backups
+  never overwrite each other.
 
 ## 3. Side-effect manifest
 
@@ -185,7 +190,7 @@ Every component → exact set of files mutated, paired with backup paths:
 
 | Component        | Files touched                              | Backup area                                   |
 |------------------|--------------------------------------------|-----------------------------------------------|
-| `response_style` | `<project>/AGENTS.md`                      | `.ai-playbook/backups/agents/AGENTS.md.<ts>.bak` |
+| `response_style` | `<project>/AGENTS.md`                      | `.ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak` |
 | `mcp_shrink`     | `<project>/.mcp.json`, `<project>/.gemini/settings.json` | `.ai-playbook/backups/mcp/{mcp.json,settings.json}.<ts>.bak` |
 | `compress_docs`  | *(none persistent — gates the on-demand compress command)* | per-file at `<source>.original.md` |
 | `subagents_cavecrew` | *(none — capability flag for agent delegation)* | *(n/a)* |
@@ -254,7 +259,7 @@ shrink layer is mode-agnostic (it's about input tokens, not output).
 
 ```bash
 # Restore the latest AGENTS.md backup:
-cp .ai-playbook/backups/agents/AGENTS.md.<ts>.bak ./AGENTS.md
+cp .ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak ./AGENTS.md
 
 # Restore the latest .mcp.json backup:
 cp .ai-playbook/backups/mcp/.mcp.json.<ts>.bak ./.mcp.json

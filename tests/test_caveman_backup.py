@@ -30,6 +30,19 @@ def test_make_backup_creates_target(tmp_path: Path) -> None:
     assert b.name.endswith(".bak")
 
 
+def test_make_backup_same_instant_does_not_overwrite(tmp_path: Path) -> None:
+    """Regression S1-24: two backups in the same clock tick must both survive, in order."""
+    src = tmp_path / "AGENTS.md"
+    _write(src, "pristine\n")
+    b1 = backup.make_backup(tmp_path, "agents", src)
+    src.write_text("mutated\n", encoding="utf-8")
+    b2 = backup.make_backup(tmp_path, "agents", src)
+    assert b1 != b2
+    assert b1.read_text(encoding="utf-8") == "pristine\n"
+    assert b2.read_text(encoding="utf-8") == "mutated\n"
+    assert backup.latest_backup(tmp_path, "agents", "AGENTS.md") == b2
+
+
 def test_make_backup_raises_when_source_missing(tmp_path: Path) -> None:
     missing = tmp_path / "ghost.md"
     with pytest.raises(FileNotFoundError):
