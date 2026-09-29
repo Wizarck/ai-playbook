@@ -193,6 +193,11 @@ The validator runs on every project via pre-commit and in CI. It enforces:
    exists, the validator recomputes the rendered form in-memory and refuses
    on any diff.
 
+`--force-with-reason` is honoured only when **every** reported error is
+overridable (today: only #7, missing env vars). If any error prints
+`OVERRIDE: none`, a supplied reason is refused with exit 3 and nothing is
+logged to `overrides.log` — for both `validate` and `render`.
+
 ## 6. Render rules (`scripts/mcp/render.py`)
 
 The renderer emits per-CLI configs from the merged YAML:

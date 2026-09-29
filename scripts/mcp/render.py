@@ -420,6 +420,7 @@ def run(args: argparse.Namespace) -> int:
             script="scripts/mcp/render.py",
             reason=args.force_reason,
             repo_root=consumer_root,
+            override_allowed=False,  # scope:personal leak is OVERRIDE: none
         )
         if not applied:
             return 1
