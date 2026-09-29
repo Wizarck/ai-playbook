@@ -146,44 +146,43 @@ class RetainItem:
 def _sanitise_or_block(item: RetainItem) -> tuple[RetainItem, list[str]]:
     """Return ``(safe_item, kinds_redacted)``. Empty list = nothing redacted.
 
-    If sanitiser flags ``api-key`` or ``aws-key`` shapes we BLOCK the retain
-    rather than silently redact — for that high-blast pattern the right move
-    is to fix the source (the dev pasted a real secret into a lesson). For
-    softer patterns (URLs with embedded tokens, base64-ish, etc.) we redact
-    inline and continue.
-    """
-    try:
-        from scripts.secrets_scan import sanitise
+    Every free-text field that reaches Hindsight (or the plaintext degraded
+    queue) is scanned, str-coerced so a non-string bulk value cannot skip it.
+    The caller BLOCKS (exit 3) when a returned kind ends in key/secret/pat —
+    for that high-blast pattern the right move is to fix the source. Softer
+    kinds (e.g. jwt) are redacted inline.
 
-        full = (item.content or "") + "\n" + (item.why or "")
-        clean, kinds = sanitise(full)
-        if any(k in {"anthropic-api-key", "openai-api-key", "github-pat", "aws-secret"}
-               for k in kinds):
-            return item, [k for k in kinds if k.endswith("key") or k.endswith("secret")
-                          or k.endswith("pat")]
-        if not kinds:
-            return item, []
-        # Redact: replace content with the sanitised version, but keep the why
-        # field separate (don't merge them in storage — the helper only needs
-        # the merged copy for matching).
-        clean_content, content_kinds = sanitise(item.content or "")
-        clean_why, why_kinds = sanitise(item.why or "") if item.why else ("", [])
-        new = RetainItem(
-            content=clean_content,
-            bank=item.bank,
-            project=item.project,
-            kind=item.kind,
-            why=clean_why or None,
-            trace_id=item.trace_id,
-            tags=item.tags + ["sanitised"],
-            context=item.context,
-            ttl_days=item.ttl_days,
-            timestamp=item.timestamp,
-            document_id=item.document_id,
-        )
-        return new, sorted(set(content_kinds + why_kinds))
-    except Exception:  # noqa: BLE001 — fail-OPEN on tooling gap
+    Raises on any sanitiser failure (fail CLOSED): a broken scanner must not
+    turn into an unscanned retain.
+    """
+    from scripts.secrets_scan import sanitise
+
+    kinds: set[str] = set()
+
+    def _s(value: Any) -> str | None:
+        if value is None:
+            return None
+        clean, found = sanitise(str(value))
+        kinds.update(found)
+        return clean
+
+    new = RetainItem(
+        content=_s(item.content) or "",
+        bank=item.bank,
+        project=_s(item.project),
+        kind=_s(item.kind),
+        why=_s(item.why),
+        trace_id=_s(item.trace_id),
+        tags=[_s(t) or "" for t in item.tags],
+        context=_s(item.context),
+        ttl_days=item.ttl_days,
+        timestamp=_s(item.timestamp),
+        document_id=_s(item.document_id),
+    )
+    if not kinds:
         return item, []
+    new.tags.append("sanitised")
+    return new, sorted(kinds)
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +366,7 @@ def _record_to_item(rec: dict[str, Any], bank: str) -> RetainItem:
         kind=rec.get("kind") or "lesson",
         why=rec.get("why"),
         trace_id=rec.get("trace_id"),
-        tags=list(rec.get("tags") or []),
+        tags=[tags] if isinstance(tags := rec.get("tags") or [], str) else list(tags),
         context=rec.get("context"),
         ttl_days=rec.get("ttl_days"),
         timestamp=rec.get("timestamp"),
@@ -394,7 +393,15 @@ def main() -> int:
 
     safe_items: list[RetainItem] = []
     for it in items:
-        safe, redacted = _sanitise_or_block(it)
+        try:
+            safe, redacted = _sanitise_or_block(it)
+        except Exception as exc:  # noqa: BLE001 — fail CLOSED on scanner failure
+            print(f"❌ secrets sanitiser failed ({exc.__class__.__name__}: {exc}) at "
+                  "retain_memory.py:_sanitise_or_block", file=sys.stderr)
+            print("   FIX: repair scripts/secrets_scan.py; nothing was retained or queued.",
+                  file=sys.stderr)
+            print("   OVERRIDE: none", file=sys.stderr)
+            return 2
         if redacted and any(k.endswith(("key", "secret", "pat")) for k in redacted):
             print(
                 f"❌ retain payload looks like a secret ({', '.join(redacted)}) at "

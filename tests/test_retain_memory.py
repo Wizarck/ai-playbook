@@ -401,3 +401,82 @@ def test_drain_atomic_rewrite_preserves_original_on_rename_failure(
 
     # Original file must be untouched (POST succeeded but rewrite failed).
     assert queue.read_text(encoding="utf-8") == original
+
+
+# ---------------------------------------------------------------------------
+# Regression S1-47: every free-text field is scanned; sanitiser fails closed.
+# ---------------------------------------------------------------------------
+
+_FAKE_PAT = "ghp_" + "A" * 40  # constructed; obviously fake
+
+
+def _no_post(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    _wire_creds(monkeypatch)
+    called = {"n": 0}
+
+    def _spy(req, timeout):  # noqa: ANN001
+        called["n"] += 1
+        return _resp(b'{"items_count":1}')
+
+    _patch_urlopen(monkeypatch, _spy)
+    return called
+
+
+@pytest.mark.parametrize("extra", [
+    ["--context", "old token was " + _FAKE_PAT],
+    ["--tag", _FAKE_PAT],
+    ["--project", _FAKE_PAT],
+    ["--trace-id", _FAKE_PAT],
+])
+def test_secret_in_any_cli_field_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra: list[str],
+) -> None:
+    called = _no_post(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["retain_memory", "--bank", "b", "--content", "rotated the deploy token",
+         "--queue-on-fail", "--consumer-root", str(tmp_path), *extra],
+    )
+    assert rl.main() == 3
+    assert called["n"] == 0
+    assert not (tmp_path / rl.QUEUE_FILE).exists()
+
+
+@pytest.mark.parametrize("rec", [
+    {"content": "deploy with " + _FAKE_PAT, "why": 42},
+    {"content": "ok", "document_id": _FAKE_PAT},
+    {"content": "ok", "tags": ["x", _FAKE_PAT]},
+    {"content": "ok", "tags": _FAKE_PAT},  # bare string, not list
+])
+def test_secret_in_bulk_record_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rec: dict,
+) -> None:
+    called = _no_post(monkeypatch)
+    bulk = tmp_path / "b.jsonl"
+    bulk.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["retain_memory", "--bank", "b", "--bulk", str(bulk)])
+    assert rl.main() == 3
+    assert called["n"] == 0
+
+
+def test_sanitiser_exception_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = _no_post(monkeypatch)
+    from scripts import secrets_scan
+
+    def boom(text: str):
+        raise RuntimeError("scanner broke")
+    monkeypatch.setattr(secrets_scan, "sanitise", boom)
+    monkeypatch.setattr("sys.argv", ["retain_memory", "--bank", "b", "--content", "hello"])
+    assert rl.main() != 0
+    assert called["n"] == 0
+
+
+def test_soft_secret_in_context_is_redacted_not_leaked() -> None:
+    jwt = "eyJhbGciOiJIUzI1NiJ9." + "a" * 30 + "." + "b" * 30
+    item = rl.RetainItem(content="c", bank="b", context="token " + jwt, tags=[jwt])
+    safe, kinds = rl._sanitise_or_block(item)
+    assert kinds == ["jwt"]
+    assert jwt not in json.dumps(safe.to_hindsight())
