@@ -58,11 +58,17 @@ import yaml  # noqa: E402
 
 from scripts._project_root import find_project_root as _find_project_root_shared  # noqa: E402
 
+# Stdlib-only read side, shared with the hook dispatcher (see module docstring there).
+from scripts._rules_toggle_state import (  # noqa: E402
+    STATE_DIR_NAME,
+    STATE_FILENAME,  # noqa: F401 — public re-export
+    VALID_LAYERS,
+    is_rule_disabled,
+    state_path,
+)
+
 SCHEMA_VERSION = "rules-toggle/v1"
-STATE_DIR_NAME = ".ai-playbook"
-STATE_FILENAME = "rules-toggle.json"
 AUDIT_FILENAME = "rules-toggle-audit.jsonl"
-VALID_LAYERS = ("L1", "L2", "L3")
 SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 
 # Per-rule advanced sub-toggles are declared in each rule's own frontmatter
@@ -154,10 +160,6 @@ def _load_schema() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def state_path(project_root: Path) -> Path:
-    return project_root / STATE_DIR_NAME / STATE_FILENAME
-
-
 def audit_path(project_root: Path) -> Path:
     return project_root / STATE_DIR_NAME / AUDIT_FILENAME
 
@@ -235,47 +237,8 @@ def audit_append(project_root: Path, entry: dict[str, Any]) -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
-# Toggle resolution (used by L1 hook + scripts/rules/_telemetry.py)
-# ---------------------------------------------------------------------------
-
-
-def is_rule_disabled(
-    project_root: Path,
-    slug: str,
-    *,
-    layer: str = "L1",
-) -> bool:
-    """Return True if ``slug`` is OFF at ``layer`` in the consumer's state.
-
-    Resolution cascade (rule absent or file absent → ON):
-        1. No state file or no entry for slug → False (rule ON).
-        2. Entry has ``enabled=False`` → True (whole rule OFF).
-        3. Entry has ``layers.<layer>=False`` → True (only this layer OFF).
-        4. Otherwise → False (rule ON at this layer).
-
-    This function is intentionally small and side-effect-free so it can be
-    duplicated verbatim into ``.claude/hooks/openspec-apply-enforce.py``
-    (which runs as a PreToolUse subprocess and avoids ``sys.path`` injection).
-    """
-    if layer not in VALID_LAYERS:
-        raise ValueError(f"invalid layer {layer!r}; valid: {VALID_LAYERS}")
-    p = state_path(project_root)
-    if not p.is_file():
-        return False
-    try:
-        raw = p.read_text(encoding="utf-8")
-        state = json.loads(raw)
-    except (OSError, json.JSONDecodeError):
-        # Fail-safe: corrupt file = treat as absent.
-        return False
-    entry = (state.get("rules") or {}).get(slug)
-    if entry is None:
-        return False
-    if entry.get("enabled") is False:
-        return True
-    layers = entry.get("layers") or {}
-    return layers.get(layer) is False
+# Toggle resolution: ``is_rule_disabled`` lives in scripts/_rules_toggle_state.py
+# (stdlib-only, imported above) so hooks can use it without jsonschema.
 
 
 # ---------------------------------------------------------------------------

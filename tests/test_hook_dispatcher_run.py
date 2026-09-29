@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -144,3 +147,80 @@ def test_cli_allows_clean() -> None:
 def test_cli_match_only_does_not_block() -> None:
     # diagnostics mode never executes rules → never blocks
     assert HD.main(["PreToolUse", "--match-only", "--event-json", json.dumps(_event(True))]) == 0
+
+
+# --- optional-dependency degradation (jsonschema absent) ------------------
+
+_NO_JSONSCHEMA = """
+import sys
+sys.modules["jsonschema"] = None  # simulate an env without jsonschema
+import scripts._ensure_deps as d
+d._install = lambda dists: None  # no network install from a test
+from scripts import hook_dispatcher as HD
+sys.exit(HD.main(["PreToolUse", "--event-json", sys.argv[1]]))
+"""
+
+
+def _run_without_jsonschema(cwd: Path, event: dict) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-c", _NO_JSONSCHEMA, json.dumps(event)],
+        cwd=cwd, capture_output=True, text=True, timeout=60,
+        env={**os.environ, "PYTHONPATH": str(HD.REPO_ROOT), "CLAUDE_PROJECT_DIR": str(cwd)},
+    )
+
+
+def test_missing_jsonschema_does_not_brick_dispatcher(tmp_path: Path) -> None:
+    """A missing optional dep must not turn every tool call into exit 2."""
+    (tmp_path / "AGENTS.md").write_text("# x\n", encoding="utf-8")
+    proc = _run_without_jsonschema(tmp_path, _event(secret=False))
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout.strip().splitlines()[-1])["blocked"] is False
+
+
+def test_toggle_honoured_without_jsonschema(tmp_path: Path) -> None:
+    """The L1 toggle check is json-only; it still works when jsonschema is absent."""
+    _disable_secrets(tmp_path)
+    proc = _run_without_jsonschema(tmp_path, _event(secret=True))
+    out = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert "secrets-handling" not in out["fired"], proc.stderr
+
+
+# --- consumer-root resolution ---------------------------------------------
+
+
+def _disable_secrets(root: Path) -> None:
+    (root / "AGENTS.md").write_text("# x\n", encoding="utf-8")
+    (root / ".ai-playbook").mkdir(exist_ok=True)
+    (root / ".ai-playbook" / "rules-toggle.json").write_text(
+        json.dumps({"rules": {"secrets-handling": {"enabled": False}}}), encoding="utf-8"
+    )
+
+
+def _drifted_consumer(tmp_path: Path) -> tuple[Path, Path]:
+    """Consumer with secrets-handling OFF, plus a cwd inside its playbook checkout."""
+    consumer = tmp_path / "consumer"
+    drift = consumer / ".ai-playbook" / "docs"
+    drift.mkdir(parents=True)
+    _disable_secrets(consumer)
+    (consumer / ".ai-playbook" / "AGENTS.md").write_text("# playbook\n", encoding="utf-8")
+    return consumer, drift
+
+
+def test_root_prefers_claude_project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    consumer, drift = _drifted_consumer(tmp_path)
+    monkeypatch.chdir(drift)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(consumer))
+    blocked, _m, fired = HD.run_rules(_rules(), "PreToolUse", _event(True))
+    assert not blocked and "secrets-handling" not in fired
+
+
+def test_root_uses_event_cwd_and_skips_playbook_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _consumer, drift = _drifted_consumer(tmp_path)
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(sibling)  # process cwd drifted to an unrelated dir
+    blocked, _m, fired = HD.run_rules(_rules(), "PreToolUse", {**_event(True), "cwd": str(drift)})
+    assert not blocked and "secrets-handling" not in fired
