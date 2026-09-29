@@ -9,7 +9,7 @@ window.DEFAULTS = {
   "features": {
     "caveman": {
       "enabled": false,
-      "mode": "full",
+      "mode": "ultra",
       "components": {
         "response_style": false,
         "compress_docs": false,
@@ -29,7 +29,7 @@ window.DEFAULTS = {
     },
     "ponytail": {
       "enabled": false,
-      "mode": "full",
+      "mode": "ultra",
       "components": {
         "code_style": false,
         "review_ponytail": false,
