@@ -247,6 +247,20 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
     if not target.is_dir():
         return SafetyResult(False, "target is not a directory")
     rel = str(target.relative_to(consumer_root)).replace("\\", "/")
+    # `.git/modules/<name>` is never tracked, so the ls-files probe below always
+    # passes for it. It is the git dir of submodule <name> (unpushed commits
+    # live there) — an orphan only once .gitmodules stops registering <name>.
+    if rel.startswith(".git/modules/"):
+        name = rel[len(".git/modules/"):]
+        gitmodules = consumer_root / ".gitmodules"
+        text = gitmodules.read_text(encoding="utf-8", errors="replace") if gitmodules.is_file() else ""
+        registered = re.search(
+            rf'^\s*\[submodule\s+"{re.escape(name)}"\]|^\s*path\s*=\s*{re.escape(name)}\s*$',
+            text,
+            re.MULTILINE,
+        )
+        if registered:
+            return SafetyResult(False, f"submodule `{name}` still registered in .gitmodules — git dir is live")
     try:
         result = subprocess.run(
             ["git", "ls-files", "--", rel],
@@ -258,6 +272,9 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         return SafetyResult(False, f"git ls-files failed: {exc}")
+    if result.returncode != 0:
+        # An empty stdout from a FAILED probe is not "nothing tracked".
+        return SafetyResult(False, f"git ls-files failed: {result.stderr.strip()[:200]}")
     if result.stdout.strip():
         return SafetyResult(False, "directory has tracked files")
     return SafetyResult(True, "no tracked files under directory")
