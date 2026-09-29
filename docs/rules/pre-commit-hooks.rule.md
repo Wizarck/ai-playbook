@@ -28,10 +28,13 @@ YOU MUST declare the playbook's pre-commit hooks bundle in `.pre-commit-config.y
 - repo: https://github.com/Wizarck/ai-playbook
   rev: <pinned-tag>
   hooks:
-    - id: ai-playbook
+    - id: validate-pairing
+    - id: check-doc-language
+    - id: check-link-integrity
+    - id: check-agents-md-size
 ```
 
-The `rev:` MUST match the consumer's pinned ai-playbook submodule tag; this preserves the "playbook is normative" invariant (one submodule, one source-of-truth, one CI surface). Declaration MUST be additive — `apply` appends the block to the existing file rather than rewriting the YAML, so consumer comments, formatting, and unrelated hooks survive intact.
+The `rev:` MUST match the consumer's pinned ai-playbook submodule tag; this preserves the "playbook is normative" invariant (one submodule, one source-of-truth, one CI surface). The hook ids MUST be ones `.pre-commit-hooks.yaml` exports (an unknown id makes `pre-commit` abort every commit; `validate` flags the legacy `- id: ai-playbook`). Declaration MUST be additive — `apply` inserts the item after the last `repos:` entry, matching the file's indentation, rather than rewriting the YAML, so consumer comments, formatting, and unrelated hooks survive intact; if the result would not parse (or `repos:` is not a block sequence) it writes nothing, exits 2 and prints the item to paste by hand.
 
 ## Trust boundary
 
@@ -45,7 +48,7 @@ Run:
 python .ai-playbook/scripts/rules/pre-commit-hooks.rule.py validate
 ```
 
-Expected exit code: 0. Non-zero indicates `.pre-commit-config.yaml` does not reference `ai-playbook`. The hardrule implements the same rubric and ships an `apply` subcommand that detects the pinned tag from the `.ai-playbook/` submodule (via `git -C .ai-playbook describe --tags --exact-match`) and appends the canonical block (per [enforcement-layers](../concepts/enforcement-layers.md) §"Rule .rule.py contract").
+Expected exit code: 0. Non-zero indicates `.pre-commit-config.yaml` does not reference `ai-playbook`. The hardrule implements the same rubric and ships an `apply` subcommand that detects the pinned tag from the `.ai-playbook/` submodule (via `git -C .ai-playbook describe --tags --exact-match`) and inserts the canonical block (per [enforcement-layers](../concepts/enforcement-layers.md) §"Rule .rule.py contract").
 
 ## Examples
 
@@ -62,7 +65,10 @@ repos:
   - repo: https://github.com/Wizarck/ai-playbook
     rev: v0.20.0
     hooks:
-      - id: ai-playbook
+      - id: validate-pairing
+      - id: check-doc-language
+      - id: check-link-integrity
+      - id: check-agents-md-size
 ```
 
 **Avoided**:

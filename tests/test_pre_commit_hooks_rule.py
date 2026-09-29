@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+import yaml
 
 SPEC = importlib.util.spec_from_file_location(
     "_pch_rule",
@@ -34,7 +35,7 @@ repos:
   - repo: https://github.com/Wizarck/ai-playbook
     rev: v0.20.0
     hooks:
-      - id: ai-playbook
+      - id: validate-pairing
 """
 
 CONFIG_WITH_LOCAL_PLAYBOOK = """\
@@ -177,3 +178,77 @@ def test_declares_playbook_helper_matches_local(tmp_path: Path) -> None:
 
 def test_declares_playbook_helper_rejects_base(tmp_path: Path) -> None:
     assert _pch._declares_playbook(BASE_CONFIG_WITHOUT_PLAYBOOK) is False
+
+
+# --- hook ids + YAML integrity ---------------------------------------------------
+
+REPO = Path(__file__).resolve().parent.parent
+
+ZERO_INDENT_WITH_TRAILING_KEY = """\
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.6.0
+  hooks:
+  - id: trailing-whitespace
+ci:
+  autofix_prs: false
+"""
+
+SAMPLE_CONFIG_LAYOUT = """\
+# See https://pre-commit.com for more information
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+"""
+
+
+def _exported_ids() -> set[str]:
+    data = yaml.safe_load((REPO / ".pre-commit-hooks.yaml").read_text(encoding="utf-8"))
+    return {h["id"] for h in data}
+
+
+def test_exported_hook_ids_match_pre_commit_hooks_yaml() -> None:
+    assert set(_pch.EXPORTED_HOOK_IDS) == _exported_ids()
+
+
+def test_doc_canonical_block_uses_only_exported_ids() -> None:
+    doc = (REPO / "docs" / "rules" / "pre-commit-hooks.rule.md").read_text(encoding="utf-8")
+    import re
+    fenced = "".join(re.findall(r"```yaml\n(.*?)```", doc, re.DOTALL))
+    ids = set(re.findall(r"- id: ([\w-]+)", fenced)) - {"trailing-whitespace", "end-of-file-fixer"}
+    assert ids and ids <= _exported_ids()
+
+
+@pytest.mark.parametrize("config", [
+    BASE_CONFIG_WITHOUT_PLAYBOOK, ZERO_INDENT_WITH_TRAILING_KEY, SAMPLE_CONFIG_LAYOUT,
+])
+def test_apply_output_parses_and_uses_exported_ids(tmp_path: Path, config: str) -> None:
+    root = _make_consumer(tmp_path, config=config)
+    assert _pch.apply(dry_run=False, cwd=root) == 0
+    data = yaml.safe_load((root / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    assert len(data["repos"]) == 2
+    pb = data["repos"][-1]
+    assert pb["repo"] == _pch.PLAYBOOK_REPO_URL
+    assert {h["id"] for h in pb["hooks"]} == _exported_ids()
+    assert data["repos"][0]["hooks"][0]["id"] == "trailing-whitespace"
+    if "ci:" in config:
+        assert data["ci"] == {"autofix_prs": False}
+
+
+def test_apply_refuses_unparseable_target(tmp_path: Path) -> None:
+    root = _make_consumer(tmp_path, config="repos: [\n")
+    before = (root / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    assert _pch.apply(dry_run=False, cwd=root) == 2
+    assert (root / ".pre-commit-config.yaml").read_text(encoding="utf-8") == before
+
+
+def test_validate_flags_unexported_hook_id(tmp_path: Path) -> None:
+    bad = BASE_CONFIG_WITHOUT_PLAYBOOK + (
+        "  - repo: https://github.com/Wizarck/ai-playbook\n"
+        "    rev: v0.20.0\n    hooks:\n      - id: ai-playbook\n"
+    )
+    root = _make_consumer(tmp_path, config=bad)
+    assert _pch.validate(cwd=root) == 1
