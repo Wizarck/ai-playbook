@@ -218,17 +218,24 @@ def resolve_config(explicit: str | None, marker: str) -> Path | None:
 
 
 def changed_files(root: Path) -> set[str]:
-    """Staged plus unstaged paths, root-relative POSIX."""
+    """Staged plus unstaged paths under `root`, root-relative POSIX.
+
+    `--relative` (run from `root`) limits the diff to `root` and strips its
+    prefix; plain `--name-only` is repo-top-relative, so a `root:` subdirectory
+    never matched the root-relative population. `-z` turns off C-quoting
+    (`"m\\303\\251tricas.tsx"`), which silently dropped non-ASCII names.
+    """
     out: set[str] = set()
-    for args in (["diff", "--name-only", "--cached"], ["diff", "--name-only"]):
+    base = ["-c", "core.quotePath=false", "diff", "--name-only", "-z", "--relative"]
+    for args in ([*base, "--cached"], base):
         try:
             proc = subprocess.run(
-                ["git", *args], cwd=str(root), capture_output=True, text=True, check=False, timeout=30
+                ["git", *args], cwd=str(root), capture_output=True, check=False, timeout=30
             )
         except (OSError, subprocess.TimeoutExpired):
             continue
         if proc.returncode == 0:
-            out.update(line.strip() for line in proc.stdout.splitlines() if line.strip())
+            out.update(p for p in proc.stdout.decode("utf-8", "surrogateescape").split("\0") if p)
     return out
 
 
