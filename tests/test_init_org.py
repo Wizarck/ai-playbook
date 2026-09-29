@@ -135,3 +135,36 @@ def test_main_full_flow(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
     out = capsys.readouterr().out
     assert "Touched" in out
     assert "Next steps" in out
+
+
+def test_every_flag_hits_the_real_repo() -> None:
+    """Regression: on the real checkout each flag must rewrite something
+    (the synthetic fixture above hid that none of them did)."""
+    root = Path(io.__file__).resolve().parent.parent
+    plan = io.build_edit_plan(
+        root=root, org_name="acme", owner_email="ops@acme.example",
+        hindsight_url="https://hindsight.acme.example",
+        secrets_env_path="acme/secrets.env",
+    )
+    hits: dict[str, int] = {}
+    io.apply_edits(root, plan, dry_run=True, flag_hits=hits)
+    for flag in ("--hindsight-url", "--secrets-env-path", "--owner-email"):
+        assert hits.get(flag, 0) >= 1, flag
+    tmpl = (root / "templates" / "new-project" / ".claude" / "settings.json.tmpl")
+    assert any(e.path == tmpl.relative_to(root).as_posix() for e in plan)
+
+
+def test_main_flag_matching_nothing_exits_1(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    _make_fake_playbook(tmp_path)
+    for rel in ("docs/runbooks/hindsight-retain.md", "docs/concepts/env-vars.md",
+                "docs/concepts/session-start-hook.md", "templates/new-project/AGENTS.md.tmpl"):
+        (tmp_path / rel).write_text("nothing to replace\n", encoding="utf-8")
+    rc = io.main([
+        "--org-name", "acme", "--owner-email", "ops@acme.example",
+        "--hindsight-url", "https://hindsight.acme.example",
+        "--root", str(tmp_path), "--dry-run",
+    ])
+    assert rc == 1
+    assert "--hindsight-url" in capsys.readouterr().err

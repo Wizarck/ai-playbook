@@ -21,7 +21,12 @@ What it touches:
     - runbooks/*.md   → replaces "Wizarck/<repo>" examples
     - docs/*.md       → replaces "Wizarck" + endpoint examples
     - templates/new-project/.claude/settings.json.tmpl → SOPS path placeholder
+    - templates/new-project/mcp-servers.project.yaml.tmpl → Hindsight endpoint
+    - AGENTS.md + templates/projects.yaml.example → owner email
     - templates/mcp-servers-personal.yaml.example → kept as-is (already generic)
+
+An explicitly passed flag whose upstream literals match nothing exits 1
+(it would otherwise be a silent no-op).
 
 What it does NOT touch:
 
@@ -32,7 +37,7 @@ What it does NOT touch:
 
 Exit codes:
     0  applied (or dry-run reported the plan)
-    1  user-actionable error (missing arg, invalid org-name)
+    1  user-actionable error (missing arg, invalid org-name, flag matched nothing)
     2  setup error (cwd is not an ai-playbook checkout)
 """
 from __future__ import annotations
@@ -55,6 +60,21 @@ for _stream in (sys.stdout, sys.stderr):
 class FileEdit:
     path: str
     replacements: list[tuple[str, str]] = field(default_factory=list)
+    flag: str | None = None  # CLI flag this edit serves (zero-hit check)
+
+
+# Upstream literals each flag rewrites. Keep in sync with the files: a flag
+# whose literals match nothing makes main() exit 1 rather than silently no-op.
+HINDSIGHT_URLS = (
+    "https://acme-corp-hindsight.consumer-bfood.com",
+    "https://consumer-d-hindsight.consumer-bfood.com",
+)
+SECRETS_ENV_PATHS = (
+    "../acme-corp/secrets/secrets.env",
+    "../consumer-a/secrets/secrets.env",
+    "../consumer-d/secrets/secrets.env",
+)
+UPSTREAM_OWNER_EMAIL = "23051550+Wizarck@users.noreply.github.com"
 
 
 def _detect_playbook_root(path: Path) -> Path:
@@ -123,28 +143,40 @@ def build_edit_plan(
             "docs/concepts/env-vars.md", "docs/concepts/session-start-hook.md",
             "docs/runbooks/hindsight-retain.md",
             "templates/new-project/AGENTS.md.tmpl",
+            "templates/new-project/mcp-servers.project.yaml.tmpl",
         ]
         for f in url_targets:
-            plan.append(FileEdit(f, [
-                ("https://acme-corp-hindsight.consumer-bfood.com", hindsight_url),
-            ]))
+            plan.append(FileEdit(f, [(u, hindsight_url) for u in HINDSIGHT_URLS],
+                                 flag="--hindsight-url"))
 
-    # SOPS path in template settings.json (default points at sibling acme-corp).
+    # SOPS path: the SessionStart hook in the template settings.json (sibling
+    # consumer-a) + the runbooks' sops exec-env examples.
     if secrets_env_path:
-        plan.append(FileEdit("templates/new-project/AGENTS.md.tmpl", [
-            ("../acme-corp/secrets/secrets.env", secrets_env_path),
-        ]))
+        for f in ("templates/new-project/.claude/settings.json.tmpl",
+                  "templates/new-project/AGENTS.md.tmpl",
+                  "docs/runbooks/hindsight-retain.md",
+                  "docs/runbooks/onboard-new-project.md"):
+            plan.append(FileEdit(f, [(s, secrets_env_path) for s in SECRETS_ENV_PATHS],
+                                 flag="--secrets-env-path"))
 
-    # Owner email tag in templates.
-    plan.append(FileEdit("templates/new-project/AGENTS.md.tmpl", [
-        ("23051550+Wizarck@users.noreply.github.com", owner_email),
-    ]))
+    # Owner email: the fork's own AGENTS.md frontmatter + the registry example.
+    # (templates/new-project/AGENTS.md.tmpl uses {{OWNER_EMAIL}}, set at bootstrap.)
+    for f in ("AGENTS.md", "templates/projects.yaml.example",
+              "templates/new-project/AGENTS.md.tmpl"):
+        plan.append(FileEdit(f, [(UPSTREAM_OWNER_EMAIL, owner_email)], flag="--owner-email"))
 
     return plan
 
 
-def apply_edits(root: Path, plan: list[FileEdit], *, dry_run: bool) -> tuple[int, int]:
-    """Apply (or simulate) edits. Returns ``(files_touched, total_replacements)``."""
+def apply_edits(
+    root: Path, plan: list[FileEdit], *, dry_run: bool,
+    flag_hits: dict[str, int] | None = None,
+) -> tuple[int, int]:
+    """Apply (or simulate) edits. Returns ``(files_touched, total_replacements)``.
+
+    When ``flag_hits`` is given, it receives the replacement count per
+    ``FileEdit.flag`` (0 for a flag whose literals matched nothing).
+    """
     files_touched = 0
     total_replacements = 0
 
@@ -161,6 +193,8 @@ def apply_edits(root: Path, plan: list[FileEdit], *, dry_run: bool) -> tuple[int
             if count > 0:
                 new_text = new_text.replace(find, replace)
                 local_replacements += count
+        if flag_hits is not None and edit.flag:
+            flag_hits[edit.flag] = flag_hits.get(edit.flag, 0) + local_replacements
 
         if new_text == text:
             continue
@@ -179,12 +213,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--org-name", required=True,
                    help="Lowercase kebab. Replaces Wizarck/* references.")
     p.add_argument("--owner-email", required=True,
-                   help="Owner email for templated AGENTS.md frontmatter.")
+                   help="Owner email for the fork's AGENTS.md frontmatter + registry example.")
     p.add_argument("--hindsight-url",
                    help="Override the Hindsight base URL across docs (optional).")
     p.add_argument("--secrets-env-path",
                    help="Override the SOPS secrets path in SessionStart hook templates "
-                        "(default: ../acme-corp/secrets/secrets.env stays).")
+                        "(default: ../consumer-a/secrets/secrets.env stays).")
     p.add_argument("--upstream-org", default="Wizarck",
                    help="Source org to replace (default: Wizarck).")
     p.add_argument("--root", type=Path, default=Path.cwd(),
@@ -212,10 +246,31 @@ def main(argv: list[str] | None = None) -> int:
         secrets_env_path=args.secrets_env_path,
         upstream_org=args.upstream_org,
     )
-    files, replacements = apply_edits(root, plan, dry_run=args.dry_run)
+    flag_hits: dict[str, int] = {}
+    files, replacements = apply_edits(root, plan, dry_run=args.dry_run, flag_hits=flag_hits)
     print()
     verb = "Would touch" if args.dry_run else "Touched"
     print(f"{verb} {files} file(s); {replacements} total replacement(s).")
+
+    passed = ["--owner-email"]
+    if args.hindsight_url:
+        passed.append("--hindsight-url")
+    if args.secrets_env_path:
+        passed.append("--secrets-env-path")
+    no_ops = [f for f in passed if flag_hits.get(f, 0) == 0]
+    if no_ops:
+        print(
+            f"❌ {', '.join(no_ops)} matched no upstream literal (already applied, or the "
+            "files drifted) at scripts/init_org.py:build_edit_plan",
+            file=sys.stderr,
+        )
+        print(
+            "   FIX: grep the fork for the value to replace and update the literal "
+            "tuples at the top of scripts/init_org.py, then rerun.",
+            file=sys.stderr,
+        )
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 1
 
     if not args.dry_run:
         print()
