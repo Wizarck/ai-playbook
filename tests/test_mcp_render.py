@@ -174,6 +174,13 @@ def test_render_refuses_personal_scope_without_personal_layer(
     err = capsys.readouterr().err
     assert "scope: personal" in err
 
+    # Regression S1-44: OVERRIDE: none — break-glass is refused, nothing written.
+    with pytest.raises(SystemExit) as exc:
+        _run(playbook, consumer, personal,
+             "--force-with-reason", "need it working today, sorry")
+    assert exc.value.code == 3
+    assert not (consumer / ".mcp.json").exists()
+
 
 def test_render_only_claude(tmp_path: Path) -> None:
     playbook, consumer, personal = _stack(tmp_path, project=PROJECT_MIN)
