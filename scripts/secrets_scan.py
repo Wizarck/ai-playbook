@@ -7,7 +7,7 @@ support break-glass" (where this row is listed with `OVERRIDE: none` ALWAYS).
 Modes
 -----
     python -m scripts.secrets_scan <path> [<path>...]          # scan paths (files/dirs)
-    python -m scripts.secrets_scan --staged                    # scan git-staged files
+    python -m scripts.secrets_scan --staged                    # scan staged (index) content
     python -m scripts.secrets_scan --text "literal string"     # scan a literal string
     echo "..." | python -m scripts.secrets_scan -              # read text from stdin
     echo "..." | python -m scripts.secrets_scan \
@@ -23,12 +23,15 @@ Importable API
 Exit codes (per `docs/rules/error-message-standard.rule.md`)
 ---------------------------------------------------
     0 = no matches (scan mode), or sanitise-for hindsight finished (always 0)
-    2 = environment/setup problem (couldn't read a file, invalid CLI combo)
+    2 = environment/setup problem (couldn't read a file, invalid CLI combo,
+        --staged outside a git work tree / git failure)
     3 = hard block — at least one secret matched in scan mode
 """
 from __future__ import annotations
 
 import argparse
+import codecs
+import os
 import re
 import shutil
 import subprocess
@@ -65,21 +68,40 @@ for _stream in (sys.stdout, sys.stderr):
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Anthropic API key. Example: sk-ant-api03-abc...XYZ (>= 50 chars after prefix).
     ("anthropic_api_key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{50,}")),
-    # OpenAI API key — legacy and "proj-" project keys.
-    # Example: sk-proj-abc...xyz (>= 32 chars after prefix).
-    ("openai_api_key", re.compile(r"sk-(?:proj-)?[A-Za-z0-9]{32,}")),
-    # GitHub personal access token / fine-grained / server-to-server.
-    # Example: ghp_abc..., ghs_..., gho_..., ghu_..., ghr_...
-    ("github_pat", re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}")),
-    # AWS Access Key ID. Example: AKIAIOSFODNN7EXAMPLE.
-    ("aws_access_key", re.compile(r"AKIA[0-9A-Z]{16}")),
+    # OpenAI API key — legacy (sk-<32+ alnum>) and the prefixed project /
+    # service-account / admin keys, whose bodies include `_` and `-`.
+    # Example: sk-proj-abc...xyz, sk-svcacct-..., sk-admin-...
+    (
+        "openai_api_key",
+        re.compile(r"sk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})"),
+    ),
+    # GitHub classic tokens (ghp_/gho_/ghu_/ghs_/ghr_) and fine-grained PATs
+    # (github_pat_<22>_<59>).
+    (
+        "github_pat",
+        re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,}"),
+    ),
+    # AWS Access Key ID — long-term (AKIA) and STS temporary (ASIA).
+    # Example: AKIAIOSFODNN7EXAMPLE.
+    ("aws_access_key", re.compile(r"(?:AKIA|ASIA)[0-9A-Z]{16}")),
     # AWS Secret Access Key: only when paired with an obvious assignment.
-    # Example: aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".
+    # Quotes optional (dotenv / ~/.aws/credentials are unquoted).
+    # Example: aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
     (
         "aws_secret_access_key",
         re.compile(
-            r"aws_secret_access_key\s*[:=]\s*['\"][A-Za-z0-9/+=]{40}['\"]",
+            r"aws_secret_access_key\s*[:=]\s*['\"]?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])['\"]?",
             re.IGNORECASE,
+        ),
+    ),
+    # PEM / OpenSSH / PGP private key. The match swallows the base64 body up
+    # to (and including) the END line so sanitise() redacts the key material,
+    # not just the header. Example header: "BEGIN OPENSSH PRIVATE KEY" in dashes.
+    (
+        "private_key",
+        re.compile(
+            r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----[A-Za-z0-9+/=\s]*"
+            r"(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)?"
         ),
     ),
     # Langfuse observability keys.
@@ -94,13 +116,16 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         ),
     ),
     # Generic SECRET/TOKEN/KEY=value envs. Only fires when RHS is >=20 chars,
-    # quoted, and contains a mix of classes (lowers/UPPERS/digits). The
+    # quoted or unquoted (dotenv), terminated by whitespace / a quote / end of
+    # text, and contains a mix of classes (lowers/UPPERS/digits). The
     # mix-class requirement is asserted post-match in `_generic_env_is_secret`.
+    # The lookbehind + bounded name length keep this linear on long
+    # uppercase runs (otherwise every offset of the run restarts the match).
     (
         "generic_env_secret",
         re.compile(
-            r"""(?P<prefix>[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
-            r"""\s*[:=]\s*['\"](?P<val>[A-Za-z0-9/+=_\-]{20,})['\"]""",
+            r"""(?<![A-Z0-9_])(?P<prefix>[A-Z][A-Z0-9_]{0,64}(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
+            r"""\s*[:=]\s*['\"]?(?P<val>[A-Za-z0-9/+=_\-]{20,})(?=[\s'\"]|\Z)['\"]?""",
         ),
     ),
 ]
@@ -204,12 +229,25 @@ def sanitise(text: str) -> tuple[str, list[str]]:
     matches = scan(text)
     if not matches:
         return text, []
-    # Replace from right to left so earlier indices stay valid.
-    redacted = text
-    for m in sorted(matches, key=lambda x: x.start, reverse=True):
-        redacted = redacted[: m.start] + f"[REDACTED:{m.kind}]" + redacted[m.end :]
+    # Patterns overlap (a generic KEY="..." wraps a ghp_/AKIA hit), so merge
+    # overlapping spans first — label = the outermost (earliest, widest) match —
+    # then rebuild in one left-to-right pass. Applying overlapping spans with
+    # stale offsets deletes trailing text or leaks the secret's tail.
+    spans: list[list] = []
+    for m in sorted(matches, key=lambda x: (x.start, -x.end)):
+        if spans and m.start < spans[-1][1]:
+            spans[-1][1] = max(spans[-1][1], m.end)
+        else:
+            spans.append([m.start, m.end, m.kind])
+    parts: list[str] = []
+    pos = 0
+    for start, end, kind in spans:
+        parts.append(text[pos:start])
+        parts.append(f"[REDACTED:{kind}]")
+        pos = end
+    parts.append(text[pos:])
     kinds = sorted({m.kind for m in matches})
-    return redacted, kinds
+    return "".join(parts), kinds
 
 
 # ---------------------------------------------------------------------------
@@ -217,23 +255,30 @@ def sanitise(text: str) -> tuple[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def _is_probably_binary(path: Path, sample_size: int = 2048) -> bool:
-    try:
-        chunk = path.read_bytes()[:sample_size]
-    except OSError:
-        return True
+def _is_binary_sample(chunk: bytes) -> bool:
     if not chunk:
         return False
-    # Null byte ⇒ binary; high ratio of non-printables likewise.
+    # Null byte ⇒ binary.
     if b"\x00" in chunk:
         return True
     # Try decoding as UTF-8; anything that fails is considered binary for our
-    # purposes (we don't want to false-positive on compiled artefacts).
+    # purposes (we don't want to false-positive on compiled artefacts). The
+    # incremental decoder with final=False tolerates a multibyte character
+    # split by the sample boundary.
     try:
-        chunk.decode("utf-8")
+        codecs.getincrementaldecoder("utf-8")().decode(chunk, final=False)
     except UnicodeDecodeError:
         return True
     return False
+
+
+def _is_probably_binary(path: Path, sample_size: int = 2048) -> bool:
+    try:
+        with path.open("rb") as fh:
+            chunk = fh.read(sample_size)
+    except OSError:
+        return True
+    return _is_binary_sample(chunk)
 
 
 def _walk_paths(paths: Iterable[Path]) -> Iterator[Path]:
@@ -299,7 +344,9 @@ def _run_gitleaks_on(paths: list[Path]) -> tuple[int, str]:
             capture_output=True, text=True, check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return 0, f"gitleaks invocation failed: {exc}\n"
+        # Non-0/1 code so the caller surfaces it as a warning. Still advisory:
+        # gitleaks is optional and its own findings (rc 1) do not block either.
+        return -1, f"gitleaks invocation failed: {exc}\n"
     return proc.returncode, proc.stderr or ""
 
 
@@ -308,26 +355,43 @@ def _run_gitleaks_on(paths: list[Path]) -> tuple[int, str]:
 # ---------------------------------------------------------------------------
 
 
-def _staged_files() -> list[Path]:
-    """Return paths currently staged for commit (git diff --cached --name-only).
+class _GitError(Exception):
+    pass
 
-    Filters to tracked, still-existing paths (git may list deletions too).
-    """
+
+def _git(*args: str) -> bytes:
     try:
-        proc = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-            capture_output=True, text=True, check=True,
-        )
-    except (OSError, subprocess.SubprocessError, subprocess.CalledProcessError):
-        return []
-    out: list[Path] = []
-    for line in proc.stdout.splitlines():
-        line = line.strip()
-        if not line:
+        return subprocess.run(
+            ["git", *args], capture_output=True, check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        detail = getattr(exc, "stderr", b"") or b""
+        raise _GitError(
+            f"git {' '.join(args[:2])} failed: {exc} {detail.decode(errors='replace').strip()}"
+        ) from exc
+
+
+def _staged_blobs() -> list[tuple[str, str]]:
+    """Return ``(toplevel-relative path, blob sha)`` for every staged file.
+
+    Reads the INDEX (what will be committed), not the working tree. ``-z``
+    avoids C-quoting of non-ASCII paths; gitlinks (submodule bumps, mode
+    160000) are skipped. Raises ``_GitError`` when git fails (not a repo, …).
+    """
+    raw = _git(
+        "diff", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev",
+        "--diff-filter=ACMR",
+    )
+    fields = raw.split(b"\0")
+    out: list[tuple[str, str]] = []
+    # Records: ":<old mode> <new mode> <old sha> <new sha> <status>\0<path>\0"
+    for meta, path in zip(fields[0::2], fields[1::2], strict=False):
+        if not meta.startswith(b":"):
             continue
-        p = Path(line)
-        if p.exists():
-            out.append(p)
+        _, new_mode, _, new_sha, _ = meta[1:].decode().split(" ")
+        if new_mode == "160000":
+            continue
+        out.append((os.fsdecode(path), new_sha))
     return out
 
 
@@ -429,21 +493,45 @@ def _run_text_mode(text: str) -> int:
 
 
 def _run_staged_mode() -> int:
-    files = _staged_files()
-    if not files:
-        # Nothing staged → nothing to scan.
-        return 0
-    return _run_paths_mode(files, invoked_via_staged=True)
+    try:
+        blobs = _staged_blobs()
+        if not blobs:
+            # Nothing staged → nothing to scan.
+            return 0
+        top = Path(os.fsdecode(_git("rev-parse", "--show-toplevel").strip()))
+        matches: list[Match] = []
+        for name, sha in blobs:
+            data = _git("cat-file", "blob", sha)
+            if _is_binary_sample(data[:2048]):
+                continue
+            path = Path(name)
+            matches.extend(
+                Match(kind=m.kind, path=path, line_no=m.line_no, start=m.start, end=m.end)
+                for m in scan(data.decode("utf-8", errors="replace"))
+            )
+    except _GitError as exc:
+        # Fail closed: a vacuous pass here would let the commit through unscanned.
+        print(f"❌ --staged could not read the git index: {exc} "
+              "at scripts/secrets_scan.py", file=sys.stderr)
+        print("   FIX: run from inside a git work tree with git on PATH.", file=sys.stderr)
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 2
+    worktree = [top / n for n, _ in blobs if (top / n).exists()]
+    return _run_paths_mode(worktree, invoked_via_staged=True, matches=matches)
 
 
 def _run_paths_mode(
     paths: list[Path],
     *,
     invoked_via_staged: bool = False,
+    matches: list[Match] | None = None,
 ) -> int:
     all_matches: list[Match] = []
-    for f in _walk_paths(paths):
-        all_matches.extend(_scan_file(f))
+    if matches is not None:
+        all_matches = matches  # --staged: already scanned from the index
+    else:
+        for f in _walk_paths(paths):
+            all_matches.extend(_scan_file(f))
 
     # Gitleaks is advisory — if present and we have a directory root, run it.
     if not _gitleaks_available():
