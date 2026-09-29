@@ -152,6 +152,27 @@ def test_a_blank_receipt_does_not_authorise(monkeypatch, tmp_path) -> None:
     assert v.blocked
 
 
+def test_an_undecodable_receipt_blocks_and_is_consumed(monkeypatch, tmp_path) -> None:
+    """A UTF-16 receipt (PowerShell 5.1 `>`) used to raise UnicodeDecodeError:
+    the dispatcher failed open AND the file survived as a standing override."""
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_bytes("user said yes\r\n".encode("utf-16"))
+    v = rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}})
+    assert v.blocked
+    assert not receipt.exists(), "an unreadable receipt must still be single-use"
+
+
+def test_a_blank_receipt_is_consumed_too(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_text("   \n", encoding="utf-8")
+    assert rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+    assert not receipt.exists()
+
+
 def test_the_stop_refusal_names_the_receipt_path(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
     receipt = tmp_path / "receipt"

@@ -90,11 +90,15 @@ def _consume_receipt() -> bool:
 
     p = Path(_receipt_path())
     try:
-        if not p.is_file() or not p.read_text(encoding="utf-8").strip():
+        if not p.is_file():
             return False
+        data = p.read_bytes()
+        # Unlink BEFORE judging: whatever the content, a receipt is single-use.
+        # Judging first let an undecodable (e.g. UTF-16) receipt raise, fail the
+        # hook open, and survive as a standing override.
         p.unlink()
-        return True
-    except OSError:
+        return bool(data.decode("utf-8").strip())
+    except (OSError, UnicodeDecodeError):
         return False
 
 
