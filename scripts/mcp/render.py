@@ -171,14 +171,24 @@ def update_global_antigravity_mcp(
 
     global_mcp_path = global_mcp_dir / "mcp_config.json"
 
-    existing_data = {}
+    existing_data: dict[str, Any] = {}
     if global_mcp_path.is_file():
+        # This is the user's global file (other projects' servers live here):
+        # never overwrite what we could not parse.
         try:
             content = global_mcp_path.read_text(encoding="utf-8").strip()
             if content:
                 existing_data = json.loads(content)
-        except Exception:
-            pass
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            print(f"⚠️ Warning: skipping {global_mcp_path}: cannot parse it ({exc}); "
+                  "fix or remove the file and re-run render.", file=sys.stderr)
+            return None
+        if not isinstance(existing_data, dict) or not isinstance(
+            existing_data.get("mcpServers", {}), dict
+        ):
+            print(f"⚠️ Warning: skipping {global_mcp_path}: unexpected shape "
+                  "(root and mcpServers must be JSON objects).", file=sys.stderr)
+            return None
 
     mcp_servers = existing_data.setdefault("mcpServers", {})
 
@@ -267,7 +277,13 @@ def update_global_antigravity_mcp(
     if updated_any and not dry_run:
         try:
             body = json.dumps(existing_data, indent=2, sort_keys=True, ensure_ascii=False)
-            global_mcp_path.write_text(body + "\n", encoding="utf-8")
+            # Holds decrypted secrets (CF Access headers, env values): owner-only.
+            # The mode applies on creation; chmod tightens a pre-existing file.
+            # Both are no-ops beyond the read-only bit on Windows.
+            fd = os.open(global_mcp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            os.chmod(global_mcp_path, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(body + "\n")
             return global_mcp_path
         except Exception as exc:
             print(f"⚠️ Warning: Failed to write global mcp_config.json: {exc}", file=sys.stderr)
