@@ -174,7 +174,7 @@ def test_sanitise_for_hindsight_rejects_other_inputs(
 
 def test_staged_mode_empty_exits_0(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(*args, **kwargs):  # noqa: ANN001, ANN002, ANN003
-        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"", stderr=b"")
     monkeypatch.setattr(subprocess, "run", fake_run)
     rc = main(["--staged"])
     assert rc == 0
@@ -182,23 +182,18 @@ def test_staged_mode_empty_exits_0(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_staged_mode_uses_git_diff_cached(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
-    clean_file = tmp_path / "clean.txt"
-    clean_file.write_text("nothing secret", encoding="utf-8")
-
     recorded: dict[str, list[str]] = {}
 
     def fake_run(cmd, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
         recorded["cmd"] = cmd
-        return subprocess.CompletedProcess(
-            args=cmd, returncode=0, stdout=str(clean_file) + "\n", stderr="",
-        )
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=b"", stderr=b"")
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(secrets_scan, "_gitleaks_available", lambda: False)
     rc = main(["--staged"])
     assert rc == 0
-    assert recorded["cmd"][:4] == ["git", "diff", "--cached", "--name-only"]
+    assert recorded["cmd"][:3] == ["git", "diff", "--cached"]
+    assert "-z" in recorded["cmd"]
 
 
 def test_staged_mutually_exclusive_with_paths(
@@ -328,3 +323,167 @@ def test_stdin_dash_mode_reads_and_exits_3_on_match(
     assert rc == 3
     err = capsys.readouterr().err
     assert "github_pat" in err
+
+
+# ---------------------------------------------------------------------------
+# Regression: catalogue gaps (S1-58). Secrets are constructed at runtime so the
+# repo's own gitleaks hook never sees a literal credential in this file.
+# ---------------------------------------------------------------------------
+
+_PEM_HEAD = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
+_PEM_TAIL = "-----END " + "OPENSSH PRIVATE KEY-----"
+
+
+@pytest.mark.parametrize("kind,sample", [
+    ("openai_api_key", "OPENAI=sk-" + "proj-" + "Ab1_cD2-" * 6),
+    ("openai_api_key", "sk-" + "svcacct-" + "Zz9_" * 8),
+    ("github_pat", "github_" + "pat_" + "11AB" * 6 + "_" + "xY9z" * 15),
+    ("aws_access_key", "id=" + "ASIA" + "Q" * 16),
+    ("private_key", _PEM_HEAD + "\n" + "b3BlbnNzaC1rZXk" * 4 + "\n" + _PEM_TAIL),
+    ("private_key", "-----BEGIN " + "PRIVATE KEY-----\nMIIE"),
+    ("aws_secret_access_key",
+     "aws_secret_access_key=" + "wJalrXUtnFEMI/K7MDENG/bPxRfiCY" + "0123456789"),
+    ("generic_env_secret", "CF_ACCESS_CLIENT_SECRET=" + "a1b2c3d4" * 8),
+    ("generic_env_secret", "HINDSIGHT_API_KEY=hs_" + "Ab12Cd34Ef56Gh78Ij90"),
+])
+def test_new_formats_fire(kind: str, sample: str) -> None:
+    assert kind in {m.kind for m in scan(sample)}, sample
+
+
+@pytest.mark.parametrize("sample", [
+    "sk-proj-short",                                  # too short
+    "see github_pat_ docs",                           # prefix only
+    "TOKEN = getTokenFromEnvironment()",              # call, not a literal
+    "API_KEY=${{ secrets.OPENAI_API_KEY }}",          # CI interpolation
+    "API_KEY=changeme_your_secret_here_please",       # placeholder
+    "SOME_TOKEN=lowercaseonlyvalueislongenough",      # single class
+    "-----BEGIN PUBLIC KEY-----",                     # public key
+    "AKIAshort",
+])
+def test_new_formats_do_not_fire_on_lookalikes(sample: str) -> None:
+    assert scan(sample) == [], sample
+
+
+def test_private_key_sanitise_redacts_body() -> None:
+    body = "b3BlbnNzaC1rZXktdjEAAAAA" * 3
+    text = "before\n" + _PEM_HEAD + "\n" + body + "\n" + _PEM_TAIL + "\nafter"
+    redacted, kinds = sanitise(text)
+    assert kinds == ["private_key"]
+    assert body not in redacted
+    assert redacted.startswith("before\n") and redacted.endswith("\nafter")
+
+
+def test_generic_env_secret_is_linear_on_long_uppercase_line() -> None:
+    import time
+    line = "ABCDEF0123456789" * 6000  # ~96 KB, no assignment
+    t0 = time.perf_counter()
+    scan(line)
+    assert time.perf_counter() - t0 < 2.0
+
+
+# ---------------------------------------------------------------------------
+# Regression: sanitise() overlapping spans (S1-59)
+# ---------------------------------------------------------------------------
+
+
+def test_sanitise_overlapping_matches_keeps_trailing_text() -> None:
+    pat = "ghp_" + "A1b2" * 10
+    text = f'GITHUB_TOKEN="{pat}" then run the deploy script in staging'
+    redacted, kinds = sanitise(text)
+    assert redacted.endswith(" then run the deploy script in staging")
+    assert "A1b2" not in redacted
+    assert set(kinds) == {"generic_env_secret", "github_pat"}
+
+
+def test_sanitise_nested_match_leaks_no_tail() -> None:
+    text = 'API_TOKEN="AKIA' + "ABCDEFGHIJKLMNOP" + 'secretTail99" ok'
+    redacted, _ = sanitise(text)
+    assert redacted == "[REDACTED:generic_env_secret] ok"
+
+
+# ---------------------------------------------------------------------------
+# Regression: UTF-8 char split at the binary-sniff boundary (S1-60)
+# ---------------------------------------------------------------------------
+
+
+def test_multibyte_char_at_sample_boundary_is_still_scanned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    f = tmp_path / "notes.md"
+    f.write_bytes(b"a" * 2047 + "—".encode() + b" ghp_" + b"A" * 40 + b"\n")
+    monkeypatch.setattr(secrets_scan, "_gitleaks_available", lambda: False)
+    assert main([str(f)]) == 3
+
+
+# ---------------------------------------------------------------------------
+# Regression: --staged scans the index, not the worktree (S1-61)
+# ---------------------------------------------------------------------------
+
+
+def _git(cwd: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
+        cwd=cwd, check=True, capture_output=True,
+    )
+
+
+@pytest.fixture()
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    _git(tmp_path, "init", "-q")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(secrets_scan, "_gitleaks_available", lambda: False)
+    return tmp_path
+
+
+def test_staged_scans_index_content_not_worktree(repo: Path) -> None:
+    f = repo / "app.cfg"
+    f.write_text("token ghp_" + "A" * 40 + "\n", encoding="utf-8")
+    _git(repo, "add", "app.cfg")
+    f.write_text("clean now\n", encoding="utf-8")  # unstaged edit hides it
+    assert main(["--staged"]) == 3
+
+
+def test_staged_non_ascii_path_is_scanned(repo: Path) -> None:
+    (repo / "café.env").write_text("ghp_" + "A" * 40 + "\n", encoding="utf-8")
+    _git(repo, "add", "café.env")
+    assert main(["--staged"]) == 3
+
+
+def test_staged_from_subdirectory_is_scanned(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sub = repo / "sub"
+    sub.mkdir()
+    (sub / "k.txt").write_text("ghp_" + "A" * 40 + "\n", encoding="utf-8")
+    _git(repo, "add", "sub/k.txt")
+    monkeypatch.chdir(sub)
+    assert main(["--staged"]) == 3
+
+
+def test_staged_outside_repo_is_setup_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    assert main(["--staged"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Regression: gitleaks invocation failure is surfaced, not silent (finding 4)
+# ---------------------------------------------------------------------------
+
+
+def test_gitleaks_invocation_failure_is_reported(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "ok.txt").write_text("clean", encoding="utf-8")
+    monkeypatch.setattr(secrets_scan, "_gitleaks_available", lambda: True)
+
+    def boom(*a, **k):  # noqa: ANN002, ANN003
+        raise OSError("exec format error")
+    monkeypatch.setattr(subprocess, "run", boom)
+    rc = main([str(tmp_path)])
+    assert rc == 0  # gitleaks is advisory; the regex pass is the gate
+    assert "gitleaks invocation failed" in capsys.readouterr().err
