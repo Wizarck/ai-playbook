@@ -11,7 +11,9 @@ branches accumulate because:
 This sweeper scans every local ``slice/*`` branch, queries GitHub for the
 state of the matching PR, and prints a deletion plan. ``--apply`` actually
 executes it. Branches whose PR is still OPEN — or whose PR cannot be
-determined — are left alone.
+determined, or whose deletion would lose uncommitted changes / unpushed
+commits (see :func:`wt_remove.unsaved_work`) — are left alone. A failing
+git command skips that entry (no fallback ``rmtree``) and makes the run exit 3.
 
 Companion to :mod:`wt_add` and :mod:`wt_remove`. Use periodically (or after a
 backlog reset) to keep ``git branch --list 'slice/*'`` honest.
@@ -42,6 +44,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from scripts.wt_remove import unsaved_work  # noqa: E402
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
@@ -56,15 +62,18 @@ class BranchEntry:
     has_worktree: bool
     pr_number: int | None
     pr_state: str | None  # OPEN / MERGED / CLOSED / None
+    unsaved: str | None = None  # "uncommitted changes" / "unpushed commits" / None
 
     @property
     def is_safe_to_delete(self) -> bool:
-        return self.pr_state in {"MERGED", "CLOSED"}
+        return self.pr_state in {"MERGED", "CLOSED"} and self.unsaved is None
 
     @property
     def action(self) -> str:
         if self.pr_state == "OPEN":
             return "skip (PR OPEN)"
+        if self.unsaved:
+            return f"skip ({self.unsaved}; use wt_remove --force)"
         if self.pr_state in {"MERGED", "CLOSED"}:
             wt = " + worktree" if self.has_worktree else ""
             return f"DELETE branch{wt}"
@@ -154,23 +163,24 @@ def list_worktree_dirs(repo_root: Path, bare_dir: Path) -> set[str]:
     return names
 
 
-def lookup_pr(branch: str, repo_root: Path) -> tuple[int | None, str | None]:
+def lookup_pr(branch: str, repo_root: Path) -> tuple[int | None, str | None, str | None]:
+    """Return ``(number, state, headRefOid)`` of the PR whose head is ``branch``."""
     result = _run(
         ["gh", "pr", "list", "--head", branch, "--state", "all",
-         "--json", "number,state", "--limit", "1"],
+         "--json", "number,state,headRefOid", "--limit", "1"],
         cwd=repo_root,
         check=False,
     )
     if result.returncode != 0:
-        return (None, None)
+        return (None, None, None)
     try:
         items = json.loads(result.stdout or "[]")
     except json.JSONDecodeError:
-        return (None, None)
+        return (None, None, None)
     if not items:
-        return (None, None)
+        return (None, None, None)
     item = items[0]
-    return (item.get("number"), item.get("state"))
+    return (item.get("number"), item.get("state"), item.get("headRefOid"))
 
 
 def gather_entries(
@@ -184,13 +194,18 @@ def gather_entries(
     for name, tip in branches:
         change_id = name.removeprefix(prefix)
         has_wt = change_id in worktree_names
-        pr_num, pr_state = lookup_pr(name, repo_root)
+        pr_num, pr_state, pr_head = lookup_pr(name, repo_root)
+        unsaved = None
+        if pr_state in {"MERGED", "CLOSED"}:
+            wt_dir = repo_root / change_id if has_wt else None
+            unsaved = unsaved_work(bare_dir, name, wt_dir, pr_head)
         entries.append(BranchEntry(
             name=name,
             tip=tip,
             has_worktree=has_wt,
             pr_number=pr_num,
             pr_state=pr_state,
+            unsaved=unsaved,
         ))
     return entries
 
@@ -218,8 +233,19 @@ def apply_deletes(
     bare_dir: Path,
     include_worktrees: bool,
     delete_remote: bool,
-) -> int:
-    deleted = 0
+) -> tuple[int, int]:
+    """Execute the plan. Return ``(deleted, failed)``.
+
+    A failing ``git worktree remove`` (e.g. a locked worktree) skips that
+    entry entirely: no directory removal, no branch delete.
+    """
+    deleted = failed = 0
+
+    def _failed(what: str, res: subprocess.CompletedProcess[str]) -> None:
+        nonlocal failed
+        failed += 1
+        print(f"❌ {what} failed: {(res.stderr or res.stdout).strip()}", file=sys.stderr)
+
     for e in entries:
         if not e.is_safe_to_delete:
             continue
@@ -227,14 +253,18 @@ def apply_deletes(
             if include_worktrees:
                 change_id = e.name.removeprefix("slice/")  # convention
                 wt_dir = repo_root / change_id
-                _run(["git", "worktree", "remove", "--force", str(wt_dir)], cwd=bare_dir, check=False)
+                res = _run(["git", "worktree", "remove", "--force", str(wt_dir)], cwd=bare_dir, check=False)
+                if res.returncode != 0:
+                    _failed(f"Removing worktree {wt_dir}", res)
+                    continue
                 print(f"✅ Removed worktree: {wt_dir}")
-                if wt_dir.exists():
-                    shutil.rmtree(wt_dir, ignore_errors=True)
             else:
                 print(f"⚠️  Skipping {e.name}: has worktree (pass --include-worktrees to remove it).")
                 continue
-        _run(["git", "branch", "-D", e.name], cwd=bare_dir, check=False)
+        res = _run(["git", "branch", "-D", e.name], cwd=bare_dir, check=False)
+        if res.returncode != 0:
+            _failed(f"Deleting branch {e.name}", res)
+            continue
         print(f"✅ Deleted local branch: {e.name}")
         if delete_remote:
             push = _run(["git", "push", "origin", "--delete", e.name], cwd=bare_dir, check=False)
@@ -244,7 +274,7 @@ def apply_deletes(
                 # Likely already deleted (e.g. delete_branch_on_merge=true).
                 print(f"… origin/{e.name}: already absent or push failed (non-fatal).")
         deleted += 1
-    return deleted
+    return deleted, failed
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -295,15 +325,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print()
-    deleted = apply_deletes(
+    deleted, failed = apply_deletes(
         entries,
         repo_root=repo_root,
         bare_dir=bare_dir,
         include_worktrees=args.include_worktrees,
         delete_remote=args.remote,
     )
-    print(f"\nDone. {deleted} branch(es) deleted.")
-    return 0
+    print(f"\nDone. {deleted} branch(es) deleted, {failed} failed.")
+    return 3 if failed else 0
 
 
 if __name__ == "__main__":

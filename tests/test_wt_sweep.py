@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from scripts import wt_sweep as ws
+from tests.test_wt_remove import _git, make_bare_layout
 
 
 class _FakeProc:
@@ -91,7 +92,7 @@ def test_lookup_pr_returns_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
         "run",
         lambda *a, **k: _FakeProc(returncode=0, stdout=payload),
     )
-    num, state = ws.lookup_pr("slice/x", tmp_path)
+    num, state, _head = ws.lookup_pr("slice/x", tmp_path)
     assert num == 42 and state == "MERGED"
 
 
@@ -101,7 +102,7 @@ def test_lookup_pr_no_match_returns_none(monkeypatch: pytest.MonkeyPatch, tmp_pa
         "run",
         lambda *a, **k: _FakeProc(returncode=0, stdout="[]"),
     )
-    num, state = ws.lookup_pr("slice/x", tmp_path)
+    num, state, _head = ws.lookup_pr("slice/x", tmp_path)
     assert num is None and state is None
 
 
@@ -138,6 +139,8 @@ def test_gather_entries_full_pipeline(
                     returncode=0,
                     stdout=json.dumps([{"number": 2, "state": "OPEN"}]),
                 )
+        if cmd[:2] == ["git", "rev-list"]:
+            return _FakeProc(returncode=0, stdout="")  # nothing unpushed
         return _FakeProc(returncode=0, stdout="[]")
 
     monkeypatch.setattr(ws.subprocess, "run", fake_run)
@@ -169,7 +172,7 @@ def test_apply_deletes_skips_unsafe(
         ws.BranchEntry("slice/open", "aaa", False, 1, "OPEN"),
         ws.BranchEntry("slice/closed", "bbb", False, 2, "CLOSED"),
     ]
-    deleted = ws.apply_deletes(
+    deleted, _failed = ws.apply_deletes(
         entries,
         repo_root=tmp_path,
         bare_dir=tmp_path / ".bare",
@@ -187,7 +190,7 @@ def test_apply_deletes_skips_with_worktree_without_flag(
     (tmp_path / ".bare").mkdir()
     monkeypatch.setattr(ws.subprocess, "run", lambda *a, **k: _FakeProc(returncode=0))
     entries = [ws.BranchEntry("slice/a", "aaa", True, 1, "MERGED")]
-    deleted = ws.apply_deletes(
+    deleted, _failed = ws.apply_deletes(
         entries,
         repo_root=tmp_path,
         bare_dir=tmp_path / ".bare",
@@ -209,7 +212,7 @@ def test_apply_deletes_removes_worktree_with_flag(
         lambda cmd, *a, **k: (calls.append(list(cmd)) or _FakeProc(returncode=0)),
     )
     entries = [ws.BranchEntry("slice/a", "aaa", True, 1, "MERGED")]
-    deleted = ws.apply_deletes(
+    deleted, _failed = ws.apply_deletes(
         entries,
         repo_root=tmp_path,
         bare_dir=tmp_path / ".bare",
@@ -240,3 +243,49 @@ def test_apply_deletes_remote_pushes_delete(
         delete_remote=True,
     )
     assert any(cmd[:4] == ["git", "push", "origin", "--delete"] for cmd in calls)
+
+
+# ---------------------------------------------------------------------------
+# Real git: failures + unsaved work
+# ---------------------------------------------------------------------------
+
+
+def _sweep(monkeypatch: pytest.MonkeyPatch, proj: Path, state: str = "MERGED") -> int:
+    monkeypatch.setattr(ws, "require_gh", lambda: None)
+    monkeypatch.setattr(ws, "lookup_pr", lambda *_a: (7, state, None))
+    return ws.main(["--repo-root", str(proj), "--apply", "--include-worktrees"])
+
+
+def test_real_git_locked_worktree_is_left_intact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    proj = make_bare_layout(tmp_path)
+    _git(proj / ".bare", "worktree", "lock", "--reason", "usb", str(proj / "feat-x"))
+    rc = _sweep(monkeypatch, proj)
+    assert rc == 3
+    assert (proj / "feat-x" / "pushed.txt").exists()
+    assert _git(proj / ".bare", "branch", "--list", "slice/feat-x") != ""
+
+
+def test_real_git_skips_dirty_worktree_and_unpushed_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    proj = make_bare_layout(tmp_path)
+    (proj / "feat-x" / "wip.txt").write_text("wip\n", encoding="utf-8")
+    # Branch without worktree, with a commit that exists nowhere else.
+    bare = proj / ".bare"
+    _git(bare, "worktree", "add", "-q", "-b", "slice/feat-y", str(proj / "feat-y"), "origin/master")
+    (proj / "feat-y" / "y.txt").write_text("y\n", encoding="utf-8")
+    _git(proj / "feat-y", "add", "y.txt")
+    _git(proj / "feat-y", "commit", "-q", "-m", "unpushed")
+    _git(bare, "worktree", "remove", str(proj / "feat-y"))
+    assert _sweep(monkeypatch, proj) == 0
+    out = capsys.readouterr().out
+    assert "uncommitted changes" in out and "unpushed commits" in out
+    assert (proj / "feat-x" / "wip.txt").exists()
+    assert _git(bare, "branch", "--list", "slice/feat-y") != ""
+
+
+def test_real_git_clean_pushed_worktree_is_swept(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    proj = make_bare_layout(tmp_path)
+    assert _sweep(monkeypatch, proj) == 0
+    assert not (proj / "feat-x").exists()
+    assert _git(proj / ".bare", "branch", "--list", "slice/feat-x") == ""

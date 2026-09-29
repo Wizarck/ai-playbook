@@ -201,3 +201,97 @@ def test_main_normal_flow_runs_remove_and_delete(
     assert rc == 0
     assert any(cmd[:3] == ["git", "worktree", "remove"] for cmd in calls)
     assert any(cmd[:3] == ["git", "branch", "-D"] for cmd in calls)
+
+
+# ---------------------------------------------------------------------------
+# Real git: unsaved-work guard (uncommitted files / unpushed commits)
+# ---------------------------------------------------------------------------
+
+
+def _git(cwd: Path, *args: str) -> str:
+    import subprocess
+
+    return subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t.test", "-c", "commit.gpgsign=false", *args],
+        cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
+    ).stdout.strip()
+
+
+def make_bare_layout(tmp_path: Path, change_id: str = "feat-x") -> Path:
+    """Real bare layout: ``proj/.bare`` cloned from a local origin, with a
+    ``slice/<change_id>`` worktree whose tip is pushed. Returns ``proj``."""
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    _git(seed, "init", "-q", "-b", "master")
+    (seed / "a.txt").write_text("a\n", encoding="utf-8")
+    _git(seed, "add", "a.txt")
+    _git(seed, "commit", "-q", "-m", "base")
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "clone", "-q", "--bare", str(seed), str(origin))
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _git(proj, "clone", "-q", "--bare", str(origin), ".bare")
+    (proj / ".git").write_text("gitdir: ./.bare\n", encoding="utf-8")
+    bare = proj / ".bare"
+    _git(bare, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+    _git(bare, "fetch", "-q", "origin")
+    wt = proj / change_id
+    _git(bare, "worktree", "add", "-q", "-b", f"slice/{change_id}", str(wt), "origin/master")
+    (wt / "pushed.txt").write_text("p\n", encoding="utf-8")
+    _git(wt, "add", "pushed.txt")
+    _git(wt, "commit", "-q", "-m", "pushed")
+    _git(wt, "push", "-q", "origin", f"slice/{change_id}")
+    _git(bare, "fetch", "-q", "origin")
+    return proj
+
+
+def _merged(monkeypatch: pytest.MonkeyPatch, head: str | None = None) -> None:
+    monkeypatch.setattr(wr, "lookup_pr", lambda *_a: {"state": "MERGED", "headRefOid": head})
+
+
+def test_real_git_refuses_uncommitted_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    proj = make_bare_layout(tmp_path)
+    _merged(monkeypatch)
+    (proj / "feat-x" / "untracked-notes.txt").write_text("keep me\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        wr.main(["feat-x", "--repo-root", str(proj)])
+    assert exc.value.code == 2
+    assert (proj / "feat-x" / "untracked-notes.txt").exists()
+
+
+def test_real_git_refuses_unpushed_commit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    proj = make_bare_layout(tmp_path)
+    wt = proj / "feat-x"
+    (wt / "follow-up.txt").write_text("f\n", encoding="utf-8")
+    _git(wt, "add", "follow-up.txt")
+    _git(wt, "commit", "-q", "-m", "follow-up not pushed")
+    tip = _git(wt, "rev-parse", "HEAD")
+    _merged(monkeypatch, head=_git(wt, "rev-parse", "HEAD~1"))  # PR head = the pushed commit
+    with pytest.raises(SystemExit) as exc:
+        wr.main(["feat-x", "--repo-root", str(proj)])
+    assert exc.value.code == 2
+    assert _git(proj / ".bare", "rev-parse", "slice/feat-x") == tip
+
+
+def test_real_git_force_discards(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    proj = make_bare_layout(tmp_path)
+    _merged(monkeypatch)
+    (proj / "feat-x" / "untracked-notes.txt").write_text("x\n", encoding="utf-8")
+    assert wr.main(["feat-x", "--repo-root", str(proj), "--force"]) == 0
+    assert not (proj / "feat-x").exists()
+
+
+def test_real_git_pruned_remote_branch_trusts_pr_head(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remote branch deleted + pruned after merge: the PR head proves nothing is lost."""
+    proj = make_bare_layout(tmp_path)
+    bare = proj / ".bare"
+    head = _git(bare, "rev-parse", "slice/feat-x")
+    _git(bare, "push", "-q", "origin", "--delete", "slice/feat-x")
+    _git(bare, "fetch", "-q", "--prune", "origin")
+    _merged(monkeypatch, head=None)
+    with pytest.raises(SystemExit):
+        wr.main(["feat-x", "--repo-root", str(proj)])
+    _merged(monkeypatch, head=head)
+    assert wr.main(["feat-x", "--repo-root", str(proj)]) == 0
+    assert not (proj / "feat-x").exists()
+    assert _git(bare, "branch", "--list", "slice/feat-x") == ""
