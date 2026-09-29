@@ -160,7 +160,59 @@ def extract_mcp_project_servers(yaml_path: Path) -> dict[str, dict]:
     if not isinstance(servers, dict):
         return {}
     # Drop the canonical hindsight entry — it ships in the template.
+    # (A customised one is detected by hindsight_customised(); see build_bundle.)
     return {k: v for k, v in servers.items() if k != "hindsight"}
+
+
+_TEMPLATE_MCP_PROJECT = (
+    Path(__file__).resolve().parent.parent
+    / "templates" / "new-project" / "mcp-servers.project.yaml.tmpl"
+)
+
+
+def _hindsight_baseline() -> dict | None:
+    """The template's hindsight entry (placeholders neutralised), or None."""
+    try:
+        import yaml
+    except ImportError:
+        return None
+    try:
+        text = re.sub(r"\{\{\w+\}\}", "X", _TEMPLATE_MCP_PROJECT.read_text(encoding="utf-8"))
+        entry = ((yaml.safe_load(text) or {}).get("servers") or {}).get("hindsight")
+    except (OSError, AttributeError, yaml.YAMLError):
+        return None
+    return entry if isinstance(entry, dict) else None
+
+
+def hindsight_customised(yaml_path: Path) -> bool:
+    """True when the consumer's ``hindsight`` server differs from the template
+    baseline (ignoring ``description``, which embeds the bank placeholder).
+
+    The managed-file renderer always writes the template's hindsight block, so
+    re-rendering such a file would reset e.g. a real endpoint to the template's
+    placeholder host.
+    """
+    if not yaml_path.is_file():
+        return False
+    try:
+        import yaml
+    except ImportError:
+        return False
+    try:
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return False
+    servers = data.get("servers") if isinstance(data, dict) else None
+    entry = servers.get("hindsight") if isinstance(servers, dict) else None
+    if not isinstance(entry, dict):
+        return False
+    baseline = _hindsight_baseline()
+    if baseline is None:
+        return True  # cannot prove it is the baseline — assume customised
+
+    def strip(d: dict) -> dict:
+        return {k: v for k, v in d.items() if k != "description"}
+    return strip(entry) != strip(baseline)
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +261,19 @@ def build_bundle(consumer_root: Path) -> dict[str, Any]:
         if gitignore_path.is_file() else []
     )
 
-    mcp_project = extract_mcp_project_servers(consumer_root / "mcp-servers.project.yaml")
+    mcp_yaml = consumer_root / "mcp-servers.project.yaml"
+    mcp_project = extract_mcp_project_servers(mcp_yaml)
+    if mcp_project and hindsight_customised(mcp_yaml):
+        # Emitting mcp_project_servers would re-render the file with the
+        # template hindsight block, discarding the consumer's entry. Leave the
+        # file unmanaged instead (its extras are already in it).
+        print(
+            f"⚠️ {mcp_yaml.name}: customised `hindsight` server kept; the file is left "
+            "unmanaged (not re-rendered). Move your hindsight values into the "
+            "template shape to let the playbook manage it.",
+            file=sys.stderr,
+        )
+        mcp_project = {}
     claude_extras = extract_claude_settings_extras(
         consumer_root / ".claude" / "settings.local.json"
     )

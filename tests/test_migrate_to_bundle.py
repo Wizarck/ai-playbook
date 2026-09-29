@@ -127,6 +127,36 @@ def test_extract_mcp_project_servers_drops_hindsight_baseline(tmp_path: Path) ->
     assert extras["custom-server"]["command"] == "node"
 
 
+def test_build_bundle_keeps_customised_hindsight(tmp_path: Path) -> None:
+    """A real hindsight endpoint must not be reset to the template placeholder:
+    the bundle must not trigger a re-render of mcp-servers.project.yaml."""
+    _write_lf(tmp_path / "AGENTS.md", "## §1 Project identity\nx\n")
+    _write_lf(tmp_path / "mcp-servers.project.yaml", (
+        "schema: mcp-servers/v1\n"
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "    transport: http\n"
+        "    endpoint: https://memory.legacy-corp.internal\n"
+        "  crm:\n"
+        "    id: crm\n"
+        "    transport: stdio\n"
+    ))
+    bundle = mb.build_bundle(tmp_path)
+    assert "mcp_project_servers" not in bundle
+
+
+def test_build_bundle_drops_baseline_hindsight(tmp_path: Path) -> None:
+    """The unmodified template hindsight entry is still dropped (extras carried)."""
+    root = Path(mb.__file__).resolve().parent.parent
+    tmpl = (root / "templates" / "new-project" / "mcp-servers.project.yaml.tmpl").read_text(encoding="utf-8")
+    rendered = tmpl.replace("{{PROJECT_NAME}}", "alpha").replace("{{PROJECT_BANK}}", "alpha")
+    _write_lf(tmp_path / "AGENTS.md", "## §1 Project identity\nx\n")
+    _write_lf(tmp_path / "mcp-servers.project.yaml", rendered + "  crm:\n    id: crm\n")
+    bundle = mb.build_bundle(tmp_path)
+    assert list(bundle["mcp_project_servers"]) == ["crm"]
+
+
 def test_extract_mcp_project_servers_missing_file(tmp_path: Path) -> None:
     assert mb.extract_mcp_project_servers(tmp_path / "missing.yaml") == {}
 
