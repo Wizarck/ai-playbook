@@ -12,19 +12,23 @@ has adopted the bare layout looks like::
     ├── master/             # default-branch worktree
     └── <change-id>/        # worktree to remove
 
-This script wraps ``git worktree remove`` + ``git branch -D`` with two safety
+This script wraps ``git worktree remove`` + ``git branch -D`` with these safety
 checks:
 
 - The worktree directory must exist (else nothing to remove).
 - The corresponding pull request must be MERGED or CLOSED (detected via
-  ``gh pr view slice/<change-id>``). Override with ``--force`` to skip.
+  ``gh pr list --head slice/<change-id>``). Override with ``--force`` to skip.
+- The worktree must be clean (``git status --porcelain`` empty) and the
+  branch tip must be reachable from a remote-tracking ref or from the PR's
+  head commit; otherwise removal would destroy uncommitted files or
+  unpushed commits. Override with ``--force`` to discard them.
 
 The companion :mod:`wt_sweep` covers the bulk-cleanup case.
 
 CLI
 ---
     python scripts/wt_remove.py <change-id>
-    python scripts/wt_remove.py <change-id> --force            # skip PR check
+    python scripts/wt_remove.py <change-id> --force            # skip PR + unsaved-work checks
     python scripts/wt_remove.py <change-id> --keep-branch      # only remove worktree
     python scripts/wt_remove.py <change-id> --repo-root <path>
     python scripts/wt_remove.py <change-id> --dry-run
@@ -33,7 +37,8 @@ Exit codes
 ----------
     0 — success
     1 — layout violation (no ``.bare/``)
-    2 — precondition failed (worktree/branch missing, or PR still open)
+    2 — precondition failed (worktree/branch missing, PR still open, or
+        uncommitted changes / unpushed commits would be lost)
     3 — git command failed
     4 — usage error
 """
@@ -118,43 +123,82 @@ def branch_exists(ctx: RemoveContext) -> bool:
     return result.returncode == 0
 
 
-def lookup_pr_state(branch: str, repo_root: Path) -> str | None:
-    """Return ``'OPEN' | 'MERGED' | 'CLOSED' | None`` for the PR whose head is ``branch``.
+def lookup_pr(branch: str, repo_root: Path) -> dict:
+    """Return the ``{"state", "headRefOid"}`` record of the PR whose head is ``branch``.
 
-    ``None`` means no PR was found (rare: an ad-hoc branch never pushed/PR'd).
-    Returns ``None`` silently if ``gh`` is unavailable or unauthenticated — the
-    caller decides whether that's a hard failure (only when not ``--force``).
+    ``{}`` means no PR was found (rare: an ad-hoc branch never pushed/PR'd), or
+    ``gh`` is unavailable/unauthenticated — the caller decides whether that's a
+    hard failure (only when not ``--force``).
     """
     if shutil.which("gh") is None:
-        return None
+        return {}
     # `gh pr list --head <branch>` returns 0 with empty list if no PR exists.
     result = _run(
-        ["gh", "pr", "list", "--head", branch, "--state", "all", "--json", "state", "--limit", "1"],
+        ["gh", "pr", "list", "--head", branch, "--state", "all",
+         "--json", "state,headRefOid", "--limit", "1"],
         cwd=repo_root,
         check=False,
     )
     if result.returncode != 0:
-        return None
+        return {}
     import json
 
     try:
         items = json.loads(result.stdout or "[]")
     except json.JSONDecodeError:
-        return None
-    if not items:
-        return None
-    state = items[0].get("state")
+        return {}
+    if not items or not isinstance(items[0], dict):
+        return {}
+    return items[0]
+
+
+def lookup_pr_state(branch: str, repo_root: Path) -> str | None:
+    """Return ``'OPEN' | 'MERGED' | 'CLOSED' | None`` for the PR whose head is ``branch``."""
+    state = lookup_pr(branch, repo_root).get("state")
     return state if isinstance(state, str) else None
 
 
-def assert_pr_resolved(ctx: RemoveContext, force: bool) -> None:
-    state = lookup_pr_state(ctx.branch, ctx.repo_root)
+def unsaved_work(bare_dir: Path, branch: str | None, worktree_dir: Path | None, pr_head: str | None) -> str | None:
+    """Return why removing ``worktree_dir`` / deleting ``branch`` would lose work, else ``None``.
+
+    Lost work = uncommitted/untracked files in the worktree (``worktree remove
+    --force`` discards them) or commits on ``branch`` that no remote-tracking
+    ref contains and that are not part of the PR head (``branch -D`` orphans
+    them). Shared with :mod:`wt_sweep`.
+    """
+    if worktree_dir is not None and worktree_dir.exists():
+        st = _run(["git", "-C", str(worktree_dir), "status", "--porcelain", "--ignore-submodules=none"], check=False)
+        if st.returncode != 0:
+            return "unreadable worktree status"
+        if st.stdout.strip():
+            return "uncommitted changes"
+    if not branch:
+        return None
+    ref = f"refs/heads/{branch}"
+    if _run(["git", "show-ref", "--verify", "--quiet", ref], cwd=bare_dir, check=False).returncode != 0:
+        return None  # no local branch → no commits to lose
+    ahead = _run(["git", "rev-list", "--max-count=1", ref, "--not", "--remotes"], cwd=bare_dir, check=False)
+    if ahead.returncode == 0 and not ahead.stdout.strip():
+        return None
+    # Remote branch already pruned after merge: the PR head still vouches for the commits.
+    if pr_head and _run(
+        ["git", "merge-base", "--is-ancestor", ref, pr_head], cwd=bare_dir, check=False
+    ).returncode == 0:
+        return None
+    return "unpushed commits"
+
+
+def assert_pr_resolved(ctx: RemoveContext, force: bool) -> str | None:
+    """Gate on PR state; return the PR head commit sha (``None`` if unknown)."""
+    pr = lookup_pr(ctx.branch, ctx.repo_root)
+    state = pr.get("state") if isinstance(pr.get("state"), str) else None
+    head = pr.get("headRefOid") if isinstance(pr.get("headRefOid"), str) else None
     if state is None:
         # No PR or gh unavailable — only an issue if we cannot verify.
         # Without --force, refuse to proceed silently.
         if force:
             print(f"⚠️  No PR state available for {ctx.branch}; --force given, proceeding.")
-            return
+            return None
         print(
             f"⚠️  Could not determine PR state for {ctx.branch}.\n"
             f"   Either no PR exists, or `gh` is unavailable/unauthenticated.\n"
@@ -170,6 +214,22 @@ def assert_pr_resolved(ctx: RemoveContext, force: bool) -> None:
         )
         raise SystemExit(2)
     print(f"✅ PR state for {ctx.branch}: {state}")
+    return head
+
+
+def assert_no_unsaved_work(ctx: RemoveContext, pr_head: str | None, force: bool, keep_branch: bool) -> None:
+    reason = unsaved_work(ctx.bare_dir, None if keep_branch else ctx.branch, ctx.worktree_dir, pr_head)
+    if reason is None:
+        return
+    if force:
+        print(f"⚠️  {ctx.change_id}: {reason}; --force given, discarding.")
+        return
+    print(
+        f"❌ Refusing to remove {ctx.change_id}: {reason} would be lost.\n"
+        f"   Commit + push (or copy them elsewhere) first, or pass --force to discard.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
 
 def remove_worktree(ctx: RemoveContext, dry_run: bool) -> None:
@@ -220,7 +280,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Skip PR state check (allow removal even if PR is OPEN or unknown).",
+        help="Skip PR state + unsaved-work checks (allow removal even if the PR is OPEN/unknown "
+        "or the worktree has uncommitted changes / unpushed commits, which are DISCARDED).",
     )
     parser.add_argument(
         "--keep-branch",
@@ -256,7 +317,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Worktree dir: {ctx.worktree_dir}")
 
     assert_worktree_exists(ctx)
-    assert_pr_resolved(ctx, force=args.force)
+    pr_head = assert_pr_resolved(ctx, force=args.force)
+    assert_no_unsaved_work(ctx, pr_head, force=args.force, keep_branch=args.keep_branch)
 
     remove_worktree(ctx, dry_run=args.dry_run)
     if not args.keep_branch:
