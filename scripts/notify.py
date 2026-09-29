@@ -49,6 +49,7 @@ import argparse
 import json
 import os
 import smtplib
+import ssl
 import subprocess
 import sys
 import threading
@@ -281,12 +282,14 @@ def _send_email(
         )
         with smtplib.SMTP(cfg["host"], int(cfg["port"]), timeout=10) as smtp:
             smtp.ehlo()
+            # Verified STARTTLS is mandatory: SMTP_USER/SMTP_PASSWORD are
+            # always set here, so a downgraded (MITM-stripped) session would
+            # hand the credentials over in cleartext. Abort instead.
             try:
-                smtp.starttls()
+                smtp.starttls(context=ssl.create_default_context())
                 smtp.ehlo()
-            except smtplib.SMTPException:
-                # plain SMTP (test servers, local relays)
-                pass
+            except (smtplib.SMTPException, ssl.SSLError):
+                return False, "smtp-error:starttls"
             try:
                 smtp.login(cfg["user"], cfg["password"])
             except smtplib.SMTPException:

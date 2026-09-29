@@ -213,8 +213,12 @@ class _FakeSMTP:
     def ehlo(self) -> None:
         pass
 
-    def starttls(self) -> None:
-        pass
+    starttls_error: Exception | None = None
+
+    def starttls(self, context: Any = None) -> None:
+        if self.starttls_error is not None:
+            raise self.starttls_error
+        self.tls_context = context
 
     def login(self, user: str, password: str) -> None:
         self.login_user = user
@@ -250,6 +254,34 @@ def test_email_sent_on_error(
 ) -> None:
     notify_mod.notify(event="demo.err", severity="error", summary="boom")
     assert len(smtp_enabled.instances[0].sent) == 1
+
+
+def test_starttls_verifies_certificate(smtp_enabled: type[_FakeSMTP]) -> None:
+    import ssl
+    ok, _ = notify_mod._send_email(
+        event="e", severity="error", summary="s", detail="", attrs={},
+        actor="a", ts="t",
+    )
+    assert ok
+    ctx = smtp_enabled.instances[0].tls_context
+    assert isinstance(ctx, ssl.SSLContext)
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+
+
+def test_starttls_failure_never_logs_in_cleartext(
+    smtp_enabled: type[_FakeSMTP], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _FakeSMTP, "starttls_error", smtplib.SMTPNotSupportedError("no STARTTLS"),
+    )
+    ok, reason = notify_mod._send_email(
+        event="e", severity="error", summary="s", detail="", attrs={},
+        actor="a", ts="t",
+    )
+    inst = smtp_enabled.instances[0]
+    assert not ok and reason == "smtp-error:starttls"
+    assert not hasattr(inst, "login_user")
+    assert inst.sent == []
 
 
 def test_email_suppressed_below_threshold(
