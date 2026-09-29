@@ -134,6 +134,7 @@ If ANY subagent returned `blocked: ...`, stop. Show the user which group blocked
 
 ```bash
 git checkout slice/<change-id>
+PRE_RECOMBINE=$(git rev-parse HEAD)   # abort point for step 9 — record it before any cherry-pick
 for group in <ordered groups>; do
   git cherry-pick <group's-sha-range>
 done
@@ -151,7 +152,13 @@ pytest apps/api/tests/   # (or the equivalent for your stack)
 
 If the test fails:
 - **Conflict in shared files** → fix the shared-file edit in step 8 + re-run.
-- **Two groups had implicit cross-dependency not caught in step 3** → ABORT recombination (`git reset --hard origin/main` on `slice/<id>`) + fall back to sequential `/opsx:apply`. File a slicing-too-coarse retro for next time.
+- **Two groups had implicit cross-dependency not caught in step 3** → ABORT recombination + fall back to sequential `/opsx:apply`. File a slicing-too-coarse retro for next time.
+  Aborting discards the recombined commits, so confirm with the user first, then return `slice/<id>` to the point recorded in step 8 — never to `origin/main`, which would also drop every slice commit made before this parallel run:
+  ```bash
+  git cherry-pick --abort 2>/dev/null || true
+  git reset --hard "$PRE_RECOMBINE"
+  ```
+  The per-group branches `slice/<id>--<group>` still hold the subagents' work.
 
 ### 10. Push the slice branch + open PR
 
