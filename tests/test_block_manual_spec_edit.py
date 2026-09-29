@@ -1,6 +1,7 @@
 """Tests for scripts/block_manual_spec_edit.py. Populated in T09."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -79,11 +80,10 @@ def test_main_protected_file_blocked_without_marker(
 def test_main_protected_file_allowed_with_archive_marker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _init_git(
-        tmp_path,
-        commit_msg="docs: archive cart change\n\nopenspec-archive: acme-cart\n",
-    )
+    msg = tmp_path / "msg.txt"
+    msg.write_text("docs: archive cart change\n\nopenspec-archive: acme-cart\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PRE_COMMIT_COMMIT_MSG_FILE", str(msg))
     rc = bmse.main(["openspec/specs/cart.md"])
     assert rc == 0
 
@@ -277,16 +277,117 @@ def test_read_commit_message_local_stage_takes_precedence_over_ci_mode(
     assert "local-stage commit" in msg
 
 
-def test_read_commit_message_falls_back_to_editmsg_when_no_env(
+def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ("PRE_COMMIT_COMMIT_MSG_FILE", "PRE_COMMIT_FROM_REF", "PRE_COMMIT_TO_REF"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def _stage_spec(repo: Path, text: str) -> None:
+    spec = repo / "openspec" / "specs" / "auth" / "spec.md"
+    spec.parent.mkdir(parents=True, exist_ok=True)
+    spec.write_text(text, encoding="utf-8")
+    _git(repo, "add", "-A")
+
+
+def test_read_commit_message_ignores_stale_editmsg_when_changes_are_staged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Final fallback: .git/COMMIT_EDITMSG (regression test for legacy path)."""
-    _init_git(tmp_path, commit_msg="local commit\nopenspec-archive: x\n")
+    """At the pre-commit stage COMMIT_EDITMSG is the PREVIOUS commit's message."""
+    _bootstrap_repo(tmp_path)
+    _stage_spec(tmp_path, "v1\n")
+    _git(tmp_path, "commit", "-m", "openspec-archive: add-auth")
+    _stage_spec(tmp_path, "v2 hand edit\n")
+    _clear_env(monkeypatch)
+    assert bmse.read_commit_message(tmp_path) is None
 
-    monkeypatch.delenv("PRE_COMMIT_COMMIT_MSG_FILE", raising=False)
-    monkeypatch.delenv("PRE_COMMIT_FROM_REF", raising=False)
-    monkeypatch.delenv("PRE_COMMIT_TO_REF", raising=False)
 
+def test_read_commit_message_nothing_staged_uses_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CI `--all-files` on a pushed commit: message and diff both come from HEAD."""
+    _bootstrap_repo(tmp_path)
+    _stage_spec(tmp_path, "v1\n")
+    _git(tmp_path, "commit", "-m", "openspec-archive: add-auth")
+    _clear_env(monkeypatch)
     msg = bmse.read_commit_message(tmp_path)
-    assert msg is not None
-    assert "openspec-archive: x" in msg
+    assert msg is not None and "openspec-archive: add-auth" in msg
+
+
+def test_commit_msg_stage_blocks_hand_edit_after_archive_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Case A (was a bypass): hand edit committed right after an archive commit."""
+    _bootstrap_repo(tmp_path)
+    _stage_spec(tmp_path, "v1\n")
+    _git(tmp_path, "commit", "-m", "openspec-archive: add-auth")
+    _stage_spec(tmp_path, "v2 hand edit\n")
+    msg = tmp_path / ".git" / "COMMIT_EDITMSG"
+    msg.write_text("chore: tweak wording\n", encoding="utf-8")
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 1
+
+
+def test_commit_msg_stage_allows_archive_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Case B (was a false block): the archive commit itself, previous message 'init'."""
+    _bootstrap_repo(tmp_path)
+    _stage_spec(tmp_path, "v1\n")
+    msg = tmp_path / ".git" / "COMMIT_EDITMSG"
+    msg.write_text("openspec-archive: add-auth\n", encoding="utf-8")
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 0
+
+
+def test_pre_commit_stage_defers_instead_of_reading_stale_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Without --commit-msg-file and with staged changes there is no message to
+    check yet: defer to the commit-msg stage rather than guess from the last one."""
+    _bootstrap_repo(tmp_path)
+    _stage_spec(tmp_path, "v1\n")
+    (tmp_path / ".git" / "COMMIT_EDITMSG").write_text("init\n", encoding="utf-8")
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    assert bmse.main(["openspec/specs/auth/spec.md"]) == 0
+    assert "commit-msg stage" in capsys.readouterr().err
+
+
+def test_commit_msg_stage_ignores_commits_without_spec_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _bootstrap_repo(tmp_path)
+    (tmp_path / "README.md").write_text("changed", encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    msg = tmp_path / "m.txt"
+    msg.write_text("docs: readme\n", encoding="utf-8")
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX hook shebang")
+def test_real_commit_msg_hook_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Real `git commit` with the guard installed as a commit-msg hook."""
+    import subprocess as _sp
+
+    playbook = Path(__file__).resolve().parent.parent
+    _bootstrap_repo(tmp_path)
+    hook = tmp_path / ".git" / "hooks" / "commit-msg"
+    hook.write_text(
+        f'#!/bin/sh\nexec "{sys.executable}" "{playbook / "scripts" / "block_manual_spec_edit.py"}"'
+        ' --commit-msg-file "$1"\n',
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+    _clear_env(monkeypatch)
+
+    def commit(msg: str) -> int:
+        return _sp.run(["git", "commit", "-q", "-m", msg], cwd=tmp_path, capture_output=True).returncode
+
+    _stage_spec(tmp_path, "v1\n")
+    assert commit("openspec-archive: add-auth") == 0  # Case B
+    _stage_spec(tmp_path, "v2 hand edit\n")
+    assert commit("chore: tweak wording") != 0  # Case A

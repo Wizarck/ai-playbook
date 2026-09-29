@@ -249,7 +249,7 @@ Uses the standard `GH_TOKEN` / `GITHUB_TOKEN` for authentication — pulled from
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `PRE_COMMIT_COMMIT_MSG_FILE` | `PRE_COMMIT_` | Path to the staged commit message file during the `commit-msg` stage. | no (set by pre-commit) | unset outside the `commit-msg` stage | `scripts/block_manual_spec_edit.py::read_commit_message` |
+| `PRE_COMMIT_COMMIT_MSG_FILE` | `PRE_COMMIT_` | Manual override: path to a commit message file for pre-commit-stage / CI runs. pre-commit itself never sets it — the commit-msg stage passes the file via `--commit-msg-file`. | no | unset | `scripts/block_manual_spec_edit.py::read_commit_message` |
 
 ---
 
