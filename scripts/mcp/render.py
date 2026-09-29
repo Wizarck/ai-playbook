@@ -39,6 +39,12 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[2])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
+
 from scripts._enforce_state import disabled_mcps as _disabled_mcps_state  # noqa: E402
 from scripts.mcp.absorb import absorb_mcp_json  # noqa: E402
 from scripts.mcp.validate import (  # noqa: E402

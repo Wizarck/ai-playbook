@@ -31,6 +31,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
+
+
 # UTF-8 stdio — Windows cp1252 console safety.
 for _stream in (sys.stdout, sys.stderr):
     try:

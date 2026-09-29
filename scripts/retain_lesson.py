@@ -17,6 +17,12 @@ from __future__ import annotations
 
 import sys
 import warnings
+from pathlib import Path
+
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
 
 # Import EVERYTHING used by callers from the new module so any
 # `from scripts.retain_lesson import RetainItem` etc continues to resolve.
@@ -26,7 +32,7 @@ from scripts.retain_memory import (  # noqa: F401, E402
     SCRIPT_BASENAME,
     RetainItem,
 )
-from scripts.retain_memory import (
+from scripts.retain_memory import (  # noqa: E402
     main as _main,
 )
 
