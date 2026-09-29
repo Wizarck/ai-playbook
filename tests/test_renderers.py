@@ -16,7 +16,7 @@ from scripts._renderers import (
     render_pre_commit,
     render_settings_json,
 )
-from scripts._renderers._settings_merge import anchor_command
+from scripts._renderers._settings_merge import DISPATCHER_PRE_TOOL_USE_MATCHER, anchor_command
 from scripts._template_classifier import compute_sha
 
 # ---------------------------------------------------------------------------
@@ -479,7 +479,7 @@ _SETTINGS_TMPL_WITH_BASH = json.dumps({
                 ],
             },
             {
-                "matcher": "Edit|Write|MultiEdit|Bash",
+                "matcher": DISPATCHER_PRE_TOOL_USE_MATCHER,
                 "hooks": [
                     {"type": "command",
                      "command": 'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/hook_dispatcher.py" PreToolUse',

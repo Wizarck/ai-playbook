@@ -68,10 +68,12 @@ cover:
 rule with a `pretooluse()` is inert until `.claude/settings.json` sends the event
 to `hook_dispatcher.py` with a matcher that covers the tool. Claude Code matchers
 are regexes over the tool NAME, so the entry needs
-`mcp__.*__(create|edit)JiraIssue` — the alias between the `mcp__` prefix and the
-tool name varies per client configuration. `templates/new-project` ships this;
-consumers created before v0.22.9 must add it by hand, and a consumer that does
-not is protected by `check` alone.
+`mcp__.*__(createJiraIssue|editJiraIssue|…)` — the alias between the `mcp__`
+prefix and the tool name varies per client configuration. The single matcher is
+`DISPATCHER_PRE_TOOL_USE_MATCHER` in `scripts/_renderers/_settings_merge.py`;
+`templates/new-project` ships the same string, and a reconcile (`apply_config` /
+`bootstrap --update`) widens an existing narrower dispatcher entry to it. A
+consumer that never reconciles is protected by `check` alone.
 
 Run:
 
