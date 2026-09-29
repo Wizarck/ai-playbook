@@ -338,7 +338,7 @@ def cmd_mcp_restore(args: argparse.Namespace) -> int:
         _emit_error(
             why=f"mcp restore failed: {e}",
             where=f"caveman:mcp-restore:{root}",
-            fix="check backup directory at .ai-playbook/backups/mcp/.",
+            fix="fix the JSON syntax (e.g. remove comments) then retry, or use `caveman rollback`.",
         )
         return 1
     if args.json:
@@ -648,7 +648,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     s_restore = sub.add_parser(
         "mcp-restore",
-        help="Unwrap MCP server commands (restore from markers or backup).",
+        help="Unwrap MCP server commands carrying caveman markers.",
         parents=[shared],
     )
     s_restore.add_argument("--json", action="store_true")
