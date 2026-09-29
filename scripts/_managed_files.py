@@ -96,6 +96,7 @@ MANAGED_FILES: list[ManagedFile] = [
         renderer=render_pre_commit,
         trigger_section="pre_commit_extras",
         style=CommentStyle.HASH,
+        use_current_text=True,  # merge; keep consumer edits outside markers
     ),
     ManagedFile(
         rel_path=".coderabbit.yaml",
@@ -103,6 +104,7 @@ MANAGED_FILES: list[ManagedFile] = [
         renderer=render_coderabbit,
         trigger_section="coderabbit_extras",
         style=None,  # no marker blocks today
+        use_current_text=True,  # merge extras into the consumer's file
     ),
     ManagedFile(
         rel_path=".claude/settings.json",
@@ -126,6 +128,7 @@ MANAGED_FILES: list[ManagedFile] = [
         renderer=render_mcp_project,
         trigger_section="mcp_project_servers",
         style=CommentStyle.HASH,
+        use_current_text=True,  # merge; keep consumer edits outside markers
     ),
 ]
 

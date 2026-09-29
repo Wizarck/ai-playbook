@@ -611,6 +611,56 @@ def test_drifted_block_without_decision_is_a_conflict(
     assert result.file_states["AGENTS.md"]["conflict"] == ["bootstrap-directive"]
 
 
+def test_yaml_renderers_keep_consumer_edits_outside_managed_content(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """pre-commit / coderabbit / mcp-project merge into the current file:
+    consumer content the templates promise to keep survives an apply."""
+    import yaml
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "pre_commit_extras": {"hooks": [{"id": "extra", "entry": "echo hi",
+                                         "language": "system"}]},
+        "coderabbit_extras": {"path_filters": ["!gen/**"]},
+        "mcp_project_servers": {"extra-srv": {"id": "extra-srv", "endpoint": None}},
+    }
+    first = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert first.ok is True
+
+    pc = fake_consumer / ".pre-commit-config.yaml"
+    pc.write_text(pc.read_text(encoding="utf-8").replace(
+        "# <<< ai-playbook:end playbook-hooks <<<\n",
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "  - repo: https://github.com/astral-sh/ruff-pre-commit\n"
+        "    rev: v0.5.0\n    hooks:\n      - id: ruff\n",
+    ), encoding="utf-8")
+    cr = fake_consumer / ".coderabbit.yaml"
+    cr.write_text("language: en-US\ntone_instructions: terse\n"
+                  "reviews:\n  profile: assertive\n", encoding="utf-8")
+
+    second = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert second.ok is True
+    repos = yaml.safe_load(pc.read_text(encoding="utf-8"))["repos"]
+    assert any(h["id"] == "ruff" for r in repos for h in r["hooks"])
+    assert [h["id"] for h in repos[-1]["hooks"]] == ["extra"]
+    rabbit = yaml.safe_load(cr.read_text(encoding="utf-8"))
+    assert rabbit["tone_instructions"] == "terse"
+    assert rabbit["reviews"]["profile"] == "assertive"
+    assert rabbit["reviews"]["path_filters"] == ["!gen/**"]
+    mcp = yaml.safe_load((fake_consumer / "mcp-servers.project.yaml").read_text(
+        encoding="utf-8"))
+    assert mcp["servers"]["extra-srv"] == {"id": "extra-srv", "endpoint": None}
+
+    third = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert sum("identical, no write" in c for c in third.changes) == 3
+
+
 def test_malformed_current_markers_fail_closed(
     fake_playbook: Path, fake_consumer: Path,
 ) -> None:
