@@ -60,6 +60,44 @@ def test_extract_contract_skips_paths_inside_code_blocks() -> None:
     assert "real/outside.py" in c.paths
 
 
+def _src_and_violations(src: str, out: str) -> list[str]:
+    return compress.violations(compress.extract_contract(src), out)
+
+
+def test_contract_catches_changed_code_in_list_item_fence() -> None:
+    """Regression S1-26: indented (list-item) fences are part of the contract."""
+    src = "1. Clean the build dir:\n   ```bash\n   rm -rf build/\n   ```\n"
+    out = "1. Clean build dir:\n   ```bash\n   rm -rf build/ ~\n   ```\n"
+    assert _src_and_violations(src, out)
+    assert _src_and_violations(src, src) == []
+
+
+def test_contract_catches_changed_tilde_fence() -> None:
+    src = "Intro text.\n\n~~~python\nx = 1\n~~~\n"
+    out = "Intro.\n\n~~~python\nx = 2\n~~~\n"
+    assert _src_and_violations(src, out)
+    assert _src_and_violations(src, "Intro.\n\n~~~python\nx = 1\n~~~\n") == []
+
+
+def test_contract_fence_closes_only_on_same_char_and_length() -> None:
+    src = "````md\n```\ninner\n```\n````\n"
+    c = compress.extract_contract(src)
+    assert c.code_blocks == ["````md\n```\ninner\n```\n````"]
+
+
+def test_contract_catches_changed_inline_code() -> None:
+    src = "Run `make test --all` before pushing.\n"
+    out = "Run `make test` before push.\n"
+    assert _src_and_violations(src, out)
+    assert _src_and_violations(src, "Run `make test --all` pre-push.\n") == []
+
+
+def test_contract_catches_demoted_heading() -> None:
+    src = "# Title\n\nbody\n"
+    assert _src_and_violations(src, "## Title\n\nbody\n")
+    assert _src_and_violations(src, "# Title\n\nbod\n") == []
+
+
 # ---------------------------------------------------------------------------
 # violations
 # ---------------------------------------------------------------------------

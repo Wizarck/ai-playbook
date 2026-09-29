@@ -167,8 +167,9 @@ What this does:
    already exists — signals an unfinalised earlier session).
 2. Calls the LiteLLM proxy via `scripts._llm` with task_class
    `doc_writing_edit`.
-3. Validates: every heading, code block, URL, and file path from the
-   source appears byte-for-byte in the output.
+3. Validates: every heading (as a whole line, same level), fenced code
+   block (backtick or tilde, including list-indented ones), inline code span,
+   URL, and file path from the source appears byte-for-byte in the output.
 4. On violation, retries with a targeted patch (up to 2 times). After
    2 failed retries, restores from `AGENTS.md.original.md` and exits 1.
 

@@ -9,8 +9,9 @@ Behavior
 1. Read source markdown.
 2. Backup to ``<source>.original.md`` (refuse if a different backup already
    exists — that signals an unfinalized earlier session).
-3. Extract preservation contract: fenced code blocks, headings, URLs, file
-   paths, bash command lines.
+3. Extract preservation contract: fenced code blocks (``` and ~~~, at any
+   indentation), inline code spans, headings (whole line, same level),
+   URLs, file paths.
 4. Call the LLM via ``scripts._llm.call`` with task_class ``doc_writing_edit``,
    system prompt = caveman ruleset + preservation contract.
 5. Validate the response: every preserved token must appear in the output
@@ -46,7 +47,9 @@ DEFAULT_MAX_RETRIES = 2
 MAX_FILE_BYTES = 100 * 1024  # 100 KB — anything larger requires --force in the CLI
 
 # Regexes for the preservation contract.
-_FENCED_BLOCK_RE = re.compile(r"```[^\n]*\n.*?\n```", re.DOTALL)
+# Fence opener/closer at any indentation (list items indent their fences).
+_FENCE_OPEN_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
+_INLINE_CODE_RE = re.compile(r"(?<!`)(`+)(?!`)[^\n]+?(?<!`)\1(?!`)")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 _URL_RE = re.compile(r"https?://[^\s)\]>}'\"`]+")
 # File path heuristic: contains a `/` and a `.<ext>` or ends with a `/`; excludes URLs (already captured).
@@ -56,6 +59,7 @@ _PATH_RE = re.compile(r"(?<![\w/])(?:\.{0,2}/)?[\w.-]+/(?:[\w.-]+/)*[\w.-]+(?:\.
 @dataclass
 class PreservationContract:
     code_blocks: list[str] = field(default_factory=list)
+    inline_code: list[str] = field(default_factory=list)
     headings: list[str] = field(default_factory=list)
     urls: list[str] = field(default_factory=list)
     paths: list[str] = field(default_factory=list)
@@ -68,6 +72,9 @@ class PreservationContract:
             parts.extend(f"  {h}" for h in self.headings)
         if self.code_blocks:
             parts.append(f"Code blocks: {len(self.code_blocks)} block(s) — copy each byte-identical to source.")
+        if self.inline_code:
+            parts.append("Inline code:")
+            parts.extend(f"  {c}" for c in self.inline_code)
         if self.urls:
             parts.append("URLs:")
             parts.extend(f"  {u}" for u in self.urls)
@@ -103,12 +110,39 @@ class CompressionFailedError(RuntimeError):
 # ---------------------------------------------------------------------------
 
 
+def _split_fences(text: str) -> tuple[list[str], str]:
+    """Return (fenced blocks verbatim, text with those blocks removed).
+
+    CommonMark-ish: ``` or ~~~ fences at any indentation; a block closes on
+    a line of the same fence char, at least as long, and nothing else. An
+    unclosed fence runs to end of document.
+    """
+    blocks: list[str] = []
+    prose: list[str] = []
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        m = _FENCE_OPEN_RE.match(lines[i])
+        if not m or (m.group(1)[0] == "`" and "`" in lines[i][m.end():]):
+            prose.append(lines[i])
+            i += 1
+            continue
+        fence = m.group(1)
+        close_re = re.compile(rf"^[ \t]*{re.escape(fence[0])}{{{len(fence)},}}[ \t]*$")
+        j = i + 1
+        while j < len(lines) and not close_re.match(lines[j]):
+            j += 1
+        blocks.append("\n".join(lines[i : j + 1]))
+        i = j + 1
+    return blocks, "\n".join(prose)
+
+
 def extract_contract(text: str) -> PreservationContract:
     """Walk ``text`` and capture every token that must survive compression."""
-    code_blocks = _FENCED_BLOCK_RE.findall(text)
-    # Strip code blocks before scanning for paths/urls so things inside code
-    # are not double-counted (they survive via the code-block contract).
-    stripped = _FENCED_BLOCK_RE.sub("", text)
+    code_blocks, stripped = _split_fences(text)
+    # Code blocks are stripped before scanning for the rest so things inside
+    # code are not double-counted (they survive via the code-block contract).
+    inline_code = list(dict.fromkeys(m.group(0) for m in _INLINE_CODE_RE.finditer(stripped)))
     headings = [match.group(0).strip() for match in _HEADING_RE.finditer(stripped)]
     urls = sorted(set(_URL_RE.findall(stripped)))
     # Paths: filter out URL fragments and obvious noise.
@@ -117,6 +151,7 @@ def extract_contract(text: str) -> PreservationContract:
 
     return PreservationContract(
         code_blocks=code_blocks,
+        inline_code=inline_code,
         headings=headings,
         urls=urls,
         paths=paths,
@@ -127,13 +162,17 @@ def violations(contract: PreservationContract, output: str) -> list[str]:
     """Return a list of contract violations found in ``output``."""
     missing: list[str] = []
     for h in contract.headings:
-        if h not in output:
+        # Whole-line match: "# T" must not be satisfied by "## T".
+        if not re.search(rf"^[ \t]*{re.escape(h)}[ \t]*$", output, re.MULTILINE):
             missing.append(f"heading: {h!r}")
     for cb in contract.code_blocks:
         if cb not in output:
             missing.append(
                 f"code block (first 40 chars): {cb[:40]!r}..."
             )
+    for ic in contract.inline_code:
+        if ic not in output:
+            missing.append(f"inline code: {ic}")
     for u in contract.urls:
         if u not in output:
             missing.append(f"url: {u}")
@@ -165,7 +204,8 @@ YOU MUST:
 1. Output a complete compressed markdown document. Same structure, same
    meaning, but caveman style for prose.
 2. Copy every heading byte-for-byte (same characters, same level).
-3. Copy every fenced code block byte-for-byte (no edits inside ``` blocks).
+3. Copy every fenced code block (``` or ~~~, including indentation) and
+   every inline `code` span byte-for-byte.
 4. Preserve every URL and file path verbatim.
 5. Output ONLY the compressed markdown. No preamble. No "Here is...". No
    explanation. Just the document.
