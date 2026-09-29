@@ -162,6 +162,34 @@ def cmd_on(args: argparse.Namespace) -> int:
     # but file-wasn't-materialised drift. Each side effect handles its own
     # backup before mutation.
     side_effects: dict[str, Any] = {}
+
+    # Reconcile: a component ON in the prior state but not requested now gets
+    # its inverse, so the files match the state we are about to write.
+    prior = (toggle.read_state(root).get("components") or {})
+    dropped = {c for c, v in prior.items() if v and c not in requested}
+    if "response_style" in dropped:
+        try:
+            stripped = materialise_mod.strip(root)
+            if stripped is not None:
+                side_effects["agents_md_strip_backup"] = stripped.as_posix()
+        except (FileNotFoundError, ValueError) as e:
+            _emit_error(
+                why=f"strip failed: {e}",
+                where="caveman:on:strip",
+                fix="resolve AGENTS.md manually (multiple caveman blocks, bad markers, etc.) then re-run.",
+            )
+            return 1
+    if "mcp_shrink" in dropped:
+        try:
+            side_effects["mcp_restore"] = mcp_shrink_mod.restore_project(root)
+        except Exception as e:  # noqa: BLE001
+            _emit_error(
+                why=f"mcp restore failed: {e}",
+                where="caveman:on:mcp_restore",
+                fix="fix the JSON syntax of .mcp.json / .gemini/settings.json then retry.",
+            )
+            return 1
+
     if "response_style" in requested:
         try:
             backup = materialise_mod.materialise(root, mode)

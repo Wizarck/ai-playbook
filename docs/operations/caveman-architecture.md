@@ -109,6 +109,9 @@ python -m scripts.caveman on \
 - Validates inputs (mode in `{lite, full, ultra}`, components in the
   schema-permitted set).
 - Runs side effects in order, each with its own backup:
+  0. Reconcile: every component ON in the prior state but absent from
+     `--components` is reverted first (`response_style` → strip the
+     AGENTS.md block; `mcp_shrink` → unwrap marked MCP entries).
   1. If `response_style`: materialise the ruleset block into AGENTS.md.
   2. If `mcp_shrink`: wrap stdio entries in `.mcp.json` and
      `.gemini/settings.json`.
