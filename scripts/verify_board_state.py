@@ -16,7 +16,8 @@ Usage::
 
 Behaviour
 ---------
-- Fetches the project item whose Title contains ``--change-id``.
+- Fetches the project item whose Title equals ``--change-id`` (exact match:
+  change-ids prefix each other, e.g. ``risk-engine`` / ``risk-engine-protections``).
 - Reads the item's ``Status`` single-select value.
 - Compares against ``--expected-status`` (default ``Done``).
 - Exits ``0`` on match, ``1`` on mismatch, ``2`` on item-not-found, ``3``
@@ -27,7 +28,7 @@ Exit-code semantics
 - ``0`` — Status matches expected. Caller proceeds.
 - ``1`` — Status does NOT match. Caller MUST refuse the gated action
   (e.g. archive). Stderr carries an actionable message.
-- ``2`` — No project item found whose Title contains the change-id.
+- ``2`` — No project item found whose Title equals the change-id.
   Caller surfaces "board out of sync" and asks the human.
 - ``3`` — GraphQL or network error talking to the project. Caller
   surfaces "transient error" and may retry once before giving up.
@@ -138,7 +139,7 @@ def _fetch_item_status(*, owner: str, project_number: int, change_id: str) -> tu
         for item in items:
             content = item.get("content") or {}
             title = content.get("title", "")
-            if change_id not in title:
+            if title.strip() != change_id:  # exact: a sibling slice must not match
                 continue
             # Found the matching item. Extract Status.
             for fv in (item.get("fieldValues") or {}).get("nodes") or []:
