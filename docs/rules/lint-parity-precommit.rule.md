@@ -28,7 +28,7 @@ Every linter that gates CI MUST also run at pre-commit, pinned to the SAME
 version CI pins. Parity is the invariant: the laptop and CI must disagree on
 nothing, or developers ship debt they physically could not see. When CI pins a
 version (`pip install ruff==X.Y.Z`), the pre-commit `rev:` MUST match it; the
-hardrule warns on drift. The canonical declaration `apply` appends is:
+hardrule warns on drift. The canonical declaration `apply` inserts is:
 
 ```yaml
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -38,9 +38,11 @@ hardrule warns on drift. The canonical declaration `apply` appends is:
         args: [--fix]
 ```
 
-Declaration MUST be additive — `apply` appends to the existing file rather than
-rewriting the YAML, so consumer comments, formatting, and unrelated hooks
-survive intact (same contract as [pre-commit-hooks](pre-commit-hooks.rule.md)).
+Declaration MUST be additive — `apply` inserts the item after the last `repos:`
+entry, matching the file's indentation, rather than rewriting the YAML, so
+consumer comments, formatting, and unrelated hooks survive intact (same contract
+as [pre-commit-hooks](pre-commit-hooks.rule.md)). If the result would not parse,
+nothing is written and `apply` exits 2 with the item to paste by hand.
 
 ## Trust boundary
 
@@ -77,7 +79,7 @@ land automatically at commit time.
   CI dead at lint for a day, pytest never reached.
 - ruff in pre-commit but unpinned CI (`pip install ruff`) — CI silently
   upgrades and disagrees with every laptop; pin CI first.
-- Rewriting the whole YAML during `apply` — loses user intent; append only.
+- Rewriting the whole YAML during `apply` — loses user intent; insert only.
 
 ## Break-glass
 

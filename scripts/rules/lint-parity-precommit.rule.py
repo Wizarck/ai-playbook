@@ -6,9 +6,11 @@ CI runs). A linter that only exists in CI is a linter developers discover
 post-push; without branch protection the red merges and becomes ambient debt
 (geeplo 2026-07-13: a wave merged with 41 ruff errors nobody saw locally).
 
-`apply` appends the canonical ruff-pre-commit block to `.pre-commit-config.yaml`
-using the pin detected from the CI workflows (append-only, preserving user
-comments and formatting — same strategy as pre-commit-hooks.rule.py).
+`apply` inserts the canonical ruff-pre-commit repo after the last `repos:` item
+of `.pre-commit-config.yaml` (matching its indentation, preserving user comments
+and formatting — same helper as pre-commit-hooks.rule.py), using the pin
+detected from the CI workflows. If the result would not parse as YAML, nothing
+is written (exit 2).
 
 CLI:
     python scripts/rules/lint-parity-precommit.rule.py validate
@@ -18,7 +20,8 @@ Exit codes:
     0 — parity holds, OR rule not applicable (no workflows, no ruff in CI,
         or repo does not use pre-commit at all).
     1 — ruff gates CI but is absent from .pre-commit-config.yaml.
-    2 — fatal (no consumer root, unreadable files).
+    2 — fatal (no consumer root, unreadable files, or `apply` could not
+        insert without breaking the YAML).
 """
 from __future__ import annotations
 
@@ -117,14 +120,14 @@ def _precommit_ruff_rev(config_text: str) -> str | None:
 
 
 def _canonical_block(rev: str) -> str:
+    """The repo item `apply` inserts (canonical column-0 form)."""
     return (
-        "\n"
-        "  # lint-parity-precommit (ai-playbook): ruff gates CI, so it runs here too.\n"
-        f"  - repo: {RUFF_PRECOMMIT_REPO}\n"
-        f"    rev: v{rev.lstrip('v')}\n"
-        "    hooks:\n"
-        "      - id: ruff\n"
-        "        args: [--fix]\n"
+        "# lint-parity-precommit (ai-playbook): ruff gates CI, so it runs here too.\n"
+        f"- repo: {RUFF_PRECOMMIT_REPO}\n"
+        f"  rev: v{rev.lstrip('v')}\n"
+        "  hooks:\n"
+        "    - id: ruff\n"
+        "      args: [--fix]\n"
     )
 
 
@@ -175,7 +178,7 @@ def validate(cwd: Path | None = None) -> int:
 
 
 def apply(*, dry_run: bool, rev: str | None = None, cwd: Path | None = None) -> int:
-    """Append the canonical ruff block to `.pre-commit-config.yaml`. Idempotent."""
+    """Insert the canonical ruff repo into `.pre-commit-config.yaml`. Idempotent."""
     root = _consumer_root(cwd)
     if root is None:
         print("error: no consumer root (AGENTS.md) found from cwd", file=sys.stderr)
@@ -211,20 +214,27 @@ def apply(*, dry_run: bool, rev: str | None = None, cwd: Path | None = None) -> 
 
     block = _canonical_block(pin)
     if dry_run:
-        print(f"[dry-run] would append to {config} (rev=v{pin.lstrip('v')}):")
+        print(f"[dry-run] would insert into {config} (rev=v{pin.lstrip('v')}):")
         print(block, end="")
         return 0
 
-    new_text = existing
-    if new_text and not new_text.endswith("\n"):
-        new_text += "\n"
-    new_text += block
+    from scripts.rules._precommit_yaml import insert_repo
+
+    try:
+        new_text = insert_repo(existing, block, repo_url=RUFF_PRECOMMIT_REPO, hook_ids=["ruff"])
+    except ValueError as exc:
+        _emit_error(
+            why=f"cannot safely insert the ruff-pre-commit repo ({exc}); nothing written",
+            where=str(config),
+            fix="add this item under `repos:` by hand:\n" + block,
+        )
+        return 2
     try:
         config.write_text(new_text, encoding="utf-8")
     except OSError as exc:
         print(f"error: cannot write {config}: {exc}", file=sys.stderr)
         return 2
-    print(f"appended ruff-pre-commit block to {config} (rev=v{pin.lstrip('v')})")
+    print(f"inserted ruff-pre-commit repo into {config} (rev=v{pin.lstrip('v')})")
     return 0
 
 
