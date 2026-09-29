@@ -1,11 +1,12 @@
 # Pre-commit config for {{PROJECT_NAME}}. Inherits hooks from the ai-playbook submodule.
 # Bootstrap: `pip install pre-commit && pre-commit install` after cloning.
 #
-# Hooks inside the `# >>> ai-playbook:begin id=playbook-hooks >>>` block below are
-# playbook-managed and overwritten on `apply_config` / `bootstrap --update`. Add
-# project-specific hooks OUTSIDE that block — they will be preserved across
-# re-renders. See .ai-playbook/specs/fusion-integration-pattern.md §8 for
-# guidance on tailoring this template.
+# Hooks inside the `playbook-hooks` marker block below (between its ai-playbook
+# begin/end comment lines) are playbook-managed and overwritten on
+# `apply_config` / `bootstrap --update`. Add project-specific hooks OUTSIDE that
+# block — they will be preserved across re-renders. See
+# .ai-playbook/specs/fusion-integration-pattern.md §8 for guidance on tailoring
+# this template.
 
 repos:
 # >>> ai-playbook:begin id=playbook-hooks >>>
