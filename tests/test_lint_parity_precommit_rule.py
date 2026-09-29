@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+import yaml
 
 SPEC = importlib.util.spec_from_file_location(
     "_lpp_rule",
@@ -136,3 +137,32 @@ def test_apply_explicit_rev_overrides(tmp_path: Path) -> None:
     root = _consumer(tmp_path, ci=CI_WITH_RUFF_UNPINNED, precommit=PRECOMMIT_WITHOUT_RUFF)
     assert _lpp.apply(dry_run=False, rev="v0.11.0", cwd=root) == 0
     assert "rev: v0.11.0" in (root / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("precommit", [
+    PRECOMMIT_WITHOUT_RUFF,
+    # zero-indent sequence + trailing top-level key (pre-commit.ci)
+    "repos:\n- repo: https://github.com/pre-commit/pre-commit-hooks\n  rev: v4.6.0\n"
+    "  hooks:\n  - id: trailing-whitespace\nci:\n  autofix_prs: false\n",
+    # `pre-commit sample-config` layout, CRLF
+    "repos:\r\n-   repo: https://github.com/pre-commit/pre-commit-hooks\r\n    rev: v3.2.0\r\n"
+    "    hooks:\r\n    -   id: trailing-whitespace\r\n",
+])
+def test_apply_inserts_parseable_repo_item(tmp_path: Path, precommit: str) -> None:
+    root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit=precommit)
+    (root / ".pre-commit-config.yaml").write_bytes(precommit.encode("utf-8"))
+    assert _lpp.apply(dry_run=False, cwd=root) == 0
+    data = yaml.safe_load((root / ".pre-commit-config.yaml").read_bytes().decode("utf-8"))
+    assert [r["repo"] for r in data["repos"]] == [
+        "https://github.com/pre-commit/pre-commit-hooks", _lpp.RUFF_PRECOMMIT_REPO,
+    ]
+    assert data["repos"][0]["hooks"] == [{"id": "trailing-whitespace"}]
+    assert data["repos"][1]["rev"] == "v0.9.3"
+    if "ci:" in precommit:
+        assert data["ci"] == {"autofix_prs": False}
+
+
+def test_apply_refuses_when_result_would_not_parse(tmp_path: Path) -> None:
+    root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit="repos: [\n")
+    assert _lpp.apply(dry_run=False, cwd=root) == 2
+    assert (root / ".pre-commit-config.yaml").read_text(encoding="utf-8") == "repos: [\n"
