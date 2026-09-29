@@ -320,12 +320,19 @@ def compress(
 
     while last_missing and retries_used < max_retries:
         retries_used += 1
+        # Each call is stateless, so the retry MUST carry the source and the
+        # previous attempt — otherwise the model rewrites from nothing.
         retry_prompt = (
+            f"{user_prompt}\n"
+            "--- PREVIOUS OUTPUT ---\n"
+            f"{output}\n"
+            "--- END PREVIOUS OUTPUT ---\n\n"
             "Your previous output violated the preservation contract. "
             "The following tokens are MISSING from your output:\n"
             f"{chr(10).join(f'  - {m}' for m in last_missing)}\n\n"
-            "Re-emit the full compressed document with these tokens restored "
-            "byte-for-byte. Keep the rest of your prior compression unchanged."
+            "Re-emit the full compressed document of the SOURCE with these "
+            "tokens restored byte-for-byte. Keep the rest of your previous "
+            "output unchanged."
         )
         output, model_actual_retry = caller(retry_prompt, system, max_tokens)
         if model_actual_retry:
