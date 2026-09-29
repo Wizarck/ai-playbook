@@ -333,8 +333,9 @@ def _reconcile_blocks(
 
     Returns ``(final_text | None, conflict_block_ids)``. ``final_text`` is
     ``None`` iff there is at least one unresolved conflict. Files without
-    markers (``style is None``), without prior content, or with malformed
-    markers pass through unchanged (no gate). Blocks whose on-disk marker
+    markers (``style is None``) or without prior content pass through
+    unchanged (no gate). Malformed markers fail closed (a conflict), since
+    drift cannot be ruled out without a parse. Blocks whose on-disk marker
     carries no ``sha=`` (legacy / first-touch) are treated as a clean seed,
     never a conflict.
     """
@@ -344,8 +345,8 @@ def _reconcile_blocks(
         current = parse_blocks(current_text, style)
         rendered_parsed = parse_blocks(rendered, style)
     except ValueError:
-        # Malformed markers — do not gate; let the renderer output stand.
-        return rendered, []
+        # Malformed markers — fail closed; never pass the render through.
+        return None, ["(malformed markers)"]
 
     conflicts: list[str] = []
     overrides: dict[str, MarkerBlock] = {}
@@ -492,6 +493,29 @@ def apply_managed_files(
                         "ai_playbook.managed_files.base_sha": base_sha,
                         "ai_playbook.managed_files.actual_sha": actual_file_sha,
                     },
+                )
+                continue
+
+        # Fail closed on malformed markers in the consumer's file: without a
+        # parse the conflict gate cannot tell whether a sealed block drifted,
+        # so writing would risk silently discarding a local edit.
+        if mf.style is not None and current_text:
+            try:
+                parse_blocks(current_text, mf.style)
+            except ValueError as exc:
+                result.ok = False
+                conflicts.append(f"{mf.rel_path} (malformed markers)")
+                result.file_states[mf.rel_path] = {
+                    "malformed_markers": str(exc),
+                    "last_seen": timestamp_iso,
+                }
+                result.changes.append(
+                    f"✗ {mf.rel_path}: malformed markers ({exc}) — not written; "
+                    f"fix the marker lines by hand, then re-apply"
+                )
+                trace_emit.add_event(
+                    "reconcile.managed_files.malformed_markers",
+                    {"ai_playbook.managed_files.file": mf.rel_path},
                 )
                 continue
 
