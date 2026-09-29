@@ -105,6 +105,7 @@ class Frontmatter:
     start_line: int
     end_line: int
     body: str
+    parse_error: str | None = None  # fenced block present but not a YAML mapping
 
 
 # ---------------------------------------------------------------------------
@@ -171,12 +172,13 @@ def parse_frontmatter(text: str) -> Frontmatter:
             present=False, data={}, raw="", start_line=0, end_line=0, body=text
         )
     raw = "\n".join(lines[1:end])
+    parse_error = None
     try:
         data = yaml.safe_load(raw) or {}
-    except yaml.YAMLError:
-        data = {}
+    except yaml.YAMLError as exc:
+        data, parse_error = {}, " ".join(str(exc).split())
     if not isinstance(data, dict):
-        data = {}
+        data, parse_error = {}, f"frontmatter is a YAML {type(data).__name__}, not a mapping"
     body = "\n".join(lines[end + 1 :])
     return Frontmatter(
         present=True,
@@ -185,6 +187,7 @@ def parse_frontmatter(text: str) -> Frontmatter:
         start_line=1,
         end_line=end + 1,
         body=body,
+        parse_error=parse_error,
     )
 
 
@@ -528,6 +531,18 @@ def validate_one(
         return 1
     text = file_path.read_text(encoding="utf-8")
     fm = parse_frontmatter(text)
+
+    if fm.parse_error:
+        # Never autofix here: the rewrite would replace every unparsed key
+        # with just the injected defaults.
+        emit_error(
+            why=f"AGENTS.md frontmatter is not valid YAML ({fm.parse_error})",
+            where=f"{_format_path(file_path)}:{fm.start_line}",
+            fix="fix the YAML by hand (quote values containing `: `, no tabs), then re-run"
+            + ("; --autofix refused to rewrite it" if autofix else "."),
+            override_invocation=None,
+        )
+        return 1
 
     if autofix:
         new_fm, fixes = apply_autofix(fm, file_path=file_path)

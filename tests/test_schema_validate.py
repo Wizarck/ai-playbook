@@ -290,6 +290,27 @@ def test_validate_one_autofix_writes_in_place(
     assert "owner: fix@example.com" in post
 
 
+def test_validate_one_autofix_refuses_unparseable_frontmatter(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A YAML error must not turn into 'empty frontmatter' that autofix then
+    rewrites — that deleted every existing key."""
+    original = (
+        "---\n# keep this comment\nschema: agents-md/v1\nversion: 2.3.1\n"
+        "project: demo\nowner: lead@example.com\nnotes: this: breaks yaml\n---\n# body\n"
+    )
+    p = _write(tmp_path / "AGENTS.md", original)
+    rc = sv.validate_one(p, schema=sv.load_schema(), autofix=True)
+    assert rc == 1
+    assert p.read_text(encoding="utf-8") == original
+    assert "not valid YAML" in capsys.readouterr().err
+
+
+def test_parse_frontmatter_flags_non_mapping() -> None:
+    fm = sv.parse_frontmatter("---\n- a\n- b\n---\nbody\n")
+    assert fm.present and fm.parse_error and "not a mapping" in fm.parse_error
+
+
 def test_validate_one_nonexistent_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
