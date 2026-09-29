@@ -691,3 +691,29 @@ def test_telemetry_weekly_issue_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert sr.ok
     assert "would seed" in sr.detail.lower()
     assert not (target / _TELEMETRY_WF_REL).exists()
+
+
+def test_persisted_bundle_reapply_is_noop_despite_base_shas(tmp_path: Path) -> None:
+    """base_shas are one-shot CAS tokens: re-applying applied-config.json (as
+    bootstrap --update/--check do) must not report a spurious CAS conflict."""
+    from scripts._template_classifier import compute_file_sha
+
+    target = _fake_project(tmp_path)
+    (target / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+    sha = compute_file_sha((target / ".gitignore").read_text(encoding="utf-8"))
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": sha},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        assert apply_config.apply(bp, target=target).ok
+        applied = target / ".ai-playbook" / "applied-config.json"
+        assert "dist/" in (target / ".gitignore").read_text(encoding="utf-8")
+        report2 = apply_config.apply(applied, target=target)
+    assert report2.ok, report2.to_markdown()
+    assert "compare-and-swap" not in report2.to_markdown()
+    assert "base_shas" not in json.loads(applied.read_text(encoding="utf-8"))
