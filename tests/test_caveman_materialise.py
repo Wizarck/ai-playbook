@@ -77,7 +77,7 @@ def test_materialise_injects_into_clean_agents_md(tmp_path: Path) -> None:
     _make_agents_md(tmp_path)
     backup = materialise.materialise(tmp_path, "full")
     assert backup.is_file()
-    assert backup.parent == tmp_path / ".ai-playbook" / "backups" / "agents"
+    assert backup.parent == tmp_path / ".ai-playbook" / "backups" / "agents-caveman"
 
     text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "<!-- BEGIN auto-managed: caveman/ruleset:full -->" in text

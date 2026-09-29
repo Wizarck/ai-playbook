@@ -63,7 +63,7 @@ What this does:
    [skills/caveman/SKILL.md](../../skills/caveman/SKILL.md).
 
 3. Backs up the pre-write AGENTS.md to
-   `<project>/.ai-playbook/backups/agents/AGENTS.md.<ts>.bak`.
+   `<project>/.ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak`.
 4. Writes `<project>/.ai-playbook/caveman.json` with
    `enabled: true`, `mode: "full"`, `components.response_style: true`.
 
@@ -183,9 +183,9 @@ proxy setup.
 ### Restore the latest AGENTS.md backup
 
 ```bash
-ls C:/Projects/eligia-core/.ai-playbook/backups/agents/
+ls C:/Projects/eligia-core/.ai-playbook/backups/agents-caveman/
 # pick the newest .bak
-cp .ai-playbook/backups/agents/AGENTS.md.<ts>.bak ./AGENTS.md
+cp .ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak ./AGENTS.md
 python -m scripts.caveman off --project .  # sync the state file
 ```
 

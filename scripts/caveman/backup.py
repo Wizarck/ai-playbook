@@ -11,14 +11,17 @@ Layout
 The ``<area>`` namespace separates concerns (``agents``, ``mcp``, etc.) so a
 single restore call only touches the relevant family of files.
 
-Timestamp format: ``YYYY-MM-DDTHH-MM-SSZ`` (colons stripped — Windows
-filenames cannot contain ``:``).
+Timestamp format: ``YYYY-MM-DDTHH-MM-SS-ffffffZ`` (microseconds; colons
+stripped — Windows filenames cannot contain ``:``). Names are claimed with
+``O_EXCL``; on collision the stamp is bumped by 1 µs, so two backups in the
+same tick never overwrite each other and name order stays chronological.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 for _stream in (sys.stdout, sys.stderr):
@@ -32,8 +35,11 @@ STATE_DIR_NAME = ".ai-playbook"
 BACKUP_DIR_NAME = "backups"
 
 
-def _ts() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
+TS_FORMAT = "%Y-%m-%dT%H-%M-%S-%fZ"
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 def backup_dir(project_root: Path, area: str) -> Path:
@@ -52,7 +58,14 @@ def make_backup(project_root: Path, area: str, source_file: Path) -> Path:
         raise FileNotFoundError(f"source not found for backup: {source_file}")
     d = backup_dir(project_root, area)
     d.mkdir(parents=True, exist_ok=True)
-    target = d / f"{source_file.name}.{_ts()}.bak"
+    now = _now()
+    while True:
+        target = d / f"{source_file.name}.{now.strftime(TS_FORMAT)}.bak"
+        try:
+            os.close(os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            now += timedelta(microseconds=1)
     shutil.copy2(source_file, target)
     return target
 

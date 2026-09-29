@@ -411,7 +411,8 @@ def cmd_rollback(args: argparse.Namespace) -> int:
     gemini_json = root / ".gemini" / "settings.json"
 
     candidates = []
-    for area, source in (("agents", agents_md), ("mcp", mcp_json), ("mcp", gemini_json)):
+    agents_area = materialise_mod.AGENTS_AREA
+    for area, source in ((agents_area, agents_md), ("mcp", mcp_json), ("mcp", gemini_json)):
         latest = backup_mod.latest_backup(root, area, source.name)
         if latest is not None:
             candidates.append((area, source, latest))
@@ -439,7 +440,7 @@ def cmd_rollback(args: argparse.Namespace) -> int:
             why="no backups found to restore",
             where=f"caveman:rollback:{root.as_posix()}",
             fix=(
-                "nothing to roll back — backups live at .ai-playbook/backups/{agents,mcp}/. "
+                "nothing to roll back — backups live at .ai-playbook/backups/{agents-caveman,mcp}/. "
                 "Run `caveman on` then `off` to create some, or use the per-file .original.md "
                 "backup for compressed docs."
             ),
@@ -457,6 +458,24 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # Whole-file snapshot: if another feature (ponytail/graphify, shared
+    # "agents" area) backed up AGENTS.md AFTER caveman's latest snapshot, it
+    # mutated the file since, and restoring would silently drop its change.
+    for area, source, bp in candidates:
+        if area != agents_area:
+            continue
+        other = backup_mod.latest_backup(root, "agents", source.name)
+        if other is not None and _backup_stamp(other) > _backup_stamp(bp):
+            _emit_error(
+                why=f"another feature changed AGENTS.md after caveman's latest backup ({other.name})",
+                where="caveman:rollback:agents",
+                fix=(
+                    "turn that feature off first (e.g. `python -m scripts.ponytail off`), "
+                    "or use `caveman off` to remove only the caveman block."
+                ),
+            )
+            return 1
+
     restored = []
     for area, source, _backup in candidates:
         try:
@@ -470,6 +489,15 @@ def cmd_rollback(args: argparse.Namespace) -> int:
             )
             return 1
 
+    if any(r["area"] == agents_area for r in restored):
+        # Re-sync state with what the restored AGENTS.md actually contains.
+        state = toggle.read_state(root)
+        comps = {c: False for c in VALID_COMPONENTS} | (state.get("components") or {})
+        comps["response_style"] = materialise_mod.is_materialised(root)
+        state["components"] = comps
+        state["enabled"] = any(comps.values())
+        toggle.write_state(root, state)
+
     if args.json:
         print(json.dumps({"ok": True, "restored": restored}, indent=2, ensure_ascii=False))
     else:
@@ -477,6 +505,11 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         for r in restored:
             print(f"   {r['area']:7s} {r['source']}  ⟵  {r['backup']}")
     return 0
+
+
+def _backup_stamp(p: Path) -> str:
+    """Timestamp part of ``<name>.<ts>.bak`` (lexicographically chronological)."""
+    return p.name.rsplit(".", 2)[-2]
 
 
 def cmd_compress(args: argparse.Namespace) -> int:

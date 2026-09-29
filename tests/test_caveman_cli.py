@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from scripts.caveman import cli, toggle
+from scripts.caveman import materialise as cm_materialise
 
 
 @pytest.fixture
@@ -160,7 +161,7 @@ def test_rollback_requires_yes_when_backups_exist(project: Path, capsys: pytest.
     from scripts.caveman import backup as backup_mod
 
     (project / "AGENTS.md").write_text("# v1\n", encoding="utf-8")
-    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    backup_mod.make_backup(project, cm_materialise.AGENTS_AREA, project / "AGENTS.md")
     (project / "AGENTS.md").write_text("# v2 mutated\n", encoding="utf-8")
 
     rc = cli.main(["--project", str(project), "rollback"])
@@ -175,7 +176,7 @@ def test_rollback_with_yes_restores(project: Path, capsys: pytest.CaptureFixture
     from scripts.caveman import backup as backup_mod
 
     (project / "AGENTS.md").write_text("# original\n", encoding="utf-8")
-    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    backup_mod.make_backup(project, cm_materialise.AGENTS_AREA, project / "AGENTS.md")
     (project / "AGENTS.md").write_text("# mutated\n", encoding="utf-8")
 
     rc = cli.main(["--project", str(project), "rollback", "--yes"])
@@ -187,7 +188,7 @@ def test_rollback_list_shows_candidates_without_restoring(project: Path, capsys:
     from scripts.caveman import backup as backup_mod
 
     (project / "AGENTS.md").write_text("# v1\n", encoding="utf-8")
-    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    backup_mod.make_backup(project, cm_materialise.AGENTS_AREA, project / "AGENTS.md")
     (project / "AGENTS.md").write_text("# v2\n", encoding="utf-8")
 
     rc = cli.main(["--project", str(project), "rollback", "--list"])
@@ -197,6 +198,49 @@ def test_rollback_list_shows_candidates_without_restoring(project: Path, capsys:
     assert "would restore" in out
     # File NOT restored
     assert "# v2" in (project / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_rollback_restores_caveman_change_and_resyncs_state(project: Path) -> None:
+    """Regression S1-24: rollback undoes caveman's own AGENTS.md change."""
+    original = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert cli.main(["--project", str(project), "on"]) == 0
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == original
+    assert toggle.read_state(project)["components"]["response_style"] is False
+
+
+def test_rollback_ignores_other_features_agents_backups(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A ponytail/graphify backup (shared 'agents' area) is not caveman's to restore."""
+    from scripts.caveman import backup as backup_mod
+
+    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    (project / "AGENTS.md").write_text("# ponytail block added\n", encoding="utf-8")
+
+    rc = cli.main(["--project", str(project), "rollback", "--yes"])
+    assert rc == 1
+    assert "no backups found" in capsys.readouterr().err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == "# ponytail block added\n"
+
+
+def test_rollback_refuses_when_other_feature_changed_agents_md_later(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """caveman on -> ponytail on -> caveman rollback must not wipe ponytail's block."""
+    from scripts.ponytail import materialise as pm
+
+    assert cli.main(["--project", str(project), "on"]) == 0
+    pm.materialise(project, "full")
+    before = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "caveman/" in before
+    assert "ponytail/" in before
+
+    rc = cli.main(["--project", str(project), "rollback", "--yes"])
+    assert rc == 1
+    assert "changed AGENTS.md after" in capsys.readouterr().err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == before
 
 
 def test_rollback_when_no_backups(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
