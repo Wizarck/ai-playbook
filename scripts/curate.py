@@ -17,7 +17,9 @@ Pipeline (all-or-nothing):
         any finding — tainted content never reaches the LLM)
       → LLM proposes a curate-plan/v1 of MOVES (verbatim excerpts only)
       → validate structurally (_curate_validate: no fabrication, no traversal)
-      → snapshot BASE (pre-curate) → perform the moves → leave pointers.
+      → snapshot (BASE once + a per-run pre-curate backup) → write destinations
+        → only then splice pointers into sources; any write failure rolls every
+        written file back.
 
 The LLM never writes to disk; it only returns a plan. Idempotency is structural
 (D3): once prose is in a leaf doc (exempt), a re-run detects no drift and is a
@@ -38,6 +40,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 for _stream in (sys.stdout, sys.stderr):
@@ -53,7 +56,12 @@ if _PLAYBOOK_ROOT not in sys.path:
     sys.path.insert(0, _PLAYBOOK_ROOT)
 
 from scripts import _curate_validate  # noqa: E402
-from scripts._backup_helper import backup_base  # noqa: E402
+from scripts._backup_helper import (  # noqa: E402
+    BackupLocation,
+    backup_base,
+    backup_once,
+    restore_session,
+)
 from scripts._dispatcher_shape import (  # noqa: E402
     CANONICAL_DISPATCHER,
     collect_drift,
@@ -126,8 +134,11 @@ def _guardrail(text: str) -> list[str]:
 def _atomic_write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".curate-tmp")
-    tmp.write_text(content, encoding="utf-8", newline="\n")
-    tmp.replace(path)
+    try:
+        tmp.write_text(content, encoding="utf-8", newline="\n")
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)  # no stray temp file on failure
 
 
 # ---------------------------------------------------------------------------
@@ -180,17 +191,23 @@ def request_plan(drift_files: dict[str, str]) -> dict:
 def _apply_moves(
     consumer_root: Path, moves: list[_curate_validate.CurateMove],
 ) -> list[str]:
-    """Snapshot BASE, then perform each validated move. All-or-nothing is the
-    caller's contract (the plan was validated as a whole); here we execute the
-    moves sequentially, accumulating edits per file in memory then writing once."""
+    """Snapshot, then perform the validated moves all-or-nothing.
+
+    Every edit is computed in memory first. Destinations are written BEFORE
+    sources lose their prose, so a failure can never leave prose in neither
+    place; on any write failure every file already written is rolled back from
+    this run's snapshot (or removed, if this run created it)."""
     changes: list[str] = []
 
-    # Snapshot BASE for every file the plan touches (idempotent: once only).
+    # BASE (pre-playbook, captured once ever) plus a per-run snapshot: BASE is
+    # usually already taken at install, so it does not hold prose added since.
+    run_id = f"curate-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
     touched = {m.source_rel_path for m in moves} | {m.dest_rel_path for m in moves}
     for rel in sorted(touched):
         p = consumer_root / rel
         if p.is_file():
             backup_base(consumer_root, p)
+            backup_once(consumer_root, p, location=BackupLocation.CENTRAL, session_id=run_id)
 
     # Accumulate edits in memory keyed by rel_path so multiple moves compose.
     src_text: dict[str, str] = {}
@@ -208,23 +225,39 @@ def _apply_moves(
         )
         dest_append.setdefault(m.dest_rel_path, []).append(excerpt.strip())
 
-    # Write sources (pointers spliced in).
-    for rel, text in src_text.items():
-        _atomic_write(consumer_root / rel, text)
-        changes.append(f"✓ {rel}: prose relocated, pointer left")
-
-    # Append to destinations (create leaf docs as needed).
+    # Compute destination bodies (a dest that is also a source builds on its
+    # spliced text), then write destinations first, sources last.
+    writes: list[tuple[str, str, str]] = []  # (rel, content, change line)
     for rel, chunks in dest_append.items():
         dest = consumer_root / rel
-        existing = ""
-        if dest.is_file():
+        existing = src_text.pop(rel, None)
+        if existing is None and dest.is_file():
             existing = dest.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
-            if existing and not existing.endswith("\n"):
-                existing += "\n"
+        existing = existing or ""
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
         body = existing + "\n".join(c + "\n" for c in chunks)
-        _atomic_write(dest, body)
         verb = "appended to" if existing else "created"
-        changes.append(f"✓ {rel}: {verb} ({len(chunks)} chunk(s))")
+        writes.append((rel, body, f"✓ {rel}: {verb} ({len(chunks)} chunk(s))"))
+    for rel, text in src_text.items():
+        writes.append((rel, text, f"✓ {rel}: prose relocated, pointer left"))
+
+    existed = {rel for rel, _, _ in writes if (consumer_root / rel).is_file()}
+    done: list[str] = []
+    try:
+        for rel, content, line in writes:
+            _atomic_write(consumer_root / rel, content)
+            done.append(rel)
+            changes.append(line)
+    except OSError as exc:
+        restore_session(consumer_root, run_id)
+        for rel in done:
+            if rel not in existed:
+                (consumer_root / rel).unlink(missing_ok=True)
+        raise RuntimeError(
+            f"{exc}; rolled back {len(done)} already-written file(s) — no file was changed "
+            f"(pre-curate snapshot: session `{run_id}` in .ai-playbook-state/backups)"
+        ) from exc
 
     return changes
 
