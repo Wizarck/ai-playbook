@@ -2,25 +2,32 @@
 
 Removes the submodule + state files + playbook-managed marker blocks. Files
 that the consumer customised remain — only the playbook-canonical blocks
-are stripped (or restored from the oldest ``.bak`` snapshot if available).
+are stripped (or restored from the BASE pre-playbook snapshot if available).
 
 Pipeline
 --------
-1. Read ``.ai-playbook-state/backups/index.json``. For each managed file,
-   the oldest record IS the pre-playbook snapshot (if the consumer ran
-   ``apply_config`` at all). When ``--restore-from-bak`` is passed, those
-   originals are restored verbatim.
-2. For files without a pre-playbook .bak, strip the marker blocks
-   (``parse_blocks`` → write back only the custom segments).
-3. ``git submodule deinit -f .ai-playbook`` + ``git rm -f .ai-playbook``.
-4. Remove ``.ai-playbook-state/``.
-5. Print summary.
+1. Read ``.ai-playbook-state/backups/index.json`` and restore EVERY
+   ``session_id == "base"`` record (the pre-playbook snapshot bootstrap took
+   of each file it overwrote: AGENTS.md, CLAUDE.md, docs/runbook.md, ...).
+   Ordinary (post-playbook) backups are never restored: they would roll the
+   consumer's latest edits back to a stale playbook-rendered version.
+2. For files without a BASE snapshot, strip the marker blocks
+   (``parse_blocks`` → write back only the custom segments) and the
+   caveman/ponytail/graphify ``auto-managed`` ruleset blocks in AGENTS.md.
+3. Drop every hook in ``.claude/settings*.json`` whose command points into
+   ``.ai-playbook/`` (once the submodule is gone it exits 2, which blocks
+   every Claude Code tool call).
+4. ``git submodule deinit -f .ai-playbook`` + ``git rm -f .ai-playbook``.
+5. Remove ``.ai-playbook-state/`` — unless it holds a BASE snapshot that was
+   not restored (the only copy of the consumer's original): kept + warned.
+6. Print summary.
 
 Idempotent: running twice has no incremental effect.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -41,8 +48,8 @@ if _PLAYBOOK_ROOT not in sys.path:
     sys.path.insert(0, _PLAYBOOK_ROOT)
 
 from scripts._backup_helper import (  # noqa: E402
+    BASE_SESSION_ID,
     BackupRecord,
-    base_record_for,
     read_index,
     restore_backup,
 )
@@ -71,6 +78,7 @@ class UninstallReport:
     submodule_removed: bool = False
     state_dir_removed: bool = False
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -78,35 +86,25 @@ class UninstallReport:
 # ---------------------------------------------------------------------------
 
 
-def _oldest_backup_for(records: list[BackupRecord], rel_path: str) -> BackupRecord | None:
-    matches = [r for r in records if r.rel_path == rel_path]
-    return matches[0] if matches else None  # records are oldest-first
+def _base_records(records: list[BackupRecord]) -> list[BackupRecord]:
+    """Earliest BASE (pre-playbook, D8) record per file, for every file.
 
-
-def _restore_record_for(
-    consumer_root: Path, records: list[BackupRecord], rel_path: str,
-) -> BackupRecord | None:
-    """Prefer the explicit BASE (pre-playbook) snapshot; fall back to the oldest
-    ordinary backup. The base tag is the authoritative pre-playbook anchor (D8)
-    even when later backups have shuffled the index ordering."""
-    base = base_record_for(consumer_root, rel_path)
-    if base is not None:
-        return base
-    return _oldest_backup_for(records, rel_path)
+    Only BASE is restored: an ordinary backup is a post-playbook version, and
+    restoring it would overwrite the consumer's latest edits with stale content.
+    """
+    earliest: dict[str, BackupRecord] = {}
+    for r in sorted(records, key=lambda rec: rec.timestamp):
+        if r.session_id == BASE_SESSION_ID:
+            earliest.setdefault(r.rel_path, r)
+    return list(earliest.values())
 
 
 def restore_originals(consumer_root: Path, report: UninstallReport) -> None:
-    records = read_index(consumer_root)
-    if not records:
-        return
-    for rel in MANAGED_PATHS:
-        record = _restore_record_for(consumer_root, records, rel)
-        if record is None:
-            continue
+    for record in _base_records(read_index(consumer_root)):
+        rel = record.rel_path
         try:
-            dest = restore_backup(consumer_root, record)
+            restore_backup(consumer_root, record)
             report.restored.append(f"{rel} ← {record.backup_rel_path}")
-            del dest  # silence linter
         except FileNotFoundError as exc:
             report.errors.append(f"restore {rel}: {exc}")
 
@@ -141,8 +139,12 @@ def strip_markers_from_file(path: Path) -> bool:
     return False
 
 
+def _restored_paths(report: UninstallReport) -> set[str]:
+    return {entry.split(" ← ", 1)[0] for entry in report.restored}
+
+
 def strip_managed_markers(consumer_root: Path, report: UninstallReport) -> None:
-    already_restored = {entry.split(" ", 1)[0] for entry in report.restored}
+    already_restored = _restored_paths(report)
     for rel in MANAGED_PATHS:
         if rel in already_restored:
             continue
@@ -156,6 +158,78 @@ def strip_managed_markers(consumer_root: Path, report: UninstallReport) -> None:
             continue
         if changed:
             report.stripped.append(rel)
+    if "AGENTS.md" not in already_restored:
+        _strip_feature_blocks(consumer_root, report)
+
+
+def _strip_feature_blocks(consumer_root: Path, report: UninstallReport) -> None:
+    """Remove the caveman/ponytail/graphify ``auto-managed`` ruleset blocks from
+    AGENTS.md; they instruct the agent to run toggles that no longer exist."""
+    from scripts.caveman import materialise as caveman_m
+    from scripts.graphify import materialise as graphify_m
+    from scripts.ponytail import materialise as ponytail_m
+
+    for name, mod in (("caveman", caveman_m), ("ponytail", ponytail_m), ("graphify", graphify_m)):
+        try:
+            if mod.strip(consumer_root) is not None:
+                report.stripped.append(f"AGENTS.md ({name} block)")
+        except (OSError, ValueError) as exc:
+            report.errors.append(f"strip {name} block from AGENTS.md: {exc}")
+
+
+def _is_playbook_hook(hook: object) -> bool:
+    if not isinstance(hook, dict):
+        return False
+    return ".ai-playbook/" in str(hook.get("command", "")).replace("\\", "/")
+
+
+def remove_playbook_hooks(consumer_root: Path, report: UninstallReport) -> None:
+    """Drop hooks whose command runs a script inside ``.ai-playbook/``.
+
+    Once the submodule is removed those commands fail with exit 2, which
+    Claude Code treats as "block": every matched tool call would be vetoed.
+    """
+    for rel in (".claude/settings.json", ".claude/settings.local.json"):
+        p = consumer_root / rel
+        if not p.is_file():
+            continue
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            report.errors.append(
+                f"{rel}: cannot parse ({exc}); remove hooks referencing .ai-playbook/ by hand"
+            )
+            continue
+        hooks = data.get("hooks") if isinstance(data, dict) else None
+        if not isinstance(hooks, dict):
+            continue
+        changed = False
+        for event in list(hooks):
+            groups = hooks[event]
+            if not isinstance(groups, list):
+                continue
+            kept_groups = []
+            for group in groups:
+                inner = group.get("hooks") if isinstance(group, dict) else None
+                if isinstance(inner, list):
+                    kept = [h for h in inner if not _is_playbook_hook(h)]
+                    if len(kept) != len(inner):
+                        changed = True
+                        if not kept:
+                            continue
+                        group = {**group, "hooks": kept}
+                kept_groups.append(group)
+            if kept_groups:
+                hooks[event] = kept_groups
+            else:
+                del hooks[event]
+        if not changed:
+            continue
+        if not hooks:
+            del data["hooks"]
+        p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                     encoding="utf-8", newline="\n")
+        report.stripped.append(rel)
 
 
 # ---------------------------------------------------------------------------
@@ -202,9 +276,26 @@ def remove_submodule(consumer_root: Path, report: UninstallReport) -> None:
             pass
 
 
+def _unrestored_base(consumer_root: Path, report: UninstallReport) -> list[str]:
+    restored = _restored_paths(report)
+    return sorted(
+        r.rel_path for r in _base_records(read_index(consumer_root))
+        if r.rel_path not in restored
+    )
+
+
 def remove_state_dir(consumer_root: Path, report: UninstallReport) -> None:
     state_dir = consumer_root / ".ai-playbook-state"
     if not state_dir.exists():
+        return
+    pending = _unrestored_base(consumer_root, report)
+    if pending:
+        # BASE snapshots are the only copy of the consumer's originals.
+        report.warnings.append(
+            "kept .ai-playbook-state/: BASE (pre-playbook) snapshot not restored for "
+            f"{', '.join(pending)}. Copy what you need from .ai-playbook-state/backups/ "
+            "(index.json maps each file), then delete the dir by hand."
+        )
         return
     try:
         shutil.rmtree(state_dir)
@@ -228,21 +319,26 @@ def uninstall(
     report = UninstallReport(target=consumer_root)
 
     if dry_run:
-        records = read_index(consumer_root)
+        base = {r.rel_path for r in _base_records(read_index(consumer_root))}
+        for rel in sorted(base) if restore_from_bak else []:
+            report.restored.append(f"(dry-run) would restore {rel}")
         for rel in MANAGED_PATHS:
-            if restore_from_bak and _restore_record_for(consumer_root, records, rel) is not None:
-                report.restored.append(f"(dry-run) would restore {rel}")
-            elif (consumer_root / rel).is_file():
+            if (rel not in base or not restore_from_bak) and (consumer_root / rel).is_file():
                 report.stripped.append(f"(dry-run) would strip markers from {rel}")
         if (consumer_root / ".ai-playbook").exists():
             report.submodule_removed = True
-        if not keep_state_dir and (consumer_root / ".ai-playbook-state").exists():
+        if (
+            not keep_state_dir
+            and (consumer_root / ".ai-playbook-state").exists()
+            and (restore_from_bak or not base)
+        ):
             report.state_dir_removed = True
         return report
 
     if restore_from_bak:
         restore_originals(consumer_root, report)
     strip_managed_markers(consumer_root, report)
+    remove_playbook_hooks(consumer_root, report)
     remove_submodule(consumer_root, report)
     if not keep_state_dir:
         remove_state_dir(consumer_root, report)
@@ -259,14 +355,16 @@ def main(argv: list[str] | None = None) -> int:
         prog="uninstall",
         description=(
             "Uninstall ai-playbook integration from a consumer project. "
-            "Restores files from the oldest .bak snapshot (or strips marker "
-            "blocks if no .bak exists), removes the submodule + state dir."
+            "Restores files from their BASE (pre-playbook) snapshot (or strips "
+            "marker blocks if none exists), drops hooks pointing into "
+            ".ai-playbook/, removes the submodule + state dir."
         ),
     )
     parser.add_argument("--target", type=Path, default=None,
                         help="Consumer root (default: cwd).")
     parser.add_argument("--no-restore", action="store_true",
-                        help="Skip restore-from-.bak. Just strip markers.")
+                        help="Skip restore-from-BASE. Just strip markers "
+                             "(.ai-playbook-state/ is then kept when it holds BASE snapshots).")
     parser.add_argument("--keep-state-dir", action="store_true",
                         help="Keep .ai-playbook-state/ on disk (useful for inspection).")
     parser.add_argument("--dry-run", action="store_true",
@@ -310,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {entry}")
     print(f"submodule removed: {report.submodule_removed}")
     print(f"state dir removed: {report.state_dir_removed}")
+    for entry in report.warnings:
+        print(f"WARN: {entry}")
     if report.errors:
         print(f"errors ({len(report.errors)}):")
         for entry in report.errors:
