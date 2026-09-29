@@ -530,7 +530,7 @@ def pretooluse(event: dict) -> HookVerdict | None:
         clauses = evaluate(_description_text(issue), _latest_comment(issue), spec)
         if all(c.ok for c in clauses):
             return None
-        return block(render(clauses, spec, remote=True))
+        return block(render(clauses, spec))
 
     # Payload-only. We cannot ask what transition 31 means, so the consumer must
     # have said. Unset = this rule is not for you.

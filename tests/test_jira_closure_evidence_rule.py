@@ -511,3 +511,40 @@ def test_prose_bullets_are_not_treated_as_claims():
 def test_a_single_enumerated_item_is_not_judged_by_c4():
     """NEGATIVE CONTROL: counting to one adds nothing over C3."""
     assert "C4" not in _failed("", "FIXED\n1. done - app/x.py:1\n")
+
+
+# ---------------------------------------------------------------------------
+# Remote path (Jira credentials present)
+# ---------------------------------------------------------------------------
+
+
+def _remote_issue(comment: str) -> dict:
+    return {
+        "fields": {
+            "description": "",
+            "issuetype": {"name": "Bug"},
+            "labels": [],
+            "comment": {"comments": [{"body": comment}] if comment else []},
+        },
+        "transitions": [{"id": "31", "to": {"statusCategory": {"key": "done"}}}],
+    }
+
+
+def _stub_remote(monkeypatch, issue: dict) -> None:
+    import scripts.issue_sync as issue_sync
+    monkeypatch.setattr(issue_sync, "_load_jira_creds", lambda: object())
+    monkeypatch.setattr(RULE, "_fetch", lambda creds, key: issue)
+
+
+def test_remote_path_blocks_a_closure_without_evidence(monkeypatch):
+    """With creds present the remote branch used to raise TypeError
+    (render(..., remote=True)) and the dispatcher failed it open."""
+    _stub_remote(monkeypatch, _remote_issue(""))
+    verdict = RULE.pretooluse(_transition_event("GPLO-1"))
+    assert verdict is not None and verdict.verdict == "block"
+
+
+def test_remote_path_allows_a_closure_with_evidence(monkeypatch):
+    """NEGATIVE CONTROL."""
+    _stub_remote(monkeypatch, _remote_issue(GOOD))
+    assert RULE.pretooluse(_transition_event("GPLO-1")) is None
