@@ -189,11 +189,18 @@ Authoritative module: [`scripts/caveman/policy.py`](../../scripts/caveman/policy
 `python -m scripts.uninstall [--target PATH] [--dry-run]`:
 
 1. Read `<consumer>/.ai-playbook-state/backups/index.json`.
-2. For each managed file, restore the OLDEST `.bak` (pre-playbook snapshot).
-3. For files without a pre-playbook `.bak`, strip marker blocks (keeping
-   consumer custom segments verbatim).
-4. `git submodule deinit -f .ai-playbook` + `git rm -f .ai-playbook`.
-5. Remove `.ai-playbook-state/` (unless `--keep-state-dir`).
+2. Restore every BASE record (`session_id: "base"`, the pre-playbook
+   snapshot bootstrap took of each file it overwrote: AGENTS.md, CLAUDE.md,
+   docs/runbook.md, ...). Ordinary post-playbook backups are never restored.
+3. For files without a BASE snapshot, strip marker blocks (keeping
+   consumer custom segments verbatim) and the caveman/ponytail/graphify
+   `auto-managed` blocks in AGENTS.md.
+4. Drop every hook in `.claude/settings*.json` whose command points into
+   `.ai-playbook/` (it would exit 2 and block every tool call).
+5. `git submodule deinit -f .ai-playbook` + `git rm -f .ai-playbook`.
+6. Remove `.ai-playbook-state/` (unless `--keep-state-dir`, or a BASE
+   snapshot was not restored, e.g. under `--no-restore`: then it is kept and
+   a `WARN:` line names the files).
 
 Pre-commit hooks in templates ship with graceful shims
 (`bash -c '[ ! -d .ai-playbook ] || python ...'`): with the submodule
