@@ -18,7 +18,8 @@ On each run the materialiser:
 - removes only the directories it previously installed that are no longer desired
   (source removal or disable),
 - NEVER deletes or modifies a skill directory it did not install — user-added
-  skills survive untouched.
+  skills survive untouched. A user dir whose name collides with a playbook
+  skill is left alone and reported as an error (exit 1) until renamed.
 
 When no manifest entry exists for a mirror (a consumer whose mirrors predate this
 capability), the owned set is seeded as ``present ∩ (desired ∪ ever_owned)``,
@@ -193,14 +194,23 @@ def _ever_owned(source: Path) -> set[str]:
 
 
 def _rmtree(path: Path) -> None:
-    """``shutil.rmtree`` tolerant of Windows read-only files (git perms)."""
+    """Remove a skill dir; raise ``OSError`` if anything is left behind.
 
-    def _onerror(func, p, _exc_info):  # noqa: ANN001
-        try:
+    A symlinked dir is unlinked, never followed. On Windows a
+    ``PermissionError`` (read-only file from git perms) is retried once after
+    clearing the read-only bit; every other failure propagates.
+    """
+    if path.is_symlink():
+        path.unlink()
+        return
+
+    def _onerror(func, p, exc_info):  # noqa: ANN001
+        exc = exc_info[1]
+        if os.name == "nt" and isinstance(exc, PermissionError) and not os.path.islink(p):
             os.chmod(p, stat.S_IWRITE)
-            func(p)
-        except OSError:
-            pass
+            func(p)  # a second failure propagates
+            return
+        raise exc
 
     shutil.rmtree(path, onerror=_onerror)
 
@@ -255,6 +265,9 @@ def _sync_one(
 
     changed = False
     errors: list[str] = []
+    removed: list[str] = []
+    kept_owned: set[str] = set()  # stale dirs we failed to remove — retry next run
+    collisions: set[str] = set()
 
     # 1. Remove playbook-owned directories that are no longer desired.
     for name in stale:
@@ -262,14 +275,28 @@ def _sync_one(
         if not dry_run:
             try:
                 _rmtree(target / name)
+                removed.append(name)
             except OSError as exc:
                 errors.append(f"{target / name}: {exc}")
+                kept_owned.add(name)
+        else:
+            removed.append(name)
 
     # 2. Per-skill sync of the desired skills — create/update OUR dirs only.
     for name in sorted(desired):
         src_dir = source / name
         tgt_dir = target / name
         if _dir_fingerprint(src_dir) == _dir_fingerprint(tgt_dir) and tgt_dir.is_dir():
+            continue
+        if name not in owned_prev and (tgt_dir.exists() or tgt_dir.is_symlink()):
+            # A dir we never installed, with different content: the user's.
+            # Never overwrite it — surface the collision instead.
+            collisions.add(name)
+            errors.append(
+                f"{tgt_dir}: not installed by the playbook but collides with playbook "
+                f"skill '{name}'; left untouched. FIX: rename or remove it, or disable "
+                f"'{name}' in .ai-playbook-state/skills-enforce.json."
+            )
             continue
         changed = True
         if not dry_run:
@@ -293,7 +320,8 @@ def _sync_one(
             f"{prefix}{target}: {verb} "
             f"({len(desired)} skills; {len(user_preserved)} user-kept)"
         )
-    return _MirrorSync(changed, err, set(desired), stale, user_preserved)
+    owned_now = (desired - collisions) | kept_owned
+    return _MirrorSync(changed, err, owned_now, removed, user_preserved + sorted(collisions))
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +421,8 @@ def materialise_skills(
 
     if result.errors:
         result.summary = f"materialisation failed: {len(result.errors)} error(s)."
+        for err in result.errors:
+            print(f"❌ {err}", file=sys.stderr)
         return result
 
     if result.mirrors_rewritten == 0:
