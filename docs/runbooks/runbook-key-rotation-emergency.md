@@ -55,12 +55,13 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
    | Atlassian API token | id.atlassian.com → Security → API tokens → Revoke. |
    | Google service account | console.cloud.google.com → IAM → Service Accounts → Keys → Delete. |
    | Cloudflare token | dash.cloudflare.com → My Profile → API Tokens → Delete. |
-   | SOPS / age key | rotate the master key — see Step 6. |
+   | SOPS / age key | rotate the master key — run Step 6 NOW, before Steps 3–4. Anything written to the store while it is still encrypted to the leaked key is readable by whoever holds that key. |
 
 3. **Issue a replacement credential.**
    Same vendor UI, "Create new key". Scope it as narrowly as possible (read-only when read-only suffices).
 
 4. **Update the secrets store.**
+   If the SOPS / age key itself leaked, Step 6 must already be done: the store has to be encrypted to the new key before it receives replacement credentials.
    ```bash
    sops <repo>/secrets/secrets.env   # decrypts in-place; replace the value
    # Save and close — sops re-encrypts.
@@ -78,16 +79,22 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
    systemctl --user restart <service>
    ```
 
-6. **If the leaked credential was the SOPS / age master key**, rotate recursively:
+6. **If the leaked credential was the SOPS / age master key**, re-key the store. Do this before Steps 3–4 (see Step 2).
    ```bash
-   age-keygen -o ~/.config/sops/age/keys-new.txt
-   for f in $(find . -name 'secrets*.env'); do
-       sops -d "$f" | sops -e --age <new-pub-key> /dev/stdin > "$f.new"
+   set -euo pipefail
+   age-keygen -o ~/.config/sops/age/keys-new.txt        # prints the new public key
+   # Decrypting needs the old key, verifying needs the new one: load both.
+   cat ~/.config/sops/age/keys.txt ~/.config/sops/age/keys-new.txt > ~/.config/sops/age/keys-both.txt
+   export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys-both.txt
+   for f in $(git ls-files '*secrets*.env'); do
+       sops -d "$f" \
+         | sops -e --input-type dotenv --output-type dotenv --age <new-pub-key> /dev/stdin > "$f.new"
+       sops -d --input-type dotenv --output-type dotenv "$f.new" > /dev/null   # proves the new file decrypts
        mv "$f.new" "$f"
    done
-   # Replace the old key, commit.
    ```
-   This is the "rotation of the rotation key" — slow, error-prone, do it carefully.
+   `pipefail` + `set -e` stop the loop on the first failure, before `mv`, so an original is never replaced by an empty or unreadable file. Then point `.sops.yaml` recipients at the new public key, replace `keys.txt` with the new key, delete `keys-both.txt`, and commit.
+   The old ciphertext stays in git history and the leaked key still decrypts it: every secret that was in the store counts as leaked and goes through Steps 2–4.
 
 7. **Force-push history rewrite IF the leak was in a published commit.**
    ```bash
