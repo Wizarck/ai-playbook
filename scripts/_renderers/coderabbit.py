@@ -12,6 +12,12 @@ This renderer performs a structural YAML merge:
 
 The output is valid YAML that CodeRabbit can consume directly — no more
 "consumer extras as comments" gap from the Phase-4 minimal version.
+
+When the file already exists (``current_text``) and is a YAML mapping, the
+extras are merged into IT rather than into the template, so consumer keys
+(``profile``, ``tone_instructions``, …) survive; with no extras the current
+file is returned untouched. A current file that is not a YAML mapping is
+regenerated from the template (the orchestrator backs it up first).
 """
 from __future__ import annotations
 
@@ -82,19 +88,29 @@ def render(
     template: str,
     substitutions: dict[str, str],
     bundle: dict,
+    current_text: str | None = None,
 ) -> str:
     body = _apply_subs(template, substitutions)
+    data: Any = None
+    if current_text:
+        try:
+            data = yaml.safe_load(current_text)
+        except yaml.YAMLError:
+            data = None
+        if isinstance(data, dict):
+            body = current_text  # merge into the consumer's file, not the template
     extras = bundle.get("coderabbit_extras") or {}
     extra_filters = extras.get("path_filters")
     extra_instructions = extras.get("path_instructions")
     if not extra_filters and not extra_instructions:
         return body
 
-    try:
-        data: Any = yaml.safe_load(body)
-    except yaml.YAMLError:
-        # Fall back to plain template if YAML parse fails (defensive).
-        return body
+    if not isinstance(data, dict):
+        try:
+            data = yaml.safe_load(body)
+        except yaml.YAMLError:
+            # Fall back to plain template if YAML parse fails (defensive).
+            return body
     if not isinstance(data, dict):
         return body
 

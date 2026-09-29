@@ -271,7 +271,13 @@ def test_pre_commit_renders_baseline_and_extras() -> None:
     )
     assert "trailing-whitespace" in out  # canonical preserved
     assert "custom-hook" in out
-    assert "local-extras" in out
+    # pre-commit rejects any non-`local` repo without `rev`, so the consumer
+    # group must be a second `repo: local` (was `local-extras`: every commit blocked).
+    import yaml
+    repos = yaml.safe_load(out)["repos"]
+    assert [r["repo"] for r in repos][-1] == "local"
+    assert all(r["repo"] in ("local", "meta") or "rev" in r for r in repos)
+    assert repos[-1]["hooks"] == [{"id": "custom-hook", "language": "system"}]
 
 
 def test_pre_commit_bool_fields_render_lowercase_yaml() -> None:
@@ -307,6 +313,76 @@ def test_pre_commit_empty_extras_returns_canonical() -> None:
     out = render_pre_commit(template=template, substitutions={}, bundle={})
     assert "local-extras" not in out
     assert "local" in out
+
+
+_PRE_COMMIT_TMPL = (
+    "# header\n"
+    "repos:\n"
+    "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+    "  - repo: local\n"
+    "    hooks: []\n"
+    "# <<< ai-playbook:end playbook-hooks <<<\n"
+)
+
+
+def test_pre_commit_extras_values_round_trip() -> None:
+    import yaml
+    hook = {"id": "x", "entry": "bash -c 'a: b # not a comment'", "language": "system",
+            "args": ["--k", "v: w"], "pass_filenames": False, "exclude": None}
+    out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                            bundle={"pre_commit_extras": {"hooks": [hook]}})
+    assert yaml.safe_load(out)["repos"][-1]["hooks"] == [hook]
+
+
+def test_pre_commit_merges_into_current_file() -> None:
+    """Consumer repos/comments outside the marker block survive a re-render;
+    a legacy `local-extras` region is replaced, and re-rendering is idempotent."""
+    import yaml
+    current = (
+        "# my own header\n"
+        "repos:\n"
+        "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+        "  - repo: local\n"
+        "    hooks: [{id: old, entry: x, language: system}]\n"
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "  - repo: https://github.com/astral-sh/ruff-pre-commit\n"
+        "    rev: v0.5.0\n"
+        "    hooks:\n"
+        "      - id: ruff\n"
+        "\n"
+        "# Consumer hooks (preserved across apply_config)\n"
+        "  - repo: local-extras\n"
+        "    hooks:\n"
+        "      - id: stale\n"
+        "        language: system\n"
+    )
+    bundle = {"pre_commit_extras": {"hooks": [{"id": "new", "language": "system"}]}}
+    out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                            bundle=bundle, current_text=current)
+    assert out.startswith("# my own header\n")
+    repos = yaml.safe_load(out)["repos"]
+    assert [r["repo"] for r in repos] == [
+        "local", "https://github.com/astral-sh/ruff-pre-commit", "local",
+    ]
+    assert repos[0]["hooks"] == []  # canonical block refreshed from template
+    assert repos[-1]["hooks"] == [{"id": "new", "language": "system"}]
+    assert "stale" not in out and "local-extras" not in out
+    again = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                              bundle=bundle, current_text=out)
+    assert again == out
+    dropped = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                                bundle={"pre_commit_extras": {"hooks": []}},
+                                current_text=out)
+    assert "Consumer hooks" not in dropped and "ruff" in dropped
+
+
+def test_pre_commit_regenerates_current_file_that_is_not_yaml() -> None:
+    import yaml
+    corrupt = "# a `# >>> x >>>\n` b\n` block below\nrepos: []\n"
+    out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                            bundle={}, current_text=corrupt)
+    assert out.startswith("# header\n")
+    yaml.safe_load(out)
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +456,26 @@ def test_coderabbit_no_extras_returns_canonical() -> None:
     assert "language: en-US" in out
 
 
+def test_coderabbit_merges_extras_into_current_file() -> None:
+    import yaml
+    template = "language: en-US\nreviews:\n  profile: chill\n"
+    current = (
+        "language: en-US\ntone_instructions: be terse\n"
+        "reviews:\n  profile: assertive\n  path_filters: ['!old/**']\n"
+    )
+    out = render_coderabbit(
+        template=template, substitutions={}, current_text=current,
+        bundle={"coderabbit_extras": {"path_filters": ["!new/**"]}},
+    )
+    parsed = yaml.safe_load(out)
+    assert parsed["tone_instructions"] == "be terse"
+    assert parsed["reviews"]["profile"] == "assertive"
+    assert parsed["reviews"]["path_filters"] == ["!old/**", "!new/**"]
+    # No extras: the consumer's file is returned untouched.
+    assert render_coderabbit(template=template, substitutions={},
+                             bundle={}, current_text=current) == current
+
+
 # ---------------------------------------------------------------------------
 # .claude/settings.json + .local
 # ---------------------------------------------------------------------------
@@ -445,6 +541,66 @@ def test_mcp_project_appends_extras() -> None:
     assert "hindsight:" in out
     assert "custom-server:" in out
     assert "command: node" in out
+
+
+_MCP_TMPL = (
+    "schema: mcp-servers/v1\n"
+    "# >>> ai-playbook:begin id=project-servers-baseline >>>\n"
+    "servers:\n"
+    "  hindsight:\n"
+    "    id: hindsight\n"
+    "# <<< ai-playbook:end project-servers-baseline <<<\n"
+)
+
+
+def test_mcp_project_extras_round_trip() -> None:
+    import yaml
+    servers = {
+        "github": {
+            "id": "github",
+            "description": "GitHub: issues + PRs (tracks #123-style refs)",
+            "endpoint": None,
+            "enabled": False,
+            "env": {"required": ["GH_TOKEN"], "note": "a: b # c"},
+        },
+    }
+    out = render_mcp_project(template=_MCP_TMPL, substitutions={},
+                             bundle={"mcp_project_servers": servers})
+    loaded = yaml.safe_load(out)["servers"]
+    assert loaded["github"] == servers["github"]
+    assert loaded["hindsight"] == {"id": "hindsight"}
+
+
+def test_mcp_project_merges_into_current_file() -> None:
+    import yaml
+    current = (
+        "schema: mcp-servers/v1\n"
+        "project: mine  # consumer comment\n"
+        "# >>> ai-playbook:begin id=project-servers-baseline >>>\n"
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "# <<< ai-playbook:end project-servers-baseline <<<\n"
+        "  handwritten:\n"
+        "    id: handwritten\n"
+        "\n"
+        "# Consumer-added project servers (preserved across apply_config)\n"
+        "  legacy:\n"
+        "    endpoint: None\n"
+    )
+    bundle = {"mcp_project_servers": {
+        "handwritten": {"id": "handwritten", "x": 1},  # consumer-owned: not duplicated
+        "legacy": {"id": "legacy", "endpoint": None},
+    }}
+    out = render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                             current_text=current)
+    assert "project: mine  # consumer comment\n" in out
+    loaded = yaml.safe_load(out)["servers"]
+    assert loaded["handwritten"] == {"id": "handwritten"}
+    assert loaded["legacy"] == {"id": "legacy", "endpoint": None}
+    assert out.count("legacy:") == 1
+    assert render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                              current_text=out) == out
 
 
 def test_mcp_project_empty_extras() -> None:
