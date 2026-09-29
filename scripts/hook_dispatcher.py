@@ -221,13 +221,23 @@ _MODULE_CACHE: dict[str, Any] = {}
 _LOAD_ERRORS: dict[str, str] = {}
 
 
-def _consumer_root(start: Path | None = None) -> Path:
-    """Walk up for the consumer project root (.gitmodules or AGENTS.md); cwd fallback."""
-    cur = (start or Path.cwd()).resolve()
-    for parent in (cur, *cur.parents):
-        if (parent / ".gitmodules").is_file() or (parent / "AGENTS.md").is_file():
-            return parent
-    return cur
+def _consumer_root(event: dict[str, Any] | None = None) -> Path:
+    """Resolve the consumer project root whose toggles govern this event.
+
+    Order: ``$CLAUDE_PROJECT_DIR`` (set by Claude Code to the session's project,
+    immune to ``cd`` drift) → the event's ``cwd`` → process cwd, each walked up
+    with the shared ``find_project_root`` (skips ``.ai-playbook/`` checkouts, so a
+    drift into the submodule never resolves to the submodule itself). Falls back
+    to the raw start dir when no ``AGENTS.md`` is found.
+    """
+    from scripts._project_root import find_project_root
+
+    env = os.environ.get("CLAUDE_PROJECT_DIR")
+    if env and Path(env).is_dir():
+        return Path(env).resolve()
+    cwd = (event or {}).get("cwd")
+    start = Path(cwd) if isinstance(cwd, str) and cwd and Path(cwd).is_dir() else Path.cwd()
+    return find_project_root(start) or start.resolve()
 
 
 def _load_rule_module(path: Path | None) -> Any:
@@ -318,13 +328,16 @@ def run_rules(rules: list[Rule], hook_event: str, event: dict[str, Any], *,
     from scripts.rules._hook_contract import BLOCK, WARN
     from scripts.rules._hook_contract import tool_name as _tn
 
-    consumer_root = consumer_root or _consumer_root()
+    consumer_root = consumer_root or _consumer_root(event)
     tool = _tn(event)
     llm = str(event.get("llm") or event.get("model") or "claude")
     entry = "posttooluse" if hook_event == "PostToolUse" else "pretooluse"
 
+    # Stdlib-only toggle reader. NOT `scripts.rules_toggle`: that module
+    # self-installs jsonschema at import and raises SystemExit(2) when it can't,
+    # which escaped `except Exception` and blocked every tool call.
     try:
-        from scripts.rules_toggle import is_rule_disabled
+        from scripts._rules_toggle_state import is_rule_disabled
     except Exception:  # noqa: BLE001
         is_rule_disabled = None  # type: ignore[assignment]
 
