@@ -217,6 +217,46 @@ def test_directory_orphan_skips_when_files_tracked(tmp_path: Path) -> None:
     assert target_dir.exists(), "tracked dir must NOT be deleted"
 
 
+def test_directory_orphan_keeps_git_dir_of_an_active_submodule(tmp_path: Path) -> None:
+    """`.git/modules/<name>` is never git-tracked, so the ls-files probe always
+    passed and `--apply` deleted the git dir of a REGISTERED submodule,
+    losing its unpushed commits."""
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    for args in (["init", "--quiet"], ["config", "user.email", "t@example.com"],
+                 ["config", "user.name", "T"], ["commit", "--allow-empty", "-q", "-m", "init"]):
+        subprocess.run(["git", *args], cwd=str(upstream), check=True)
+    consumer = _seed_consumer(tmp_path)
+    subprocess.run(
+        ["git", "-c", "protocol.file.allow=always", "submodule", "add", "--quiet",
+         str(upstream), ".skills-sources"],
+        cwd=str(consumer), check=True, capture_output=True,
+    )
+    git_dir = consumer / ".git" / "modules" / ".skills-sources"
+    assert git_dir.is_dir()
+    manifest = _write_manifest(tmp_path, [_base_entry(
+        id="skills-sources-git-modules-orphan", safety="directory_orphan",
+        path=".git/modules/.skills-sources",
+    )])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert git_dir.is_dir(), "git dir of a registered submodule was deleted"
+
+
+def test_directory_orphan_deletes_git_dir_of_a_removed_submodule(tmp_path: Path) -> None:
+    """NEGATIVE CONTROL: once .gitmodules no longer registers it, it is an orphan."""
+    consumer = _seed_consumer(tmp_path)
+    git_dir = consumer / ".git" / "modules" / ".skills-sources"
+    git_dir.mkdir(parents=True)
+    manifest = _write_manifest(tmp_path, [_base_entry(
+        id="skills-sources-git-modules-orphan", safety="directory_orphan",
+        path=".git/modules/.skills-sources",
+    )])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert not git_dir.exists()
+
+
 def test_file_mtime_and_drained_passes_when_old_and_drained(tmp_path: Path) -> None:
     consumer = _seed_consumer(tmp_path)
     queue = consumer / ".ai-playbook" / "hindsight-queue.jsonl"
