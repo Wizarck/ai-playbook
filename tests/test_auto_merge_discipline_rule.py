@@ -49,6 +49,22 @@ def test_failing_ci_blocks() -> None:
         assert _amd.validate("123") == 1
 
 
+@pytest.mark.parametrize("state", ["FAILURE", "ERROR", "PENDING", "EXPECTED", ""])
+def test_non_success_status_context_is_not_green(state: str) -> None:
+    """StatusContext entries (Vercel, Jenkins, ...) carry `state`, not
+    `conclusion`/`status`; they used to read as green whatever the state."""
+    rollup = [
+        {"__typename": "CheckRun", "conclusion": "SUCCESS", "status": "COMPLETED"},
+        {"__typename": "StatusContext", "context": "ci/jenkins", "state": state},
+    ]
+    assert _amd._all_checks_green(rollup) is False
+
+
+def test_success_status_context_is_green() -> None:
+    """NEGATIVE CONTROL."""
+    assert _amd._all_checks_green([{"__typename": "StatusContext", "state": "SUCCESS"}]) is True
+
+
 def test_missing_gh_returns_2(capsys) -> None:
     with patch.object(_amd, "_gh_pr_view", return_value=None):
         rc = _amd.validate("123")
