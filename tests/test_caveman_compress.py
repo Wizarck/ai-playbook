@@ -175,6 +175,27 @@ def test_compress_retries_on_missing_heading(tmp_path: Path) -> None:
     assert "# Important Heading" in source.read_text(encoding="utf-8")
 
 
+def test_compress_retry_prompt_includes_source_and_previous_output(tmp_path: Path) -> None:
+    """Regression S1-27: retry must see the source, not rewrite from scratch."""
+    src = "# Runbook\n\nNEVER skip the smoke test.\n\nSee https://example.com/docs\n"
+    source = _write_fixture(tmp_path, src)
+    bad_output = "# Runbook\n\nNever skip smoke test.\n"  # URL dropped
+    good_output = "# Runbook\n\nNever skip smoke test. https://example.com/docs\n"
+    prompts: list[str] = []
+    responses = iter([bad_output, good_output])
+
+    def call(prompt: str, system: str, max_tokens: int) -> tuple[str, str | None]:
+        prompts.append(prompt)
+        return next(responses), "mock"
+
+    result = compress.compress(source, mode="full", llm_call=call)
+    assert result.retries_used == 1
+    assert len(prompts) == 2
+    assert src in prompts[1]
+    assert bad_output in prompts[1]
+    assert "https://example.com/docs" in prompts[1]
+
+
 def test_compress_restores_source_when_retries_exhausted(tmp_path: Path) -> None:
     original = "# A\n```code\nx = 1\n```\n"
     source = _write_fixture(tmp_path, original)
