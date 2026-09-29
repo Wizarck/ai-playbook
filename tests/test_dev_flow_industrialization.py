@@ -249,6 +249,36 @@ class TestAutoTickMain:
         body = (change_dir / "tasks.md").read_text(encoding="utf-8")
         assert body.count("[x]") == 7
 
+    def test_tick_is_never_staged_and_says_so(self, tmp_path: Path, capsys):
+        """git has already built the commit's tree when prepare-commit-msg runs:
+        staging the tick only pushed it into the NEXT commit (and swept in any
+        unstaged tasks.md hunks). The file must stay unstaged + a notice printed."""
+        import subprocess
+
+        def git(*a: str) -> str:
+            return subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t.test", *a],
+                cwd=tmp_path, check=True, capture_output=True, text=True,
+            ).stdout
+
+        git("init", "-q")
+        change_dir = tmp_path / "openspec" / "changes" / "test-change"
+        change_dir.mkdir(parents=True)
+        _write_tasks(change_dir / "tasks.md", SAMPLE_TASKS)
+        git("add", "-A")
+        git("commit", "-q", "-m", "seed")
+        msg = tmp_path / "msg.txt"
+        msg.write_text("feat(persistence): group 1\n", encoding="utf-8")
+
+        rc = att.main(
+            ["--quiet", "--change-id", "test-change", "--repo-root", str(tmp_path), str(msg)],
+        )
+
+        assert rc == 0
+        assert "[x]" in (change_dir / "tasks.md").read_text(encoding="utf-8")
+        assert git("diff", "--cached", "--name-only") == ""
+        assert "NOT part of this commit" in capsys.readouterr().err
+
     def test_missing_commit_msg_file_returns_2(self, tmp_path: Path):
         rc = att.main(
             [

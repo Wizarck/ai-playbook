@@ -4,8 +4,8 @@ Implements Followup #4 Option 1 (recommended path per
 docs/concepts/v0.9.0-roadmap.md): when a developer or agent commits with a
 conventional-commit subject naming task identifiers (groups, sections,
 or task numbers), the matching `- [ ]` checkboxes in
-`openspec/changes/<active>/tasks.md` are flipped to `- [x]` and the
-file is staged in the same commit.
+`openspec/changes/<active>/tasks.md` are flipped to `- [x]` in the
+working tree. The tick is NOT part of the commit being made (see CLI).
 
 Why
 ---
@@ -24,8 +24,12 @@ The script is invoked from `.git/hooks/prepare-commit-msg`. It reads
 the commit message from <commit-msg-file>, parses the subject, locates
 the active OpenSpec change (either via --change-id, or by inspecting
 the current branch name `<type>/<change-id>`), opens
-`openspec/changes/<change-id>/tasks.md`, ticks matching boxes, and
-re-stages the file via `git add` (so it lands in the same commit).
+`openspec/changes/<change-id>/tasks.md` and ticks matching boxes in the
+working tree. It does NOT stage the file: git has already written the
+commit's tree when prepare-commit-msg runs, so a `git add` there only
+reaches the NEXT commit. Instead it prints (even with --quiet) the command
+to fold the tick into the commit just made:
+`git commit --amend --no-edit -- openspec/changes/<change-id>/tasks.md`.
 
 Subject parsing rules
 ---------------------
@@ -334,7 +338,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-stage",
         action="store_true",
-        help="Do not `git add` the modified tasks.md (testing).",
+        help="No-op, kept for compatibility: tasks.md is never staged.",
     )
     parser.add_argument(
         "--quiet",
@@ -434,15 +438,17 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
-    if not args.no_stage:
-        try:
-            _git(["add", str(tasks_path.relative_to(repo_root))], repo_root)
-        except Exception as exc:  # noqa: BLE001
-            print(
-                f"⚠️  auto_tick_tasks: ticked boxes but `git add` failed: {exc}. "
-                "Stage the file manually before commit.",
-                file=sys.stderr,
-            )
+    # Never `git add`: git has already written this commit's tree when
+    # prepare-commit-msg runs, so staging only pushed the tick into the NEXT
+    # commit (never landing at all after a branch's last commit) and swept in
+    # any tasks.md hunks the developer had deliberately left unstaged.
+    # Printed even with --quiet: the developer has to act on it.
+    rel = tasks_path.relative_to(repo_root).as_posix()
+    print(
+        f"⚠️  auto_tick_tasks: ticked {len(ticked)} box(es) in {rel} — NOT part of "
+        f"this commit. Fold it in after committing: git commit --amend --no-edit -- {rel}",
+        file=sys.stderr,
+    )
 
     if not args.quiet:
         n = len(ticked)
