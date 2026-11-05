@@ -27,7 +27,7 @@ import re
 import yaml
 
 from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks
-from scripts._renderers._yaml_merge import duplicate_key, load_mapping
+from scripts._renderers._yaml_merge import MergeConflictError, duplicate_key, load_mapping
 from scripts._template_classifier import compute_sha
 
 _BASELINE_ID = "project-servers-baseline"
@@ -110,7 +110,9 @@ def render(
     if merged is None or any(not isinstance(landed, dict) or sid not in landed
                              for sid in servers):
         dup = duplicate_key(body)
-        raise ValueError(
+        # Merging into the consumer's file: a layout conflict for that file
+        # only. From the template alone it is a playbook bug.
+        raise (MergeConflictError if current is not None else ValueError)(
             "merged mcp-servers.project.yaml is not a valid YAML mapping"
             + (f" (duplicate key {dup!r})" if dup else "")
             + " — bundle servers are appended at the end of the file, indented "

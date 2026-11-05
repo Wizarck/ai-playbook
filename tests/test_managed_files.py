@@ -661,6 +661,35 @@ def test_yaml_renderers_keep_consumer_edits_outside_managed_content(
     assert sum("identical, no write" in c for c in third.changes) == 3
 
 
+def test_merge_that_does_not_fit_skips_only_that_file(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A YAML file whose layout cannot take the merge is a per-file conflict:
+    it is left untouched and the section fails, but the rest of the batch
+    (here .gitignore) still applies instead of the whole batch aborting."""
+    sample = ("repos:\n-   repo: https://github.com/pre-commit/pre-commit-hooks\n"
+              "    rev: v4.6.0\n    hooks:\n    -   id: trailing-whitespace\n")
+    _write_lf(fake_consumer / ".pre-commit-config.yaml", sample)
+    _write_lf(fake_consumer / ".gitignore", "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "pre_commit_extras": {"hooks": []},
+        "gitignore_extras": {"patterns": ["dist/"]},
+    }
+    for dry_run in (True, False):
+        result = _managed_files.apply_managed_files(
+            consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+            dry_run=dry_run,
+        )
+        assert result.ok is False
+        assert "merge_conflict" in result.file_states[".pre-commit-config.yaml"]
+        assert any(".pre-commit-config.yaml" in c and "column 0" in c and "not written" in c
+                   for c in result.changes)
+        assert not any("staging failed" in c for c in result.changes)
+    assert (fake_consumer / ".pre-commit-config.yaml").read_text(encoding="utf-8") == sample
+    assert "dist/" in (fake_consumer / ".gitignore").read_text(encoding="utf-8")
+
+
 def test_malformed_current_markers_fail_closed(
     fake_playbook: Path, fake_consumer: Path,
 ) -> None:

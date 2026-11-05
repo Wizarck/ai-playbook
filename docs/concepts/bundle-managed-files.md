@@ -120,7 +120,10 @@ JSON5 / JS:
      `# (end of …)` trailer comment, and that region is replaced on every
      apply. `.coderabbit.yaml` extras are merged into the current mapping.
      A markerless `AGENTS.md` is still generated from the template (its prose
-     is recovered through backup + `curate`).
+     is recovered through backup + `curate`). A YAML file whose layout cannot
+     take the merge (e.g. `repos:` items at column 0, or keys after the list
+     the extras continue) is skipped as a conflict (`merge`), naming the hand
+     edit; the other files of the batch still apply.
    - If destination exists AND content differs from rendered output:
      `backup_once` → atomic write.
    - Update `bundle.file_states[<rel_path>]` with the new SHA manifest.

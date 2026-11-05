@@ -376,6 +376,43 @@ def test_pre_commit_merges_into_current_file() -> None:
     assert "Consumer hooks" not in dropped and "ruff" in dropped
 
 
+@pytest.mark.parametrize("hooks", [[], [{"id": "x", "name": "x", "entry": "true",
+                                         "language": "system"}]])
+def test_pre_commit_merge_that_does_not_fit_names_the_layout(hooks: list) -> None:
+    """A markerless file in pre-commit's sample-config style (`-   repo:` at
+    column 0) cannot take the appended two-space block. The error must say so
+    (it used to blame content after `repos:`) and be a per-file conflict."""
+    from scripts._renderers import MergeConflictError
+    sample = ("repos:\n-   repo: https://github.com/pre-commit/pre-commit-hooks\n"
+              "    rev: v4.6.0\n    hooks:\n    -   id: trailing-whitespace\n")
+    with pytest.raises(MergeConflictError) as exc:
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                          bundle={"pre_commit_extras": {"hooks": hooks}},
+                          current_text=sample)
+    assert "no playbook-hooks marker block" in str(exc.value)
+    assert "column 0" in str(exc.value)
+
+
+def test_pre_commit_merge_refuses_items_landing_under_a_later_key() -> None:
+    """Valid YAML is not enough: extras appended after a block-sequence key
+    that follows `repos:` would become items of that key."""
+    from scripts._renderers import MergeConflictError
+    current = (
+        "repos:\n"
+        "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+        "  - repo: local\n"
+        "    hooks: []\n"
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "default_stages:\n"
+        "  - pre-commit\n"
+    )
+    with pytest.raises(MergeConflictError, match="move the keys that follow it"):
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={}, current_text=current,
+                          bundle={"pre_commit_extras": {"hooks": [
+                              {"id": "x", "name": "x", "entry": "true", "language": "system"},
+                          ]}})
+
+
 def test_pre_commit_regenerates_current_file_that_is_not_yaml() -> None:
     import yaml
     corrupt = "# a `# >>> x >>>\n` b\n` block below\nrepos: []\n"
