@@ -1,13 +1,14 @@
 """Caveman feature CLI — single entry point for toggle state + side effects.
 
-Subcommands (Phase B scope)
----------------------------
+Subcommands
+-----------
     python -m scripts.caveman status [--json] [--project PATH]
     python -m scripts.caveman on  [--mode lite|full|ultra] [--components <csv>]
     python -m scripts.caveman off [--keep-backups]
-
-Subcommands stubbed for later phases (print "not implemented" + exit 2):
-    compress, stats, mcp-shrink, mcp-restore, rollback
+    python -m scripts.caveman compress <file.md> [--mode ...] [--force-large]
+    python -m scripts.caveman stats [--since ISO | --since-caveman-on] [--update-statusline]
+    python -m scripts.caveman rollback [--list] [--yes]
+    python -m scripts.caveman mcp-shrink | mcp-restore
 
 Exit codes per docs/rules/error-message-standard.rule.md:
     0 ok
