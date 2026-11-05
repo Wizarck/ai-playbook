@@ -25,7 +25,8 @@ What it touches:
     - AGENTS.md + templates/projects.yaml.example → owner email
     - templates/mcp-servers-personal.yaml.example → kept as-is (already generic)
 
-An explicitly passed flag whose upstream literals match nothing exits 1
+An explicitly passed flag whose upstream literals match nothing, and whose
+value is not already in place (a re-run), exits 1 before any file is written
 (it would otherwise be a silent no-op).
 
 What it does NOT touch:
@@ -43,6 +44,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -150,13 +152,15 @@ def build_edit_plan(
                                  flag="--hindsight-url"))
 
     # SOPS path: the SessionStart hook in the template settings.json (sibling
-    # project-a) + the runbooks' sops exec-env examples.
+    # project-a) + the runbooks' sops exec-env examples. Inside a JSON string
+    # the value is escaped: a Windows path's backslashes are JSON escapes.
     if secrets_env_path:
         for f in ("templates/new-project/.claude/settings.json.tmpl",
                   "templates/new-project/AGENTS.md.tmpl",
                   "docs/runbooks/hindsight-retain.md",
                   "docs/runbooks/onboard-new-project.md"):
-            plan.append(FileEdit(f, [(s, secrets_env_path) for s in SECRETS_ENV_PATHS],
+            value = json.dumps(secrets_env_path, ensure_ascii=False)[1:-1] if _is_json(f) else secrets_env_path
+            plan.append(FileEdit(f, [(s, value) for s in SECRETS_ENV_PATHS],
                                  flag="--secrets-env-path"))
 
     # Owner email: the fork's own AGENTS.md frontmatter + the registry example.
@@ -168,14 +172,21 @@ def build_edit_plan(
     return plan
 
 
+def _is_json(rel: str) -> bool:
+    return rel.endswith((".json", ".json.tmpl"))
+
+
 def apply_edits(
     root: Path, plan: list[FileEdit], *, dry_run: bool,
     flag_hits: dict[str, int] | None = None,
+    quiet: bool = False,
 ) -> tuple[int, int]:
     """Apply (or simulate) edits. Returns ``(files_touched, total_replacements)``.
 
     When ``flag_hits`` is given, it receives the replacement count per
     ``FileEdit.flag`` (0 for a flag whose literals matched nothing).
+
+    Raises ``ValueError`` when an edit would turn a valid JSON file invalid.
     """
     files_touched = 0
     total_replacements = 0
@@ -183,7 +194,8 @@ def apply_edits(
     for edit in plan:
         path = root / edit.path
         if not path.is_file():
-            print(f"  ⚠️  skip (file not found): {edit.path}", file=sys.stderr)
+            if not quiet:
+                print(f"  ⚠️  skip (file not found): {edit.path}", file=sys.stderr)
             continue
         text = path.read_text(encoding="utf-8")
         new_text = text
@@ -198,14 +210,38 @@ def apply_edits(
 
         if new_text == text:
             continue
+        if _is_json(edit.path):
+            try:
+                json.loads(text)
+            except ValueError:
+                pass  # not plain JSON to begin with; nothing to keep valid
+            else:
+                try:
+                    json.loads(new_text)
+                except ValueError as exc:
+                    raise ValueError(f"{edit.path} would become invalid JSON ({exc})") from exc
         files_touched += 1
         total_replacements += local_replacements
         action = "would write" if dry_run else "wrote"
-        print(f"  ✏️  {action} {edit.path} ({local_replacements} replacement(s))")
+        if not quiet:
+            print(f"  ✏️  {action} {edit.path} ({local_replacements} replacement(s))")
         if not dry_run:
             path.write_text(new_text, encoding="utf-8")
 
     return files_touched, total_replacements
+
+
+def _already_applied(root: Path, plan: list[FileEdit], flag: str) -> bool:
+    """True when ``flag``'s value already sits in one of its target files, i.e.
+    an earlier run rewrote the upstream literal (a re-run adding a flag later)."""
+    for edit in plan:
+        path = root / edit.path
+        if edit.flag != flag or not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if any(replace in text for _find, replace in edit.replacements):
+            return True
+    return False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -228,6 +264,12 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     _validate_org_name(args.org_name)
+    if args.secrets_env_path and any(c in args.secrets_env_path for c in '"\r\n'):
+        # The template puts it inside a double-quoted shell arg of a JSON string.
+        print(f"❌ --secrets-env-path must not contain a double quote or a line break: "
+              f"got {args.secrets_env_path!r}", file=sys.stderr)
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 1
     root = _detect_playbook_root(args.root)
     print(f"playbook root: {root}")
     print(f"target org   : {args.org_name}")
@@ -246,31 +288,48 @@ def main(argv: list[str] | None = None) -> int:
         secrets_env_path=args.secrets_env_path,
         upstream_org=args.upstream_org,
     )
+    # Silent dry pass first: nothing is written unless every flag passed either
+    # rewrites an upstream literal or already holds its value (a re-run).
     flag_hits: dict[str, int] = {}
-    files, replacements = apply_edits(root, plan, dry_run=args.dry_run, flag_hits=flag_hits)
-    print()
-    verb = "Would touch" if args.dry_run else "Touched"
-    print(f"{verb} {files} file(s); {replacements} total replacement(s).")
-
+    try:
+        apply_edits(root, plan, dry_run=True, flag_hits=flag_hits, quiet=True)
+    except ValueError as exc:
+        print(f"❌ {exc}; nothing was written at scripts/init_org.py:apply_edits", file=sys.stderr)
+        print("   FIX: pass a value that is valid inside a JSON string, then rerun.", file=sys.stderr)
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 1
     passed = ["--owner-email"]
     if args.hindsight_url:
         passed.append("--hindsight-url")
     if args.secrets_env_path:
         passed.append("--secrets-env-path")
-    no_ops = [f for f in passed if flag_hits.get(f, 0) == 0]
+    no_ops: list[str] = []
+    for flag in passed:
+        if flag_hits.get(flag, 0):
+            continue
+        if _already_applied(root, plan, flag):
+            print(f"ℹ️  {flag}: already applied (its value is in place; nothing to replace).")
+        else:
+            no_ops.append(flag)
     if no_ops:
         print(
-            f"❌ {', '.join(no_ops)} matched no upstream literal (already applied, or the "
-            "files drifted) at scripts/init_org.py:build_edit_plan",
+            f"❌ {', '.join(no_ops)} matched no upstream literal and the value is not in "
+            "place either, so nothing was written at scripts/init_org.py:build_edit_plan",
             file=sys.stderr,
         )
         print(
-            "   FIX: grep the fork for the value to replace and update the literal "
-            "tuples at the top of scripts/init_org.py, then rerun.",
+            "   FIX: if an earlier run set a different value, edit it by hand (or "
+            "`git checkout -- .` and rerun once with every flag); otherwise the files "
+            "drifted: update the literal tuples at the top of scripts/init_org.py, then rerun.",
             file=sys.stderr,
         )
         print("   OVERRIDE: none", file=sys.stderr)
         return 1
+
+    files, replacements = apply_edits(root, plan, dry_run=args.dry_run)
+    print()
+    verb = "Would touch" if args.dry_run else "Touched"
+    print(f"{verb} {files} file(s); {replacements} total replacement(s).")
 
     if not args.dry_run:
         print()

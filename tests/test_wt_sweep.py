@@ -224,6 +224,27 @@ def test_apply_deletes_removes_worktree_with_flag(
     assert any(cmd[:3] == ["git", "branch", "-D"] for cmd in calls)
 
 
+def test_apply_deletes_clears_residue_after_a_successful_remove(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Some submodule dirs survive `git worktree remove --force` on Windows;
+    fec90f0 dropped the residue rmtree from the success path too."""
+    (tmp_path / ".bare").mkdir()
+    residue = tmp_path / "a" / ".ai-playbook"
+    residue.mkdir(parents=True)
+    (residue / "left.txt").write_text("x\n", encoding="utf-8")
+    monkeypatch.setattr(ws.subprocess, "run", lambda *a, **k: _FakeProc(returncode=0))
+
+    deleted, failed = ws.apply_deletes(
+        [ws.BranchEntry("slice/a", "aaa", True, 1, "MERGED")],
+        repo_root=tmp_path, bare_dir=tmp_path / ".bare",
+        include_worktrees=True, delete_remote=False,
+    )
+
+    assert (deleted, failed) == (1, 0)
+    assert not (tmp_path / "a").exists()
+
+
 def test_apply_deletes_remote_pushes_delete(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

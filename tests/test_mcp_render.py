@@ -11,11 +11,8 @@ import yaml
 from scripts.mcp import render as mcp_render
 from scripts.mcp import validate as mcp_validate
 
-
-@pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """render.main() touches ~/.gemini/antigravity; never the real one in tests."""
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "no-home"))
+# render.main() touches ~/.gemini/antigravity: tests/conftest.py points
+# Path.home() at an empty per-test dir for the whole suite.
 
 BASE_MIN = {
     "schema": "mcp-servers/v1",
@@ -140,6 +137,24 @@ def test_render_includes_personal_when_personal_file_present(tmp_path: Path) -> 
     assert "google-workspace-acme" in claude_doc["mcpServers"]
     assert (claude_doc["mcpServers"]["google-workspace-acme"]["url"]
             == "https://gws-acme.example/")
+
+
+def test_render_warns_about_an_ignored_args_key(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """absorb up to v0.24.1 wrote `args:` into the personal layer; v1 has no such
+    field and render dropped it silently."""
+    personal = {
+        "schema": "mcp-servers/v1", "layer": "personal",
+        "servers": {"rag-local": {
+            "id": "rag-local", "transport": "stdio", "command": "python",
+            "args": ["-m", "rag"], "scope": "personal",
+        }},
+    }
+    playbook, consumer, personal_path = _stack(tmp_path, personal=personal)
+    assert _run(playbook, consumer, personal_path, "--dry-run") == 0
+    err = capsys.readouterr().err
+    assert "`rag-local`" in err and "`args` is not an mcp-servers/v1 field" in err
 
 
 def test_render_excludes_personal_when_personal_file_absent(tmp_path: Path) -> None:
@@ -374,6 +389,59 @@ def test_unparseable_global_config_is_never_overwritten(
     assert mcp_render.update_global_antigravity_mcp(_STDIO, {}, dry_run=False) is None
     assert cfg.read_text(encoding="utf-8") == broken
     assert "skipping" in capsys.readouterr().err
+
+
+def test_force_with_reason_help_promises_no_override() -> None:
+    """1ba4418 made render's only gate OVERRIDE: none; the help still said the
+    flag would 'accept validation errors'."""
+    text = " ".join(mcp_render._build_parser().format_help().split())
+    assert "accept validation errors" not in text
+    assert "OVERRIDE: none" in text
+
+
+def test_failed_permission_step_leaves_global_config_intact(
+    fake_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Regression: the file used to be truncated BEFORE a chmod that could fail
+    (EPERM on a file the user can write but does not own), leaving 0 bytes."""
+    cfg = fake_home / ".gemini" / "antigravity" / "mcp_config.json"
+    original = '{"mcpServers": {"other-project": {"command": "keep"}}}'
+    cfg.write_text(original, encoding="utf-8")
+
+    def _eperm(*_a, **_k):
+        raise PermissionError(1, "Operation not permitted (simulated)")
+    monkeypatch.setattr(mcp_render.os, "chmod", _eperm)
+
+    assert mcp_render.update_global_antigravity_mcp(_STDIO, {}, dry_run=False) is None
+    assert cfg.read_text(encoding="utf-8") == original
+    assert sorted(p.name for p in cfg.parent.iterdir()) == ["mcp_config.json"]  # no temp left
+    assert "Failed to write" in capsys.readouterr().err
+
+
+def test_global_config_bom_is_parsed_not_skipped(fake_home: Path) -> None:
+    """PowerShell 5.1 writes a UTF-8 BOM; such a file must still be merged into."""
+    cfg = fake_home / ".gemini" / "antigravity" / "mcp_config.json"
+    cfg.write_bytes(b"\xef\xbb\xbf" + b'{"mcpServers": {"keep": {"command": "k"}}}')
+    assert mcp_render.update_global_antigravity_mcp(_STDIO, {}, dry_run=False) == cfg
+    doc = json.loads(cfg.read_text(encoding="utf-8"))
+    assert set(doc["mcpServers"]) == {"keep", "srv"}
+
+
+def test_global_config_symlink_survives_the_write(fake_home: Path, tmp_path: Path) -> None:
+    """The global file is often a symlink into a shared config dir: replace the
+    link's target, never the link itself."""
+    real = tmp_path / "shared-config" / "mcp_config.json"
+    real.parent.mkdir()
+    real.write_text('{"mcpServers": {"keep": {"command": "k"}}}', encoding="utf-8")
+    link = fake_home / ".gemini" / "antigravity" / "mcp_config.json"
+    try:
+        link.symlink_to(real)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available (Windows without developer mode)")
+
+    assert mcp_render.update_global_antigravity_mcp(_STDIO, {}, dry_run=False) == link
+    assert link.is_symlink()
+    assert set(json.loads(real.read_text(encoding="utf-8"))["mcpServers"]) == {"keep", "srv"}
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")

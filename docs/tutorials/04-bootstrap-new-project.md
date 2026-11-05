@@ -2,7 +2,7 @@
 schema: tutorial/v1
 slug: bootstrap-new-project
 title: Bootstrap a new consumer project with one command
-description: Replace the 5-step manual quickstart with one invocation of scripts/bootstrap.py. Idempotent, schema-validated, ends with a green doctor verdict.
+description: Replace the 5-step manual quickstart with one invocation of scripts/bootstrap.py. Runs once per repo (re-runs use --update), schema-validated, ends with a green doctor verdict.
 estimated_time: "10 min"
 prerequisite_concepts: [dispatcher-chain, projects-registry]
 audience: operator
@@ -17,7 +17,7 @@ order: 4
 > - The quickstart ([03-quickstart.md](03-quickstart.md)) — at least skimmed, so you know what `bootstrap.py` is automating
 > - All quickstart prereqs (Python 3.11+, git 2.40+, pipx, pre-commit, Node 20+, gh CLI, sops + age)
 
-The entry point is `scripts/bootstrap.py`. A fresh install runs once: re-running it on a repo whose `AGENTS.md` already declares `schema: agents-md/v1` exits 1 without touching any file (a second template copy would overwrite your edits). Use `python -m scripts.bootstrap --update --path <repo>` to reconcile an existing install. Retrying after a failed run (bad `--playbook-pin`, unreachable remote) is safe: an existing `.ai-playbook/` submodule is re-checked-out at the pin.
+The entry point is `scripts/bootstrap.py`. A fresh install runs once: re-running it on an installed repo (`AGENTS.md` declares `schema: agents-md/v1` and `.ai-playbook/` is a registered submodule or a populated copy) exits 1 without touching any file (a second template copy would overwrite your edits). Use `python -m scripts.bootstrap --update --path <repo>` to reconcile an existing install. A v1 `AGENTS.md` alone, as `uninstall` leaves it, is not an install: bootstrap installs over it, keeping it as a BASE snapshot unless one already exists. Retrying after a failed run (bad `--playbook-pin`, unreachable remote) is safe: an existing `.ai-playbook/` submodule is re-checked-out at the pin.
 
 ## Usage
 

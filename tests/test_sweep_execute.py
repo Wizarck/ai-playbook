@@ -373,6 +373,50 @@ def test_a_tombstone_failure_restores_the_deleted_files(repo: Path) -> None:
     assert git(repo, "status", "--porcelain", "--untracked-files=no") == ""
 
 
+@pytest.mark.parametrize("prior", [None, "earlier rows\n"])
+def test_a_failed_tombstone_stage_resets_the_tombstone_file(repo: Path, prior: str | None) -> None:
+    """The append succeeded but `git add` refused the (gitignored) path: the
+    deletions were rolled back, yet the rows stayed, and every retry (the dirty
+    check ignores `??`) appended them again."""
+    (repo / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+    git(repo, "add", ".gitignore")
+    git(repo, "commit", "-qm", "ignore")
+    tomb = repo / "ignored" / "removed-code.md"
+    if prior is not None:
+        tomb.parent.mkdir()
+        tomb.write_text(prior, encoding="utf-8")
+    ledger = make_ledger(repo)
+    authorize(repo, ledger)
+
+    for _attempt in range(2):
+        assert run(repo, "apply", "--ledger", str(ledger), "--expect", "1",
+                   "--tombstones", "ignored/removed-code.md") != 0
+
+    assert (repo / "app" / "orphan.py").read_text(encoding="utf-8") == "VALUE = 1\n"
+    assert git(repo, "status", "--porcelain", "--untracked-files=no") == ""
+    if prior is None:
+        assert not tomb.exists()
+    else:
+        assert tomb.read_text(encoding="utf-8") == prior
+
+
+def test_a_glob_shaped_path_deletes_only_itself(repo: Path) -> None:
+    """Pathspecs are globs by default: `git rm -- app/[id].py` also matched a
+    tracked app/i.py (Next.js-style route names hit this)."""
+    (repo / "app" / "[id].py").write_text("ROUTE = 1\n", encoding="utf-8")
+    (repo / "app" / "i.py").write_text("LIVE = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "routes")
+    ledger = make_ledger(repo, path="app/[id].py")
+    authorize(repo, ledger)
+
+    assert run(repo, "apply", "--ledger", str(ledger), "--expect", "1") == 0
+
+    assert not (repo / "app" / "[id].py").exists()
+    assert (repo / "app" / "i.py").read_text(encoding="utf-8") == "LIVE = 1\n"
+    assert git(repo, "status", "--porcelain", "--", "app/i.py") == ""
+
+
 def test_a_tombstone_path_outside_the_repo_refuses(repo: Path, tmp_path_factory) -> None:
     ledger = make_ledger(repo)
     authorize(repo, ledger)

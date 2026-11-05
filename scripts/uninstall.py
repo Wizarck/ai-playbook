@@ -19,7 +19,9 @@ Pipeline
    every Claude Code tool call).
 4. ``git submodule deinit -f .ai-playbook`` + ``git rm -f .ai-playbook``.
 5. Remove ``.ai-playbook-state/`` — unless it holds a BASE snapshot that was
-   not restored (the only copy of the consumer's original): kept + warned.
+   not restored (the only copy of the consumer's original): kept + warned,
+   and listed in the local ``info/exclude`` since step 2 stripped the
+   ``.gitignore`` block that ignored it.
 6. Print summary.
 
 Idempotent: running twice has no incremental effect.
@@ -56,6 +58,14 @@ from scripts._backup_helper import (  # noqa: E402
 from scripts._marker_blocks import (  # noqa: E402
     parse_blocks,
     style_for_filename,
+)
+from scripts.auto_managed import find_sections  # noqa: E402
+
+# AGENTS.md ruleset blocks injected by scripts/<feature>/materialise.py.
+_FEATURE_BLOCK_PREFIXES = (
+    ("caveman", "caveman/ruleset:"),
+    ("ponytail", "ponytail/ruleset:"),
+    ("graphify", "graphify/ruleset"),
 )
 
 MANAGED_PATHS = [
@@ -164,17 +174,53 @@ def strip_managed_markers(consumer_root: Path, report: UninstallReport) -> None:
 
 def _strip_feature_blocks(consumer_root: Path, report: UninstallReport) -> None:
     """Remove the caveman/ponytail/graphify ``auto-managed`` ruleset blocks from
-    AGENTS.md; they instruct the agent to run toggles that no longer exist."""
-    from scripts.caveman import materialise as caveman_m
-    from scripts.graphify import materialise as graphify_m
-    from scripts.ponytail import materialise as ponytail_m
+    AGENTS.md; they instruct the agent to run toggles that no longer exist.
 
-    for name, mod in (("caveman", caveman_m), ("ponytail", ponytail_m), ("graphify", graphify_m)):
+    Mirrors each feature's ``materialise.strip`` without calling it: importing
+    those pulls in toggles that self-install jsonschema (or exit 2) at import
+    time, and their backup goes to ``.ai-playbook/backups/``, inside the
+    submodule removed moments later (creating ``.ai-playbook/`` if it is gone).
+    """
+    agents = consumer_root / "AGENTS.md"
+    if not agents.is_file():
+        return
+    try:
+        raw = agents.read_text(encoding="utf-8")
+    except OSError as exc:
+        report.errors.append(f"strip feature blocks from AGENTS.md: {exc}")
+        return
+    lines = raw.replace("\r\n", "\n").split("\n")
+    stripped: list[str] = []
+    for name, prefix in _FEATURE_BLOCK_PREFIXES:
         try:
-            if mod.strip(consumer_root) is not None:
-                report.stripped.append(f"AGENTS.md ({name} block)")
-        except (OSError, ValueError) as exc:
+            sections = [s for s in find_sections("\n".join(lines)) if s.source.startswith(prefix)]
+        except ValueError as exc:
             report.errors.append(f"strip {name} block from AGENTS.md: {exc}")
+            return
+        if len(sections) > 1:
+            report.errors.append(
+                f"strip {name} block from AGENTS.md: {len(sections)} blocks, expected 1; "
+                "remove them by hand"
+            )
+            continue
+        if not sections:
+            continue
+        start, end = sections[0].start_line - 1, sections[0].end_line
+        if start > 0 and lines[start - 1].strip() == "":
+            start -= 1  # the blank line the materialiser adds before the block
+        lines = lines[:start] + lines[end:]
+        stripped.append(name)
+    if not stripped:
+        return
+    new_text = "\n".join(lines)
+    if raw.endswith("\n") and not new_text.endswith("\n"):
+        new_text += "\n"
+    try:
+        agents.write_text(new_text, encoding="utf-8", newline="\n")
+    except OSError as exc:
+        report.errors.append(f"strip feature blocks from AGENTS.md: {exc}")
+        return
+    report.stripped.extend(f"AGENTS.md ({name} block)" for name in stripped)
 
 
 def _is_playbook_hook(hook: object) -> bool:
@@ -183,7 +229,7 @@ def _is_playbook_hook(hook: object) -> bool:
     return ".ai-playbook/" in str(hook.get("command", "")).replace("\\", "/")
 
 
-def remove_playbook_hooks(consumer_root: Path, report: UninstallReport) -> None:
+def remove_playbook_hooks(consumer_root: Path, report: UninstallReport, *, dry_run: bool = False) -> None:
     """Drop hooks whose command runs a script inside ``.ai-playbook/``.
 
     Once the submodule is removed those commands fail with exit 2, which
@@ -224,6 +270,9 @@ def remove_playbook_hooks(consumer_root: Path, report: UninstallReport) -> None:
             else:
                 del hooks[event]
         if not changed:
+            continue
+        if dry_run:
+            report.stripped.append(f"(dry-run) would drop hooks pointing into .ai-playbook/ from {rel}")
             continue
         if not hooks:
             del data["hooks"]
@@ -294,7 +343,8 @@ def remove_state_dir(consumer_root: Path, report: UninstallReport) -> None:
         report.warnings.append(
             "kept .ai-playbook-state/: BASE (pre-playbook) snapshot not restored for "
             f"{', '.join(pending)}. Copy what you need from .ai-playbook-state/backups/ "
-            "(index.json maps each file), then delete the dir by hand."
+            "(index.json maps each file), then delete the dir by hand. Never commit it: "
+            "the copies may hold secrets (e.g. an inline .mcp.json)."
         )
         return
     try:
@@ -302,6 +352,34 @@ def remove_state_dir(consumer_root: Path, report: UninstallReport) -> None:
         report.state_dir_removed = True
     except OSError as exc:
         report.errors.append(f"failed to remove .ai-playbook-state/: {exc}")
+
+
+def keep_state_dir_out_of_git(consumer_root: Path, report: UninstallReport) -> None:
+    """A kept ``.ai-playbook-state/`` lost its ignore line with the playbook's
+    ``.gitignore`` block; list it in the local ``info/exclude`` instead."""
+    rc, _ = _run_git("check-ignore", "-q", ".ai-playbook-state/", cwd=consumer_root)
+    if rc != 1:
+        return  # 0: still ignored; otherwise not a git repo, nothing to commit it into
+    rc, out = _run_git("rev-parse", "--git-path", "info/exclude", cwd=consumer_root)
+    if rc != 0 or not out:
+        report.warnings.append(".ai-playbook-state/ is no longer gitignored; do not commit it")
+        return
+    exclude = consumer_root / out.splitlines()[0]
+    try:
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        existing = exclude.read_text(encoding="utf-8") if exclude.is_file() else ""
+        with exclude.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(("\n" if existing and not existing.endswith("\n") else "") + ".ai-playbook-state/\n")
+    except OSError as exc:
+        report.warnings.append(
+            f".ai-playbook-state/ is no longer gitignored and adding it to {exclude} failed "
+            f"({exc}); do not commit it"
+        )
+        return
+    report.warnings.append(
+        f".ai-playbook-state/ lost its .gitignore entry with the playbook block; "
+        f"added it to {exclude} (local, uncommitted)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +403,7 @@ def uninstall(
         for rel in MANAGED_PATHS:
             if (rel not in base or not restore_from_bak) and (consumer_root / rel).is_file():
                 report.stripped.append(f"(dry-run) would strip markers from {rel}")
+        remove_playbook_hooks(consumer_root, report, dry_run=True)
         if (consumer_root / ".ai-playbook").exists():
             report.submodule_removed = True
         if (
@@ -342,6 +421,8 @@ def uninstall(
     remove_submodule(consumer_root, report)
     if not keep_state_dir:
         remove_state_dir(consumer_root, report)
+    if (consumer_root / ".ai-playbook-state").exists():
+        keep_state_dir_out_of_git(consumer_root, report)
     return report
 
 
@@ -380,7 +461,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.yes and not args.dry_run:
         print(f"This will uninstall ai-playbook from: {target}")
-        print(f"  - {'restore from .bak when available' if not args.no_restore else 'strip markers only'}")
+        base = [] if args.no_restore else sorted(r.rel_path for r in _base_records(read_index(target)))
+        if base:
+            print(f"  - OVERWRITE {len(base)} file(s) with their pre-playbook (BASE) snapshot, "
+                  f"discarding current content: {', '.join(base)}")
+            print("    (preview: --dry-run; keep current content: --no-restore)")
+        print("  - strip playbook markers from the other managed files")
         print("  - remove .ai-playbook/ submodule")
         print(f"  - {'remove' if not args.keep_state_dir else 'keep'} .ai-playbook-state/")
         answer = "y" if os.environ.get("PLAYBOOK_NO_PROMPT") else input("Continue? [y/N] ").strip().lower()
