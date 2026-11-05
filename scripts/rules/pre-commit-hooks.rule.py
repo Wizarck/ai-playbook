@@ -61,7 +61,8 @@ _LOCAL_HOOKS = {
         "check_agents_md_size.py", "--file AGENTS.md", r"^AGENTS\.md$", False,
     ),
 }
-# Pre-0.x `apply` wrote this id, which was never exported.
+# `apply` up to v0.24.1 wrote this id under the remote repo; it was never
+# exported. Line match: the fallback for configs that are not valid YAML.
 _BOGUS_ID_RE = re.compile(r"^\s*-\s*id:\s*['\"]?ai-playbook['\"]?\s*(#.*)?$", re.MULTILINE)
 
 
@@ -104,6 +105,29 @@ def _declares_playbook(config_text: str) -> bool:
         # is correct enough for substring detection.
         code_part = raw_line.split("#", 1)[0]
         if PLAYBOOK_SUBSTRING in code_part:
+            return True
+    return False
+
+
+def _lists_unexported_id(config_text: str) -> bool:
+    """True when a remote ai-playbook repo item lists `- id: ai-playbook`.
+
+    Only remote items count: a `repo: local` hook may use any id. A file that
+    is not parseable YAML falls back to the line match.
+    """
+    try:
+        import yaml
+    except ImportError:
+        return bool(_BOGUS_ID_RE.search(config_text))
+    try:
+        data = yaml.safe_load(config_text)
+    except yaml.YAMLError:
+        return bool(_BOGUS_ID_RE.search(config_text))
+    repos = data.get("repos") if isinstance(data, dict) else None
+    for item in repos if isinstance(repos, list) else []:
+        if not isinstance(item, dict) or PLAYBOOK_SUBSTRING not in str(item.get("repo", "")):
+            continue
+        if any(isinstance(h, dict) and h.get("id") == "ai-playbook" for h in item.get("hooks") or []):
             return True
     return False
 
@@ -162,7 +186,7 @@ def validate(cwd: Path | None = None) -> int:
         )
         return 1
 
-    if _BOGUS_ID_RE.search(text):
+    if _lists_unexported_id(text):
         _emit_error(
             why="hook id `ai-playbook` is not exported by the playbook (pre-commit fails every commit)",
             where=str(path),
