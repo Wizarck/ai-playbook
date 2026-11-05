@@ -180,7 +180,30 @@ proxy setup.
 
 ## Rolling back
 
-### Restore the latest AGENTS.md backup
+### `caveman rollback`
+
+```bash
+python -m scripts.caveman rollback --list --project .   # what would be restored
+python -m scripts.caveman rollback --yes --project .
+```
+
+Restores the newest backup caveman itself took of AGENTS.md
+(`backups/agents-caveman/`) and of `.mcp.json` / `.gemini/settings.json`
+(`backups/mcp/`), then re-syncs `components.response_style` with the
+restored AGENTS.md.
+
+The AGENTS.md backup is a whole-file snapshot, so ponytail and graphify
+blocks are compared by content first:
+
+- A ponytail/graphify block that is in AGENTS.md now but missing from, or
+  different in, caveman's backup would be lost. AGENTS.md is left as is
+  and rollback exits 1; the MCP files are still restored. Turn that
+  feature off (`python -m scripts.ponytail off`), re-run rollback, then
+  turn it back on — or run `caveman off`, which removes only the caveman
+  block.
+- A block that was removed after the backup was taken stays removed.
+
+### Restore the latest AGENTS.md backup by hand
 
 ```bash
 ls C:/Projects/eligia-core/.ai-playbook/backups/agents-caveman/
@@ -189,7 +212,7 @@ cp .ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak ./AGENTS.md
 python -m scripts.caveman off --project .  # sync the state file
 ```
 
-### Restore the latest MCP backups
+### Restore the latest MCP backups by hand
 
 ```bash
 cp .ai-playbook/backups/mcp/.mcp.json.<ts>.bak ./.mcp.json

@@ -36,6 +36,7 @@ _PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[2])
 if _PLAYBOOK_ROOT not in sys.path:
     sys.path.insert(0, _PLAYBOOK_ROOT)
 
+from scripts.auto_managed import find_sections  # noqa: E402
 from scripts.caveman import backup as backup_mod  # noqa: E402
 from scripts.caveman import compress as compress_mod  # noqa: E402
 from scripts.caveman import materialise as materialise_mod  # noqa: E402
@@ -366,7 +367,11 @@ def cmd_mcp_restore(args: argparse.Namespace) -> int:
         _emit_error(
             why=f"mcp restore failed: {e}",
             where=f"caveman:mcp-restore:{root}",
-            fix="fix the JSON syntax (e.g. remove comments) then retry, or use `caveman rollback`.",
+            fix=(
+                "fix the JSON syntax (e.g. remove comments) then retry, or copy the newest "
+                ".ai-playbook/backups/mcp/<file>.<ts>.bak over it (`caveman rollback --yes` "
+                "does that but also restores AGENTS.md)."
+            ),
         )
         return 1
     if args.json:
@@ -486,28 +491,21 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         )
         return 1
 
-    # Whole-file snapshot: if another feature (ponytail/graphify, shared
-    # "agents" area) backed up AGENTS.md AFTER caveman's latest snapshot, it
-    # mutated the file since, and restoring would silently drop its change.
-    for area, source, bp in candidates:
-        if area != agents_area:
-            continue
-        other = backup_mod.latest_backup(root, "agents", source.name)
-        if other is not None and _backup_stamp(other) > _backup_stamp(bp):
-            _emit_error(
-                why=f"another feature changed AGENTS.md after caveman's latest backup ({other.name})",
-                where="caveman:rollback:agents",
-                fix=(
-                    "turn that feature off first (e.g. `python -m scripts.ponytail off`), "
-                    "or use `caveman off` to remove only the caveman block."
-                ),
-            )
-            return 1
-
     restored = []
-    for area, source, _backup in candidates:
+    refused: tuple[str, str] | None = None
+    for area, source, bp in candidates:
+        text = None
+        if area == agents_area:
+            # AGENTS.md is decided on its own; the MCP files are restored regardless.
+            text, refused = _plan_agents_restore(source, bp)
+            if refused is not None:
+                continue
         try:
-            used = backup_mod.restore_backup(root, area, source)
+            if text is None:
+                used = backup_mod.restore_backup(root, area, source)
+            else:
+                source.write_text(text, encoding="utf-8")
+                used = bp
             restored.append({"area": area, "source": source.as_posix(), "backup": used.as_posix()})
         except (FileNotFoundError, OSError) as e:
             _emit_error(
@@ -526,18 +524,84 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         state["enabled"] = any(comps.values())
         toggle.write_state(root, state)
 
+    if refused is not None:
+        _emit_error(why=refused[0], where="caveman:rollback:agents", fix=refused[1])
     if args.json:
-        print(json.dumps({"ok": True, "restored": restored}, indent=2, ensure_ascii=False))
-    else:
-        print(f"✅ rolled back {len(restored)} file(s) at {root}")
+        payload: dict[str, Any] = {"ok": refused is None, "restored": restored}
+        if refused is not None:
+            payload["skipped"] = [{"area": agents_area, "source": agents_md.as_posix(), "why": refused[0]}]
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    elif refused is None or restored:
+        if refused is None:
+            print(f"✅ rolled back {len(restored)} file(s) at {root}")
+        else:
+            print(f"⚠️  rolled back {len(restored)} file(s) at {root}; AGENTS.md left as is")
         for r in restored:
             print(f"   {r['area']:7s} {r['source']}  ⟵  {r['backup']}")
-    return 0
+    return 0 if refused is None else 1
 
 
-def _backup_stamp(p: Path) -> str:
-    """Timestamp part of ``<name>.<ts>.bak`` (lexicographically chronological)."""
-    return p.name.rsplit(".", 2)[-2]
+# Blocks other features keep in AGENTS.md (scripts/ponytail and scripts/graphify materialise).
+_FOREIGN_BLOCKS = {"ponytail": "ponytail/ruleset:", "graphify": "graphify/ruleset"}
+
+
+def _foreign_blocks(text: str) -> dict[str, tuple[int, int, str]]:
+    """``feature -> (start, end, block text)`` for each ponytail/graphify block.
+
+    ``start``/``end`` are 0-indexed line bounds (end exclusive) of the
+    LF-normalised text. Raises ``ValueError`` on bad or duplicated markers.
+    """
+    lines = text.replace("\r\n", "\n").split("\n")
+    found: dict[str, tuple[int, int, str]] = {}
+    for sec in find_sections(text):
+        for feature, prefix in _FOREIGN_BLOCKS.items():
+            if sec.source.startswith(prefix):
+                if feature in found:
+                    raise ValueError(f"more than one {feature} block")
+                start, end = sec.start_line - 1, sec.end_line
+                found[feature] = (start, end, "\n".join(lines[start:end]))
+    return found
+
+
+def _plan_agents_restore(agents_md: Path, backup: Path) -> tuple[str | None, tuple[str, str] | None]:
+    """Decide how to restore caveman's whole-file AGENTS.md snapshot.
+
+    Compares ponytail/graphify blocks by content, so a restore never drops,
+    rewrites or brings back another feature's block. Returns ``(text, refusal)``:
+    ``refusal`` is ``(why, fix)`` when a block in the current file would be
+    dropped or rewritten; ``text`` is the snapshot minus blocks removed since
+    it was taken, or ``None`` to copy the backup byte-for-byte.
+    """
+    if not agents_md.is_file():
+        return None, None
+    try:
+        snapshot = backup.read_text(encoding="utf-8")
+        cur, snap = _foreign_blocks(agents_md.read_text(encoding="utf-8")), _foreign_blocks(snapshot)
+    except (OSError, ValueError) as e:
+        return None, (
+            f"cannot compare the auto-managed blocks of AGENTS.md and caveman's backup {backup.name}: {e}",
+            f"fix the markers and re-run, or copy {backup.as_posix()} over AGENTS.md by hand.",
+        )
+    changed = [f for f, (_, _, block) in cur.items() if f not in snap or snap[f][2] != block]
+    if changed:
+        names = " and ".join(changed)
+        offs = ", ".join(f"`python -m scripts.{f} off`" for f in changed)
+        ons = ", ".join(f"`python -m scripts.{f} on`" for f in changed)
+        return None, (
+            f"restoring caveman's backup {backup.name} would drop or rewrite the {names} block in AGENTS.md",
+            f"turn {names} off ({offs}), re-run `python -m scripts.caveman rollback --yes`, then turn "
+            f"{'it' if len(changed) == 1 else 'them'} back on ({ons}, or re-run reconcile). "
+            "Or run `python -m scripts.caveman off` to remove only the caveman block.",
+        )
+    removed = [snap[f] for f in snap if f not in cur]
+    if not removed:
+        return None, None
+    lines = snapshot.replace("\r\n", "\n").split("\n")
+    for start, end, _ in sorted(removed, reverse=True):
+        if start > 0 and lines[start - 1].strip() == "":
+            start -= 1  # the blank separator materialise adds before a block
+        del lines[start:end]
+    return "\n".join(lines), None
 
 
 def cmd_compress(args: argparse.Namespace) -> int:

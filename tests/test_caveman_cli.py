@@ -246,10 +246,14 @@ def test_rollback_ignores_other_features_agents_backups(
 def test_rollback_refuses_when_other_feature_changed_agents_md_later(
     project: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """caveman on -> ponytail on -> caveman rollback must not wipe ponytail's block."""
+    """caveman on -> ponytail on -> caveman rollback must not wipe ponytail's block,
+    and the refusal must not hold back the MCP restore."""
     from scripts.ponytail import materialise as pm
 
-    assert cli.main(["--project", str(project), "on"]) == 0
+    mcp = project / ".mcp.json"
+    original_mcp = {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+    mcp.write_text(json.dumps(original_mcp), encoding="utf-8")
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
     pm.materialise(project, "full")
     before = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert "caveman/" in before
@@ -257,8 +261,84 @@ def test_rollback_refuses_when_other_feature_changed_agents_md_later(
 
     rc = cli.main(["--project", str(project), "rollback", "--yes"])
     assert rc == 1
-    assert "changed AGENTS.md after" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "would drop or rewrite the ponytail block" in err
+    assert "python -m scripts.ponytail off" in err
     assert (project / "AGENTS.md").read_text(encoding="utf-8") == before
+    assert json.loads(mcp.read_text(encoding="utf-8")) == original_mcp
+
+
+def test_rollback_fix_guidance_clears_the_guard(project: Path) -> None:
+    """Regression F1: following the FIX (`ponytail off`) must let rollback through."""
+    from scripts.ponytail import materialise as pm
+
+    pristine = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert cli.main(["--project", str(project), "on"]) == 0
+    pm.materialise(project, "full")
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 1
+
+    pm.strip(project)  # what `python -m scripts.ponytail off` does to AGENTS.md
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == pristine
+    assert toggle.read_state(project)["components"]["response_style"] is False
+
+
+def test_rollback_allowed_in_steady_state_reconcile(project: Path) -> None:
+    """Regression F1: a second reconcile (caveman on, ponytail on) leaves caveman's
+    snapshot holding the same ponytail block, so rollback must not refuse."""
+    from scripts.ponytail import materialise as pm
+
+    for _ in range(2):
+        assert cli.main(["--project", str(project), "on"]) == 0
+        pm.materialise(project, "full")
+    before = (project / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == before
+
+
+def test_rollback_does_not_bring_back_a_block_removed_after_the_snapshot(project: Path) -> None:
+    from scripts.ponytail import materialise as pm
+
+    for _ in range(2):
+        assert cli.main(["--project", str(project), "on"]) == 0
+        pm.materialise(project, "full")
+    pm.strip(project)
+    before = (project / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    after = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "ponytail/" not in after
+    assert after == before
+
+
+def test_rollback_refuses_when_a_graphify_block_would_be_rewritten(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A changed (not only added) foreign block also blocks the whole-file restore."""
+    from scripts.graphify import materialise as gm
+
+    gm.materialise(project)
+    assert cli.main(["--project", str(project), "on"]) == 0
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
+    edited = text.replace("<!-- BEGIN auto-managed: graphify/ruleset -->\n",
+                          "<!-- BEGIN auto-managed: graphify/ruleset -->\nlocal note\n")
+    assert edited != text
+    (project / "AGENTS.md").write_text(edited, encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 1
+    assert "graphify block" in capsys.readouterr().err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == edited
+
+
+def test_rollback_foreign_block_prefixes_match_the_features() -> None:
+    from scripts.graphify import materialise as gm
+    from scripts.ponytail import materialise as pm
+
+    assert cli._FOREIGN_BLOCKS == {
+        "ponytail": pm.PONYTAIL_BLOCK_PREFIX,
+        "graphify": gm.GRAPHIFY_BLOCK_PREFIX,
+    }
 
 
 def test_rollback_when_no_backups(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
