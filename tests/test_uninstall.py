@@ -179,6 +179,27 @@ def test_uninstall_restores_base_for_files_outside_managed_paths(tmp_path: Path)
     assert not report.errors
 
 
+def test_confirmation_prompt_names_the_files_a_restore_overwrites(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A default run reverts every BASE-snapshotted file, not just MANAGED_PATHS:
+    the prompt must say which, before anything is overwritten."""
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "docs" / "runbook.md", "# mine\n")
+    bh.backup_base(consumer, consumer / "docs" / "runbook.md")
+    _write_lf(consumer / "docs" / "runbook.md", "# edited after install\n")
+    monkeypatch.delenv("PLAYBOOK_NO_PROMPT", raising=False)
+    monkeypatch.setattr("builtins.input", lambda _prompt: "n")
+
+    assert un.main(["--target", str(consumer)]) == 1
+
+    out = capsys.readouterr().out
+    assert "OVERWRITE 1 file(s)" in out and "docs/runbook.md" in out
+    assert "--no-restore" in out
+    assert (consumer / "docs" / "runbook.md").read_text(encoding="utf-8") == "# edited after install\n"
+
+
 def test_uninstall_keeps_state_dir_when_base_not_restored(tmp_path: Path) -> None:
     """--no-restore must not destroy BASE snapshots by removing the state dir."""
     consumer = tmp_path / "c"
@@ -192,6 +213,36 @@ def test_uninstall_keeps_state_dir_when_base_not_restored(tmp_path: Path) -> Non
     assert not report.state_dir_removed
     assert bh.base_record_for(consumer, "CLAUDE.md") is not None
     assert any("CLAUDE.md" in w for w in report.warnings)
+
+
+def test_kept_state_dir_stays_out_of_git(tmp_path: Path) -> None:
+    """Stripping the .gitignore block removed the line that ignored the state
+    dir: a kept BASE copy of a token-bearing .mcp.json became committable."""
+    import subprocess
+
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=consumer, check=True)
+    _write_lf(consumer / ".gitignore", (
+        "dist/\n"
+        "# >>> ai-playbook:begin id=playbook-patterns >>>\n"
+        ".ai-playbook-state/\n"
+        ".mcp.json\n"
+        "# <<< ai-playbook:end playbook-patterns <<<\n"
+    ))
+    _write_lf(consumer / ".mcp.json", '{"mcpServers": {"x": {"env": {"TOKEN": "s3cr3t"}}}}\n')
+    bh.backup_base(consumer, consumer / ".mcp.json")
+
+    report = un.uninstall(consumer, restore_from_bak=False)
+
+    assert not report.state_dir_removed
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=consumer, check=True, capture_output=True, text=True,
+    ).stdout
+    assert ".ai-playbook-state" not in status
+    assert any("info" in w and "exclude" in w for w in report.warnings)
+    assert "ai-playbook:begin" not in (consumer / ".gitignore").read_text(encoding="utf-8")
 
 
 def test_uninstall_ignores_ordinary_backup_and_strips_in_place(tmp_path: Path) -> None:
@@ -258,6 +309,23 @@ def test_uninstall_removes_playbook_hooks_from_settings(tmp_path: Path) -> None:
     assert ".claude/settings.json" in report.stripped
 
 
+def test_dry_run_reports_hook_removal_without_writing(tmp_path: Path) -> None:
+    import json
+
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    settings = consumer / ".claude" / "settings.local.json"
+    _write_lf(settings, json.dumps({"hooks": {"UserPromptSubmit": [{"hooks": [
+        {"type": "command", "command": 'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/x.py"'},
+    ]}]}}, indent=2) + "\n")
+    before = settings.read_bytes()
+
+    report = un.uninstall(consumer, dry_run=True)
+
+    assert any("would drop hooks" in s and "settings.local.json" in s for s in report.stripped)
+    assert settings.read_bytes() == before
+
+
 def test_uninstall_strips_feature_ruleset_blocks(tmp_path: Path) -> None:
     consumer = tmp_path / "c"
     consumer.mkdir()
@@ -265,10 +333,39 @@ def test_uninstall_strips_feature_ruleset_blocks(tmp_path: Path) -> None:
         "# mine\n\n"
         "<!-- BEGIN auto-managed: caveman/ruleset:ultra -->\ncave\n<!-- END auto-managed -->\n"
         "<!-- BEGIN auto-managed: ponytail/ruleset:ultra -->\npony\n<!-- END auto-managed -->\n"
+        "\n<!-- BEGIN auto-managed: graphify/ruleset -->\ngraph\n<!-- END auto-managed -->\n"
+        "tail\n"
     ))
 
-    un.uninstall(consumer)
+    report = un.uninstall(consumer)
 
-    text = (consumer / "AGENTS.md").read_text(encoding="utf-8")
-    assert "auto-managed" not in text
-    assert "# mine" in text
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# mine\ntail\n"
+    assert report.stripped == [f"AGENTS.md ({n} block)" for n in ("caveman", "ponytail", "graphify")]
+    # The strip used to back AGENTS.md up into .ai-playbook/backups/ — creating
+    # the dir, which remove_submodule then failed to deinit (exit 1).
+    assert not report.errors
+    assert not (consumer / ".ai-playbook").exists()
+
+
+def test_uninstall_imports_only_stdlib_helpers(tmp_path: Path) -> None:
+    """The feature toggles self-install jsonschema (or exit 2) at import time;
+    uninstall must not import them."""
+    import subprocess
+    import sys
+
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "AGENTS.md", (
+        "# mine\n\n<!-- BEGIN auto-managed: caveman/ruleset:lite -->\nx\n<!-- END auto-managed -->\n"
+    ))
+    probe = (
+        "import sys; from pathlib import Path; from scripts import uninstall; "
+        "uninstall.uninstall(Path(sys.argv[1])); "
+        "print(sorted(m for m in sys.modules if m == 'jsonschema' or m.endswith('.toggle')))"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", probe, str(consumer)],
+        cwd=Path(un.__file__).resolve().parents[1], capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert out == "[]"
+    assert "caveman" not in (consumer / "AGENTS.md").read_text(encoding="utf-8")

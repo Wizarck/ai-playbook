@@ -205,6 +205,43 @@ def test_curate_partial_failure_rolls_back_written_destinations(tmp_path: Path) 
     assert not (c / "docs" / "new-leaf.md").exists()
 
 
+def test_curate_rollback_survives_a_file_it_cannot_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The lock that failed the write can also fail restoring an earlier file.
+    The rollback used to stop at that file: created leaf docs were never
+    removed and the message still claimed "no file was changed"."""
+    from scripts import _backup_helper
+
+    c, claude = _consumer_with_loose_claude(tmp_path)
+    lines = _PROSE.split("\n")
+    first, second = "\n".join(lines[:8]), "\n".join(lines[8:])
+    (c / "docs" / "architecture.md").mkdir(parents=True)  # third write fails
+    plan = {"schema": "curate-plan/v1", "moves": [
+        {"source_rel_path": "CLAUDE.md", "source_excerpt": first,
+         "dest_rel_path": "docs/new-leaf.md", "pointer": "See [leaf](docs/new-leaf.md)."},
+        {"source_rel_path": "CLAUDE.md", "source_excerpt": second,
+         "dest_rel_path": "AGENTS.md", "pointer": "See [agents](AGENTS.md)."},
+        {"source_rel_path": "CLAUDE.md", "source_excerpt": "## Architecture notes",
+         "dest_rel_path": "docs/architecture.md", "pointer": "See [a](docs/architecture.md)."},
+    ]}
+    real_restore = _backup_helper.restore_backup
+
+    def locked_agents(root, record, **kw):  # type: ignore[no-untyped-def]
+        if record.rel_path == "AGENTS.md":
+            raise PermissionError(13, "locked by another process", "AGENTS.md")
+        return real_restore(root, record, **kw)
+    monkeypatch.setattr(_backup_helper, "restore_backup", locked_agents)
+    monkeypatch.setattr(curate, "restore_backup", locked_agents, raising=False)
+
+    res = curate.curate(c, consent=True, plan_provider=lambda f: plan)
+
+    assert res.rc == 1, res.detail
+    assert "PARTIAL rollback" in res.detail and "AGENTS.md" in res.detail
+    assert not (c / "docs" / "new-leaf.md").exists()  # created file removed regardless
+    assert (c / "CLAUDE.md").read_text(encoding="utf-8") == claude  # source never written
+
+
 def test_curate_per_run_backup_holds_prose_added_after_install(tmp_path: Path) -> None:
     """BASE is taken once at install; the per-run snapshot must hold later prose."""
     from scripts._backup_helper import backup_base, read_index

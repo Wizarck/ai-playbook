@@ -29,6 +29,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -84,7 +85,9 @@ def _build_parser() -> argparse.ArgumentParser:
                              "others reported for manual project-layer add) before rendering.")
     parser.add_argument("--force-with-reason", dest="force_reason", default=None,
                         metavar="TEXT",
-                        help="Break-glass: accept validation errors with audit trail (≥10 chars).")
+                        help="Break-glass flag, kept for CLI compatibility. render's only gate "
+                             "(a scope:personal leak) declares OVERRIDE: none, so it is refused "
+                             "there (exit 3).")
     return parser
 
 
@@ -160,6 +163,29 @@ def decrypt_sops_env(secrets_path: Path) -> dict[str, str]:
         return {}
 
 
+def _replace_owner_only(path: Path, text: str) -> None:
+    """Replace ``path`` with ``text``, readable by the owner only.
+
+    The text goes to a 0600 temp file (mkstemp's mode; chmod repeats it before
+    any secret is written) that is then ``os.replace``d over the target, so a
+    failure at any step leaves the existing file untouched. A symlinked path is
+    resolved first: the link survives and its target is what gets replaced.
+    """
+    target = Path(os.path.realpath(path))
+    fd, tmp = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            os.chmod(tmp, 0o600)
+            fh.write(text)
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def update_global_antigravity_mcp(
     merged: dict[str, dict[str, Any]],
     resolved_env: dict[str, str],
@@ -174,9 +200,10 @@ def update_global_antigravity_mcp(
     existing_data: dict[str, Any] = {}
     if global_mcp_path.is_file():
         # This is the user's global file (other projects' servers live here):
-        # never overwrite what we could not parse.
+        # never overwrite what we could not parse. utf-8-sig: PowerShell 5.1
+        # writes a BOM, which plain utf-8 would reject on every run.
         try:
-            content = global_mcp_path.read_text(encoding="utf-8").strip()
+            content = global_mcp_path.read_text(encoding="utf-8-sig").strip()
             if content:
                 existing_data = json.loads(content)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -277,13 +304,9 @@ def update_global_antigravity_mcp(
     if updated_any and not dry_run:
         try:
             body = json.dumps(existing_data, indent=2, sort_keys=True, ensure_ascii=False)
-            # Holds decrypted secrets (CF Access headers, env values): owner-only.
-            # The mode applies on creation; chmod tightens a pre-existing file.
-            # Both are no-ops beyond the read-only bit on Windows.
-            fd = os.open(global_mcp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            os.chmod(global_mcp_path, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(body + "\n")
+            # Holds decrypted secrets (CF Access headers, env values): owner-only
+            # (a no-op beyond the read-only bit on Windows).
+            _replace_owner_only(global_mcp_path, body + "\n")
             return global_mcp_path
         except Exception as exc:
             print(f"⚠️ Warning: Failed to write global mcp_config.json: {exc}", file=sys.stderr)
@@ -320,6 +343,17 @@ def _summary(*, merged: dict[str, dict[str, Any]],
     return "\n".join(lines)
 
 
+def _warn_ignored_args(*layers: Any) -> None:  # noqa: ANN401
+    """v1 has no ``args`` field (render emits ``command`` only), yet absorb up to
+    v0.24.1 wrote one into the personal layer: say so instead of dropping it."""
+    for layer in layers:
+        for sid, entry in ((layer.data or {}).get("servers") or {}).items():
+            if isinstance(entry, dict) and entry.get("args"):
+                print(f"⚠️  [mcp] {layer.name} layer server `{sid}`: `args` is not an "
+                      "mcp-servers/v1 field and is ignored; fold it into `command` "
+                      f"({_path_str(layer.path)}).", file=sys.stderr)
+
+
 def _run_absorb(
     *, consumer_root: Path, playbook_root: Path, personal_file: Path | None, dry_run: bool,
 ) -> None:
@@ -339,6 +373,11 @@ def _run_absorb(
         print(f"# [absorb] {len(res.report_project)} server(s) look project-scoped — NOT "
               f"written (add to mcp-servers.project.yaml by hand if shared): "
               f"{', '.join(res.report_project)}")
+    if res.report_manual:
+        print(f"# [absorb] {len(res.report_manual)} tenant server(s) have args that one "
+              f"`command` string cannot hold losslessly (backslash paths, spaces, quotes) — "
+              f"NOT written (add to {_path_str(res.personal_path)} by hand): "
+              f"{', '.join(res.report_manual)}")
     if res.skipped:
         print(f"# [absorb] {len(res.skipped)} already in a layer, skipped: {', '.join(res.skipped)}")
     if res.backed_up_mcp:
@@ -383,6 +422,8 @@ def run(args: argparse.Namespace) -> int:
                  "or ensure .ai-playbook/ is submoduled under the consumer repo"),
         ))
         return 2
+
+    _warn_ignored_args(base, project, personal)
 
     # Personal layer is only applied if its file is present on this machine.
     # merge_servers already tolerates an absent (present=False) personal layer.

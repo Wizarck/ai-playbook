@@ -266,11 +266,13 @@ def build_bundle(consumer_root: Path) -> dict[str, Any]:
     if mcp_project and hindsight_customised(mcp_yaml):
         # Emitting mcp_project_servers would re-render the file with the
         # template hindsight block, discarding the consumer's entry. Leave the
-        # file unmanaged instead (its extras are already in it).
+        # file unmanaged instead (its extras are already in it). That also
+        # drops the bundle's only MCP section, so apply skips the MCP render.
         print(
             f"⚠️ {mcp_yaml.name}: customised `hindsight` server kept; the file is left "
-            "unmanaged (not re-rendered). Move your hindsight values into the "
-            "template shape to let the playbook manage it.",
+            "unmanaged (not re-rendered; it stays yours to edit by hand). This run does "
+            "not re-render .mcp.json / .gemini/settings.json either: run "
+            "`python .ai-playbook/scripts/mcp/render.py` afterwards.",
             file=sys.stderr,
         )
         mcp_project = {}

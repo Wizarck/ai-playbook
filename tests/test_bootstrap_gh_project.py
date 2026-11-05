@@ -35,6 +35,27 @@ def test_gh_graphql_failure_raises_runtime_error(monkeypatch: pytest.MonkeyPatch
         bgp._gh_graphql("query { user(login: \"x\") { id } }")
 
 
+def test_lookup_project_surfaces_scope_errors_instead_of_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A token without read:project (INSUFFICIENT_SCOPES, which `gh auth status`
+    does not detect) used to come out as "project #N not found"."""
+    def fake_run(cmd, *args, input=None, check=False, **kwargs):  # type: ignore[no-untyped-def]
+        out = json.dumps({"data": None, "errors": [{"type": "INSUFFICIENT_SCOPES",
+                                                    "message": "needs read:project"}]})
+        raise subprocess.CalledProcessError(1, cmd, output=out, stderr="gh: needs read:project")
+    monkeypatch.setattr(bgp.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="INSUFFICIENT_SCOPES") as exc:
+        bgp.lookup_project("acme-org", 1)
+    assert "not found" not in str(exc.value)
+
+
+def test_lookup_project_not_found_keeps_the_gh_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_gh(monkeypatch, org_ok=False)
+    with pytest.raises(RuntimeError, match="not found under owner") as exc:
+        bgp.lookup_project("acme-org", 1)
+    assert "NOT_FOUND" in str(exc.value)
+
+
 def test_gh_missing_raises_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise FileNotFoundError("gh")

@@ -168,3 +168,77 @@ def test_main_flag_matching_nothing_exits_1(
     ])
     assert rc == 1
     assert "--hindsight-url" in capsys.readouterr().err
+
+
+def test_main_live_rerun_adding_a_flag_succeeds(tmp_path: Path) -> None:
+    """Regression: run 1 rewrote the owner email; run 2 (adding --hindsight-url)
+    wrote its edits and then exited 1, because --owner-email is required and
+    its upstream literal was gone."""
+    _make_fake_playbook(tmp_path)
+    base = ["--org-name", "acme", "--owner-email", "ops@acme.example", "--root", str(tmp_path)]
+    assert io.main(base) == 0
+
+    assert io.main([*base, "--hindsight-url", "https://h.acme.example"]) == 0
+
+    env_vars = (tmp_path / "docs" / "concepts" / "env-vars.md").read_text(encoding="utf-8")
+    assert env_vars.strip() == "https://h.acme.example"
+    tmpl = (tmp_path / "templates" / "new-project" / "AGENTS.md.tmpl").read_text(encoding="utf-8")
+    assert "ops@acme.example" in tmpl
+
+
+def _with_real_settings_template(root: Path) -> Path:
+    real = Path(io.__file__).resolve().parent.parent / "templates" / "new-project" / ".claude" / "settings.json.tmpl"
+    dst = root / "templates" / "new-project" / ".claude" / "settings.json.tmpl"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(real.read_bytes())
+    return dst
+
+
+def test_windows_secrets_path_keeps_the_settings_template_valid_json(tmp_path: Path) -> None:
+    """A backslash path used to land unescaped in the JSON template, so every
+    consumer bootstrapped from the fork got an unparseable settings.json."""
+    import json
+
+    _make_fake_playbook(tmp_path)
+    settings = _with_real_settings_template(tmp_path)
+    win_path = r"..\acme\secrets\secrets.env"
+
+    rc = io.main([
+        "--org-name", "acme", "--owner-email", "ops@acme.example",
+        "--secrets-env-path", win_path, "--root", str(tmp_path),
+    ])
+
+    assert rc == 0
+    commands = json.dumps(json.loads(settings.read_text(encoding="utf-8")))
+    assert json.dumps(f'"$CLAUDE_PROJECT_DIR/{win_path}"')[1:-1] in commands
+    tmpl = (tmp_path / "templates" / "new-project" / "AGENTS.md.tmpl").read_text(encoding="utf-8")
+    assert win_path in tmpl  # markdown targets get the raw value
+
+
+def test_secrets_path_with_a_quote_is_rejected(tmp_path: Path) -> None:
+    _make_fake_playbook(tmp_path)
+    settings = _with_real_settings_template(tmp_path)
+    before = settings.read_bytes()
+    rc = io.main([
+        "--org-name", "acme", "--owner-email", "ops@acme.example",
+        "--secrets-env-path", 'acme/"secrets".env', "--root", str(tmp_path),
+    ])
+    assert rc == 1
+    assert settings.read_bytes() == before
+
+
+def test_main_no_op_flag_writes_nothing(tmp_path: Path) -> None:
+    """The zero-hit check used to run after apply_edits had written the files."""
+    _make_fake_playbook(tmp_path)
+    for rel in ("docs/runbooks/hindsight-retain.md", "docs/concepts/env-vars.md",
+                "docs/concepts/session-start-hook.md", "templates/new-project/AGENTS.md.tmpl"):
+        (tmp_path / rel).write_text("nothing to replace\n", encoding="utf-8")
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+    rc = io.main([
+        "--org-name", "acme", "--owner-email", "ops@acme.example",
+        "--hindsight-url", "https://hindsight.acme.example", "--root", str(tmp_path),
+    ])
+
+    assert rc == 1
+    assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before

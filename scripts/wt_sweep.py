@@ -13,7 +13,8 @@ state of the matching PR, and prints a deletion plan. ``--apply`` actually
 executes it. Branches whose PR is still OPEN — or whose PR cannot be
 determined, or whose deletion would lose uncommitted changes / unpushed
 commits (see :func:`wt_remove.unsaved_work`) — are left alone. A failing
-git command skips that entry (no fallback ``rmtree``) and makes the run exit 3.
+git command skips that entry (no fallback ``rmtree``) and makes the run exit 3;
+after a successful ``worktree remove`` any residue dir is deleted.
 
 Companion to :mod:`wt_add` and :mod:`wt_remove`. Use periodically (or after a
 backlog reset) to keep ``git branch --list 'slice/*'`` honest.
@@ -258,6 +259,10 @@ def apply_deletes(
                     _failed(f"Removing worktree {wt_dir}", res)
                     continue
                 print(f"✅ Removed worktree: {wt_dir}")
+                # Only after git agreed: some submodule dirs survive --force on
+                # Windows (same belt + suspenders as wt_remove.remove_worktree).
+                if wt_dir.exists():
+                    shutil.rmtree(wt_dir, ignore_errors=True)
             else:
                 print(f"⚠️  Skipping {e.name}: has worktree (pass --include-worktrees to remove it).")
                 continue
