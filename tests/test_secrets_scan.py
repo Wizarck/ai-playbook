@@ -719,11 +719,13 @@ def test_staged_from_subdirectory_is_scanned(
 
 
 def test_staged_outside_repo_is_setup_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     assert main(["--staged"]) == 2
+    # names the failing subcommand, not the leading `-c diff.relative=false`
+    assert "git diff --cached failed" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

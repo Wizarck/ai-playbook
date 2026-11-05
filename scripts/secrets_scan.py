@@ -475,8 +475,11 @@ def _git(*args: str) -> bytes:
         ).stdout
     except (OSError, subprocess.SubprocessError) as exc:
         detail = getattr(exc, "stderr", b"") or b""
+        cmd = args
+        while cmd[:1] == ("-c",):  # name the subcommand, not `-c key=value`
+            cmd = cmd[2:]
         raise _GitError(
-            f"git {' '.join(args[:2])} failed: {exc} {detail.decode(errors='replace').strip()}"
+            f"git {' '.join(cmd[:2])} failed: {exc} {detail.decode(errors='replace').strip()}"
         ) from exc
 
 
