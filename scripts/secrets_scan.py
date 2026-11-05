@@ -65,15 +65,29 @@ for _stream in (sys.stdout, sys.stderr):
 # test in `tests/test_secrets_scan.py`.
 # ---------------------------------------------------------------------------
 
+# Assignment operator between a NAME and its value. A quoted value may sit on a
+# later line (YAML `KEY:\n  "v"`, JS `const KEY =\n  "v";`); an unquoted one
+# must share the NAME's line, or an empty `API_KEY=` would take the next dotenv
+# line (`CLAUDE_MODEL=…`) as its value.
+_ASSIGN = r"""(?:\s*[:=]\s*['"]|[ \t]*[:=][ \t]*)"""
+
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Anthropic API key. Example: sk-ant-api03-abc...XYZ (>= 50 chars after prefix).
     ("anthropic_api_key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{50,}")),
     # OpenAI API key — legacy (sk-<32+ alnum>) and the prefixed project /
-    # service-account / admin keys, whose bodies include `_` and `-`.
+    # service-account / admin keys, whose bodies include `_` and `-` (real ones
+    # are ~150 chars). The prefixed form must not follow a letter unless that
+    # letter ends an escape (`\n`, `%3D`), and its body must pass
+    # `_looks_like_secret`, so kebab-case (`task-proj-…`, `helpdesk-admin-…`)
+    # and `.env.example` placeholders do not fire.
     # Example: sk-proj-abc...xyz, sk-svcacct-..., sk-admin-...
     (
         "openai_api_key",
-        re.compile(r"sk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})"),
+        re.compile(
+            r"(?:(?<![A-Za-z])|(?<=\\[nrt])|(?<=%[0-9A-Fa-f]{2}))"
+            r"sk-(?:proj|svcacct|admin)-(?P<body>[A-Za-z0-9_\-]{40,})"
+            r"|sk-[A-Za-z0-9]{32,}"
+        ),
     ),
     # GitHub classic tokens (ghp_/gho_/ghu_/ghs_/ghr_) and fine-grained PATs
     # (github_pat_<22>_<59>).
@@ -85,12 +99,14 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Example: AKIAIOSFODNN7EXAMPLE.
     ("aws_access_key", re.compile(r"(?:AKIA|ASIA)[0-9A-Z]{16}")),
     # AWS Secret Access Key: only when paired with an obvious assignment.
-    # Quotes optional (dotenv / ~/.aws/credentials are unquoted).
+    # Quotes optional (dotenv / ~/.aws/credentials are unquoted); see
+    # `_ASSIGN` for why only a quoted value may sit on a later line.
     # Example: aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
     (
         "aws_secret_access_key",
         re.compile(
-            r"aws_secret_access_key\s*[:=]\s*['\"]?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])['\"]?",
+            r"aws_secret_access_key" + _ASSIGN
+            + r"[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])['\"]?",
             re.IGNORECASE,
         ),
     ),
@@ -118,17 +134,32 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Generic SECRET/TOKEN/KEY=value envs. Only fires when RHS is >=20 chars,
     # quoted or unquoted (dotenv), terminated by whitespace / a quote / end of
     # text, and contains a mix of classes (lowers/UPPERS/digits). The
-    # mix-class requirement is asserted post-match in `_generic_env_is_secret`.
+    # mix-class requirement is asserted post-match in `_looks_like_secret`.
     # The lookbehind + bounded name length keep this linear on long
     # uppercase runs (otherwise every offset of the run restarts the match).
     (
         "generic_env_secret",
         re.compile(
             r"""(?<![A-Z0-9_])(?P<prefix>[A-Z][A-Z0-9_]{0,64}(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
-            r"""\s*[:=]\s*['\"]?(?P<val>[A-Za-z0-9/+=_\-]{20,})(?=[\s'\"]|\Z)['\"]?""",
+            + _ASSIGN
+            + r"""(?P<val>[A-Za-z0-9/+=_\-]{20,})(?=[\s'\"]|\Z)['\"]?""",
         ),
     ),
 ]
+
+# Placeholder markers: a value containing one is documentation, not a secret.
+# Key bodies (prefixed OpenAI, PEM material) are checked against the long words
+# only: a random ~150-char body contains "xxxx" (any case) about once in 7,000.
+_PLACEHOLDER_WORDS = ("example", "changeme", "redacted", "your-")
+_PLACEHOLDER_MARKERS = (*_PLACEHOLDER_WORDS, "xxxx", "****", "<", ">")
+
+# kind -> (named group holding the value, placeholder markers) for kinds whose
+# matches must also pass `_looks_like_secret`. A group that did not take part
+# in the match (the legacy `sk-` branch has no `body`) is not checked.
+_VALUE_CHECKS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "openai_api_key": ("body", _PLACEHOLDER_WORDS),
+    "generic_env_secret": ("val", _PLACEHOLDER_MARKERS),
+}
 
 
 # Directory names we will not recurse into when scanning a tree.
@@ -156,14 +187,12 @@ class Match:
         return f"{self.path.as_posix()}:{self.line_no}"
 
 
-def _generic_env_is_secret(value: str) -> bool:
-    """Heuristic: the RHS looks secret-y (classes mix + no obvious placeholder)."""
+def _looks_like_secret(value: str, markers: tuple[str, ...] = _PLACEHOLDER_MARKERS) -> bool:
+    """Heuristic: the value looks secret-y (classes mix + no obvious placeholder)."""
     if len(value) < 20:
         return False
     lowered = value.lower()
-    if any(ph in lowered for ph in (
-        "example", "changeme", "redacted", "xxxx", "****", "your-", "<", ">",
-    )):
+    if any(ph in lowered for ph in markers):
         return False
     has_lower = any(c.islower() for c in value)
     has_upper = any(c.isupper() for c in value)
@@ -202,10 +231,11 @@ def scan(text: str, *, kinds: list[str] | None = None) -> list[Match]:
 
     out: list[Match] = []
     for kind, pattern in selected:
+        check = _VALUE_CHECKS.get(kind)
         for m in pattern.finditer(text):
-            if kind == "generic_env_secret":
-                val = m.group("val")
-                if not _generic_env_is_secret(val):
+            if check is not None:
+                value = m.group(check[0])
+                if value is not None and not _looks_like_secret(value, check[1]):
                     continue
             out.append(
                 Match(

@@ -24,7 +24,7 @@ from scripts.secrets_scan import main, sanitise, scan
     ("anthropic_api_key",
      "token=sk-ant-api03-" + "A" * 80),
     ("openai_api_key",
-     "cfg OPENAI='sk-proj-" + "a" * 40 + "'"),
+     "cfg OPENAI='sk-proj-" + "a1B2" * 10 + "'"),
     ("github_pat",
      "token ghp_" + "A" * 40),
     ("aws_access_key",
@@ -336,7 +336,7 @@ _PEM_TAIL = "-----END " + "OPENSSH PRIVATE KEY-----"
 
 @pytest.mark.parametrize("kind,sample", [
     ("openai_api_key", "OPENAI=sk-" + "proj-" + "Ab1_cD2-" * 6),
-    ("openai_api_key", "sk-" + "svcacct-" + "Zz9_" * 8),
+    ("openai_api_key", "sk-" + "svcacct-" + "Zz9_" * 12),
     ("github_pat", "github_" + "pat_" + "11AB" * 6 + "_" + "xY9z" * 15),
     ("aws_access_key", "id=" + "ASIA" + "Q" * 16),
     ("private_key", _PEM_HEAD + "\n" + "b3BlbnNzaC1rZXk" * 4 + "\n" + _PEM_TAIL),
@@ -362,6 +362,51 @@ def test_new_formats_fire(kind: str, sample: str) -> None:
 ])
 def test_new_formats_do_not_fire_on_lookalikes(sample: str) -> None:
     assert scan(sample) == [], sample
+
+
+# ---------------------------------------------------------------------------
+# Regression: false positives from the widened catalogue (SS-1). The gate has
+# no override, so each of these blocked an Edit/Write outright.
+# ---------------------------------------------------------------------------
+
+_PROJ = "sk-" + "proj-"
+
+
+@pytest.mark.parametrize("sample", [
+    # kebab-case words ending in "sk" (the mixed-case body isolates the boundary)
+    '<div class="helpdesk-admin-panel-component-wrapper">',
+    "[access](#how-to-ask-admin-for-access-to-the-repository)",
+    "task-proj-Management-Dashboard-Widget-For-Portal-2024",
+    # .env.example placeholders
+    "OPENAI_API_KEY=" + _PROJ + "your-openai-api-key-here",
+    "OPENAI_API_KEY=" + _PROJ + "YOUR-OPENAI-PROJECT-KEY-GOES-HERE-1234567890",
+    "OPENAI_API_KEY=" + _PROJ + "X" * 48,
+    # an empty value must not take the next line as its value
+    "ANTHROPIC_API_KEY=\nCLAUDE_MODEL=claude-sonnet-4-6",
+    "TELEGRAM_BOT_TOKEN=\n\nTELEGRAM_CHAT_ID=Ab12Cd34Ef56Gh78Ij90Kl",
+    "API_KEY=\r\nOTHER_VALUE=Ab12Cd34Ef56Gh78Ij90Kl",
+    "API_KEY:\n  nested_value_Ab12Cd34Ef56Gh78",
+    "aws_secret_access_key =\n" + "wJalrXUtnFEMI/K7MDENG/bPxRfiCY" + "0123456789",
+])
+def test_widened_catalogue_lookalikes_do_not_fire(sample: str) -> None:
+    assert scan(sample) == [], sample
+
+
+@pytest.mark.parametrize("kind,sample", [
+    ("openai_api_key", '{"apiKey": "' + _PROJ + "Ab1_cD2-" * 20 + '"}'),
+    ("openai_api_key", 'client = OpenAI(api_key="' + _PROJ + "Ab1_cD2-" * 6 + '")'),
+    ("openai_api_key", '"keys:\\n' + _PROJ + "Ab1_cD2-" * 6 + '"'),  # JSON-escaped line
+    ("openai_api_key", "?key%3D" + _PROJ + "Ab1_cD2-" * 6),  # URL-encoded '='
+    ("openai_api_key", "OPENAI_API_KEY=" + "sk-" + "A1b2C3d4" * 6),  # legacy format
+    # a quoted value may still sit on the next line (YAML / wrapped JS)
+    ("generic_env_secret", 'API_KEY:\n  "Ab12Cd34Ef56Gh78Ij90Kl"'),
+    ("generic_env_secret", 'const STRIPE_SECRET_KEY =\n  "Ab12Cd34Ef56Gh78Ij90Kl";'),
+    ("generic_env_secret", "DB_PASSWORD=Ab12Cd34Ef56Gh78Ij90Kl\r\nNEXT=1"),
+    ("aws_secret_access_key",
+     "aws_secret_access_key = " + "wJalrXUtnFEMI/K7MDENG/bPxRfiCY" + "0123456789\n"),
+])
+def test_widened_catalogue_still_fires_on_real_shapes(kind: str, sample: str) -> None:
+    assert kind in {m.kind for m in scan(sample)}, sample
 
 
 def test_private_key_sanitise_redacts_body() -> None:
