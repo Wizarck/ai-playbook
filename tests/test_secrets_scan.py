@@ -400,6 +400,7 @@ def test_widened_catalogue_lookalikes_do_not_fire(sample: str) -> None:
     ("openai_api_key", '{"apiKey": "' + _PROJ + "Ab1_cD2-" * 20 + '"}'),
     ("openai_api_key", 'client = OpenAI(api_key="' + _PROJ + "Ab1_cD2-" * 6 + '")'),
     ("openai_api_key", '"keys:\\n' + _PROJ + "Ab1_cD2-" * 6 + '"'),  # JSON-escaped line
+    ("openai_api_key", '"\\u003ccode\\u003e' + _PROJ + "Ab1_cD2-" * 6 + '"'),  # Go JSON '>'
     ("openai_api_key", "?key%3D" + _PROJ + "Ab1_cD2-" * 6),  # URL-encoded '='
     ("openai_api_key", "OPENAI_API_KEY=" + "sk-" + "A1b2C3d4" * 6),  # legacy format
     # a quoted value may still sit on the next line (YAML / wrapped JS)
