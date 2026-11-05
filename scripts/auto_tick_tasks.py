@@ -30,6 +30,9 @@ commit's tree when prepare-commit-msg runs, so a `git add` there only
 reaches the NEXT commit. Instead it prints (even with --quiet) the command
 to fold the tick into the commit just made:
 `git commit --amend --no-edit -- openspec/changes/<change-id>/tasks.md`.
+When tasks.md already had edits this commit leaves out, that pathspec amend
+would sweep them in too, so it prints `git add -p -- <tasks.md> &&
+git commit --amend --no-edit` instead.
 
 Subject parsing rules
 ---------------------
@@ -170,6 +173,25 @@ def _git(args: list[str], cwd: Path) -> str:
 
 def get_current_branch(cwd: Path) -> str:
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
+
+
+def has_unstaged_changes(rel: str, cwd: Path) -> bool:
+    """True when ``rel`` differs between the working tree and the index.
+
+    In prepare-commit-msg the index is the commit being made (git points
+    GIT_INDEX_FILE at its temporary index for `commit -a` / `commit <paths>`),
+    so a difference is a hunk this commit leaves out. A git error counts as
+    dirty: the remedy printed for that case is safe either way.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--quiet", "--", rel],
+            cwd=cwd,
+            capture_output=True,
+        )
+    except OSError:
+        return True
+    return result.returncode != 0
 
 
 def resolve_change_id(branch: str) -> str | None:
@@ -424,6 +446,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
+    rel = tasks_path.relative_to(repo_root).as_posix()
+    # Judged BEFORE ticking: afterwards the ticks themselves are unstaged hunks.
+    had_unstaged = has_unstaged_changes(rel, repo_root)
+
     try:
         changed, ticked = tick_tasks_md(tasks_path, refs=refs)
     except Exception as exc:  # noqa: BLE001 — defensive
@@ -443,10 +469,19 @@ def main(argv: list[str] | None = None) -> int:
     # commit (never landing at all after a branch's last commit) and swept in
     # any tasks.md hunks the developer had deliberately left unstaged.
     # Printed even with --quiet: the developer has to act on it.
-    rel = tasks_path.relative_to(repo_root).as_posix()
+    if had_unstaged:
+        # `--amend -- <rel>` commits the whole working-tree file: it would sweep
+        # in the hunks this commit deliberately left out.
+        remedy = (
+            f"{rel} also has edits this commit leaves out, which "
+            f"`git commit --amend -- {rel}` would sweep in. Stage only the ticks, "
+            f"then fold them in: git add -p -- {rel} && git commit --amend --no-edit"
+        )
+    else:
+        remedy = f"Fold it in after committing: git commit --amend --no-edit -- {rel}"
     print(
         f"⚠️  auto_tick_tasks: ticked {len(ticked)} box(es) in {rel} — NOT part of "
-        f"this commit. Fold it in after committing: git commit --amend --no-edit -- {rel}",
+        f"this commit. {remedy}",
         file=sys.stderr,
     )
 
