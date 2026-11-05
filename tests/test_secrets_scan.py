@@ -445,6 +445,13 @@ _RSA_TAIL = "-----END RSA " + "PRIVATE KEY-----"
     _PK_HEAD + "\n" + "X" * 64 + "\n" + _PK_TAIL,
     _PK_HEAD + "\n<paste your private key here>\n" + _PK_TAIL,
     "regexes = ['''" + _PK_HEAD + "''', '''" + _RSA_HEAD + "''']",
+    # joins and prefixes the key layouts below use, around no key material
+    'HEADERS = ["' + _PK_HEAD + '", "' + _RSA_HEAD + '"]',
+    'pem = "' + _PK_HEAD + _BS_N + '" + b64encode(der).decode() + "' + _BS_N + _PK_TAIL + '"',
+    "# " + _PK_HEAD + "\n# (paste your key here)\n# " + _PK_TAIL,
+    "> " + _PK_HEAD + "\n> ...\n> " + _PK_TAIL,
+    "<pre>" + _PK_HEAD + "<br>&lt;your key&gt;<br>" + _PK_TAIL + "</pre>",
+    'PEM_HEADER = "' + _PK_HEAD + '"  # first line of a PKCS8 file',
 ])
 def test_private_key_header_without_key_material_does_not_fire(sample: str) -> None:
     assert scan(sample) == [], sample
@@ -481,6 +488,33 @@ def test_private_key_fires_on_key_material(sample: str) -> None:
      _BS_N + '"\n)'),
 ])
 def test_private_key_sanitise_redacts_escaped_and_armored_bodies(
+    before: str, block: str, after: str,
+) -> None:
+    redacted, kinds = sanitise(before + block + after)
+    assert kinds == ["private_key"]
+    assert redacted == before + "[REDACTED:private_key]" + after
+
+
+# Regression: key lines joined by `+` / `.` / `,`, a backslash continuation, a
+# `#` / `//` / `>` prefix or an encoded line break. The tip caught these by
+# their BEGIN line alone; fe5024a's key-material rule missed them.
+@pytest.mark.parametrize("before,block,after", [
+    ('String k = "',
+     _PK_HEAD + _BS_N + '" +\n    "' + _PK_LINE + _BS_N + '" +\n    "' + _PK_TAIL, '";'),
+    ('k = "', _PK_HEAD + _BS_N + '"\n    + "' + _PK_LINE + _BS_N + '"\n    + "' + _PK_TAIL, '"'),
+    ('$k = "', _PK_HEAD + _BS_N + '" .\n    "' + _PK_LINE + _BS_N + '" .\n    "' + _PK_TAIL, '";'),
+    ('K = "\\n".join([\n    "', _PK_HEAD + '",\n    "' + _PK_LINE + '",\n    "' + _PK_TAIL,
+     '",\n])'),
+    ('K="', _PK_HEAD + "\\\n" + _PK_LINE + "\\\n" + _PK_TAIL, '"'),
+    ("# ", _PK_HEAD + "\n# " + _PK_LINE + "\n# " + _PK_TAIL, "\nnext"),
+    ("  // ", _PK_HEAD + "\n  // " + _PK_LINE + "\n  // " + _PK_TAIL, "\n}"),
+    ("> ", _PK_HEAD + "\n> " + _PK_LINE + "\n> " + _PK_TAIL, "\n\ntext"),
+    ('<add value="', _PK_HEAD + "&#10;" + _PK_LINE + "&#xD;&#xA;" + _PK_TAIL, '" />'),
+    ('"', _PK_HEAD + "\\u000a" + _PK_LINE + "\\u000A" + _PK_TAIL, '"'),
+    ("<p>", _PK_HEAD + "<br>" + _PK_LINE + "<br />" + _PK_TAIL, "</p>"),
+], ids=["plus", "leading-plus", "php-dot", "list", "backslash-eol", "hash", "slashes",
+        "quote", "xml-entity", "u000a", "br"])
+def test_private_key_joined_or_prefixed_lines_are_caught_and_redacted(
     before: str, block: str, after: str,
 ) -> None:
     redacted, kinds = sanitise(before + block + after)

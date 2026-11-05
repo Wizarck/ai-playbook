@@ -72,10 +72,16 @@ for _stream in (sys.stdout, sys.stderr):
 # line (`CLAUDE_MODEL=…`) as its value.
 _ASSIGN = r"""(?:\s*[:=]\s*['"]|[ \t]*[:=][ \t]*)"""
 
-# One line-break unit inside a PEM block: real whitespace, an escaped `\n` /
-# `\r` (JSON, env values; any escape depth) or a quote from the seam between
-# concatenated string literals.
-_PEM_BREAK = r"""(?:\s|\\+[nr]|["'])"""
+# One line-break unit inside a PEM block: a newline followed by `#`, `//` or
+# `>` line prefixes (a commented-out or quoted key); real whitespace; an
+# escaped `\n`, `\r` or `\u000a` (JSON, env values; any escape depth); a
+# backslash line continuation; an XML / HTML `&#10;`, `&#xA;` or `<br>`; or a
+# quote that ends a string literal plus the operator that may join it to the
+# next one (`" +`, `" .`, `",`: concatenation, a list of lines).
+_PEM_BREAK = (
+    r"(?:\n(?:[ \t]*(?:[#>]|//))+|\s|\\+(?:[nr]|u000[aAdD])|\\(?=\r?\n)"
+    r"""|&#(?:1[03]|[xX]0{0,2}[aAdD]);|<[bB][rR][ \t]*/?>|["'](?:\s*[+.,])?)"""
+)
 
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Anthropic API key. Example: sk-ant-api03-abc...XYZ (>= 50 chars after prefix).
@@ -119,10 +125,11 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # PEM / OpenSSH / PGP private key: the BEGIN line, optional armor headers
     # (PGP `Comment:`, encrypted-PEM `Proc-Type:`), then key material whose
     # first line is 40+ base64 chars that pass `_looks_like_secret`. A header
-    # alone (prose, a constant, a `MIIE...` placeholder) does not fire. Line
-    # breaks may be real, escaped (`\n` in JSON / env values) or the seam
-    # between concatenated string literals, and the match runs through the END
-    # line so sanitise() redacts the key material, not just the header.
+    # alone (prose, a constant, a `MIIE...` placeholder) does not fire. Lines
+    # may be split as `_PEM_BREAK` lists (real or escaped breaks, string
+    # literals joined by `+` / `.` / `,` or adjacency, `#` / `//` / `>`
+    # prefixes), and the match runs through the END line so sanitise()
+    # redacts the key material, not just the header.
     # Example header: "BEGIN OPENSSH PRIVATE KEY" in dashes.
     (
         "private_key",
@@ -130,7 +137,7 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----" + _PEM_BREAK + r"*+"
             + r"(?:[A-Za-z][A-Za-z0-9-]{0,40}:[ \t][^\r\n\\]*+" + _PEM_BREAK + r"++){0,10}"
             + r"(?P<body>(?:[A-Za-z0-9+/]|\\/){40,}+)"
-            + r"""(?:[A-Za-z0-9+/=\s"']|\\+[nr]|\\/)*+"""
+            + r"(?:" + _PEM_BREAK + r"|[A-Za-z0-9+/=]|\\/)*+"
             + r"(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)?"
         ),
     ),
