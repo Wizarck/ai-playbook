@@ -28,7 +28,8 @@ All notable changes to `ai-playbook` are documented here. Semver.
   `gemini` prompts; the SOPS re-key runbook cannot empty the store;
   `cleanup-zombies --apply` keeps directories that hold registered, tracked
   or checked-out submodules (`.skills-sources/<repo>`) and their git dirs,
-  and refuses when git cannot read `.gitmodules`.
+  refuses whatever it cannot inspect, and on Windows deletes a real orphan
+  git dir completely instead of stopping at its read-only objects.
 
 ### Upgrading — behaviour changes
 Bump and reconcile per `upgrade-playbook-pin.md`. Expect new, genuine failures.
