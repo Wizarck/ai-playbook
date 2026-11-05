@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -121,22 +122,117 @@ def _run_inject_context(consumer_root: Path, bank_id: str | None) -> None:
         )
 
 
+# npm's cmd-shim (what `npm install -g` writes as gemini.cmd) ends in a line
+# that runs the package's target with the user's arguments, e.g.
+#   ... & "%_prog%"  "%dp0%\node_modules\@google\gemini-cli\dist\index.js" %*
+#   "%~dp0\node.exe"  "%~dp0\node_modules\...\index.js" %*      (older npm)
+#   "%dp0%\node_modules\...\bin\tool.exe"   %*                  (native bin)
+_SHIM_NODE_RE = re.compile(
+    r'(?:"%_prog%"|"%~dp0\\node\.exe"|(?<![\w\\])node)\s+(?P<args>(?:[^\s"%]+\s+)*)'
+    r'"%(?:dp0%|~dp0)\\(?P<rel>[^"%]+\.[cm]?js)"\s+%\*\s*$',
+    re.IGNORECASE,
+)
+_SHIM_EXE_RE = re.compile(
+    r'^\s*"%(?:dp0%|~dp0)\\(?P<rel>[^"%]+\.exe)"\s+%\*\s*$', re.IGNORECASE,
+)
+# The only SET lines a plain cmd-shim has. Any other (a shebang's env vars) is
+# something only the shim knows how to apply, so it is not bypassed.
+_SHIM_SET_RE = re.compile(r"^\s*@?SET\s", re.IGNORECASE)
+_SHIM_SET_OK_RE = re.compile(
+    r'^\s*@?SET\s+(?:dp0=%~dp0|"_prog=[^"]*"|PATHEXT=%PATHEXT:;\.JS;=;%)\s*$',
+    re.IGNORECASE,
+)
+
+
+def _resolve_npm_shim(shim: str) -> list[str] | None:
+    """The argv prefix that runs what an npm cmd-shim runs, without cmd.exe.
+
+    Windows runs a .cmd through cmd.exe, which re-parses the command line
+    list2cmdline built: `%VAR%` expands in every argument, and a `"` inside an
+    argument flips cmd's quote pairing, so `&`, `|` and `>` after it run as
+    shell syntax. Calling the shim's own target (node + the package's JS entry,
+    or a native .exe) hands argv to CreateProcess unchanged. Returns None for
+    anything that is not a recognised npm shim.
+    """
+    path = Path(shim)
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    if any(_SHIM_SET_RE.match(ln) and not _SHIM_SET_OK_RE.match(ln) for ln in lines):
+        return None
+    base = path.parent
+    for line in lines:
+        if "%*" not in line:
+            continue
+        m = _SHIM_NODE_RE.search(line)
+        if m:
+            script = base.joinpath(*m.group("rel").split("\\"))
+            # Same choice as the shim: a node.exe beside it, else node.exe on
+            # PATH (never bare `node`, which PATHEXT could resolve to node.js).
+            beside = base / "node.exe"
+            node = str(beside) if beside.is_file() else shutil.which("node.exe")
+            if node is None or not script.is_file():
+                return None
+            return [node, *m.group("args").split(), str(script)]
+        m = _SHIM_EXE_RE.match(line)
+        if m:
+            exe = base.joinpath(*m.group("rel").split("\\"))
+            return [str(exe)] if exe.is_file() else None
+        return None
+    return None
+
+
+def _cmd_would_reinterpret(args: list[str]) -> bool:
+    """True when cmd.exe would not pass ``args`` through a .cmd verbatim.
+
+    `%` expands and `"` flips the quote pairing anywhere; an argument without
+    whitespace is left unquoted by list2cmdline, so its `&|<>^()!` are syntax.
+    """
+    for arg in args:
+        if any(c in arg for c in '"%\r\n'):
+            return True
+        if not any(c in arg for c in " \t") and any(c in arg for c in "&|<>^()!"):
+            return True
+    return False
+
+
 def _exec_gemini(args: list[str]) -> int:
     """Exec the `gemini` binary. POSIX uses os.execvp; Windows uses subprocess."""
     is_windows = os.name == "nt"
     gemini_args = ["gemini", *args]
     try:
         if is_windows:
-            # On Windows `gemini` is usually a .cmd shim; shutil.which finds it
-            # via PATHEXT. Pass an argv list, never a shell string: joining the
-            # user's args for cmd.exe split prompts on spaces and ran `>`/`&`.
-            # os.execvp does NOT cleanly replace the parent process on Windows,
-            # so we wait + propagate the exit code.
+            # On Windows `gemini` is usually npm's .cmd shim; shutil.which finds
+            # it via PATHEXT. Never a shell string, and never cmd.exe when it
+            # can be avoided: run the shim's node + JS entry directly so argv
+            # reaches gemini verbatim. os.execvp does NOT cleanly replace the
+            # parent process on Windows, so we wait + propagate the exit code.
             exe = shutil.which("gemini")
             if exe is None:
                 raise FileNotFoundError("gemini")
+            cmd = [exe, *args]
+            if exe.lower().endswith((".cmd", ".bat")):
+                target = _resolve_npm_shim(exe)
+                if target is not None:
+                    cmd = [*target, *args]
+                elif _cmd_would_reinterpret(args):
+                    print(
+                        f"❌ refusing to pass these arguments through cmd.exe at "
+                        f"{SCRIPT_BASENAME}:cmd-shim",
+                        file=sys.stderr,
+                    )
+                    print(
+                        f"   FIX: `gemini` resolved to {exe}, which is not an npm shim "
+                        "this launcher can bypass, and cmd.exe would expand `%` or run "
+                        "`&`, `|`, `>` in them. Run `gemini` from your shell directly, "
+                        "or reinstall it with `npm install -g @google/gemini-cli`.",
+                        file=sys.stderr,
+                    )
+                    print("   OVERRIDE: none", file=sys.stderr)
+                    return 1
             try:
-                return subprocess.run([exe, *args]).returncode
+                return subprocess.run(cmd).returncode
             except KeyboardInterrupt:
                 return 130
         # POSIX: replace the wrapper process in memory so Gemini takes the
