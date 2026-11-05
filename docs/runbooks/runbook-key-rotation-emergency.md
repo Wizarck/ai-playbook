@@ -149,11 +149,13 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
 **Fix**: temporarily relax branch protection (admin override), force-push, then re-enable protection. If the remote has new commits, rebase the new commits on top of the rewritten history before force-pushing — coordinate with collaborators first.
 
 ### Symptom: SOPS master key rotation stopped part-way
-**Cause**: the block in Step 6 stopped on one file and named it; the files before it are re-keyed, that file (restored from `<file>.pre-rekey` when its re-key did not verify) and the rest are not.
-**Fix**: act on the message it printed, then re-run the whole block: it reuses `keys-new.txt` and skips the files already done.
-- `no store files matched <pathspecs>`: set `STORE` to the pathspecs of your store's files (`git ls-files -- <pathspec>` shows what one matches). Nothing was changed.
+**Cause**: the block in Step 6 stopped and printed why. When it names a file, the files before it are re-keyed; that file (restored from `<file>.pre-rekey` when its re-key did not verify) and the rest are not.
+**Fix**: act on the message, then re-run the whole block: it reuses `keys-new.txt` and skips the files already done.
+
+- `no store files matched <pathspecs>`: nothing was changed; set `STORE` to the pathspecs of the store's files (`git ls-files -- <pathspec>` shows what one matches).
 - `<key> is not a recipient of <file>`: `<leaked-pub-key>` is mistyped (compare it with the `recipient` entries in the file's sops metadata), or that file was never encrypted to the leaked key and needs no re-key: leave it out of `STORE` (an extra `':!<file>'` pathspec excludes it).
-- `keys.txt cannot decrypt <file>` or `re-key of <file> did not verify`: run `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops -d <file>` (and the same with `keys-new.txt`) to see the sops error, and fix its cause.
+- `keys.txt cannot decrypt <file>`: `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops -d <file>` shows the sops error; often `K` is not the directory that holds the identity.
+- `re-key of <file> did not verify`: the file is back as it was; the sops error printed above the message says why `--rotate` failed.
 
 Do NOT take the leaked identity out of `keys.txt` until every file decrypts with `keys-new.txt` alone.
 
