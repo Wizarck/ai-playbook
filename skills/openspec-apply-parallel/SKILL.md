@@ -63,15 +63,14 @@ If the cross-check fails, STOP and tell the user: "tasks.md ownership is inconsi
 
 ```bash
 git fetch origin
-BASE_SHA=$(git rev-parse --short origin/main)
 git checkout slice/<change-id>
 git rebase origin/main   # abort on conflict; tell user to re-slice
 ```
 
-For each group, create the ephemeral branch (NOT pushed to origin):
+For each group, create the ephemeral branch (NOT pushed to origin) from `origin/main`. Name the ref, never a shell variable from an earlier block: each Bash tool call is a fresh shell, so the variable would be empty and `git branch` would silently start from HEAD.
 
 ```bash
-git branch slice/<change-id>--<group-id> $BASE_SHA
+git branch slice/<change-id>--<group-id> origin/main
 ```
 
 ### 5. Print the spawn matrix (and if `--dry-run`, stop here)
@@ -134,7 +133,11 @@ If ANY subagent returned `blocked: ...`, stop. Show the user which group blocked
 
 ```bash
 git checkout slice/<change-id>
-PRE_RECOMBINE=$(git rev-parse HEAD)   # abort point for step 9 — record it before any cherry-pick
+# Abort point for step 9, recorded before any cherry-pick. A ref, not a shell
+# variable: step 9 runs in a later Bash call (a fresh shell), and a ref also
+# survives context compaction. Run this block once: a second run would move
+# the abort point onto the half-recombined HEAD.
+git branch -f slice/<change-id>--pre-recombine HEAD
 for group in <ordered groups>; do
   git cherry-pick <group's-sha-range>
 done
@@ -151,14 +154,14 @@ pytest apps/api/tests/   # (or the equivalent for your stack)
 ```
 
 If the test fails:
-- **Conflict in shared files** → fix the shared-file edit in step 8 + re-run.
+- **Conflict in shared files** → fix the shared-file edit (commit it on `slice/<change-id>`) and re-run the suite above. Do NOT re-run step 8's block: its cherry-picks are already applied, and its `git branch -f` would move the abort point onto this half-recombined HEAD.
 - **Two groups had implicit cross-dependency not caught in step 3** → ABORT recombination + fall back to sequential `/opsx:apply`. File a slicing-too-coarse retro for next time.
-  Aborting discards the recombined commits, so confirm with the user first, then return `slice/<id>` to the point recorded in step 8 — never to `origin/main`, which would also drop every slice commit made before this parallel run:
+  Aborting discards the recombined commits, so confirm with the user first, then return `slice/<id>` to the `slice/<id>--pre-recombine` ref recorded in step 8 — never to `origin/main`, which would also drop every slice commit made before this parallel run:
   ```bash
   git cherry-pick --abort 2>/dev/null || true
-  git reset --hard "$PRE_RECOMBINE"
+  git reset --hard slice/<change-id>--pre-recombine
   ```
-  The per-group branches `slice/<id>--<group>` still hold the subagents' work.
+  The per-group branches `slice/<id>--<group>` still hold the subagents' work. If the ref is missing, `git reflog slice/<change-id>` lists the branch's earlier tips; ask the user which one to return to.
 
 ### 10. Push the slice branch + open PR
 
@@ -174,6 +177,7 @@ Then follow the standard `/opsx:apply` post-implementation flow: open PR, popula
 for group in <groups>; do
   git branch -D slice/<change-id>--<group-id>   # local only; never were on origin
 done
+git branch -D slice/<change-id>--pre-recombine   # the step 8 abort point
 ```
 
 ## Anti-patterns (each is a goal_drift per agentic-failures.md §X)

@@ -105,14 +105,17 @@ jobs:
           BRANCH_FIELD_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Branch") | .id')
           BASE_SHA_FIELD_ID=$(echo "$PROJECT_DATA" | jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Base SHA") | .id')
 
-          # Find the item whose title contains the change-id
+          # Find the item titled exactly the change-id, or issue_sync's
+          # "[<consumer>] <change-id>". Change-ids prefix each other, so a
+          # substring match picks a sibling slice. Same rule as title_matches()
+          # in .ai-playbook/scripts/verify_board_state.py.
           ITEM_ID=$(echo "$PROJECT_DATA" | jq -r --arg cid "$CHANGE_ID" '
             .data.user.projectV2.items.nodes[]
-            | select(.content.title | tostring | contains($cid))
+            | select((.content.title // "" | tostring | sub("^\\s+"; "") | sub("\\s+$"; "") | sub("^\\[[^\\]]+\\]\\s+"; "")) == $cid)
             | .id' | head -1)
 
           if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
-            echo "::warning::No project item found whose title contains '$CHANGE_ID'. Skipping."
+            echo "::warning::No project item found whose title is '$CHANGE_ID' (or '[<consumer>] $CHANGE_ID'). Skipping."
             exit 0
           fi
 
@@ -186,11 +189,11 @@ jobs:
 
           ITEM_ID=$(echo "$PROJECT_DATA" | jq -r --arg cid "$CHANGE_ID" '
             .data.user.projectV2.items.nodes[]
-            | select(.content.title | tostring | contains($cid))
+            | select((.content.title // "" | tostring | sub("^\\s+"; "") | sub("\\s+$"; "") | sub("^\\[[^\\]]+\\]\\s+"; "")) == $cid)
             | .id' | head -1)
 
           if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
-            echo "::warning::No project item found whose title contains '$CHANGE_ID'. Skipping."
+            echo "::warning::No project item found whose title is '$CHANGE_ID' (or '[<consumer>] $CHANGE_ID'). Skipping."
             exit 0
           fi
 

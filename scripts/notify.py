@@ -199,6 +199,10 @@ def _dedup_check(event: str, summary: str, trace_id: str | None, *, now: float) 
 # ---------------------------------------------------------------------------
 
 
+#: SMTP_STARTTLS values that opt out of TLS (local relays only; see _send_email).
+_STARTTLS_OFF = frozenset({"off", "0", "false", "no"})
+
+
 def _smtp_config() -> dict[str, str] | None:
     """Return SMTP config dict when all required vars are set, else None."""
     host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com"
@@ -275,6 +279,17 @@ def _send_email(
     if not _severity_geq(severity, min_sev):
         return False, f"below-threshold:{min_sev}"
 
+    tls_context: ssl.SSLContext | None = None
+    if os.environ.get("SMTP_STARTTLS", "").strip().lower() not in _STARTTLS_OFF:
+        try:
+            # SMTP_CA_FILE: trust a private CA / self-signed relay instead of the
+            # system store. Verification (chain + hostname) stays on either way.
+            tls_context = ssl.create_default_context(
+                cafile=os.environ.get("SMTP_CA_FILE", "").strip() or None,
+            )
+        except (OSError, ssl.SSLError):
+            return False, "smtp-error:ca-file"
+
     try:
         msg = _build_email(
             cfg=cfg, event=event, severity=severity, summary=summary,
@@ -282,19 +297,24 @@ def _send_email(
         )
         with smtplib.SMTP(cfg["host"], int(cfg["port"]), timeout=10) as smtp:
             smtp.ehlo()
-            # Verified STARTTLS is mandatory: SMTP_USER/SMTP_PASSWORD are
-            # always set here, so a downgraded (MITM-stripped) session would
-            # hand the credentials over in cleartext. Abort instead.
-            try:
-                smtp.starttls(context=ssl.create_default_context())
-                smtp.ehlo()
-            except (smtplib.SMTPException, ssl.SSLError):
-                return False, "smtp-error:starttls"
-            try:
-                smtp.login(cfg["user"], cfg["password"])
-            except smtplib.SMTPException:
-                # some local relays don't need auth; swallow and continue
-                pass
+            if tls_context is not None:
+                # Verified STARTTLS is mandatory: SMTP_USER/SMTP_PASSWORD are
+                # always set here, so a downgraded (MITM-stripped) session would
+                # hand the credentials over in cleartext. Abort instead.
+                try:
+                    smtp.starttls(context=tls_context)
+                    smtp.ehlo()
+                except (smtplib.SMTPException, ssl.SSLError):
+                    return False, "smtp-error:starttls"
+                try:
+                    smtp.login(cfg["user"], cfg["password"])
+                except smtplib.SMTPException:
+                    # A TLS relay that offers no AUTH (one that trusts its
+                    # network) still takes the message over the verified session.
+                    pass
+            # else SMTP_STARTTLS=off: an explicit opt-out for a local relay with
+            # no TLS (Mailpit, MailHog, a port-25 relay). Nothing is encrypted,
+            # so there is no login: the credentials are never sent.
             smtp.send_message(msg)
         return True, "sent"
     except (OSError, smtplib.SMTPException) as exc:
