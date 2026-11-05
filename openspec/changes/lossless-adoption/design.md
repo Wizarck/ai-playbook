@@ -116,7 +116,10 @@ five `project_meta` slots do not hold: frontmatter keys such as `tracker_kind` /
 `current_text` with `write_blocks` (missing blocks appended) and keeps the rest
 verbatim; `project_meta` only fills slot placeholders still present, and a value
 that itself still holds a slot placeholder (an unfilled section read back by
-`extract_project_meta`) is not substituted. This does not revive the rejected
+`extract_project_meta`) is not substituted. Rendered from the template (missing
+or markerless file), such a value replaces the whole slot, placeholder and
+template text after it, so the section comes back as it was read, content the
+consumer added to the unfilled slot included. This does not revive the rejected
 wrap: a markerless file is still regenerated from the template and its prose
 recovered through backup + `curate`, as decided in D2.
 
