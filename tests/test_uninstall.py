@@ -194,6 +194,36 @@ def test_uninstall_keeps_state_dir_when_base_not_restored(tmp_path: Path) -> Non
     assert any("CLAUDE.md" in w for w in report.warnings)
 
 
+def test_kept_state_dir_stays_out_of_git(tmp_path: Path) -> None:
+    """Stripping the .gitignore block removed the line that ignored the state
+    dir: a kept BASE copy of a token-bearing .mcp.json became committable."""
+    import subprocess
+
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=consumer, check=True)
+    _write_lf(consumer / ".gitignore", (
+        "dist/\n"
+        "# >>> ai-playbook:begin id=playbook-patterns >>>\n"
+        ".ai-playbook-state/\n"
+        ".mcp.json\n"
+        "# <<< ai-playbook:end playbook-patterns <<<\n"
+    ))
+    _write_lf(consumer / ".mcp.json", '{"mcpServers": {"x": {"env": {"TOKEN": "s3cr3t"}}}}\n')
+    bh.backup_base(consumer, consumer / ".mcp.json")
+
+    report = un.uninstall(consumer, restore_from_bak=False)
+
+    assert not report.state_dir_removed
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=consumer, check=True, capture_output=True, text=True,
+    ).stdout
+    assert ".ai-playbook-state" not in status
+    assert any("info" in w and "exclude" in w for w in report.warnings)
+    assert "ai-playbook:begin" not in (consumer / ".gitignore").read_text(encoding="utf-8")
+
+
 def test_uninstall_ignores_ordinary_backup_and_strips_in_place(tmp_path: Path) -> None:
     """Without a BASE record, an ordinary (post-playbook) backup must NOT be
     restored over the latest edits; strip markers in place instead."""
