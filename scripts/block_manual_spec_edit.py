@@ -36,8 +36,11 @@ Behaviour
     3. Nothing staged (e.g. CI `--all-files` on a pushed commit): HEAD's
        message, matching the `HEAD~1..HEAD` diff used in that case.
 - Local pre-commit stage (staged changes, no message yet): exit 0 with a
-  notice — the commit-msg stage decides. If the message cannot be resolved
-  for any other reason AND a protected file changed, the commit is blocked.
+  notice when a commit-msg hook will run this guard (_commit_msg_stage_wired)
+  — that stage decides. Otherwise (e.g. a pre-commit-stage entry kept from
+  v0.24.1) the commit is blocked with the steps to move the hook, instead of
+  passing unchecked. If the message cannot be resolved for any other reason
+  AND a protected file changed, the commit is blocked.
 - Files outside `openspec/specs/*.md` are ignored (exit 0).
 - `--force-with-reason="<text>"`: allowed; logs override and exits 0.
 
@@ -275,6 +278,37 @@ def _commit_paths(repo_root: Path) -> set[str]:
     return paths
 
 
+def _commit_msg_stage_wired(repo_root: Path) -> bool:
+    """Whether a commit-msg hook will run this guard with ``--commit-msg-file``.
+
+    The hook must exist (``--git-path`` honours core.hooksPath) and either call
+    this script itself, or be pre-commit's with a config that wires the
+    ``--commit-msg-file`` mode. It only decides whether the pre-commit stage may
+    defer: a miss blocks with migration steps instead of passing unchecked.
+    """
+    rc, out = _git_out(repo_root, "rev-parse", "--git-path", "hooks/commit-msg")
+    if rc != 0:
+        return False
+    hook = Path(out.strip())
+    try:
+        hook_text = (hook if hook.is_absolute() else repo_root / hook).read_text(
+            encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    if "block_manual_spec_edit" in hook_text:
+        return True
+    if "pre-commit" not in hook_text:
+        return False
+    m = re.search(r"--config[= ]([^\s)\"']+)", hook_text)
+    try:
+        config = (repo_root / (m.group(1) if m else ".pre-commit-config.yaml")).read_text(
+            encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    code = "\n".join(ln.split("#", 1)[0] for ln in config.splitlines())
+    return "block_manual_spec_edit" in code and "--commit-msg-file" in code
+
+
 def find_repo_root(start: Path) -> Path:
     """Walk up from `start` looking for a `.git` directory. Fallback to `start`."""
     for candidate in (start, *start.resolve().parents):
@@ -376,36 +410,48 @@ def main(argv: list[str] | None = None) -> int:
         # behaviour: treat every input file as modified.
         protected = candidates
 
+    unwired = False
     if not args.commit_msg_file:
         commit_msg = read_commit_message(repo_root)
         if commit_msg is None and _has_staged(repo_root):
             # Local pre-commit stage: git has not written this commit's message
             # yet, so there is nothing honest to check. The commit-msg stage
-            # (`--commit-msg-file`) makes the decision.
-            print(
-                "ℹ️  block_manual_spec_edit: message not written yet at the pre-commit "
-                "stage; deferring to the commit-msg stage (`pre-commit install "
-                "--hook-type commit-msg`).",
-                file=sys.stderr,
-            )
-            return 0
+            # (`--commit-msg-file`) decides — if it is wired; otherwise passing
+            # here would leave the commit unchecked (a pre-commit-stage entry
+            # kept from v0.24.1 or earlier).
+            if _commit_msg_stage_wired(repo_root):
+                print(
+                    "ℹ️  block_manual_spec_edit: message not written yet at the pre-commit "
+                    "stage; deferring to the commit-msg stage.",
+                    file=sys.stderr,
+                )
+                return 0
+            unwired = True
     if commit_msg and ARCHIVE_MARKER in commit_msg:
         return 0
 
     first = protected[0]
+    fix = (
+        "revert the hand-edit and land the change through "
+        "`openspec apply` + `openspec archive` of an open change. "
+        f"Archive commits carry the `{ARCHIVE_MARKER}<change-id>` marker "
+        "and bypass this check automatically."
+    )
+    if unwired:
+        why = ("openspec/specs/*.md change checked at the pre-commit stage, where the "
+               "commit message does not exist yet, and no commit-msg hook runs this guard")
+        fix = ("move the hook to the commit-msg stage: entry `python .ai-playbook/scripts/"
+               "block_manual_spec_edit.py --commit-msg-file` with `stages: [commit-msg]` (see "
+               ".ai-playbook/templates/new-project/.pre-commit-config.yaml.tmpl), top-level "
+               "`default_stages: [pre-commit]`, then `pre-commit install --hook-type commit-msg`.")
+    elif commit_msg:
+        why = "openspec/specs/*.md edited directly (not via `openspec archive`)"
+    else:
+        why = "openspec/specs/*.md hand-edit detected and commit message unavailable"
     emit_error(
-        why=(
-            "openspec/specs/*.md edited directly (not via `openspec archive`)"
-            if commit_msg
-            else "openspec/specs/*.md hand-edit detected and commit message unavailable"
-        ),
+        why=why,
         where=first,
-        fix=(
-            "revert the hand-edit and land the change through "
-            "`openspec apply` + `openspec archive` of an open change. "
-            f"Archive commits carry the `{ARCHIVE_MARKER}<change-id>` marker "
-            "and bypass this check automatically."
-        ),
+        fix=fix,
         override_invocation=(
             'python -m scripts.block_manual_spec_edit '
             + " ".join(f'"{p}"' for p in protected)
