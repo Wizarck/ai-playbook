@@ -18,6 +18,8 @@ Behaviour
 ---------
 - Fetches the project item whose Title equals ``--change-id`` (exact match:
   change-ids prefix each other, e.g. ``risk-engine`` / ``risk-engine-protections``).
+  The ``[<consumer>] `` prefix that ``issue_sync`` puts on the issues it files
+  is accepted, so ``[acme] risk-engine`` matches ``risk-engine`` too.
 - Reads the item's ``Status`` single-select value.
 - Compares against ``--expected-status`` (default ``Done``).
 - Exits ``0`` on match, ``1`` on mismatch, ``2`` on item-not-found, ``3``
@@ -28,7 +30,8 @@ Exit-code semantics
 - ``0`` — Status matches expected. Caller proceeds.
 - ``1`` — Status does NOT match. Caller MUST refuse the gated action
   (e.g. archive). Stderr carries an actionable message.
-- ``2`` — No project item found whose Title equals the change-id.
+- ``2`` — No project item found whose Title equals the change-id (bare or
+  behind a ``[<consumer>] `` prefix).
   Caller surfaces "board out of sync" and asks the human.
 - ``3`` — GraphQL or network error talking to the project. Caller
   surfaces "transient error" and may retry once before giving up.
@@ -47,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from typing import Any
@@ -64,6 +68,18 @@ EXIT_OK = 0
 EXIT_STATUS_MISMATCH = 1
 EXIT_ITEM_NOT_FOUND = 2
 EXIT_GRAPHQL_ERROR = 3
+
+# bootstrap_gh_project titles draft items with the bare change-id; issue_sync
+# files issues as "[<consumer>] <change-id>" (issue_sync._build_title). Both
+# name the same slice. A sibling whose id merely CONTAINS this one does not.
+# Keep in sync with the jq title filter in the project-board-synced-check and
+# project-status-slice-progress workflow templates.
+_CONSUMER_PREFIX_RE = re.compile(r"^\[[^\]]+\]\s+")
+
+
+def title_matches(title: str | None, change_id: str) -> bool:
+    """True when a board item's title names exactly ``change_id``."""
+    return _CONSUMER_PREFIX_RE.sub("", (title or "").strip(), count=1) == change_id
 
 
 def _gh_graphql(query: str, **variables: Any) -> dict[str, Any]:  # noqa: ANN401
@@ -139,7 +155,7 @@ def _fetch_item_status(*, owner: str, project_number: int, change_id: str) -> tu
         for item in items:
             content = item.get("content") or {}
             title = content.get("title", "")
-            if title.strip() != change_id:  # exact: a sibling slice must not match
+            if not title_matches(title, change_id):  # a sibling slice must not match
                 continue
             # Found the matching item. Extract Status.
             for fv in (item.get("fieldValues") or {}).get("nodes") or []:
@@ -203,9 +219,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if title is None:
         print(
-            f"::error::No project item found whose title contains "
-            f"'{args.change_id}'. Either: (a) add the slice to the project "
-            f"board, or (b) the title doesn't match the change-id.",
+            f"::error::No project item found whose title is '{args.change_id}' "
+            f"(or '[<consumer>] {args.change_id}'). Either: (a) add the slice to "
+            f"the project board, or (b) the title doesn't match the change-id.",
             file=sys.stderr,
         )
         return EXIT_ITEM_NOT_FOUND

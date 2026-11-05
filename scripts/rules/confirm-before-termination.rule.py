@@ -80,6 +80,23 @@ def _receipt_path() -> "os.PathLike[str] | str":
     return Path(tempfile.gettempdir()) / "aiplaybook-termination-receipt"
 
 
+def _decode_receipt(data: bytes) -> str:
+    """Receipt text, honouring a BOM; raises UnicodeDecodeError only for
+    BOM-marked UTF-16 that does not decode.
+
+    The documented remedy must be performable from the shell the agent has,
+    and only blankness is judged. Windows PowerShell 5.1 `echo <reason> >
+    <path>` writes UTF-16LE with a BOM; `Set-Content -Encoding utf8` writes
+    UTF-8 with one. cmd `echo` and PS 5.1 `Set-Content` without -Encoding write
+    the OEM / ANSI code page, which is not UTF-8 once the reason has a
+    non-ASCII letter: those bytes become U+FFFD, so the reason still counts,
+    and the whitespace a blank receipt holds is ASCII in every one of them.
+    """
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16")
+    return data.decode("utf-8-sig", errors="replace")
+
+
 def _consume_receipt() -> bool:
     """One confirmation authorises exactly one stop: read AND delete.
 
@@ -94,10 +111,10 @@ def _consume_receipt() -> bool:
             return False
         data = p.read_bytes()
         # Unlink BEFORE judging: whatever the content, a receipt is single-use.
-        # Judging first let an undecodable (e.g. UTF-16) receipt raise, fail the
-        # hook open, and survive as a standing override.
+        # Judging first let an undecodable receipt raise, fail the hook open,
+        # and survive as a standing override.
         p.unlink()
-        return bool(data.decode("utf-8").strip())
+        return bool(_decode_receipt(data).replace("\x00", "").strip())
     except (OSError, UnicodeDecodeError):
         return False
 
@@ -112,12 +129,18 @@ def pretooluse(event: dict):
     if name in _STOP_TOOLS:
         if _override_active() or _consume_receipt():
             return allow()
+        from pathlib import Path
+
+        # Quoted, forward slashes: an unquoted `C:\Users\...` loses every
+        # backslash in Git Bash (the receipt lands in a junk file in the cwd);
+        # this form works unchanged in bash, PowerShell and cmd.
+        receipt = Path(_receipt_path()).as_posix()
         return block(
             f"Refusing to stop a running task/shell ({name}) without explicit user "
             "confirmation. A request to *check/investigate* is NOT authority to "
             "terminate. Report -> recommend -> ask the user; only after a yes, "
-            f"write the one-shot receipt: echo <short reason> > "
-            f"{_receipt_path()} (it authorises exactly one stop)."
+            f'write the one-shot receipt: echo <short reason> > "{receipt}" '
+            "(it authorises exactly one stop)."
         )
 
     # 2) Process/job termination issued through Bash.

@@ -154,9 +154,16 @@ email is silently disabled and only JSONL is written.
 | `SMTP_PORT` | `587` | no |
 | `SMTP_USER` | `$GIT_AUTHOR_EMAIL` | yes |
 | `SMTP_PASSWORD` | — (SOPS-decrypted) | yes |
+| `SMTP_STARTTLS` | unset (verified STARTTLS mandatory) | no |
+| `SMTP_CA_FILE` | unset (system CA store) | no |
 | `AIPLAYBOOK_NOTIFICATIONS_FROM` | `$SMTP_USER` | no |
 | `AIPLAYBOOK_NOTIFICATIONS_TO` | `$SMTP_USER` | no |
 | `AIPLAYBOOK_NOTIFICATIONS_EMAIL_MIN_SEVERITY` | `warn` | no |
+
+Login only happens over verified STARTTLS. A relay that fails it is skipped
+with reason `smtp-error:starttls`. `SMTP_CA_FILE` trusts a private CA, and
+`SMTP_STARTTLS=off` sends to a TLS-less local relay without logging in. See
+[env-vars.md](env-vars.md) for the details.
 
 Email format:
 

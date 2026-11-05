@@ -30,6 +30,9 @@ commit's tree when prepare-commit-msg runs, so a `git add` there only
 reaches the NEXT commit. Instead it prints (even with --quiet) the command
 to fold the tick into the commit just made:
 `git commit --amend --no-edit -- openspec/changes/<change-id>/tasks.md`.
+When tasks.md already had edits this commit leaves out, that pathspec amend
+would sweep them in too, so it prints `git add -p -- <tasks.md> &&
+git commit --amend --no-edit` instead.
 
 Subject parsing rules
 ---------------------
@@ -172,6 +175,25 @@ def get_current_branch(cwd: Path) -> str:
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
 
 
+def has_unstaged_changes(rel: str, cwd: Path) -> bool:
+    """True when ``rel`` differs between the working tree and the index.
+
+    In prepare-commit-msg the index is the commit being made (git points
+    GIT_INDEX_FILE at its temporary index for `commit -a` / `commit <paths>`),
+    so a difference is a hunk this commit leaves out. A git error counts as
+    dirty: the remedy printed for that case is safe either way.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--quiet", "--", rel],
+            cwd=cwd,
+            capture_output=True,
+        )
+    except OSError:
+        return True
+    return result.returncode != 0
+
+
 def resolve_change_id(branch: str) -> str | None:
     """Extract change-id from `<type>/<change-id>` branch name."""
     if "/" not in branch:
@@ -208,8 +230,13 @@ def tick_tasks_md(
     if not tasks_path.is_file():
         return False, []
 
-    text = tasks_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
+    # Untranslated newlines in and out, each line keeping its own ending: text
+    # mode rewrote every line with the platform's newline (CRLF on Windows), so
+    # without eol attributes the tick was one whole-file hunk that
+    # `git add -p` could not stage apart from the developer's other edits.
+    with tasks_path.open(encoding="utf-8", newline="") as fh:
+        text = fh.read()
+    lines = text.splitlines(keepends=True)
 
     ticked: list[str] = []
     new_lines: list[str] = []
@@ -236,7 +263,8 @@ def tick_tasks_md(
         r"^(\s*-\s*)\[ \](\s+(?:(\d+(?:\.\d+)*)\.?\s+)?.*)$"
     )
 
-    for line in lines:
+    for raw in lines:
+        line = raw.splitlines()[0]  # without its ending, whichever kind it is
         # Header detection — re-evaluate scope.
         depth_m = heading_depth_re.match(line)
         if depth_m:
@@ -289,20 +317,19 @@ def tick_tasks_md(
 
             if should_tick:
                 new_line = f"{prefix}[x]{suffix}"
-                new_lines.append(new_line)
+                new_lines.append(new_line + raw[len(line):])
                 ticked.append(new_line.strip())
                 continue
 
-        new_lines.append(line)
+        new_lines.append(raw)
 
-    new_text = "\n".join(new_lines)
-    if text.endswith("\n") and not new_text.endswith("\n"):
-        new_text += "\n"
+    new_text = "".join(new_lines)
 
     if new_text == text:
         return False, ticked  # ticked may be empty
 
-    tasks_path.write_text(new_text, encoding="utf-8")
+    with tasks_path.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(new_text)
     return True, ticked
 
 
@@ -424,6 +451,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
+    rel = tasks_path.relative_to(repo_root).as_posix()
+    # Judged BEFORE ticking: afterwards the ticks themselves are unstaged hunks.
+    had_unstaged = has_unstaged_changes(rel, repo_root)
+
     try:
         changed, ticked = tick_tasks_md(tasks_path, refs=refs)
     except Exception as exc:  # noqa: BLE001 — defensive
@@ -443,10 +474,19 @@ def main(argv: list[str] | None = None) -> int:
     # commit (never landing at all after a branch's last commit) and swept in
     # any tasks.md hunks the developer had deliberately left unstaged.
     # Printed even with --quiet: the developer has to act on it.
-    rel = tasks_path.relative_to(repo_root).as_posix()
+    if had_unstaged:
+        # `--amend -- <rel>` commits the whole working-tree file: it would sweep
+        # in the hunks this commit deliberately left out.
+        remedy = (
+            f"{rel} also has edits this commit leaves out, which "
+            f"`git commit --amend -- {rel}` would sweep in. Stage only the ticks, "
+            f"then fold them in: git add -p -- {rel} && git commit --amend --no-edit"
+        )
+    else:
+        remedy = f"Fold it in after committing: git commit --amend --no-edit -- {rel}"
     print(
         f"⚠️  auto_tick_tasks: ticked {len(ticked)} box(es) in {rel} — NOT part of "
-        f"this commit. Fold it in after committing: git commit --amend --no-edit -- {rel}",
+        f"this commit. {remedy}",
         file=sys.stderr,
     )
 
