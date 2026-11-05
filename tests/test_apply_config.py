@@ -719,6 +719,37 @@ def test_persisted_bundle_reapply_is_noop_despite_base_shas(tmp_path: Path) -> N
     assert "base_shas" not in json.loads(applied.read_text(encoding="utf-8"))
 
 
+def test_reapply_ignores_base_shas_persisted_by_an_older_apply(tmp_path: Path) -> None:
+    """An applied-config.json written by apply_config <= v0.24.1 still holds the
+    UI's base_shas next to the file_states of the run that consumed them. The
+    tokens predate the files that run rewrote, so every bootstrap --update hit
+    a CAS conflict and applied-config.json never advanced."""
+    from scripts._template_classifier import compute_file_sha
+    from scripts.apply_config import SectionResult
+
+    target = _fake_project(tmp_path)
+    gi = target / ".gitignore"
+    gi.write_text("node_modules/\n", encoding="utf-8")
+    pre_apply_sha = compute_file_sha(gi.read_text(encoding="utf-8"))
+    bp = _write_bundle(tmp_path, {"schema": "ai-playbook-config/v1",
+                                  "gitignore_extras": {"patterns": ["dist/"]}})
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        assert apply_config.apply(bp, target=target).ok
+        applied = target / ".ai-playbook" / "applied-config.json"
+        legacy = json.loads(applied.read_text(encoding="utf-8"))
+        assert "file_states" in legacy
+        legacy["base_shas"] = {".gitignore": pre_apply_sha}  # what <= v0.24.1 persisted
+        applied.write_text(json.dumps(legacy), encoding="utf-8")
+        for dry_run in (True, False):
+            report = apply_config.apply(applied, target=target, dry_run=dry_run)
+            md = report.to_markdown()
+            assert report.ok, md
+            assert "compare-and-swap conflict" not in md
+            assert "ignored stale base_shas" in md
+    assert "base_shas" not in json.loads(applied.read_text(encoding="utf-8"))
+
+
 def test_feature_rewrite_earlier_in_apply_is_not_a_cas_conflict(tmp_path: Path) -> None:
     """A config-UI export stamps base_shas and carries project_meta, so it
     re-renders AGENTS.md. caveman (like graphify / ponytail) rewrites AGENTS.md
