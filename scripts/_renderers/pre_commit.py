@@ -89,7 +89,12 @@ def _hook_ids(repos: object) -> set[str]:
             if isinstance(hook, dict) and isinstance(hook.get("id"), str)}
 
 
-def _merge_error(body: str, *, markerless: bool) -> str:
+def _merge_error(body: str, current_text: str, *, markerless: bool) -> str:
+    own_dup = duplicate_key(current_text)
+    if own_dup is not None:
+        return (f".pre-commit-config.yaml already has a duplicate key {own_dup!r} "
+                "(YAML loaders keep only one of them; check-yaml rejects the file): "
+                "remove the duplicate and re-apply")
     dup = duplicate_key(body)
     cause = ("this file has no playbook-hooks marker block, so the block was "
              "appended at its end; " if markerless else "")
@@ -154,7 +159,7 @@ def render(
     if merged is None or (appended and (
             not isinstance(repos, list) or repos[-len(appended):] != appended)):
         if merging:
-            raise MergeConflictError(_merge_error(body, markerless=markerless))
+            raise MergeConflictError(_merge_error(body, current_text, markerless=markerless))
         raise ValueError("rendered .pre-commit-config.yaml is not a valid YAML mapping")
     return body
 
