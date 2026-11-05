@@ -474,6 +474,18 @@ def test_edit_slipped_into_a_merge_is_blocked(tmp_path: Path, monkeypatch: pytes
     assert bmse.main(["--commit-msg-file", str(msg)]) == 1
 
 
+def test_template_keeps_other_hooks_at_the_pre_commit_stage() -> None:
+    """Installing the commit-msg hook type for the guard must not make every
+    stage-less template hook (gitleaks, the always_run ones) run twice."""
+    import yaml
+
+    template = Path(__file__).resolve().parent.parent / "templates" / "new-project" / ".pre-commit-config.yaml.tmpl"
+    text = template.read_text(encoding="utf-8")
+    assert yaml.safe_load(text)["default_stages"] == ["pre-commit"]
+    guard = text[text.index("# - id: block-manual-spec-edit"):].split("\n\n", 1)[0]
+    assert "#   stages: [commit-msg]" in guard
+
+
 def test_commit_msg_stage_reads_a_non_utf8_message(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
