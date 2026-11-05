@@ -81,16 +81,20 @@ def _receipt_path() -> "os.PathLike[str] | str":
 
 
 def _decode_receipt(data: bytes) -> str:
-    """Receipt text, honouring a BOM; raises UnicodeDecodeError otherwise.
+    """Receipt text, honouring a BOM; raises UnicodeDecodeError only for
+    BOM-marked UTF-16 that does not decode.
 
-    The documented remedy must be performable from the shell the agent has.
-    Windows PowerShell 5.1 `echo <reason> > <path>` writes UTF-16LE with a BOM,
-    and `Set-Content -Encoding utf8` writes UTF-8 with one. BOM-less bytes must
-    be UTF-8; anything else stays undecodable and authorises nothing.
+    The documented remedy must be performable from the shell the agent has,
+    and only blankness is judged. Windows PowerShell 5.1 `echo <reason> >
+    <path>` writes UTF-16LE with a BOM; `Set-Content -Encoding utf8` writes
+    UTF-8 with one. cmd `echo` and PS 5.1 `Set-Content` without -Encoding write
+    the OEM / ANSI code page, which is not UTF-8 once the reason has a
+    non-ASCII letter: those bytes become U+FFFD, so the reason still counts,
+    and the whitespace a blank receipt holds is ASCII in every one of them.
     """
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
         return data.decode("utf-16")
-    return data.decode("utf-8-sig")
+    return data.decode("utf-8-sig", errors="replace")
 
 
 def _consume_receipt() -> bool:
