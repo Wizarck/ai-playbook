@@ -281,6 +281,31 @@ def test_real_git_force_discards(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert not (proj / "feat-x").exists()
 
 
+def test_real_git_regenerable_playbook_state_is_not_unsaved_work(tmp_path: Path) -> None:
+    """apply_config / the dashboard write applied-config.json|js and
+    dashboard-data.js into <worktree>/.ai-playbook/. The playbook's own
+    .gitignore did not cover them, so `status --ignore-submodules=none`
+    flagged the submodule and wt_remove refused for good."""
+    proj = make_bare_layout(tmp_path)
+    seed = tmp_path / "pb-seed"
+    seed.mkdir()
+    _git(seed, "init", "-q", "-b", "master")
+    (seed / ".gitignore").write_bytes((Path(wr.__file__).resolve().parents[1] / ".gitignore").read_bytes())
+    (seed / "VERSION").write_text("0.0.0\n", encoding="utf-8")
+    _git(seed, "add", "-A")
+    _git(seed, "commit", "-q", "-m", "playbook")
+    wt = proj / "feat-x"
+    _git(wt, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(seed), ".ai-playbook")
+    _git(wt, "commit", "-q", "-m", "add playbook")
+
+    for name in ("applied-config.json", "applied-config.js", "dashboard-data.js"):
+        (wt / ".ai-playbook" / name).write_text("{}\n", encoding="utf-8")
+    assert wr.unsaved_work(proj / ".bare", None, wt, None) is None
+
+    (wt / ".ai-playbook" / "hand-edit.txt").write_text("real work\n", encoding="utf-8")
+    assert wr.unsaved_work(proj / ".bare", None, wt, None) == "uncommitted changes"
+
+
 def test_real_git_pruned_remote_branch_trusts_pr_head(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Remote branch deleted + pruned after merge: the PR head proves nothing is lost."""
     proj = make_bare_layout(tmp_path)
