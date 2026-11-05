@@ -62,8 +62,8 @@ entries:
       Git stores submodule metadata under `.git/modules/<name>/` and does not
       clean it on `git submodule deinit`. It also holds the git dirs of nested
       `.skills-sources/<repo>` submodules, so it is an orphan only when no
-      submodule at, under or above it is registered, tracked as a gitlink or
-      still checked out.
+      submodule at, under or above it is declared, tracked as a gitlink, still
+      checked out or used by a linked worktree.
     evidence: github.com/consumer-a/consumer-a/pull/125
 
   - id: auto-managed-orphan-blocks
@@ -389,8 +389,8 @@ entries:
       should never live in git. `.gitignore` already covers `*.egg-info/`,
       so the directory is always untracked. Consumers that happened to
       commit the directory pre-gitignore (rare) get it cleaned up via the
-      `directory_orphan` safety check (deletes only if no tracked files
-      under it). Removing on the playbook side too in v0.17.1 to keep the
+      `directory_orphan` safety check (deletes only if nothing under it is
+      tracked and no repository sits in it). Removing on the playbook side too in v0.17.1 to keep the
       root tidy.
     evidence: ai-playbook v0.17.1 CHANGELOG
 

@@ -51,10 +51,12 @@ Tier × action × safety triples are validated against the matrix in the script.
 
 ## Safety checks
 
-Each entry names one check. Anything a check cannot establish (git missing, a probe failing, an unreadable or malformed `.gitmodules`) counts as a failure. Paths compare case-insensitively on Windows and macOS.
+Each entry names one check. Anything a check cannot establish counts as a failure: git missing, a probe failing, an unreadable or malformed `.gitmodules`, a directory it cannot list. Paths and the names `.git`, `HEAD` and `config` compare case-insensitively on Windows and macOS. Scans never follow a symlink or junction, and deletion removes only the link.
 
 - `check_gitmodules_first`: the target is an orphan only when `.gitmodules`, as parsed by `git config`, registers no submodule at, under or above it, git tracks nothing under it (files or gitlinks), and no `.git` (a repository or submodule checkout) sits at or under it.
-- `directory_orphan`: git tracks nothing under the target. For a `.git/modules/<name>` git dir it also requires that no submodule whose name or path is at, under or above `<name>` is registered or tracked as a gitlink, and that no checkout's `core.worktree`/`.git` pair still points into it.
+- `directory_orphan`: git tracks nothing under the target. Outside `.git/modules`, no `.git` sits at or under it. For a `.git/modules/<name>` git dir:
+  - no submodule whose name or path is at, under or above `<name>` is declared in `.gitmodules` (a section without `path` still declares its name) or tracked as a gitlink;
+  - no git dir under it is still used, either by a checkout whose `core.worktree` and `.git` point back at it, or by a linked worktree in its `worktrees/`.
 - `file_mtime_and_drained`: the file is older than `rotation_days` and every JSONL record is `drained`.
 - `yaml_literal_rename`: at least one `rename_in_files` file parses and holds `rename_from` as a scalar value.
 - `auto_managed_orphan`: see the auto-managed sections concept below; Tier 3 only.

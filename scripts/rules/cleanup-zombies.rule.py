@@ -39,6 +39,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from collections.abc import Iterable
@@ -227,7 +228,10 @@ def _find_consumer_root(start: Path) -> Path | None:
 
 
 _CASE_INSENSITIVE_FS = sys.platform in ("win32", "darwin")  # their default filesystems
-_GIT_DIR_INTERNALS = frozenset({"objects", "refs", "logs", "hooks", "info", "lfs"})
+
+
+def _fs_key(name: str) -> str:
+    return name.casefold() if _CASE_INSENSITIVE_FS else name
 
 
 def _norm_rel(path: str) -> str:
@@ -241,8 +245,7 @@ def _rel(path: Path, consumer_root: Path) -> str:
 
 def _paths_overlap(a: str, b: str) -> bool:
     """True when `a` and `b` are the same path or one contains the other."""
-    if _CASE_INSENSITIVE_FS:
-        a, b = a.casefold(), b.casefold()
+    a, b = _fs_key(a), _fs_key(b)
     return a == b or a.startswith(b + "/") or b.startswith(a + "/")
 
 
@@ -250,8 +253,30 @@ def _same_dir(a: Path, b: Path) -> bool:
     return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
 
 
+def _raise(exc: OSError) -> None:
+    raise exc
+
+
+def _is_link(path: str) -> bool:
+    """A symlink or Windows junction: never walked into (rmtree removes only the link)."""
+    st = os.lstat(path)
+    return stat.S_ISLNK(st.st_mode) or getattr(st, "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
+
+
+def _walk(target: Path) -> Iterable[tuple[str, list[str], list[str]]]:
+    """os.walk that raises on a directory it cannot list and never follows a link.
+
+    Link names stay in the yielded `dirs` for the caller to inspect; they are
+    pruned from the descent after the caller resumes.
+    """
+    for root, dirs, files in os.walk(target, onerror=_raise):
+        yield root, dirs, files
+        dirs[:] = [d for d in dirs if not _is_link(os.path.join(root, d))]
+
+
 def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
-    """(name, path) of every submodule `.gitmodules` registers; None when that cannot be known.
+    """(name, path) of every submodule `.gitmodules` declares, path "" when it has
+    none; None when that cannot be known.
 
     Only git's own parse counts. The bytes are read here and fed to `git config`
     on stdin, so a permission error is an OSError, not git's "no match" exit 1.
@@ -264,7 +289,7 @@ def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
     try:
         data = gitmodules.read_bytes()
         result = subprocess.run(
-            ["git", "config", "--file", "-", "--null", "--get-regexp", r"^submodule\..*\.path$"],
+            ["git", "config", "--file", "-", "--null", "--get-regexp", r"^submodule\."],
             input=data,
             capture_output=True,
             check=False,
@@ -273,15 +298,21 @@ def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
     except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode == 1 and not result.stderr.strip():
-        return []  # parsed, and no submodule.*.path key
+        return []  # parsed, and no submodule.* key
     if result.returncode != 0:
         return None
-    pairs = []
+    paths: dict[str, str] = {}
     for record in result.stdout.decode("utf-8", errors="replace").split("\0"):
         key, _, value = record.partition("\n")
-        if key.startswith("submodule.") and key.endswith(".path"):
-            pairs.append((key[len("submodule."):-len(".path")], value))
-    return pairs
+        if not key.startswith("submodule."):
+            continue
+        name, _, variable = key[len("submodule."):].rpartition(".")
+        if not name:
+            continue
+        paths.setdefault(name, "")
+        if variable == "path":
+            paths[name] = value
+    return list(paths.items())
 
 
 def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
@@ -308,46 +339,71 @@ def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
 
 def _embedded_git(target: Path) -> Path | None:
     """The first `.git` (a repository or a submodule checkout) at or under `target`."""
-    for root, dirs, files in os.walk(target):
-        if ".git" in dirs or ".git" in files:
-            return Path(root) / ".git"
+    for root, dirs, files in _walk(target):
+        for name in (*dirs, *files):
+            if _fs_key(name) == ".git":
+                return Path(root) / name
     return None
 
 
-def _live_git_dir(target: Path) -> Path | None:
-    """A git dir at or under `target` whose `core.worktree` checkout still points back at it.
+def _gitfile_points_to(gitfile: Path, gitdir: Path) -> bool:
+    """True when the `.git` file `gitfile` names `gitdir`, or cannot be read."""
+    if not gitfile.is_file():
+        return False
+    try:
+        pointer = gitfile.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return True
+    if not pointer.startswith("gitdir:"):
+        return False
+    return _same_dir(gitfile.parent / pointer[len("gitdir:"):].strip(), gitdir)
 
-    A git dir that cannot be judged counts as live.
-    """
-    for root, dirs, files in os.walk(target):
-        dirs[:] = [d for d in dirs if d not in _GIT_DIR_INTERNALS]
-        if "HEAD" not in files or "config" not in files:
-            continue
-        gitdir = Path(root)
-        try:
-            result = subprocess.run(
-                ["git", "config", "--file", str(gitdir / "config"), "--get", "core.worktree"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=15,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return gitdir
-        if result.returncode == 1 and not result.stderr.strip():
-            continue  # no core.worktree: no checkout points here
-        if result.returncode != 0:
-            return gitdir
+
+def _git_dir_in_use(gitdir: Path) -> bool:
+    """True when a checkout (`core.worktree`) or a linked worktree still uses `gitdir`,
+    or when that cannot be judged."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--file", str(gitdir / "config"), "--get", "core.worktree"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return True
+    if result.returncode == 0:
         worktree = gitdir / result.stdout.strip()  # an absolute value replaces gitdir
-        gitfile = worktree / ".git"
-        if not gitfile.is_file():
+        if _gitfile_points_to(worktree / ".git", gitdir):
+            return True
+    elif result.returncode != 1 or result.stderr.strip():
+        return True
+    admin_root = gitdir / "worktrees"
+    if not admin_root.is_dir():
+        return False
+    for admin in admin_root.iterdir():
+        link = admin / "gitdir"
+        if not link.is_file():
             continue
         try:
-            pointer = gitfile.read_text(encoding="utf-8", errors="replace").strip()
+            dotgit = admin / link.read_text(encoding="utf-8", errors="replace").strip()
         except OSError:
-            return gitdir
-        if pointer.startswith("gitdir:") and _same_dir(worktree / pointer[len("gitdir:"):].strip(), gitdir):
-            return gitdir
+            return True
+        if _gitfile_points_to(dotgit, admin):
+            return True
+    return False
+
+
+def _live_git_dir(target: Path) -> Path | None:
+    """A git dir at or under `target` that a checkout or a linked worktree still uses."""
+    for root, dirs, files in _walk(target):
+        keys = {_fs_key(name) for name in files}
+        if _fs_key("HEAD") not in keys or _fs_key("config") not in keys:
+            continue
+        # Inside a git dir only `modules/` holds further git dirs.
+        dirs[:] = [d for d in dirs if _fs_key(d) == _fs_key("modules")]
+        if _git_dir_in_use(Path(root)):
+            return Path(root)
     return None
 
 
@@ -379,11 +435,13 @@ def _safety_check_gitmodules_first(target: Path, entry: dict[str, Any], consumer
     rel = _rel(target, consumer_root)
     submodules = _registered_submodules(consumer_root)
     if submodules is None:
-        return SafetyResult(False, ".gitmodules unreadable — cannot rule out a registered submodule")
+        return SafetyResult(
+            False, ".gitmodules unreadable or git unavailable — cannot rule out a registered submodule"
+        )
     # A submodule registered AT, UNDER or ABOVE the target makes it live:
     # `.skills-sources` holding `.skills-sources/<repo>` checkouts is not an orphan.
     for _name, path in submodules:
-        if _paths_overlap(rel, _norm_rel(path)):
+        if path and _paths_overlap(rel, _norm_rel(path)):
             return SafetyResult(False, f"submodule path `{path}` still registered in .gitmodules")
     # A gitlink left in the index after its .gitmodules entry went is live too.
     refusal = _tracked_under(rel, consumer_root)
@@ -408,15 +466,16 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
     # passes for it. It is the git dir of submodule <name> (unpushed commits
     # live there), and `.git/modules/.skills-sources` holds the git dirs of
     # `.skills-sources/<repo>`. It is an orphan only when no submodule at, under
-    # or above <name> is registered, tracked as a gitlink (the default name is
-    # the path), or still checked out with its `.git` pointing back here.
+    # or above <name> is declared (by name, even without a path) or registered,
+    # tracked as a gitlink (the default name is the path), or still used by a
+    # checkout or linked worktree whose `.git` points back here.
     if rel.startswith(".git/modules/"):
         name = rel[len(".git/modules/"):]
         submodules = _registered_submodules(consumer_root)
         if submodules is None:
-            return SafetyResult(False, ".gitmodules unreadable — git dir may be live")
+            return SafetyResult(False, ".gitmodules unreadable or git unavailable — git dir may be live")
         for sub_name, sub_path in submodules:
-            if _paths_overlap(name, _norm_rel(sub_name)) or _paths_overlap(name, _norm_rel(sub_path)):
+            if _paths_overlap(name, _norm_rel(sub_name)) or (sub_path and _paths_overlap(name, _norm_rel(sub_path))):
                 return SafetyResult(
                     False, f"submodule `{sub_name}` still registered in .gitmodules — git dir is live"
                 )
@@ -428,7 +487,7 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
                 return SafetyResult(False, f"gitlink `{link}` still tracked — git dir is live")
         live = _live_git_dir(target)
         if live is not None:
-            return SafetyResult(False, f"`{_rel(live, consumer_root)}` still has a checkout — git dir is live")
+            return SafetyResult(False, f"`{_rel(live, consumer_root)}` is still in use — git dir is live")
     elif (embedded := _embedded_git(target)) is not None:
         return SafetyResult(False, f"`{_rel(embedded, consumer_root)}` is a git checkout")
     refusal = _tracked_under(rel, consumer_root)
@@ -617,9 +676,23 @@ def _iter_glob(root: Path, pattern: str) -> Iterable[Path]:
 # ---------------------------------------------------------------------------
 
 
+def _clear_readonly_and_retry(func: Any, path: str, exc: Any) -> None:
+    """rmtree hook: git marks loose objects read-only and Windows refuses to delete
+    those. Anything else (a link target, a missing permission) is re-raised."""
+    if not isinstance(exc, BaseException):
+        exc = exc[1]  # onerror passes sys.exc_info()
+    if func not in (os.unlink, os.remove, os.rmdir) or not isinstance(exc, PermissionError):
+        raise exc
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
 def _do_delete(target: Path) -> str:
     if target.is_dir():
-        shutil.rmtree(target)
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(target, onexc=_clear_readonly_and_retry)
+        else:
+            shutil.rmtree(target, onerror=_clear_readonly_and_retry)
         return f"deleted directory {target}"
     target.unlink()
     return f"deleted file {target}"
@@ -957,7 +1030,7 @@ def _cmd_validate(manifest_path: Path) -> int:
         # Per error-message-standard.md — emit WHY / WHERE / FIX / OVERRIDE shape.
         print(f"❌ {exc}", file=sys.stderr)
         print(f"   WHERE: {manifest_path}", file=sys.stderr)
-        print("   FIX: restore the file to valid YAML per docs/rules/cleanup-zombies.rule.md §2", file=sys.stderr)
+        print("   FIX: restore the file to valid YAML per the 'Manifest schema' section of docs/rules/cleanup-zombies.rule.md", file=sys.stderr)
         print("   OVERRIDE: none (schema gate is structural)", file=sys.stderr)
         return 2
     errors = _validate_manifest(data)
@@ -966,7 +1039,7 @@ def _cmd_validate(manifest_path: Path) -> int:
         for err in errors:
             print(f"   - {err}", file=sys.stderr)
         print(f"   WHERE: {manifest_path}", file=sys.stderr)
-        print("   FIX: align entries with docs/rules/cleanup-zombies.rule.md §2", file=sys.stderr)
+        print("   FIX: align entries with the 'Manifest schema' section of docs/rules/cleanup-zombies.rule.md", file=sys.stderr)
         print("   OVERRIDE: none (schema gate is structural)", file=sys.stderr)
         return 2
     print(f"✓ manifest {manifest_path} valid ({len(data['entries'])} entries, version {data['manifest_version']})")
