@@ -196,8 +196,9 @@ def test_staged_mode_uses_git_diff_cached(
     monkeypatch.setattr(secrets_scan, "_gitleaks_available", lambda: False)
     rc = main(["--staged"])
     assert rc == 0
-    assert recorded["cmd"][:3] == ["git", "diff", "--cached"]
-    assert "-z" in recorded["cmd"]
+    cmd = recorded["cmd"]
+    assert cmd[0] == "git" and cmd[cmd.index("diff") + 1] == "--cached"
+    assert "-z" in cmd
 
 
 def test_staged_mutually_exclusive_with_paths(
@@ -688,6 +689,77 @@ def test_staged_outside_repo_is_setup_error(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     assert main(["--staged"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Regression: --staged leftovers (SS-6)
+# ---------------------------------------------------------------------------
+
+
+def _hash_blob(repo: Path, data: bytes) -> str:
+    return subprocess.run(
+        ["git", "hash-object", "-w", "--stdin"], cwd=repo, input=data,
+        capture_output=True, check=True,
+    ).stdout.decode().strip()
+
+
+def test_staged_skips_submodule_pointers(repo: Path) -> None:
+    # A submodule bump stages only a gitlink; its checkout (with the
+    # playbook's own example keys) must not be walked or scanned.
+    pointer = subprocess.run(
+        ["git", "write-tree"], cwd=repo, capture_output=True, check=True,
+    ).stdout.decode().strip()
+    sub = repo / "vendor" / "lib"
+    sub.mkdir(parents=True)
+    (sub / "leak.py").write_text("token ghp_" + "A" * 40 + "\n", encoding="utf-8")
+    _git(repo, "update-index", "--add", "--cacheinfo", f"160000,{pointer},vendor/lib")
+    assert main(["--staged"]) == 0
+    (repo / "app.cfg").write_text("ghp_" + "A" * 40 + "\n", encoding="utf-8")
+    _git(repo, "add", "app.cfg")
+    assert main(["--staged"]) == 3
+
+
+def test_staged_type_change_is_scanned(repo: Path) -> None:
+    # A symlink replaced by a regular file is status T, not M.
+    link = _hash_blob(repo, b"target.txt")
+    _git(repo, "update-index", "--add", "--cacheinfo", f"120000,{link},cfg")
+    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "--no-verify", "-m", "link")
+    secret = _hash_blob(repo, ("ghp_" + "A" * 40 + "\n").encode())
+    _git(repo, "update-index", "--cacheinfo", f"100644,{secret},cfg")
+    assert main(["--staged"]) == 3
+
+
+def test_staged_ignores_diff_relative_setting(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _git(repo, "config", "diff.relative", "true")  # temp repo's own config
+    (repo / "top.env").write_text("ghp_" + "A" * 40 + "\n", encoding="utf-8")
+    _git(repo, "add", "top.env")
+    sub = repo / "sub"
+    sub.mkdir()
+    monkeypatch.chdir(sub)
+    assert main(["--staged"]) == 3
+
+
+def test_staged_reads_every_blob_through_one_cat_file(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for i in range(5):
+        (repo / f"f{i}.txt").write_text(f"line {i}\n", encoding="utf-8")
+    (repo / "blob.bin").write_bytes(b"\x00\x01" * 4096)
+    (repo / "k.env").write_text("ghp_" + "A" * 40 + "\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    spawned: list[list[str]] = []
+    real_popen = subprocess.Popen
+
+    class SpyPopen(real_popen):  # type: ignore[misc, valid-type]
+        def __init__(self, cmd, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+            spawned.append(list(cmd))
+            super().__init__(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", SpyPopen)
+    assert main(["--staged"]) == 3
+    assert sum("cat-file" in cmd for cmd in spawned) == 1
 
 
 # ---------------------------------------------------------------------------
