@@ -58,6 +58,15 @@ def test_applied_state_survives_export_without_a_browser() -> None:
     for key in APPLIED_SECTIONS:
         assert out["exported"].get(key) == applied[key], key
     jsonschema.validate(out["exported"], _bundle_schema())
+    # "Reset to defaults" clears the toggles and the Config-files extras but
+    # keeps what the UI cannot re-create and the Files-tab curate decisions.
+    reset = out["afterReset"]
+    for key in ("project_meta", "backup_preferences", "file_curate_intents"):
+        assert reset.get(key) == applied[key], key
+    for key in ("pre_commit_extras", "coderabbit_extras", "mcp_project_servers",
+                "gitignore_extras"):
+        assert key not in reset, key
+    jsonschema.validate(reset, _bundle_schema())
 
 
 def test_applied_state_roundtrips_through_export() -> None:

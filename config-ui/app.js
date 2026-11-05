@@ -1889,8 +1889,16 @@
   }
 
   function onReset() {
-    if (!confirm("Reset all toggles to defaults? Unsaved changes will be lost.")) return;
+    if (!confirm("Reset all toggles to defaults? Unsaved changes will be lost. " +
+                 "Curate decisions (Files tab) and the sections this UI does not edit " +
+                 "(project metadata, settings extras, backup preferences) are kept.")) return;
+    // Not toggles: the UI cannot re-create the pass-through sections, and the
+    // curate decisions protect consumer edits. Dropping them here made the
+    // next export lose them from applied-config.json.
+    const kept = { passthrough: state.passthrough, file_curate_intents: state.file_curate_intents };
     state = deepClone(defaults);
+    if (kept.passthrough) state.passthrough = kept.passthrough;
+    if (kept.file_curate_intents) state.file_curate_intents = kept.file_curate_intents;
     state.skills_enforce = { disabled: [] };
     state.mcps_enforce = { disabled: [] };
     state.settings = _normalizeSettings(defaults && defaults.settings);
