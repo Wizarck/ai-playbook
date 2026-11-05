@@ -311,3 +311,22 @@ def test_validate_flags_unexported_hook_id(tmp_path: Path) -> None:
     )
     root = _make_consumer(tmp_path, config=bad)
     assert _pch.validate(cwd=root) == 1
+
+
+def test_validate_accepts_a_local_hook_named_ai_playbook(tmp_path: Path) -> None:
+    ok = BASE_CONFIG_WITHOUT_PLAYBOOK + (
+        "  - repo: local\n    hooks:\n      - id: ai-playbook\n"
+        "        name: playbook gates\n        entry: python .ai-playbook/scripts/doctor.py\n"
+        "        language: system\n"
+    )
+    root = _make_consumer(tmp_path, config=ok)
+    assert _pch.validate(cwd=root) == 0
+
+
+def test_validate_flags_unexported_id_in_unparseable_file(tmp_path: Path) -> None:
+    bad = (
+        "repos:\n  - repo: https://github.com/Wizarck/ai-playbook\n"
+        "    hooks:\n      - id: ai-playbook\n  oops: [\n"
+    )
+    root = _make_consumer(tmp_path, config=bad)
+    assert _pch.validate(cwd=root) == 1
