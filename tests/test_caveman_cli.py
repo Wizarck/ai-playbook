@@ -157,6 +157,20 @@ def test_off_after_on(project: Path) -> None:
     assert all(v is False for v in state["components"].values())
 
 
+def test_off_unwraps_mcp_json_resaved_with_bom(project: Path) -> None:
+    """Regression F5: a BOM must not make `off` exit 1 halfway."""
+    mcp = project / ".mcp.json"
+    original_mcp = {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+    mcp.write_text(json.dumps(original_mcp), encoding="utf-8")
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    mcp.write_bytes(b"\xef\xbb\xbf" + mcp.read_bytes())
+
+    assert cli.main(["--project", str(project), "off"]) == 0
+    assert json.loads(mcp.read_text(encoding="utf-8")) == original_mcp
+    assert "caveman/" not in (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert toggle.read_state(project)["enabled"] is False
+
+
 def test_off_when_no_prior_state(project: Path) -> None:
     rc = cli.main(["--project", str(project), "off"])
     assert rc == 0
