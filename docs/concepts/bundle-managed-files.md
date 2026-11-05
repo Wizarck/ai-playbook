@@ -189,9 +189,14 @@ Authoritative module: [`scripts/caveman/policy.py`](../../scripts/caveman/policy
 `python -m scripts.uninstall [--target PATH] [--dry-run]`:
 
 1. Read `<consumer>/.ai-playbook-state/backups/index.json`.
-2. Restore every BASE record (`session_id: "base"`, the pre-playbook
-   snapshot bootstrap took of each file it overwrote: AGENTS.md, CLAUDE.md,
-   docs/runbook.md, ...). Ordinary post-playbook backups are never restored.
+2. Restore every BASE record (`session_id: "base"`, the snapshot taken
+   before the playbook first wrote a file: bootstrap for each template it
+   overwrote — AGENTS.md, CLAUDE.md, GEMINI.md, docs/runbook.md,
+   .gitattributes, workflows, ... — plus `curate` and `render --absorb`).
+   This overwrites the file's current content: edits made since install are
+   lost unless committed. The confirmation prompt lists the files; preview
+   with `--dry-run`, keep current content with `--no-restore`. Ordinary
+   post-playbook backups are never restored.
 3. For files without a BASE snapshot, strip marker blocks (keeping
    consumer custom segments verbatim) and the caveman/ponytail/graphify
    `auto-managed` blocks in AGENTS.md.
@@ -199,8 +204,9 @@ Authoritative module: [`scripts/caveman/policy.py`](../../scripts/caveman/policy
    `.ai-playbook/` (it would exit 2 and block every tool call).
 5. `git submodule deinit -f .ai-playbook` + `git rm -f .ai-playbook`.
 6. Remove `.ai-playbook-state/` (unless `--keep-state-dir`, or a BASE
-   snapshot was not restored, e.g. under `--no-restore`: then it is kept and
-   a `WARN:` line names the files).
+   snapshot was not restored, e.g. under `--no-restore`: then it is kept, a
+   `WARN:` line names the files, and the dir is added to the local
+   `info/exclude` because step 3 stripped the `.gitignore` line that ignored it).
 
 Pre-commit hooks in templates ship with graceful shims
 (`bash -c '[ ! -d .ai-playbook ] || python ...'`): with the submodule
