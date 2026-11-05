@@ -530,15 +530,24 @@ def _remote_issue(comment: str) -> dict:
     }
 
 
-def _stub_remote(monkeypatch, issue: dict) -> None:
+def _stub_remote(monkeypatch, issue: dict) -> list[str]:
+    """Stub creds + fetch; returns the list of issue keys actually fetched."""
     import scripts.issue_sync as issue_sync
+    fetched: list[str] = []
+
+    def _fetch(creds, key):
+        fetched.append(key)
+        return issue
+
     monkeypatch.setattr(issue_sync, "_load_jira_creds", lambda: object())
-    monkeypatch.setattr(RULE, "_fetch", lambda creds, key: issue)
+    monkeypatch.setattr(RULE, "_fetch", _fetch)
+    return fetched
 
 
 def test_remote_path_blocks_a_closure_without_evidence(monkeypatch):
     """With creds present the remote branch used to raise TypeError
     (render(..., remote=True)) and the dispatcher failed it open."""
+    monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
     _stub_remote(monkeypatch, _remote_issue(""))
     verdict = RULE.pretooluse(_transition_event("PROJ-1"))
     assert verdict is not None and verdict.verdict == "block"
@@ -546,5 +555,30 @@ def test_remote_path_blocks_a_closure_without_evidence(monkeypatch):
 
 def test_remote_path_allows_a_closure_with_evidence(monkeypatch):
     """NEGATIVE CONTROL."""
+    monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
     _stub_remote(monkeypatch, _remote_issue(GOOD))
     assert RULE.pretooluse(_transition_event("PROJ-1")) is None
+
+
+def test_credentials_without_the_opt_in_do_nothing(monkeypatch):
+    """THE PORTABILITY GUARANTEE holds with credentials too.
+
+    ATLASSIAN_* are also read by issue_sync / release_cut, so their presence in
+    the hook env is not a request for this gate. Unset opt-in = no block and no
+    network call, exactly as without credentials.
+    """
+    monkeypatch.delenv(RULE.DONE_TRANSITIONS_ENV, raising=False)
+    fetched = _stub_remote(monkeypatch, _remote_issue(""))
+    assert RULE.pretooluse(_transition_event("PROJ-1")) is None
+    assert fetched == [], "the opt-out consumer's transition reached the network"
+
+
+def test_remote_status_category_wins_over_the_declared_ids(monkeypatch):
+    """Once opted in, credentials judge any transition the live list says
+    lands in Done, not only the ids the consumer declared."""
+    monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
+    issue = _remote_issue("")
+    issue["transitions"].append({"id": "41", "to": {"statusCategory": {"key": "done"}}})
+    _stub_remote(monkeypatch, issue)
+    verdict = RULE.pretooluse(_transition_event("PROJ-1", tid="41"))
+    assert verdict is not None and verdict.verdict == "block"

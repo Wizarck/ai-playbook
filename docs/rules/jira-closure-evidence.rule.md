@@ -56,28 +56,29 @@ file the next thing that reports green while nothing is verified.
 Uncovered, and named rather than glossed: transitions made from the Jira web UI,
 or by `curl` with the sync credentials, run no local hook.
 
-## Enforcement status — ADVISORY, and why
+## Enforcement status — opt-in, then one of two paths
 
-**This rule does not currently block anything.** It is `status: advisory` on
-purpose, and that is a correction rather than a design choice.
+**Nothing is gated until the repo opts in** by declaring which transition ids
+mean Done: `AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS=31` (comma-separated). Unset,
+the rule does nothing — **with or without Jira credentials**. Transition ids are
+per-workflow, so the playbook cannot know them, and `ATLASSIAN_*` in the hook
+environment is not a request for this gate: `issue_sync` and `release_cut` read
+the same three variables.
 
-The clauses need two texts: the ticket's **description** and its **latest
-comment**. Neither is in the event. The MCP transition payload carries only
-`issueIdOrKey` and `transition.id`, so the hardrule fetches the issue over the
-REST API — and that fetch needs `ATLASSIAN_URL` / `ATLASSIAN_USERNAME` /
-`ATLASSIAN_API_TOKEN` in the hook process's environment.
+Once opted in, a transition is judged on one of two paths:
 
-Measured in the repo this was written for: those variables are in **neither**
-the SOPS-encrypted dev secrets nor OpenBao, and a hook subprocess cannot borrow
-the agent's MCP OAuth. So `_load_jira_creds()` returns `None`, the rule fails
-open, and every transition is allowed. It was described as live for a day while
-this was true.
+| Path | Runs when | Judges | Clauses |
+|---|---|---|---|
+| **Receipt** | no Jira credentials in the hook env, or the issue fetch failed | the closure comment recorded when `addCommentToJiraIssue` ran, for a transition id the repo declared | the payload-only ones: comment exists, verdict, artefact, no blank halves |
+| **Remote** | `ATLASSIAN_URL`, `ATLASSIAN_USERNAME` and `ATLASSIAN_API_TOKEN` are all in the hook env and the fetch succeeds | the ticket body and its latest comment, fetched over REST | all of them, including path fidelity and requirement count, which need the ticket body |
 
-`advisory` here therefore means *"cannot be relied on to fire"*, not *"will
-never fire"*. The hardrule still runs — the dispatcher routes on `triggers:`
-alone and does not consult `status:` — so a consumer who **does** export those
-three variables gets full C1-C5 blocking. Both halves are stated because either
-one alone would be the misleading half.
+On the remote path the issue's live transition list decides what Done is: any
+transition into the `done` status category is judged, declared or not, and a
+declared id the list does not show as done is let through.
+
+A hook subprocess cannot borrow the agent's MCP OAuth, so the remote path needs
+the three variables exported into the hook process itself. Most repos run the
+receipt path only, which is why it exists.
 
 ### Why this is the wrong shape, not just an unconfigured one
 
@@ -147,7 +148,7 @@ transition is where it is enforced.
 
 The credential-free opt-in idea survives intact: a consumer declares its own
 Done transition ids rather than provisioning a token, so a repo that never sets
-it is never affected.
+it is never affected — even when Jira credentials are in its hook environment.
 
 ## Process supervision
 
@@ -174,9 +175,10 @@ not have: it re-fires on every transition with no memory of the last one.
 
 ### Fail-open
 
-Any infrastructure problem — no credentials, Jira unreachable, a malformed spec
-— lets the transition through. This gate exists to catch a careless closure, not
-to become the reason nobody can close anything.
+An infrastructure problem never becomes the block. A malformed spec lets every
+transition through, and missing credentials or an unreachable Jira fall back to
+the receipt path rather than refusing on the network error. This gate exists to
+catch a careless closure, not to become the reason nobody can close anything.
 
 ## Examples
 
