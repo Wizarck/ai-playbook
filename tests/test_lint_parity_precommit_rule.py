@@ -162,6 +162,16 @@ def test_apply_inserts_parseable_repo_item(tmp_path: Path, precommit: str) -> No
         assert data["ci"] == {"autofix_prs": False}
 
 
+@pytest.mark.parametrize("nl", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_apply_keeps_the_files_line_endings(tmp_path: Path, nl: str) -> None:
+    root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit=None)
+    (root / ".pre-commit-config.yaml").write_bytes(PRECOMMIT_WITHOUT_RUFF.replace("\n", nl).encode("utf-8"))
+    assert _lpp.apply(dry_run=False, cwd=root) == 0
+    out = (root / ".pre-commit-config.yaml").read_bytes().decode("utf-8")
+    assert _lpp.RUFF_PRECOMMIT_REPO in out
+    assert out.count("\r\n") == (out.count("\n") if nl == "\r\n" else 0)  # no line rewritten
+
+
 def test_apply_refuses_when_result_would_not_parse(tmp_path: Path) -> None:
     root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit="repos: [\n")
     assert _lpp.apply(dry_run=False, cwd=root) == 2

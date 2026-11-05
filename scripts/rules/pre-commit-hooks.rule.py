@@ -162,7 +162,9 @@ def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
         return 1
 
     try:
-        existing = path.read_text(encoding="utf-8", errors="replace")
+        # Bytes, not read_text/write_text: keep the file's own line endings
+        # (insert_repo matches CRLF) instead of rewriting every line.
+        existing = path.read_bytes().decode("utf-8", errors="replace")
     except OSError as exc:
         print(f"error: cannot read {path}: {exc}", file=sys.stderr)
         return 2
@@ -194,7 +196,7 @@ def apply(*, dry_run: bool, cwd: Path | None = None) -> int:
         return 2
 
     try:
-        path.write_text(new_text, encoding="utf-8")
+        path.write_bytes(new_text.encode("utf-8"))
     except OSError as exc:
         print(f"error: cannot write {path}: {exc}", file=sys.stderr)
         return 2

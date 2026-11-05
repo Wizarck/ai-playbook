@@ -238,6 +238,16 @@ def test_apply_output_parses_and_uses_exported_ids(tmp_path: Path, config: str) 
         assert data["ci"] == {"autofix_prs": False}
 
 
+@pytest.mark.parametrize("nl", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_apply_keeps_the_files_line_endings(tmp_path: Path, nl: str) -> None:
+    root = _make_consumer(tmp_path)
+    (root / ".pre-commit-config.yaml").write_bytes(BASE_CONFIG_WITHOUT_PLAYBOOK.replace("\n", nl).encode("utf-8"))
+    assert _pch.apply(dry_run=False, cwd=root) == 0
+    out = (root / ".pre-commit-config.yaml").read_bytes().decode("utf-8")
+    assert "ai-playbook" in out
+    assert out.count("\r\n") == (out.count("\n") if nl == "\r\n" else 0)  # no line rewritten
+
+
 def test_apply_refuses_unparseable_target(tmp_path: Path) -> None:
     root = _make_consumer(tmp_path, config="repos: [\n")
     before = (root / ".pre-commit-config.yaml").read_text(encoding="utf-8")
