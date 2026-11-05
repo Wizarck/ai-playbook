@@ -973,6 +973,46 @@ def test_agents_md_rerender_splices_blocks_into_existing_file() -> None:
     assert again == out
 
 
+def test_agents_md_rerender_with_unfilled_slots_does_not_grow() -> None:
+    """bootstrap leaves the five project_meta placeholders in AGENTS.md and
+    extract_project_meta reads each section back verbatim, placeholder and
+    template tail included. Substituting such a value re-inserted the §7/§8
+    tail on every apply (134 -> 159 -> 184 ... lines)."""
+    from pathlib import Path
+
+    from scripts.migrate_to_bundle import extract_project_meta
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    subs = {"PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+            "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0"}
+    bootstrapped = tmpl  # what bootstrap.copy_templates writes
+    for key, value in subs.items():
+        bootstrapped = bootstrapped.replace("{{" + key + "}}", value)
+    reused = extract_project_meta(bootstrapped)  # applied-config.json, reused as-is
+    assert all("{{" in v for v in reused.values())
+
+    def rerender(current: str, project_meta: dict) -> str:
+        return render_agents_md(template=tmpl, substitutions=subs,
+                                current_text=current, bundle={"project_meta": project_meta})
+
+    first = rerender(bootstrapped, reused)
+    assert first.count("\n") == bootstrapped.count("\n")
+    assert first.count("Append one-line dated entries") == 1
+    assert rerender(first, reused) == first
+    assert rerender(first, extract_project_meta(first)) == first
+    # From the template (no current file) the tail is not doubled either.
+    fresh = render_agents_md(template=tmpl, substitutions=subs,
+                             bundle={"project_meta": reused})
+    assert fresh.count("Append one-line dated entries") == 1
+    # A real value still fills a placeholder left in the file.
+    filled = rerender(first, {**reused, "project_identity": "Demo app."})
+    assert "Demo app." in filled
+    assert "{{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}" not in filled
+    assert rerender(filled, extract_project_meta(filled)) == filled
+
+
 def test_every_shipped_marker_template_renders_to_valid_output() -> None:
     # Regression: the pre-commit template's header comment quoted the begin
     # marker; the unanchored parser treated it as the real marker and injected

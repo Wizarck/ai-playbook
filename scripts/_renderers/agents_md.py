@@ -10,7 +10,9 @@ verbatim (see ``render``). The renderer:
 2. Substitutes the free-form consumer-content placeholders
    ({{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}, etc.) with values from
    ``bundle.project_meta`` when present; otherwise leaves them as
-   sentinel TODO lines for the operator to fill in.
+   sentinel TODO lines for the operator to fill in. A value that itself
+   still contains a slot placeholder (an unfilled section) is not
+   substituted.
 3. Honours per-block curate intents from
    ``bundle.file_curate_intents["AGENTS.md"]`` — blocks marked
    ``keep_mine`` are overridden with content from ``current_text`` (the
@@ -61,6 +63,12 @@ def _apply_project_meta(text: str, project_meta: dict | None) -> str:
         value = project_meta.get(meta_key)
         if not isinstance(value, str) or not value.strip():
             value = _DEFAULT_TODO_TEXT.get(meta_key, "")
+        elif any(ph in value for ph in _PROJECT_META_TO_PLACEHOLDER.values()):
+            # An unfilled slot read back from a file: extract_project_meta keeps
+            # the section verbatim, placeholder and template tail included.
+            # Substituting it re-inserts that tail after the placeholder, so the
+            # file would grow on every render. Leave the slot as it is.
+            continue
         text = text.replace(placeholder, value)
     return text
 
