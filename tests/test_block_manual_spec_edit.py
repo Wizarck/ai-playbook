@@ -368,6 +368,66 @@ def test_commit_msg_stage_ignores_commits_without_spec_changes(
     assert bmse.main(["--commit-msg-file", str(msg)]) == 0
 
 
+def _spec_lines(**changed: str) -> str:
+    lines = [f"line {i}" for i in range(10)]
+    for key, text in changed.items():
+        lines[int(key.removeprefix("l"))] = text
+    return "\n".join(lines) + "\n"
+
+
+def _start_merge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, feature_spec: str | None) -> Path:
+    """main archives a spec change; `feature` (optionally archiving its own change
+    to the same spec) runs `git merge --no-commit main`. Returns the message file."""
+    _bootstrap_repo(tmp_path)
+    _stage_spec(tmp_path, _spec_lines())
+    _git(tmp_path, "commit", "-q", "-m", "openspec-archive: base")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    if feature_spec is None:
+        (tmp_path / "feature.txt").write_text("f", encoding="utf-8")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "feat: unrelated work")
+    else:
+        _stage_spec(tmp_path, feature_spec)
+        _git(tmp_path, "commit", "-q", "-m", "openspec-archive: feature-change")
+    _git(tmp_path, "checkout", "-q", "main")
+    _stage_spec(tmp_path, _spec_lines(l2="main change"))
+    _git(tmp_path, "commit", "-q", "-m", "openspec-archive: main-change")
+    _git(tmp_path, "checkout", "-q", "feature")
+    _git(tmp_path, "merge", "-q", "--no-ff", "--no-commit", "main")
+    msg = tmp_path / "m.txt"
+    msg.write_text("Merge branch 'main' into feature\n", encoding="utf-8")
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    return msg
+
+
+def test_merge_bringing_in_an_archived_spec_is_not_a_hand_edit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """git runs commit-msg on merges; `git diff --cached` then lists everything
+    incoming, and MERGE_MSG carries no marker."""
+    msg = _start_merge(tmp_path, monkeypatch, feature_spec=None)
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 0
+
+
+def test_merge_of_two_archives_of_one_spec_is_not_a_hand_edit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    msg = _start_merge(tmp_path, monkeypatch, feature_spec=_spec_lines(l8="feature change"))
+    import subprocess as _sp
+
+    probe = _sp.run(["git", "merge-tree", "--write-tree", "HEAD", "main"], cwd=tmp_path, capture_output=True)
+    if probe.returncode not in (0, 1):
+        pytest.skip("git < 2.38: no `merge-tree --write-tree`")
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 0
+
+
+def test_edit_slipped_into_a_merge_is_blocked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    msg = _start_merge(tmp_path, monkeypatch, feature_spec=None)
+    _stage_spec(tmp_path, _spec_lines(l2="main change", l5="hand edit during the merge"))
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 1
+
+
 def test_commit_msg_stage_reads_a_non_utf8_message(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -21,6 +21,9 @@ Behaviour
   unless the commit message contains the marker `openspec-archive:`.
 - `--commit-msg-file` (commit-msg stage, the local mode): the message is
   read from that file and the protected paths from `git diff --cached`.
+  git also runs this stage for merge commits; there a path counts only if
+  its staged content is in no parent and is not git's automatic merge (see
+  _commit_paths), so merging in a spec archived on another branch passes.
   This is the only local stage where the message being committed exists:
   git runs the `pre-commit` hook BEFORE writing it, so `.git/COMMIT_EDITMSG`
   at that point holds the PREVIOUS commit's message (the old fallback to it
@@ -225,6 +228,53 @@ def _diff_names(repo_root: Path, *diff_args: str) -> set[str] | None:
     return {p for p in r.stdout.decode("utf-8", "surrogateescape").split("\0") if p}
 
 
+def _git_out(repo_root: Path, *args: str) -> tuple[int, str]:
+    try:
+        r = subprocess.run(["git", *args], cwd=str(repo_root), check=False, capture_output=True)
+    except (OSError, subprocess.SubprocessError):
+        return -1, ""
+    return r.returncode, r.stdout.decode("utf-8", "replace")
+
+
+def _merge_heads(repo_root: Path) -> list[str]:
+    """The other parents of the merge being concluded (``MERGE_HEAD``), or []."""
+    rc, out = _git_out(repo_root, "rev-parse", "--git-path", "MERGE_HEAD")
+    if rc != 0:
+        return []
+    path = Path(out.strip())
+    try:
+        return (path if path.is_absolute() else repo_root / path).read_text(encoding="utf-8").split()
+    except (OSError, UnicodeDecodeError):
+        return []
+
+
+def _commit_paths(repo_root: Path) -> set[str]:
+    """Paths whose content the commit being made introduces (commit-msg stage).
+
+    For a merge, a path counts only if its staged content matches no parent and
+    is not git's own automatic merge of it: the rest came unchanged from one side
+    (e.g. a spec archived on the merged branch) or from a clean merge of both,
+    and each side was judged when it was committed. Conflict resolutions and
+    edits slipped into the merge are still judged.
+    """
+    paths = _diff_names(repo_root, "--cached") or set()
+    heads = _merge_heads(repo_root)
+    for head in heads:
+        other = _diff_names(repo_root, "--cached", head)
+        if other is None:
+            return paths  # cannot tell: judge the whole merge
+        paths &= other
+    if paths and len(heads) == 1:
+        # `merge-tree --write-tree` needs git >= 2.38; rc 1 = conflicts (tree still written).
+        rc, out = _git_out(repo_root, "merge-tree", "--write-tree", "HEAD", heads[0])
+        tree = out.split("\n", 1)[0].strip()
+        if rc in (0, 1) and re.fullmatch(r"[0-9a-f]{40,64}", tree):
+            auto = _diff_names(repo_root, "--cached", tree)
+            if auto is not None:
+                paths &= auto
+    return paths
+
+
 def find_repo_root(start: Path) -> Path:
     """Walk up from `start` looking for a `.git` directory. Fallback to `start`."""
     for candidate in (start, *start.resolve().parents):
@@ -294,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = find_repo_root(Path.cwd())
 
     if args.commit_msg_file:
-        args.files = sorted(_diff_names(repo_root, "--cached") or ())
+        args.files = sorted(_commit_paths(repo_root))
 
     candidates = [f for f in args.files if is_protected_path(f)]
     if not candidates:
