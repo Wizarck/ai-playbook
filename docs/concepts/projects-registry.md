@@ -71,6 +71,12 @@ projects:
 - Parses frontmatter; builds a `ProjectEntry`; writes/merges the registry.
 - Max scan depth: 3. Skips `.git`, `node_modules`, `.venv`, `__pycache__`, `dist`, `build`, `Library`, `AppData`, etc.
 - Duplicate project names: the first occurrence wins; subsequent duplicates emit a warning.
+- A refresh merges into the registry instead of replacing it. A registered entry whose path still
+  holds its project is kept (with fresh metadata), even when the scan finds the same name elsewhere
+  (a warning names the other path; `--add` it to re-point). A path that is not reachable and lies
+  outside every scanned root (unmounted drive or share) is kept as-is. A project renamed in its
+  `AGENTS.md` is re-keyed under the new name. Everything else that no longer holds a v1 `AGENTS.md`
+  is pruned.
 
 Usage:
 ```bash

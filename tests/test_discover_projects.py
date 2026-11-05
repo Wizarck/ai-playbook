@@ -184,6 +184,87 @@ def test_main_refresh_keeps_added_and_prunes_gone(
     assert set(data["projects"]) == {"alpha", "beta"}
 
 
+def _registry_with(path: Path, entries: dict) -> Path:
+    dp.write_registry(path, {"schema": dp.REGISTRY_SCHEMA, "projects": entries})
+    return path
+
+
+def test_refresh_keeps_an_unreachable_entry_prunes_one_gone_from_a_scanned_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unmounted drive / share made parse_frontmatter return None and the
+    entry was pruned, although the code comment promised it would survive."""
+    monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
+    roots = tmp_path / "roots"
+    _write_project(roots, "beta")
+    registry = _registry_with(tmp_path / "registry.yaml", {
+        "onnas": {"path": str(tmp_path / "not-mounted" / "onnas"), "owner": "o@x"},
+        "deleted": {"path": str(roots / "deleted")},
+    })
+
+    assert dp.main(["--roots", str(roots), "--registry", str(registry)]) == 0
+
+    projects = yaml.safe_load(registry.read_text(encoding="utf-8"))["projects"]
+    assert set(projects) == {"beta", "onnas"}
+    assert projects["onnas"] == {"path": str(tmp_path / "not-mounted" / "onnas"), "owner": "o@x"}
+
+
+def test_refresh_does_not_repoint_a_registered_path_that_still_holds_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Bare layout: a same-name slice worktree under the scan roots silently
+    replaced the --add'ed main checkout (the geeplo re-point footgun)."""
+    monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
+    registry = tmp_path / "registry.yaml"
+    main = tmp_path / "elsewhere" / "geeplo-main"
+    main.mkdir(parents=True)
+    (main / "AGENTS.md").write_text(AGENTS_MD_TEMPLATE.format(name="geeplo", extra=""), encoding="utf-8")
+    assert dp.main(["--add", str(main), "--registry", str(registry)]) == 0
+    slice_wt = _write_project(tmp_path / "roots" / "geeplo", "feat-wt")
+    (slice_wt / "AGENTS.md").write_text(AGENTS_MD_TEMPLATE.format(name="geeplo", extra=""), encoding="utf-8")
+
+    assert dp.main(["--roots", str(tmp_path / "roots"), "--registry", str(registry)]) == 0
+
+    projects = yaml.safe_load(registry.read_text(encoding="utf-8"))["projects"]
+    assert projects["geeplo"]["path"] == str(main.resolve())
+    assert "re-point" in capsys.readouterr().err
+
+
+def test_refresh_rekeys_a_renamed_project_instead_of_keeping_an_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
+    registry = tmp_path / "registry.yaml"
+    in_roots = _write_project(tmp_path / "roots", "proj")
+    outside = _write_project(tmp_path / "elsewhere", "tool")
+    for p in (in_roots, outside):
+        assert dp.main(["--add", str(p), "--registry", str(registry)]) == 0
+    (in_roots / "AGENTS.md").write_text(AGENTS_MD_TEMPLATE.format(name="proj2", extra=""), encoding="utf-8")
+    (outside / "AGENTS.md").write_text(
+        AGENTS_MD_TEMPLATE.format(name="tool2", extra="version: 9.9.9"), encoding="utf-8",
+    )
+
+    assert dp.main(["--roots", str(tmp_path / "roots"), "--registry", str(registry)]) == 0
+
+    projects = yaml.safe_load(registry.read_text(encoding="utf-8"))["projects"]
+    assert set(projects) == {"proj2", "tool2"}
+    assert projects["tool2"]["path"] == str(outside.resolve())
+
+
+def test_refresh_refreshes_kept_entry_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
+    registry = tmp_path / "registry.yaml"
+    alpha = _write_project(tmp_path / "elsewhere", "alpha")
+    assert dp.main(["--add", str(alpha), "--registry", str(registry)]) == 0
+    (alpha / "AGENTS.md").write_text(
+        AGENTS_MD_TEMPLATE.format(name="alpha", extra="personal: true"), encoding="utf-8",
+    )
+
+    assert dp.main(["--roots", str(tmp_path / "roots-empty"), "--registry", str(registry)]) == 0
+
+    assert yaml.safe_load(registry.read_text(encoding="utf-8"))["projects"]["alpha"]["personal"] is True
+
+
 def test_main_add_missing_agents_md(tmp_path: Path) -> None:
     target = tmp_path / "empty"
     target.mkdir()
