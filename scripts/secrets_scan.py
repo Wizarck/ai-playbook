@@ -89,14 +89,15 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # OpenAI API key — legacy (sk-<32+ alnum>) and the prefixed project /
     # service-account / admin keys, whose bodies include `_` and `-` (real ones
     # are ~150 chars). The prefixed form must not follow a letter unless that
-    # letter ends an escape (`\n`, `%3D`), and its body must pass
+    # letter ends an escape (`\n`, `%3D`, or a JSON `\uXXXX`, which Go's
+    # json.Marshal uses for `<` and `>`), and its body must pass
     # `_looks_like_secret`, so kebab-case (`task-proj-…`, `helpdesk-admin-…`)
     # and `.env.example` placeholders do not fire.
     # Example: sk-proj-abc...xyz, sk-svcacct-..., sk-admin-...
     (
         "openai_api_key",
         re.compile(
-            r"(?:(?<![A-Za-z])|(?<=\\[nrt])|(?<=%[0-9A-Fa-f]{2}))"
+            r"(?:(?<![A-Za-z])|(?<=\\[nrt])|(?<=\\u[0-9A-Fa-f]{4})|(?<=%[0-9A-Fa-f]{2}))"
             r"sk-(?:proj|svcacct|admin)-(?P<body>[A-Za-z0-9_\-]{40,})"
             r"|sk-[A-Za-z0-9]{32,}"
         ),
