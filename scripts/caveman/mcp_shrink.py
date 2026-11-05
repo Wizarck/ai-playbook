@@ -10,10 +10,11 @@ Both ``.mcp.json`` (Claude Code) and ``.gemini/settings.json`` (Gemini CLI)
 formats are supported. HTTP / SSE servers (those with ``url``/``httpUrl``
 instead of ``command``) are skipped — caveman-shrink wraps stdio only.
 
-Idempotency: an entry that already has ``_caveman_wrapped: true`` is left
-alone, so running shrink twice is a no-op. Unwrap restores the original
-``command`` + ``args`` from ``_caveman_original``, dropping the marker
-keys.
+Idempotency: an entry that already has ``_caveman_wrapped: true`` (or the
+``npx -y caveman-shrink -- ...`` argv) is left alone, so running shrink
+twice is a no-op. Unwrap restores the original ``command`` + ``args`` from
+``_caveman_original`` (or, with the markers gone, from the wrapper argv),
+dropping the marker keys.
 
 Backup convention: every mutation writes a backup first via
 ``scripts.caveman.backup`` under area ``mcp``. The backup is the file
@@ -80,6 +81,31 @@ def _is_stdio_entry(entry: dict[str, Any]) -> bool:
     return not ("url" in entry or "httpUrl" in entry)
 
 
+_WRAPPER_ARGS = ["-y", SHRINK_BIN, "--"]
+
+
+def _argv_original(entry: dict[str, Any]) -> dict[str, Any] | None:
+    """``{command, args}`` read back from an ``npx -y caveman-shrink -- <cmd> ...`` entry.
+
+    Recovers wrappers whose ``_caveman_*`` markers were removed by hand; the
+    wrapper's own argv holds the original command losslessly.
+    """
+    args = entry.get("args")
+    if (
+        entry.get("command") == "npx"
+        and isinstance(args, list)
+        and args[:3] == _WRAPPER_ARGS
+        and len(args) > 3
+        and isinstance(args[3], str)
+    ):
+        return {"command": args[3], "args": list(args[4:])}
+    return None
+
+
+def _is_wrapped(entry: Any) -> bool:
+    return isinstance(entry, dict) and (entry.get(WRAPPED_MARKER) is True or _argv_original(entry) is not None)
+
+
 def wrap_entry(entry: dict[str, Any]) -> dict[str, Any]:
     """Return a wrapped copy of ``entry`` (idempotent).
 
@@ -91,8 +117,8 @@ def wrap_entry(entry: dict[str, Any]) -> dict[str, Any]:
     """
     if not _is_stdio_entry(entry):
         raise ValueError("wrap_entry only handles stdio entries (with 'command').")
-    if entry.get(WRAPPED_MARKER) is True:
-        return entry  # idempotent — already wrapped
+    if _is_wrapped(entry):
+        return entry  # idempotent — already wrapped (marker or wrapper argv)
 
     original_cmd = entry["command"]
     original_args = list(entry.get("args") or [])
@@ -107,27 +133,24 @@ def wrap_entry(entry: dict[str, Any]) -> dict[str, Any]:
 def unwrap_entry(entry: dict[str, Any]) -> dict[str, Any]:
     """Return the unwrapped copy of ``entry``, restoring original cmd+args.
 
-    If ``entry`` is not wrapped (no marker), returns it unchanged. Drops
-    ``_caveman_wrapped`` and ``_caveman_original`` keys on success.
+    The original comes from ``_caveman_original`` or, when the markers were
+    removed or the original is unusable, from the wrapper's own argv. Nested
+    wrappers are peeled until none is left. An entry that is not wrapped is
+    returned unchanged. Drops ``_caveman_wrapped`` and ``_caveman_original``.
     """
-    if not isinstance(entry, dict):
+    if not _is_wrapped(entry):
         return entry
-    if entry.get(WRAPPED_MARKER) is not True:
-        return entry
-    original = entry.get(ORIGINAL_MARKER) or {}
-    if not isinstance(original, dict) or "command" not in original:
-        # Marker present but no usable original — return entry stripped of
-        # markers (best-effort; backup is the safety net).
-        cleaned = dict(entry)
-        cleaned.pop(WRAPPED_MARKER, None)
-        cleaned.pop(ORIGINAL_MARKER, None)
-        return cleaned
-
     new_entry = dict(entry)
-    new_entry["command"] = original["command"]
-    new_entry["args"] = list(original.get("args") or [])
-    new_entry.pop(WRAPPED_MARKER, None)
-    new_entry.pop(ORIGINAL_MARKER, None)
+    while _is_wrapped(new_entry):
+        original = new_entry.get(ORIGINAL_MARKER) if new_entry.get(WRAPPED_MARKER) is True else None
+        if not isinstance(original, dict) or "command" not in original:
+            original = _argv_original(new_entry)
+        new_entry.pop(WRAPPED_MARKER, None)
+        new_entry.pop(ORIGINAL_MARKER, None)
+        if original is None:
+            break  # marker without a recoverable original: markers dropped, command kept
+        new_entry["command"] = original["command"]
+        new_entry["args"] = list(original.get("args") or [])
     return new_entry
 
 
@@ -151,13 +174,13 @@ def _process_doc(
     count = 0
     for sid, entry in servers.items():
         if wrap:
-            if _is_stdio_entry(entry) and entry.get(WRAPPED_MARKER) is not True:
+            if _is_stdio_entry(entry) and not _is_wrapped(entry):
                 new_servers[sid] = wrap_entry(entry)
                 count += 1
             else:
                 new_servers[sid] = entry
         else:
-            if isinstance(entry, dict) and entry.get(WRAPPED_MARKER) is True:
+            if _is_wrapped(entry):
                 new_servers[sid] = unwrap_entry(entry)
                 count += 1
             else:
@@ -203,8 +226,9 @@ def shrink_file(project_root: Path, file_path: Path) -> tuple[Path | None, int]:
 def restore_file(project_root: Path, file_path: Path) -> tuple[Path | None, int]:
     """Unwrap every wrapped MCP entry in ``file_path``. Returns (backup_path, n_unwrapped).
 
-    Only entries carrying the ``_caveman_wrapped`` marker are unwrapped, in
-    place. A missing file or a file with no markers is a no-op ``(None, 0)``:
+    Only wrapped entries (``_caveman_wrapped`` marker, or the
+    ``npx -y caveman-shrink --`` argv when the markers were removed) are
+    unwrapped, in place. A missing file or a file with none is a no-op ``(None, 0)``:
     a backup is NEVER auto-copied over the live file, because the latest
     backup can be older than the user's later edits (and may itself be
     wrapped). Use ``caveman rollback`` for explicit backup restores.

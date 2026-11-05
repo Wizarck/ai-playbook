@@ -143,9 +143,11 @@ python -m scripts.caveman off --json --project /path/to/project
 ```
 
 - Strips the AGENTS.md block (idempotent — no-op when no block).
-- Unwraps MCP entries carrying the `_caveman_wrapped` marker. No markers
-  or missing file → no-op (never auto-copies a backup). Unparseable file
-  that contains markers → refuses (exit 1).
+- Unwraps MCP entries carrying the `_caveman_wrapped` marker, or shaped
+  `npx -y caveman-shrink -- <cmd> ...` with the markers removed (the
+  original comes back from that argv). No wrapped entries or missing
+  file → no-op (never auto-copies a backup). Unparseable file that
+  contains markers → refuses (exit 1).
 - Resets all components to `false`, sets `enabled: false`.
 - Always writes the state file (so the UI can see a clean OFF).
 
