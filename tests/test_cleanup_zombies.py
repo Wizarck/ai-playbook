@@ -330,7 +330,7 @@ def test_directory_orphan_keeps_a_git_dir_whose_checkout_points_back(tmp_path: P
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before, "a git dir with a live checkout lost files"
-    assert "has a checkout" in _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "is a git dir, never deleted automatically" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_check_gitmodules_first_keeps_a_gitlink_without_a_gitmodules_entry(tmp_path: Path) -> None:
@@ -357,7 +357,7 @@ def test_check_gitmodules_first_keeps_an_untracked_checkout(tmp_path: Path) -> N
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (kept / "WIP.txt").is_file(), "an untracked checkout was deleted"
-    assert "is a git checkout" in _report_row(consumer, "test-entry")
+    assert "is a git repository or checkout" in _report_row(consumer, "test-entry")
 
 
 @pytest.mark.parametrize("kind", ["directory", "malformed"])
@@ -418,7 +418,7 @@ def test_directory_orphan_keeps_a_git_dir_with_a_live_linked_worktree(tmp_path: 
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before, "the git dir of a live linked worktree lost files"
-    assert "has a linked worktree" in _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "is a git dir, never deleted automatically" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_keeps_the_git_dir_of_a_deinited_tracked_gitlink(tmp_path: Path) -> None:
@@ -463,12 +463,13 @@ def test_directory_orphan_keeps_a_directory_holding_a_repository(tmp_path: Path)
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (nested / ".git").is_dir()
-    assert "is a git checkout" in _report_row(consumer, "stray")
+    assert "is a git repository or checkout" in _report_row(consumer, "stray")
 
 
-def test_shipped_manifest_fully_deletes_a_removed_submodules_leftovers(tmp_path: Path) -> None:
-    """NEGATIVE CONTROL with a real git dir: after deinit + rm the leftovers go,
-    read-only git objects included (Windows refused those mid-way)."""
+def test_shipped_manifest_reports_a_removed_submodules_git_dir_for_removal_by_hand(tmp_path: Path) -> None:
+    """After deinit + rm, git keeps the submodule's git dir because it may hold the
+    only copy of a commit. So does this tool: it reports it with the command to
+    check it, and deletes only the empty leftover."""
     consumer = _seed_consumer(tmp_path)
     _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/x")
     subprocess.run(["git", "commit", "-q", "-m", "add"], cwd=str(consumer), check=True)
@@ -476,10 +477,13 @@ def test_shipped_manifest_fully_deletes_a_removed_submodules_leftovers(tmp_path:
                  ["commit", "-q", "-m", "drop"]):
         subprocess.run(["git", *args], cwd=str(consumer), check=True)
     modules = consumer / ".git" / "modules" / ".skills-sources"
-    assert "x/HEAD" in _tree(modules)
+    before = _tree(modules)
+    assert "x/HEAD" in before
     result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
-    assert not modules.exists(), result.stdout
+    assert _tree(modules) == before
+    row = _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "is a git dir, never deleted automatically" in row and "--not --remotes" in row
     assert not (consumer / ".skills-sources").exists()
 
 
@@ -524,7 +528,8 @@ def test_an_unlistable_directory_fails_closed(tmp_path: Path) -> None:
         locked.chmod(0o700)
     assert result.returncode == 0, result.stderr
     assert locked.is_dir() and sibling.is_file(), "a directory that could not be inspected was (partly) deleted"
-    assert "safety raised" in _report_row(consumer, "test-entry")
+    row = _report_row(consumer, "test-entry")
+    assert "safety raised" in row and "Permission denied" in row
 
 
 @pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="case-insensitive filesystem only")
@@ -549,7 +554,7 @@ def test_case_insensitive_matches_for_tracked_files_and_git_dirs(tmp_path: Path)
     assert tracked.is_file(), "a tracked mixed-case path was deleted"
     assert (kept / ".GIT").is_dir(), "a checkout with an upper-case .GIT was deleted"
     assert "directory has tracked files" in _report_row(consumer, "test-entry")
-    assert "is a git checkout" in _report_row(consumer, "stray")
+    assert "is a git repository or checkout" in _report_row(consumer, "stray")
 
 
 def _git_in(cwd: Path, *args: str) -> None:
@@ -577,7 +582,7 @@ def test_directory_orphan_keeps_a_sparse_checkout_whose_core_worktree_moved(tmp_
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before
-    assert "has a checkout" in _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "is a git dir, never deleted automatically" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_keeps_a_checkout_on_a_non_ascii_path(tmp_path: Path) -> None:
@@ -592,7 +597,7 @@ def test_directory_orphan_keeps_a_checkout_on_a_non_ascii_path(tmp_path: Path) -
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before
-    assert "has a checkout" in _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "is a git dir, never deleted automatically" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_keeps_a_git_dir_with_a_locked_absent_worktree(tmp_path: Path) -> None:
@@ -614,7 +619,7 @@ def test_directory_orphan_keeps_a_git_dir_with_a_locked_absent_worktree(tmp_path
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before
-    assert "has a locked linked worktree" in _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "is a git dir, never deleted automatically" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_keeps_a_git_dir_holding_commits_no_remote_has(tmp_path: Path) -> None:
@@ -632,7 +637,7 @@ def test_directory_orphan_keeps_a_git_dir_holding_commits_no_remote_has(tmp_path
     result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before
-    assert "holds commits no remote has" in _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "is a git dir, never deleted automatically" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_shipped_manifest_preview_does_not_hang_on_link_loops(tmp_path: Path) -> None:
@@ -646,6 +651,7 @@ def test_shipped_manifest_preview_does_not_hang_on_link_loops(tmp_path: Path) ->
     _link_dir(loop, loop / "l2")
     result = _run_script(manifest=MANIFEST_PATH, consumer_root=consumer, timeout=60)
     assert result.returncode == 0, result.stderr
+    assert "safety raised" not in _report_row(consumer, "auto-managed-orphan-blocks")
 
 
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions as non-root")
@@ -656,6 +662,7 @@ def test_the_rmtree_hook_leaves_modes_alone_on_posix(tmp_path: Path) -> None:
     target.mkdir()
     notes = target / "notes.txt"
     notes.write_text("keep", encoding="utf-8")
+    mode = notes.stat().st_mode
     target.chmod(0o555)
     try:
         manifest = _write_manifest(tmp_path, [_base_entry()])
@@ -664,7 +671,60 @@ def test_the_rmtree_hook_leaves_modes_alone_on_posix(tmp_path: Path) -> None:
         target.chmod(0o755)
     assert result.returncode == 0, result.stderr
     assert "action raised" in _report_row(consumer, "test-entry")
-    assert notes.read_text(encoding="utf-8") == "keep" and (notes.stat().st_mode & 0o777) == 0o644
+    assert notes.read_text(encoding="utf-8") == "keep" and notes.stat().st_mode == mode
+
+
+def test_directory_orphan_deletes_leftovers_without_a_git_dir_completely(tmp_path: Path) -> None:
+    """NEGATIVE CONTROL: residue with no HEAD is deleted, read-only files included
+    (Windows refuses to delete those without clearing the bit)."""
+    consumer = _seed_consumer(tmp_path)
+    residue = consumer / ".git" / "modules" / ".skills-sources" / "x"
+    (residue / "hooks").mkdir(parents=True)
+    (residue / "hooks" / "pre-commit.sample").write_text("#!/bin/sh\n", encoding="utf-8")
+    leftover = residue / "leftover.pack"
+    leftover.write_bytes(b"PACK")
+    leftover.chmod(0o444)
+    manifest = _write_manifest(tmp_path, [_base_entry(**_GIT_MODULES_ENTRY)])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert not (consumer / ".git" / "modules" / ".skills-sources").exists(), _report_row(
+        consumer, "skills-sources-git-modules-orphan"
+    )
+
+
+def test_check_gitmodules_first_keeps_a_bare_repository(tmp_path: Path) -> None:
+    consumer = _seed_consumer(tmp_path)
+    bare = consumer / ".skills-sources" / "mirror.git"
+    subprocess.run(["git", "init", "--bare", "--quiet", str(bare)], check=True)
+    manifest = _write_manifest(tmp_path, [_base_entry()])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert (bare / "HEAD").is_file()
+    assert "is a git repository or checkout" in _report_row(consumer, "test-entry")
+
+
+@pytest.mark.parametrize("safety", ["check_gitmodules_first", "directory_orphan"])
+def test_a_target_that_is_itself_a_link_is_refused(tmp_path: Path, safety: str) -> None:
+    consumer = _seed_consumer(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("keep", encoding="utf-8")
+    _link_dir(outside, consumer / ".skills-sources")
+    manifest = _write_manifest(tmp_path, [_base_entry(safety=safety)])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert (outside / "keep.txt").is_file()
+    assert "target is a link" in _report_row(consumer, "test-entry")
+
+
+def test_report_rows_stay_on_one_line(tmp_path: Path) -> None:
+    """Folded YAML reasons end in a newline; written raw, they split the table row."""
+    consumer = _seed_consumer(tmp_path)
+    result = _run_script(manifest=MANIFEST_PATH, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    report = (consumer / ".ai-playbook" / "zombie-report.md").read_text(encoding="utf-8")
+    table = [line for line in report.splitlines() if line.startswith("| `")]
+    assert table and all(line.endswith(" |") for line in table), report
 
 
 def test_directory_orphan_skips_when_files_tracked(tmp_path: Path) -> None:
@@ -681,6 +741,7 @@ def test_directory_orphan_skips_when_files_tracked(tmp_path: Path) -> None:
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0
     assert target_dir.exists(), "tracked dir must NOT be deleted"
+    assert "directory has tracked files" in _report_row(consumer, "orphan-test")
 
 
 def test_directory_orphan_keeps_git_dir_of_an_active_submodule(tmp_path: Path) -> None:
@@ -708,6 +769,7 @@ def test_directory_orphan_keeps_git_dir_of_an_active_submodule(tmp_path: Path) -
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(git_dir) == before, "git dir of a registered submodule lost files"
+    assert "still registered in .gitmodules" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_deletes_git_dir_of_a_removed_submodule(tmp_path: Path) -> None:
@@ -768,7 +830,8 @@ def test_file_mtime_and_drained_blocks_when_record_not_drained(tmp_path: Path) -
     )
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0
-    assert queue.exists(), "queue with non-drained records must not be rotated"
+    assert queue.read_text(encoding="utf-8") == '{"state": "queued", "id": "x"}\n'
+    assert "at least one record not drained" in _report_row(consumer, "hq-rotation")
 
 
 def test_yaml_literal_rename_renames_scalar_values(tmp_path: Path) -> None:

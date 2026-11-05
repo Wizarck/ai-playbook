@@ -59,12 +59,12 @@ entries:
     introduced_in: v0.4.0
     removed_in: deprecation_only
     reason: >
-      Git stores submodule metadata under `.git/modules/<name>/` and does not
-      clean it on `git submodule deinit`. It also holds the git dirs of nested
-      `.skills-sources/<repo>` submodules, so it is an orphan only when no
-      submodule at, under or above it is declared, tracked as a gitlink, still
-      checked out or used by a linked worktree, and none of its git dirs holds
-      a commit that no remote has.
+      Git keeps a submodule's git dir under `.git/modules/<name>/` after
+      `git submodule deinit`, because it may hold the only copy of a commit.
+      Only leftovers without a git dir are deleted, once no submodule at, under
+      or above it is declared or tracked as a gitlink. A real git dir (also of
+      nested `.skills-sources/<repo>` submodules) is reported with the command
+      to check it before removing it by hand.
     evidence: github.com/consumer-a/consumer-a/pull/125
 
   - id: auto-managed-orphan-blocks
@@ -388,11 +388,11 @@ entries:
     reason: >
       `ai_playbook.egg-info/` is a `pip install -e .` build artefact that
       should never live in git. `.gitignore` already covers `*.egg-info/`,
-      so the directory is always untracked. Consumers that happened to
-      commit the directory pre-gitignore (rare) get it cleaned up via the
-      `directory_orphan` safety check (deletes only if nothing under it is
-      tracked and no repository sits in it). Removing on the playbook side too in v0.17.1 to keep the
-      root tidy.
+      so the directory is always untracked. Consumers that committed it
+      pre-gitignore (rare) get it cleaned up once they untrack it
+      (`git rm -r --cached ai_playbook.egg-info`): `directory_orphan` deletes
+      it only when nothing under it is tracked and no repository sits in it.
+      Removing on the playbook side too in v0.17.1 to keep the root tidy.
     evidence: ai-playbook v0.17.1 CHANGELOG
 
   - id: issue-sync-workflow-removed
