@@ -119,6 +119,57 @@ def test_on_deselecting_components_undoes_their_side_effects(project: Path) -> N
     assert json.loads(mcp.read_text(encoding="utf-8")) == original_mcp
 
 
+def _wrapped_jsonc_gemini(project: Path) -> Path:
+    """A wrapped .gemini/settings.json the user then annotated with a comment."""
+    gemini = project / ".gemini" / "settings.json"
+    gemini.parent.mkdir(exist_ok=True)
+    gemini.write_text(json.dumps({"mcpServers": {"g": {"command": "go"}}}), encoding="utf-8")
+    return gemini
+
+
+def test_on_reconcile_failure_leaves_files_and_state_as_they_were(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression F7: a failed MCP restore must not leave AGENTS.md stripped."""
+    mcp = project / ".mcp.json"
+    mcp.write_text(json.dumps({"mcpServers": {"a": {"command": "uv"}}}), encoding="utf-8")
+    gemini = _wrapped_jsonc_gemini(project)
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    gemini.write_text("// note\n" + gemini.read_text(encoding="utf-8"), encoding="utf-8")
+    before = {p: p.read_bytes() for p in (project / "AGENTS.md", mcp, gemini, toggle.state_path(project))}
+
+    assert cli.main(["--project", str(project), "on", "--components", "commit_caveman"]) == 1
+    assert "nothing was changed" in capsys.readouterr().err
+    assert {p: p.read_bytes() for p in before} == before
+
+
+def test_on_later_failure_undoes_the_reconcile(project: Path) -> None:
+    """A failed materialise after the reconcile unwrapped MCP puts the wrap back."""
+    mcp = project / ".mcp.json"
+    mcp.write_text(json.dumps({"mcpServers": {"a": {"command": "uv"}}}), encoding="utf-8")
+    assert cli.main(["--project", str(project), "on", "--components", "mcp_shrink"]) == 0
+    wrapped = mcp.read_bytes()
+    (project / "AGENTS.md").unlink()
+
+    assert cli.main(["--project", str(project), "on", "--components", "response_style"]) == 1
+    assert mcp.read_bytes() == wrapped
+    assert toggle.read_state(project)["components"]["mcp_shrink"] is True
+
+
+def test_off_failure_leaves_files_and_state_as_they_were(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression F5/F7: `off` used to exit 1 with AGENTS.md already stripped."""
+    gemini = _wrapped_jsonc_gemini(project)
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    gemini.write_text("// note\n" + gemini.read_text(encoding="utf-8"), encoding="utf-8")
+    before = {p: p.read_bytes() for p in (project / "AGENTS.md", gemini, toggle.state_path(project))}
+
+    assert cli.main(["--project", str(project), "off"]) == 1
+    assert "nothing was changed" in capsys.readouterr().err
+    assert {p: p.read_bytes() for p in before} == before
+
+
 def test_on_rejects_invalid_mode(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
     rc = cli.main(["--project", str(project), "on", "--mode", "telegraphic"])
     assert rc == 1

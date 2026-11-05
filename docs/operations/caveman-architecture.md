@@ -117,7 +117,9 @@ python -m scripts.caveman on \
      `.gemini/settings.json`.
 - On any side-effect failure, returns exit 1 with a canonical error;
   the state file is NOT updated (i.e. you don't end up saying "ON"
-  with no actual materialisation).
+  with no actual materialisation), and every file the run already
+  changed is copied back from its backup, so a failed `on` changes
+  nothing. The MCP restore checks both files before writing either.
 - Writes the state file last via atomic temp+rename.
 
 `--json` output:
@@ -149,7 +151,9 @@ python -m scripts.caveman off --json --project /path/to/project
   file → no-op (never auto-copies a backup). Unparseable file that
   contains markers → refuses (exit 1).
 - Resets all components to `false`, sets `enabled: false`.
-- Always writes the state file (so the UI can see a clean OFF).
+- Writes the state file once both steps succeed (so the UI can see a
+  clean OFF). If the MCP restore fails, the stripped block is put back
+  and the state is left as it was (exit 1): a failed `off` changes nothing.
 
 ### `compress` — one-shot doc compression
 
