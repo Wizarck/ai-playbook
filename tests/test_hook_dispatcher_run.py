@@ -214,6 +214,20 @@ def test_root_prefers_claude_project_dir(tmp_path: Path, monkeypatch: pytest.Mon
     assert not blocked and "secrets-handling" not in fired
 
 
+def test_root_walks_claude_project_dir_up_to_agents_md(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A session launched from a consumer subdirectory still reads the root's toggles."""
+    consumer, _drift = _drifted_consumer(tmp_path)
+    sub = consumer / "src" / "pkg"
+    sub.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(sub))
+    assert HD._consumer_root({"cwd": str(sub)}) == consumer.resolve()
+    blocked, _m, fired = HD.run_rules(_rules(), "PreToolUse", _event(True))
+    assert not blocked and "secrets-handling" not in fired
+
+
 def test_root_uses_event_cwd_and_skips_playbook_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

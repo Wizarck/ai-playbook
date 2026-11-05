@@ -234,7 +234,7 @@ def _consumer_root(event: dict[str, Any] | None = None) -> Path:
 
     env = os.environ.get("CLAUDE_PROJECT_DIR")
     if env and Path(env).is_dir():
-        return Path(env).resolve()
+        return find_project_root(Path(env)) or Path(env).resolve()
     cwd = (event or {}).get("cwd")
     start = Path(cwd) if isinstance(cwd, str) and cwd and Path(cwd).is_dir() else Path.cwd()
     return find_project_root(start) or start.resolve()
