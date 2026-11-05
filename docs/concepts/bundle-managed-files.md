@@ -203,9 +203,10 @@ Authoritative module: [`scripts/caveman/policy.py`](../../scripts/caveman/policy
    a `WARN:` line names the files).
 
 Pre-commit hooks in templates ship with graceful shims
-(`bash -c '[ ! -d .ai-playbook ] || python ...'`): with the submodule
-deleted the hook exits 0 and does not block commits; with it present the
-validator's exit code propagates, so a failing check blocks the commit.
+(`bash -c '[ ! -f .ai-playbook/scripts/<x>.py ] || python .ai-playbook/scripts/<x>.py'`):
+with the submodule deleted or not initialised the hook exits 0 and does not
+block commits; with the script present the validator's exit code propagates,
+so a failing check blocks the commit.
 
 ## Follow-up scope (NOT in this PR)
 
