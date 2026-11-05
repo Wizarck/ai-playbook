@@ -193,6 +193,26 @@ def read_commit_message(repo_root: Path) -> str | None:
     return None
 
 
+def _diff_names(repo_root: Path, *diff_args: str) -> set[str] | None:
+    """Paths ``git diff --name-only <diff_args>`` lists; None when git fails.
+
+    ``-z`` output is never C-quoted, so a non-ASCII path such as
+    ``openspec/specs/métricas/spec.md`` arrives verbatim (as in pre-commit's
+    argv) instead of as ``"openspec/specs/m\\303\\251tricas/spec.md"``, which
+    ``is_protected_path`` would not recognise.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--name-only", "-z", *diff_args],
+            cwd=str(repo_root), check=False, capture_output=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return {p for p in r.stdout.decode("utf-8", "surrogateescape").split("\0") if p}
+
+
 def find_repo_root(start: Path) -> Path:
     """Walk up from `start` looking for a `.git` directory. Fallback to `start`."""
     for candidate in (start, *start.resolve().parents):
@@ -217,42 +237,21 @@ def _modified_files(repo_root: Path) -> set[str] | None:
     Returns paths relative to repo root. Pre-commit passes file arguments
     using forward slashes, so we normalize to forward slashes.
     """
-    import subprocess
-
-    def _run_diff(args: list[str]) -> set[str] | None:
-        try:
-            result = subprocess.run(
-                args,
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
-            )
-        except FileNotFoundError:
-            return None
-        if result.returncode != 0:
-            return None
-        files = {ln.strip() for ln in result.stdout.splitlines() if ln.strip()}
-        return files or None
-
     from_ref = os.environ.get("PRE_COMMIT_FROM_REF")
     to_ref = os.environ.get("PRE_COMMIT_TO_REF")
     if from_ref and to_ref:
-        files = _run_diff(
-            ["git", "diff", "--name-only", f"{from_ref}..{to_ref}"]
-        )
-        if files is not None:
+        files = _diff_names(repo_root, f"{from_ref}..{to_ref}")
+        if files:
             return files
 
     # Staged-mode (commit time): git diff --cached.
-    files = _run_diff(["git", "diff", "--cached", "--name-only"])
-    if files is not None:
+    files = _diff_names(repo_root, "--cached")
+    if files:
         return files
 
     # Push-event CI fallback.
-    files = _run_diff(["git", "diff", "--name-only", "HEAD~1", "HEAD"])
-    if files is not None:
+    files = _diff_names(repo_root, "HEAD~1", "HEAD")
+    if files:
         return files
 
     return None  # Cannot determine — caller decides whether to fail open or closed.
@@ -283,11 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = find_repo_root(Path.cwd())
 
     if args.commit_msg_file:
-        staged = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            cwd=str(repo_root), check=False, capture_output=True, text=True, encoding="utf-8",
-        )
-        args.files = staged.stdout.splitlines() if staged.returncode == 0 else []
+        args.files = sorted(_diff_names(repo_root, "--cached") or ())
 
     candidates = [f for f in args.files if is_protected_path(f)]
     if not candidates:
