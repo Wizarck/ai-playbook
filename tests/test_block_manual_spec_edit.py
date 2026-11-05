@@ -388,6 +388,26 @@ def test_commit_msg_stage_reads_a_non_utf8_message(
     assert bmse.main(["--commit-msg-file", str(msg)]) == 1
 
 
+def test_non_ascii_spec_path_is_protected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`git diff --name-only` C-quotes non-ASCII paths; the guard must still see them."""
+    _bootstrap_repo(tmp_path)
+    spec = tmp_path / "openspec" / "specs" / "métricas" / "spec.md"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("hand edit\n", encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    msg = tmp_path / "m.txt"
+    msg.write_text("chore: tweak wording\n", encoding="utf-8")
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 1
+    # CI range mode: pre-commit passes the unquoted name in argv.
+    base = _rev_parse(tmp_path)
+    _git(tmp_path, "commit", "-q", "-m", "chore: tweak wording")
+    monkeypatch.setenv("PRE_COMMIT_FROM_REF", base)
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", _rev_parse(tmp_path))
+    assert bmse.main(["openspec/specs/métricas/spec.md"]) == 1
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX hook shebang")
 def test_real_commit_msg_hook_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Real `git commit` with the guard installed as a commit-msg hook."""
