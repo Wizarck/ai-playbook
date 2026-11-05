@@ -171,8 +171,9 @@ def _read_json(p: Path) -> dict[str, Any] | None:
     if not p.is_file():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        # utf-8-sig: Windows editors (PowerShell 5.1 `Set-Content -Encoding UTF8`) add a BOM.
+        return json.loads(p.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 
@@ -215,11 +216,11 @@ def restore_file(project_root: Path, file_path: Path) -> tuple[Path | None, int]
         return None, 0
     doc = _read_json(file_path)
     if doc is None:
-        raw = file_path.read_text(encoding="utf-8", errors="replace")
-        if WRAPPED_MARKER in raw:
+        raw = file_path.read_bytes()
+        if any(WRAPPED_MARKER.encode(enc) in raw for enc in ("utf-8", "utf-16-le", "utf-16-be")):
             raise ValueError(
-                f"cannot parse {file_path} as JSON but it contains caveman-wrapped "
-                "entries; fix the JSON (e.g. remove comments) and re-run."
+                f"cannot parse {file_path} as UTF-8 JSON but it contains caveman-wrapped "
+                "entries; fix it (e.g. remove comments, re-save as UTF-8) and re-run."
             )
         return None, 0
 

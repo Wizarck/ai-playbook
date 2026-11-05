@@ -226,6 +226,43 @@ def test_restore_file_refuses_unparseable_wrapped_file(tmp_path: Path) -> None:
     assert gemini.read_text(encoding="utf-8") == broken
 
 
+def test_restore_file_unwraps_file_resaved_with_utf8_bom(tmp_path: Path) -> None:
+    """Regression F5: PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM."""
+    mcp = tmp_path / ".mcp.json"
+    _write_json(mcp, {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}})
+    mcp_shrink.shrink_file(tmp_path, mcp)
+    mcp.write_bytes(b"\xef\xbb\xbf" + mcp.read_bytes())
+
+    backup, count = mcp_shrink.restore_file(tmp_path, mcp)
+    assert count == 1
+    assert backup is not None
+    assert not mcp.read_bytes().startswith(b"\xef\xbb\xbf")
+    assert json.loads(mcp.read_text(encoding="utf-8")) == {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+
+
+def test_shrink_file_wraps_file_with_utf8_bom(tmp_path: Path) -> None:
+    mcp = tmp_path / ".mcp.json"
+    mcp.write_bytes(b"\xef\xbb\xbf" + json.dumps({"mcpServers": {"a": {"command": "uv"}}}).encode("utf-8"))
+    _, count = mcp_shrink.shrink_file(tmp_path, mcp)
+    assert count == 1
+    assert json.loads(mcp.read_text(encoding="utf-8"))["mcpServers"]["a"]["command"] == "npx"
+
+
+def test_restore_file_utf16_file_refuses_only_when_wrapped(tmp_path: Path) -> None:
+    """PowerShell 5.1 `>` / Out-File writes UTF-16: never crash, never guess."""
+    mcp = tmp_path / ".mcp.json"
+    plain = json.dumps({"mcpServers": {"a": {"command": "uv"}}})
+    mcp.write_text(plain, encoding="utf-16")
+    before = mcp.read_bytes()
+    assert mcp_shrink.restore_file(tmp_path, mcp) == (None, 0)
+    assert mcp.read_bytes() == before
+
+    wrapped = json.dumps({"mcpServers": {"a": mcp_shrink.wrap_entry({"command": "uv"})}})
+    mcp.write_text(wrapped, encoding="utf-16")
+    with pytest.raises(ValueError, match="cannot parse"):
+        mcp_shrink.restore_file(tmp_path, mcp)
+
+
 def test_restore_file_returns_none_when_nothing_to_do(tmp_path: Path) -> None:
     mcp = tmp_path / ".mcp.json"
     _write_json(mcp, {"mcpServers": {"a": {"command": "uv"}}})  # not wrapped
