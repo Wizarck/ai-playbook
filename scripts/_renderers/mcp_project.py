@@ -110,14 +110,15 @@ def render(
     if merged is None or any(not isinstance(landed, dict) or sid not in landed
                              for sid in servers):
         dup = duplicate_key(body)
+        problem = ("is not a valid YAML mapping" + (f" (duplicate key {dup!r})" if dup else "")
+                   if merged is None else "would put bundle servers outside `servers:`")
         # Merging into the consumer's file: a layout conflict for that file
         # only. From the template alone it is a playbook bug.
         raise (MergeConflictError if current is not None else ValueError)(
-            "merged mcp-servers.project.yaml is not a valid YAML mapping"
-            + (f" (duplicate key {dup!r})" if dup else "")
-            + " — bundle servers are appended at the end of the file, indented "
-            "two spaces under `servers:`; move any content after the `servers:` "
-            "mapping above it and re-apply"
+            f"merged mcp-servers.project.yaml {problem} — bundle servers are "
+            "appended at the end of the file, indented two spaces under "
+            "`servers:`; move any content after the `servers:` mapping above it "
+            "and re-apply"
         )
     return body
 
