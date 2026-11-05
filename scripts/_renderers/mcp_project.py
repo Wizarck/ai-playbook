@@ -67,6 +67,27 @@ def _format_servers(servers: dict[str, dict]) -> str:
     return dumped.split("\n", 1)[1]
 
 
+def _merge_error(body: str, merged: dict | None, current_text: str | None,
+                 current: dict | None) -> str:
+    own_dup = duplicate_key(current_text) if current_text else None
+    if own_dup is not None:
+        return (f"mcp-servers.project.yaml already has a duplicate key {own_dup!r} "
+                "(YAML loaders keep only one of them; check-yaml rejects the file): "
+                "remove the duplicate and re-apply")
+    if merged is None:
+        dup = duplicate_key(body)
+        problem = "is not a valid YAML mapping" + (f" (duplicate key {dup!r})" if dup else "")
+    else:
+        problem = "would put bundle servers outside `servers:`"
+    if current is not None and list(current)[-1:] == ["servers"]:
+        fix = ("re-indent its entries two spaces, in block style (not a `{...}` "
+               "flow mapping), and re-apply")
+    else:
+        fix = "move any content after the `servers:` mapping above it and re-apply"
+    return (f"merged mcp-servers.project.yaml {problem} — bundle servers are appended "
+            f"at the end of the file, indented two spaces under `servers:`; {fix}")
+
+
 def render(
     *,
     template: str,
@@ -109,16 +130,10 @@ def render(
     landed = (merged or {}).get("servers")
     if merged is None or any(not isinstance(landed, dict) or sid not in landed
                              for sid in servers):
-        dup = duplicate_key(body)
-        problem = ("is not a valid YAML mapping" + (f" (duplicate key {dup!r})" if dup else "")
-                   if merged is None else "would put bundle servers outside `servers:`")
         # Merging into the consumer's file: a layout conflict for that file
         # only. From the template alone it is a playbook bug.
         raise (MergeConflictError if current is not None else ValueError)(
-            f"merged mcp-servers.project.yaml {problem} — bundle servers are "
-            "appended at the end of the file, indented two spaces under "
-            "`servers:`; move any content after the `servers:` mapping above it "
-            "and re-apply"
+            _merge_error(body, merged, current_text, current)
         )
     return body
 

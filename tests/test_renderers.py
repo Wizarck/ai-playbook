@@ -432,6 +432,27 @@ def test_pre_commit_merge_refuses_items_landing_under_a_later_key() -> None:
                           ]}})
 
 
+def test_pre_commit_merge_names_a_duplicate_key_already_in_the_file() -> None:
+    from scripts._renderers import MergeConflictError
+    current = (
+        "repos:\n"
+        "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+        "  - repo: local\n"
+        "    hooks: []\n"
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: a\n"
+        "        id: b\n"
+        "        name: a\n"
+        "        entry: 'true'\n"
+        "        language: system\n"
+    )
+    with pytest.raises(MergeConflictError, match="already has a duplicate key 'id'"):
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={}, current_text=current,
+                          bundle={"pre_commit_extras": {"hooks": [_hook("x")]}})
+
+
 def test_pre_commit_markerless_file_with_playbook_hooks_does_not_get_them_twice() -> None:
     """Consumers' configs copied from an older template list the playbook hooks
     without the marker lines. Appending the block made each of them run twice."""
@@ -773,6 +794,23 @@ def test_mcp_project_refuses_merge_that_misplaces_or_duplicates() -> None:
     with pytest.raises(ValueError, match="duplicate key 'servers'"):
         render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle={},
                            current_text=duplicated)
+
+
+@pytest.mark.parametrize(("current", "advice"), [
+    ("servers:\n    hindsight:\n        id: hindsight\n", "re-indent its entries two spaces"),
+    ("servers: {hindsight: {id: hindsight}}\n", "re-indent its entries two spaces"),
+    ("servers:\n  hindsight:\n    id: hindsight\nproject: x\n", "move any content after"),
+    ("servers:\n  hindsight:\n    id: hindsight\n    id: again\n",
+     "already has a duplicate key 'id'"),
+])
+def test_mcp_project_merge_conflict_names_the_hand_edit(current: str, advice: str) -> None:
+    """A 4-space or flow-style `servers:` with nothing after it needs
+    re-indenting, not content moved; a duplicate already in the file needs
+    removing. The file is skipped as a conflict either way."""
+    from scripts._renderers import MergeConflictError
+    with pytest.raises(MergeConflictError, match=advice):
+        render_mcp_project(template=_MCP_TMPL, substitutions={}, current_text=current,
+                           bundle={"mcp_project_servers": {"extra": {"id": "extra"}}})
 
 
 def test_mcp_project_empty_extras() -> None:

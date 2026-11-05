@@ -129,9 +129,12 @@ JSON5 / JS:
      A markerless `AGENTS.md` is still generated from the template (its prose
      is recovered through backup + `curate`; its caveman / ponytail / graphify
      `auto-managed` blocks are carried over). A YAML file whose layout cannot
-     take the merge (e.g. `repos:` items at column 0, or keys after the list
-     the extras continue) is skipped as a conflict (`merge`), naming the hand
-     edit; the other files of the batch still apply.
+     take the merge (e.g. `repos:` items at column 0, a 4-space or flow-style
+     `servers:`, keys after the list the extras continue, or a duplicate key,
+     even one the file already had) is skipped as a conflict (`merge`): it is
+     not written and `applied-config.json` does not advance until that hand
+     edit, which the message names, is made; the other files of the batch
+     still apply.
    - If destination exists AND content differs from rendered output:
      `backup_once` → atomic write.
    - Update `bundle.file_states[<rel_path>]` with the new SHA manifest.
