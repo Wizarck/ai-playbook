@@ -309,6 +309,23 @@ def test_uninstall_removes_playbook_hooks_from_settings(tmp_path: Path) -> None:
     assert ".claude/settings.json" in report.stripped
 
 
+def test_dry_run_reports_hook_removal_without_writing(tmp_path: Path) -> None:
+    import json
+
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    settings = consumer / ".claude" / "settings.local.json"
+    _write_lf(settings, json.dumps({"hooks": {"UserPromptSubmit": [{"hooks": [
+        {"type": "command", "command": 'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/x.py"'},
+    ]}]}}, indent=2) + "\n")
+    before = settings.read_bytes()
+
+    report = un.uninstall(consumer, dry_run=True)
+
+    assert any("would drop hooks" in s and "settings.local.json" in s for s in report.stripped)
+    assert settings.read_bytes() == before
+
+
 def test_uninstall_strips_feature_ruleset_blocks(tmp_path: Path) -> None:
     consumer = tmp_path / "c"
     consumer.mkdir()
