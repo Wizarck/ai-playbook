@@ -120,6 +120,12 @@ JSON5 / JS:
      `# (end of …)` trailer comment, and that region is replaced on every
      apply. `.coderabbit.yaml` extras are merged into the current mapping, so
      an entry removed from the bundle stays in the file until deleted by hand.
+     A markerless `.pre-commit-config.yaml` that already lists playbook hooks,
+     or a markerless `mcp-servers.project.yaml` with its own `servers:`, keeps
+     them as they are: the canonical block is not appended (the hooks would run
+     twice; `servers:` would be opened twice). To have the playbook refresh
+     them, replace them with the template's block, begin/end marker lines
+     included.
      A markerless `AGENTS.md` is still generated from the template (its prose
      is recovered through backup + `curate`). A YAML file whose layout cannot
      take the merge (e.g. `repos:` items at column 0, or keys after the list
