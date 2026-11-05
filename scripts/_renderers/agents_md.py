@@ -87,6 +87,30 @@ def _apply_project_meta(text: str, project_meta: dict | None, *, splice: bool) -
     return text
 
 
+def _carry_auto_managed(body: str, current_text: str) -> str:
+    """Append the ``auto-managed`` blocks of ``current_text`` that ``body`` lacks.
+
+    caveman / ponytail / graphify write their block into AGENTS.md earlier in
+    the same apply; regenerating a markerless file from the template would
+    drop it until the next apply. A block whose source (ignoring a trailing
+    ``:<mode>``) ``body`` already has, e.g. through ``project_meta``, is not
+    added again.
+    """
+    from scripts.auto_managed import find_sections
+
+    try:
+        carried = find_sections(current_text)
+        present = {s.source.rsplit(":", 1)[0] for s in find_sections(body)}
+    except ValueError:
+        return body
+    lines = current_text.replace("\r\n", "\n").split("\n")
+    for sec in carried:
+        if sec.source.rsplit(":", 1)[0] not in present:
+            block = "\n".join(lines[sec.start_line - 1:sec.end_line])
+            body = body.rstrip("\n") + "\n\n" + block + "\n"
+    return body
+
+
 def _resolve_block_action(
     block_id: str, intents: dict | None,
 ) -> str:
@@ -168,7 +192,8 @@ def render(
     * No file, or a markerless (never-adopted) file: the output is generated
       from the template, with ``project_meta`` filling the free-form slots
       (markerless prose is recovered through backup + ``curate``, see
-      openspec/changes/lossless-adoption D2).
+      openspec/changes/lossless-adoption D2). The file's ``auto-managed``
+      blocks (caveman / ponytail / graphify) are appended to it.
     * A file that already carries marker blocks: the template's canonical
       blocks are spliced INTO ``current_text`` (missing ones appended); the
       frontmatter and every section outside the blocks are kept verbatim.
@@ -184,6 +209,8 @@ def render(
         sealed = parse_blocks(_inject_sha_into_markers(body), CommentStyle.HTML).blocks
         body = write_blocks(current_text, sealed, style=CommentStyle.HTML)
     body = _apply_project_meta(body, bundle.get("project_meta"), splice=splice)
+    if current_text and not splice:
+        body = _carry_auto_managed(body, current_text)
     intents = (bundle.get("file_curate_intents") or {}).get("AGENTS.md")
     body = _apply_curate_intents(body, current_text, intents)
     body = _inject_sha_into_markers(body)
