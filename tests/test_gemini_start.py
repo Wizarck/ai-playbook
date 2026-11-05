@@ -176,6 +176,10 @@ def test_windows_unrecognised_shim_refuses_args_cmd_would_reinterpret(
     err = capsys.readouterr().err
     assert "refusing to pass these arguments through cmd.exe" in err
     assert "OVERRIDE: none" in err
+    # The remedy must keep the wrapper: running `gemini` directly skips the
+    # context injection gemini-session-start requires.
+    assert "npm install -g @google/gemini-cli" in err
+    assert "directly" not in err
 
 
 def test_windows_unrecognised_shim_still_runs_plain_args(tmp_path: Path, monkeypatch) -> None:
