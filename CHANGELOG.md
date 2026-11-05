@@ -26,8 +26,9 @@ All notable changes to `ai-playbook` are documented here. Semver.
 - **Safety / IO.** `secrets_scan` catches more key formats without new false
   positives; `retain_memory` fails closed; cmd.exe no longer mangles Windows
   `gemini` prompts; the SOPS re-key runbook cannot empty the store;
-  `cleanup-zombies --apply` keeps a directory that holds registered or tracked
-  submodules (`.skills-sources/<repo>`) and their git dirs.
+  `cleanup-zombies --apply` keeps directories that hold registered, tracked
+  or checked-out submodules (`.skills-sources/<repo>`) and their git dirs,
+  and refuses when git cannot read `.gitmodules`.
 
 ### Upgrading — behaviour changes
 Bump and reconcile per `upgrade-playbook-pin.md`. Expect new, genuine failures.
