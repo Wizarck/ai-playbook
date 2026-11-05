@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -450,6 +451,17 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         if latest is not None:
             candidates.append((area, source, latest))
 
+    legacy: list[Path] = []
+    legacy_note = ""
+    if not any(a == agents_area for a, _, _ in candidates):
+        legacy = _legacy_agents_backups(root)
+    if legacy:
+        legacy_note = (
+            f"AGENTS.md snapshots taken before v0.24.2 sit in .ai-playbook/backups/agents/ "
+            f"(shared with ponytail/graphify; newest: {legacy[-1].name}). rollback does not "
+            "restore them: check one and copy it over AGENTS.md by hand if you need it."
+        )
+
     if args.list:
         if args.json:
             print(json.dumps({
@@ -458,21 +470,24 @@ def cmd_rollback(args: argparse.Namespace) -> int:
                     {"area": a, "target": str(s), "backup": str(b)}
                     for a, s, b in candidates
                 ],
+                "legacy_agents_backups": [str(p) for p in legacy],
             }, indent=2, ensure_ascii=False))
         else:
             if not candidates:
                 print(f"No backups found under {root}/.ai-playbook/backups/")
-                return 0
-            print(f"Latest backups under {root}:")
-            for a, s, b in candidates:
-                print(f"  [{a}] {s.name}: would restore from {b.name}")
+            else:
+                print(f"Latest backups under {root}:")
+                for a, s, b in candidates:
+                    print(f"  [{a}] {s.name}: would restore from {b.name}")
+            if legacy_note:
+                print(f"  note: {legacy_note}")
         return 0
 
     if not candidates:
         _emit_error(
             why="no backups found to restore",
             where=f"caveman:rollback:{root.as_posix()}",
-            fix=(
+            fix=legacy_note or (
                 "nothing to roll back — backups live at .ai-playbook/backups/{agents-caveman,mcp}/. "
                 "Run `caveman on` then `off` to create some, or use the per-file .original.md "
                 "backup for compressed docs."
@@ -538,7 +553,18 @@ def cmd_rollback(args: argparse.Namespace) -> int:
             print(f"⚠️  rolled back {len(restored)} file(s) at {root}; AGENTS.md left as is")
         for r in restored:
             print(f"   {r['area']:7s} {r['source']}  ⟵  {r['backup']}")
+    if legacy_note:
+        print(f"⚠️  AGENTS.md not restored: {legacy_note}", file=sys.stderr)
     return 0 if refused is None else 1
+
+
+# caveman wrote its AGENTS.md snapshots to the shared "agents" area with
+# second-resolution stamps until v0.24.2 (ponytail/graphify did too).
+_LEGACY_AGENTS_BACKUP_RE = re.compile(r"AGENTS\.md\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.bak")
+
+
+def _legacy_agents_backups(root: Path) -> list[Path]:
+    return [p for p in backup_mod.list_backups(root, "agents") if _LEGACY_AGENTS_BACKUP_RE.fullmatch(p.name)]
 
 
 # Blocks other features keep in AGENTS.md (scripts/ponytail and scripts/graphify materialise).
