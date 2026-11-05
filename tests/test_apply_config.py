@@ -411,6 +411,32 @@ def test_apply_mcps_enforce_writes_state_file(tmp_path: Path) -> None:
     assert payload["disabled"] == ["guardrails-mcp"]
 
 
+def test_mcps_enforce_render_never_sees_the_real_home(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: an mcps_enforce apply reaches render's global Antigravity
+    writer, which rewrote the developer's real ~/.gemini/antigravity/
+    mcp_config.json. tests/conftest.py must hand it a temp home."""
+    import os
+
+    from scripts.mcp import render
+
+    homes: list[Path] = []
+    monkeypatch.setattr(
+        render, "update_global_antigravity_mcp",
+        lambda *_a, **_k: homes.append(Path.home()),  # record only, never write
+    )
+    target = _fake_project(tmp_path)
+    bp = _write_bundle(tmp_path, {"schema": "ai-playbook-config/v1", "mcps_enforce": {"disabled": []}})
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        mock_cv.return_value = apply_config.SectionResult(name="features.caveman", ok=True)
+        apply_config.apply(bp, target=target)
+
+    assert homes, "the MCP render never reached the global writer"
+    assert homes[0] != Path(os.path.expanduser("~"))
+    assert tmp_path_factory.getbasetemp() in homes[0].parents
+
+
 def test_apply_skills_enforce_empty_disabled_writes_explicit_state(tmp_path: Path) -> None:
     """Empty `disabled` array still persists state file (explicit no-op intent)."""
     target = _fake_project(tmp_path)

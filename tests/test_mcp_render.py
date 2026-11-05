@@ -11,11 +11,8 @@ import yaml
 from scripts.mcp import render as mcp_render
 from scripts.mcp import validate as mcp_validate
 
-
-@pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """render.main() touches ~/.gemini/antigravity; never the real one in tests."""
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "no-home"))
+# render.main() touches ~/.gemini/antigravity: tests/conftest.py points
+# Path.home() at an empty per-test dir for the whole suite.
 
 BASE_MIN = {
     "schema": "mcp-servers/v1",
