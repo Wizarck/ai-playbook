@@ -212,6 +212,11 @@ cp .ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak ./AGENTS.md
 python -m scripts.caveman off --project .  # sync the state file
 ```
 
+Snapshots taken before v0.24.2 are in `.ai-playbook/backups/agents/`
+(names without microseconds, e.g. `AGENTS.md.2026-09-01T10-00-00Z.bak`).
+That folder is shared with ponytail and graphify, so check a file before
+copying it; `caveman rollback` only names them, it does not restore them.
+
 ### Restore the latest MCP backups by hand
 
 ```bash

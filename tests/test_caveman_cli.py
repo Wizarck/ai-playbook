@@ -331,6 +331,55 @@ def test_rollback_refuses_when_a_graphify_block_would_be_rewritten(
     assert (project / "AGENTS.md").read_text(encoding="utf-8") == edited
 
 
+def _legacy_agents_backup(project: Path, content: str) -> Path:
+    """A caveman snapshot as written before v0.24.2 (shared area, second stamps)."""
+    d = project / ".ai-playbook" / "backups" / "agents"
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / "AGENTS.md.2026-09-29T01-03-49Z.bak"
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+def test_rollback_list_points_at_legacy_agents_snapshots(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression F3: pre-0.24.2 snapshots in agents/ are named, not silently ignored."""
+    from scripts.ponytail import materialise as pm
+
+    legacy = _legacy_agents_backup(project, "# fake\n")
+    pm.materialise(project, "full")  # new-format ponytail backup in agents/: not legacy
+
+    assert cli.main(["--project", str(project), "rollback", "--list"]) == 0
+    out = capsys.readouterr().out
+    assert "No backups found" in out
+    assert legacy.name in out
+    assert ".ai-playbook/backups/agents/" in out
+
+    assert cli.main(["--project", str(project), "rollback", "--list", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["legacy_agents_backups"] == [str(legacy)]
+
+
+def test_rollback_yes_says_agents_md_was_not_restored_from_legacy_area(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from scripts.caveman import backup as backup_mod
+
+    _legacy_agents_backup(project, "# fake\n")
+    block = "# fake\n\n<!-- BEGIN auto-managed: caveman/ruleset:full -->\nx\n<!-- END auto-managed -->\n"
+    (project / "AGENTS.md").write_text(block, encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 1
+    assert ".ai-playbook/backups/agents/" in capsys.readouterr().err
+
+    mcp = project / ".mcp.json"
+    mcp.write_text(json.dumps({"mcpServers": {}}), encoding="utf-8")
+    backup_mod.make_backup(project, "mcp", mcp)
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert "AGENTS.md not restored" in capsys.readouterr().err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == block
+
+
 def test_rollback_foreign_block_prefixes_match_the_features() -> None:
     from scripts.graphify import materialise as gm
     from scripts.ponytail import materialise as pm
