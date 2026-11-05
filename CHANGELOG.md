@@ -2,59 +2,68 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased]
+## [0.24.2] — 2026-11-05 — entry scripts run by path; gates stop failing open, tools stop losing data
 
-### Fixed — pre-commit config tooling and the spec-edit guard
-- **`lint-parity-precommit apply` / `pre-commit-hooks apply`** insert at the
-  end of `repos:`, after the sealed `playbook-hooks` block and the
-  consumer-extras region (inside them, the next reconcile flagged drift or
-  dropped the repo); they refuse to change a marker block and keep the file's
-  line endings.
-- **`pre-commit-hooks apply`** inserts a `repo: local` block that runs the four
-  gates from `.ai-playbook/scripts/` against the consumer's own AGENTS.md and
-  docs/. The exported `python -m scripts.<x>` hooks failed with `No module
-  named 'scripts'`, or checked another checkout. `validate` flags
-  `- id: ai-playbook` only under a remote playbook repo.
-- **Template pre-commit hooks** skip while their script is missing (an
-  uninitialised submodule blocked commits) and still fail when the validator
-  fails. Fresh renders set `default_stages: [pre-commit]`, a stage name that
-  needs pre-commit 3.2.0 or later (older versions reject the whole config).
-- **`block_manual_spec_edit`**: a clean merge that brings in an archived spec
-  passes; a non-UTF-8 message no longer blocks every commit; a marker in `#`
-  comments or below the `git commit -v` scissors line no longer counts;
-  non-ASCII spec paths are protected; a pre-commit-stage entry with no
-  commit-msg wiring blocks with migration steps instead of passing silently (a
-  commit-msg entry whose `files:`/`types:` filter drops the message file does
-  not count as wiring).
+### Fixed
+- **Entry scripts run by path.** 31 scripts called as `python .ai-playbook/...`
+  crashed with `ModuleNotFoundError` or ran an editable install's code.
+- **Hooks.** Template hooks no longer end in `|| exit 0` and skip only while
+  their script is missing; new `pre-commit`/`commit-msg` shims run them under
+  `core.hooksPath`; the dispatcher routes TaskStop, KillShell and Jira tools.
+- **Rules / openspec.** jira-closure-evidence, auto-merge-discipline,
+  `--changed-only` and termination receipts stop failing open; the spec-edit
+  guard runs at commit-msg and passes clean merges; board gates match the
+  change-id exactly; auto-ticks are left unstaged, with a safe amend to run.
+- **Rendering.** Renderers merge into the current file, so edits outside
+  markers survive `--update`, without growing AGENTS.md or duplicating hooks
+  or `servers:`; rule `apply` never splices into a marker block; config-UI
+  exports keep caveman/ponytail and hit no false compare-and-swap conflicts.
+- **Caveman.** `off` no longer restores a stale `.mcp.json`; a failed toggle
+  puts back what it changed; compress rejects output that drops the prose.
+- **MCP / lifecycle.** Layered `env.required` is unioned; the global Antigravity
+  config is never truncated; `bootstrap`, `uninstall`, `discover_projects`,
+  `wt_sweep`, `curate` and `sweep_execute` stop losing work or registry entries.
+- **Safety / IO.** `secrets_scan` catches more key formats without new false
+  positives; `retain_memory` fails closed; cmd.exe no longer mangles Windows
+  `gemini` prompts; the SOPS re-key runbook cannot empty the store.
 
-### Consumer action
-- **`block-manual-spec-edit` entries that run at the pre-commit stage on the
-  staged files** (e.g. `entry: python .ai-playbook/scripts/block_manual_spec_edit.py`
-  with `files: ^openspec/specs/.*\.md$`) now block spec commits until migrated:
-  add `--commit-msg-file` and `stages: [commit-msg]`, delete `files:` (at
-  commit-msg pre-commit passes only the message file, so the filter skips the
-  hook and nothing is checked), add top-level `default_stages: [pre-commit]`
-  (pre-commit >= 3.2.0), then run `pre-commit install --hook-type commit-msg`.
-  The v0.24.1 template's commented entry
-  (`bash -c '... block_manual_spec_edit.py || exit 0'`) never got the file
-  names and never checked anything: replace it with the new template entry.
-- **Template hooks now block.** Validator exit codes propagate, verdict-lint
-  receives the staged review/verify files (touching an old artefact without a
-  verdict line fails), and `python` must be on PATH (exit 127, not a skip).
-  `--update` re-renders the block only on a fresh bootstrap or for a bundle
-  with `pre_commit_extras`; otherwise copy the playbook-hooks entries by hand.
-- **Remote `repo: https://github.com/Wizarck/ai-playbook` hooks**: replace them
-  with the `repo: local` block in `docs/rules/pre-commit-hooks.rule.md`.
-- **`coderabbit-fallback.yml` copied before v0.24.2**: re-copy the template, or
-  set its `token:` to `${{ secrets.PROJECT_D_GOD_MODE || github.token }}`.
+### Upgrading — behaviour changes
+Bump and reconcile per `upgrade-playbook-pin.md`. Expect new, genuine failures.
+- **Gates that never ran now block:** template pre-commit hooks (`python` must
+  be on PATH), confirm-before-termination and the Jira rules. Re-copy
+  `scripts/install-playbook-hooks.sh` from the template and run it: its shims
+  replace `pre-commit install`, which refuses under `core.hooksPath`.
+  `--update` re-renders `.pre-commit-config.yaml` / `.claude/settings.json`
+  only for bundles with `pre_commit_extras` / `settings`; else copy by hand.
+- **Spec-edit guard** entries at the pre-commit stage block until moved to
+  commit-msg: `--commit-msg-file`, `stages: [commit-msg]`, no `files:`,
+  top-level `default_stages: [pre-commit]` (pre-commit >= 3.2.0). The v0.24.1
+  commented entry (`... || exit 0`) never checked anything: copy the new one.
+- Swap remote `ai-playbook` hook repos for the `repo: local` block in
+  `docs/rules/pre-commit-hooks.rule.md`; re-copy `coderabbit-fallback.yml`
+  (its old secret name is invalid); re-render MCP so `mcp-validate` passes.
+- `uninstall` restores every BASE snapshot over the current file (CLAUDE.md,
+  workflows, ...): preview it with `--dry-run`. `notify` needs verified
+  STARTTLS (`SMTP_CA_FILE`, or `SMTP_STARTTLS=off` for a local relay).
 
-### Known issues (deferred)
-- The remote-form hooks in `.pre-commit-hooks.yaml` still need `python` to
-  import the playbook (true since v0.18.0); a self-contained form needs a
-  `language: python` package build, out of patch scope.
-- On git < 2.38 (no `merge-tree --write-tree`), a merge whose two sides both
-  changed one spec is judged as a hand edit; put the marker in the merge
-  message or use `SKIP=block-manual-spec-edit`.
+### Known issues
+- Remote-form `.pre-commit-hooks.yaml` hooks still need `python` to import the
+  playbook. git < 2.38 judges a merge whose sides both changed one spec as a
+  hand edit: put the marker in the merge message.
+- A removed `coderabbit_extras` entry stays in `.coderabbit.yaml`; a bundle with
+  `mcp_project_servers` resets a hindsight endpoint edited inside a baseline
+  block whose marker has no `sha=`. Fix both by hand.
+- `secrets_scan` blocks key excerpts with 40+ base64 characters before `...`
+  (shorten them), and misses keys with a short first line or in YAML-list,
+  joined or line-numbered layouts.
+- `uninstall` keeps no copy of what it overwrites (commit first); a reinstall
+  over a kept `.ai-playbook-state/` reuses its snapshots (copy what you need,
+  then delete it); tombstone restores glob `[*?` (`git --literal-pathspecs`).
+- Template git hooks still call `cleanup_zombies.py`, gone since v0.18.0 (call
+  `scripts/rules/cleanup-zombies.rule.py --apply --quiet`). Under
+  `core.hooksPath`, `/dev-flow start`'s prepare-commit-msg belongs in
+  `scripts/git-hooks/`, and `pre-commit install` hints in the docs, template
+  and spec-edit FIX do not apply (bootstrap hides that failure).
 
 ## [0.24.1] — 2026-09-25 — hooks stop depending on the session's cwd
 
