@@ -265,10 +265,39 @@ def test_uninstall_strips_feature_ruleset_blocks(tmp_path: Path) -> None:
         "# mine\n\n"
         "<!-- BEGIN auto-managed: caveman/ruleset:ultra -->\ncave\n<!-- END auto-managed -->\n"
         "<!-- BEGIN auto-managed: ponytail/ruleset:ultra -->\npony\n<!-- END auto-managed -->\n"
+        "\n<!-- BEGIN auto-managed: graphify/ruleset -->\ngraph\n<!-- END auto-managed -->\n"
+        "tail\n"
     ))
 
-    un.uninstall(consumer)
+    report = un.uninstall(consumer)
 
-    text = (consumer / "AGENTS.md").read_text(encoding="utf-8")
-    assert "auto-managed" not in text
-    assert "# mine" in text
+    assert (consumer / "AGENTS.md").read_text(encoding="utf-8") == "# mine\ntail\n"
+    assert report.stripped == [f"AGENTS.md ({n} block)" for n in ("caveman", "ponytail", "graphify")]
+    # The strip used to back AGENTS.md up into .ai-playbook/backups/ — creating
+    # the dir, which remove_submodule then failed to deinit (exit 1).
+    assert not report.errors
+    assert not (consumer / ".ai-playbook").exists()
+
+
+def test_uninstall_imports_only_stdlib_helpers(tmp_path: Path) -> None:
+    """The feature toggles self-install jsonschema (or exit 2) at import time;
+    uninstall must not import them."""
+    import subprocess
+    import sys
+
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "AGENTS.md", (
+        "# mine\n\n<!-- BEGIN auto-managed: caveman/ruleset:lite -->\nx\n<!-- END auto-managed -->\n"
+    ))
+    probe = (
+        "import sys; from pathlib import Path; from scripts import uninstall; "
+        "uninstall.uninstall(Path(sys.argv[1])); "
+        "print(sorted(m for m in sys.modules if m == 'jsonschema' or m.endswith('.toggle')))"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", probe, str(consumer)],
+        cwd=Path(un.__file__).resolve().parents[1], capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert out == "[]"
+    assert "caveman" not in (consumer / "AGENTS.md").read_text(encoding="utf-8")
