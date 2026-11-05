@@ -222,11 +222,15 @@ def _exec_gemini(args: list[str]) -> int:
                         f"{SCRIPT_BASENAME}:cmd-shim",
                         file=sys.stderr,
                     )
+                    # Never "run gemini directly": skipping this wrapper skips the
+                    # context injection (docs/rules/gemini-session-start.rule.md).
                     print(
                         f"   FIX: `gemini` resolved to {exe}, which is not an npm shim "
                         "this launcher can bypass, and cmd.exe would expand `%` or run "
-                        "`&`, `|`, `>` in them. Run `gemini` from your shell directly, "
-                        "or reinstall it with `npm install -g @google/gemini-cli`.",
+                        "`&`, `|`, `>` in them. Install it with `npm install -g "
+                        "@google/gemini-cli` so `gemini` resolves to npm's shim (run "
+                        "without cmd.exe), or keep `\"`, `%` and line breaks out of the "
+                        "arguments, and `&|<>^()!` out of any argument without a space.",
                         file=sys.stderr,
                     )
                     print("   OVERRIDE: none", file=sys.stderr)
