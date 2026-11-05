@@ -160,6 +160,7 @@ def extract_contract(text: str) -> PreservationContract:
 
 def violations(contract: PreservationContract, output: str) -> list[str]:
     """Return a list of contract violations found in ``output``."""
+    output = output.replace("\r\n", "\n")
     missing: list[str] = []
     for h in contract.headings:
         # Whole-line match: "# T" must not be satisfied by "## T".
@@ -356,6 +357,7 @@ def compress(
     )
 
     output, model_actual = caller(user_prompt, system, max_tokens)
+    output = output.replace("\r\n", "\n")  # the source is read LF; compare and write LF
     last_missing = violations(contract, output)
 
     while last_missing and retries_used < max_retries:
@@ -375,6 +377,7 @@ def compress(
             "output unchanged."
         )
         output, model_actual_retry = caller(retry_prompt, system, max_tokens)
+        output = output.replace("\r\n", "\n")
         if model_actual_retry:
             model_actual = model_actual_retry
         last_missing = violations(contract, output)

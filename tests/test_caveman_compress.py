@@ -98,6 +98,12 @@ def test_contract_catches_demoted_heading() -> None:
     assert _src_and_violations(src, "# Title\n\nbod\n") == []
 
 
+def test_contract_accepts_crlf_output() -> None:
+    """Regression F9: CRLF line endings must not make every heading look missing."""
+    src = "# Title\n\nbody text here\n\n```sh\nmake test\n```\n"
+    assert _src_and_violations(src, "# Title\r\n\r\nbody\r\n\r\n```sh\r\nmake test\r\n```\r\n") == []
+
+
 # ---------------------------------------------------------------------------
 # violations
 # ---------------------------------------------------------------------------
@@ -232,6 +238,13 @@ def test_compress_retry_prompt_includes_source_and_previous_output(tmp_path: Pat
     assert src in prompts[1]
     assert bad_output in prompts[1]
     assert "https://example.com/docs" in prompts[1]
+
+
+def test_compress_accepts_crlf_output_without_retry(tmp_path: Path) -> None:
+    source = _write_fixture(tmp_path, "# Title\n\nThis body text is rather long.\n")
+    result = compress.compress(source, mode="full", llm_call=_mock_llm(["# Title\r\n\r\nBody text long.\r\n"]))
+    assert result.retries_used == 0
+    assert source.read_text(encoding="utf-8") == "# Title\n\nBody text long.\n"
 
 
 def test_compress_restores_source_when_retries_exhausted(tmp_path: Path) -> None:
