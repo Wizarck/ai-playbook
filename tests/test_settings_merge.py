@@ -68,6 +68,34 @@ def test_has_hook_uses_exact_basename() -> None:
     assert not sm.has_hook(s, "PreToolUse", "enforce.py")
 
 
+@pytest.mark.parametrize(("command", "identity"), [
+    ("bash .claude/hooks/with-env.sh python .claude/hooks/openspec-apply-enforce.py",
+     "openspec-apply-enforce.py"),
+    ("source ~/.env.sh && python .claude/hooks/a.py", "a.py"),
+])
+def test_command_identity_skips_wrapper_scripts(command: str, identity: str) -> None:
+    assert sm.command_identity(command) == identity
+
+
+def test_ensure_hooks_keeps_hooks_behind_one_wrapper() -> None:
+    base = {"hooks": {"Stop": [{"hooks": [
+        {"type": "command", "command": "source ~/.env.sh && python .claude/hooks/a.py"}]}]}}
+    out = sm.ensure_hooks(base, [{"event": "Stop", "command": "source ~/.env.sh && python .claude/hooks/b.py"}])
+    assert len(_commands(out, "Stop")) == 2
+
+
+def test_required_hooks_found_wrapped_or_chained() -> None:
+    wrapped = {"hooks": {"PreToolUse": [
+        {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", "command":
+            "bash .claude/hooks/with-env.sh python .claude/hooks/openspec-apply-enforce.py"}]},
+        {"matcher": sm.DISPATCHER_PRE_TOOL_USE_MATCHER, "hooks": [{"type": "command", "command":
+            f"{sm.DISPATCHER_PRE_TOOL_USE_COMMAND} && bash .claude/hooks/notify.sh"}]},
+    ]}}
+    assert sm.merge_required_pretooluse(wrapped) == wrapped
+    assert sm.merge_required_dispatcher(wrapped) == wrapped
+    assert sm.has_hook(wrapped, "PreToolUse", "hook_dispatcher.py")
+
+
 # ---------------------------------------------------------------------------
 # Dispatcher matcher covers every tool a pretooluse rule acts on
 # ---------------------------------------------------------------------------

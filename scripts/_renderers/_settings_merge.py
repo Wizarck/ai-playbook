@@ -32,11 +32,23 @@ REQUIRED_PRE_TOOL_USE_IDENTITY = "openspec-apply-enforce.py"
 _SCRIPT_EXTS = (".py", ".sh", ".bash", ".js", ".mjs", ".cjs", ".ts", ".ps1", ".rb", ".pl")
 
 
+def _script_tokens(command: str) -> list[str]:
+    """Basenames of the command's script tokens (``.py`` / ``.sh`` / …), in order."""
+    out = []
+    for raw in command.replace("\\", "/").split():
+        base = raw.strip("\"'").rsplit("/", 1)[-1]
+        if base.lower().endswith(_SCRIPT_EXTS):
+            out.append(base)
+    return out
+
+
 def command_identity(command: str) -> str:
     """Return the identity used to dedupe hook commands.
 
-    The identity is the basename of the command's first script token (a token
-    ending in a script extension such as ``.py`` / ``.sh``), so
+    The identity is the basename of the command's LAST script token (a token
+    ending in a script extension such as ``.py`` / ``.sh``): wrappers come first
+    (``bash with-env.sh python …``, ``source env.sh && python …``) and the
+    script doing the work comes last. So
     ``"sops exec-env -- python .claude/hooks/openspec-apply-enforce.py"`` and
     ``'python "$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py"'``
     both reduce to ``"openspec-apply-enforce.py"`` regardless of wrapper
@@ -44,20 +56,22 @@ def command_identity(command: str) -> str:
     quoting. A command with no script token falls back to the whole
     (stripped) command, i.e. exact command equality.
     """
-    for raw in command.replace("\\", "/").split():
-        base = raw.strip("\"'").rsplit("/", 1)[-1]
-        if base.lower().endswith(_SCRIPT_EXTS):
-            return base
-    return command.strip()
+    tokens = _script_tokens(command)
+    return tokens[-1] if tokens else command.strip()
 
 
-def _command_has_identity(command: object, identity: str) -> bool:
-    return bool(identity) and command_identity(str(command or "")) == identity
+def _command_has_identity(command: object, identity: str, *, any_token: bool = False) -> bool:
+    """``any_token``: a caller-declared identity matches ANY script token, so a
+    required hook is found however a consumer wrapped or chained it."""
+    if not identity:
+        return False
+    cmd = str(command or "")
+    return command_identity(cmd) == identity or (any_token and identity in _script_tokens(cmd))
 
 
 def has_hook(settings: dict[str, Any], event: str, identity: str) -> bool:
-    """True iff some hook under ``settings.hooks[event]`` has exactly
-    ``identity`` as its :func:`command_identity` (any matcher)."""
+    """True iff some hook under ``settings.hooks[event]`` runs a script whose
+    basename is exactly ``identity`` (any matcher, any position)."""
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return False
@@ -71,7 +85,7 @@ def has_hook(settings: dict[str, Any], event: str, identity: str) -> bool:
         if not isinstance(sub, list):
             continue
         for h in sub:
-            if isinstance(h, dict) and _command_has_identity(h.get("command"), identity):
+            if isinstance(h, dict) and _command_has_identity(h.get("command"), identity, any_token=True):
                 return True
     return False
 
@@ -79,12 +93,13 @@ def has_hook(settings: dict[str, Any], event: str, identity: str) -> bool:
 def ensure_hooks(settings: dict[str, Any], hooks: list[dict[str, Any]]) -> dict[str, Any]:
     """Idempotently ensure each entry in ``hooks`` is wired into ``settings``.
 
-    Each ``hooks`` item is a flat dict ``{event, matcher?, command, timeout?}``.
-    Dedup is by command identity (basename) across ALL matcher entries for that
-    event — so a hook already present under a broader matcher is left untouched
-    and never duplicated. When absent, the hook is appended to the entry whose
-    ``matcher`` equals the requested one, or a fresh entry is created. Returns a
-    new dict; inputs are not mutated.
+    Each ``hooks`` item is a flat dict ``{event, matcher?, command, timeout?,
+    identity?}``. Dedup is by command identity (basename) across ALL matcher
+    entries for that event — so a hook already present under a broader matcher
+    is left untouched and never duplicated; an explicit ``identity`` is found in
+    any script position of an existing command. When absent, the hook is
+    appended to the entry whose ``matcher`` equals the requested one, or a fresh
+    entry is created. Returns a new dict; inputs are not mutated.
     """
     out = dict(settings)
     hooks_root = dict(out.get("hooks", {})) if isinstance(out.get("hooks"), dict) else {}
@@ -96,13 +111,15 @@ def ensure_hooks(settings: dict[str, Any], hooks: list[dict[str, Any]]) -> dict[
             continue
         matcher = h.get("matcher")
         timeout = h.get("timeout")
-        # An explicit `identity` overrides the derived script identity.
-        identity = h.get("identity") or command_identity(str(command))
+        # An explicit `identity` overrides the derived script identity and is
+        # matched against every script token of the existing commands.
+        explicit = h.get("identity")
+        identity = explicit or command_identity(str(command))
 
         entries = list(hooks_root.get(event, [])) if isinstance(hooks_root.get(event), list) else []
         if any(
             isinstance(e, dict) and isinstance(e.get("hooks"), list) and any(
-                isinstance(x, dict) and _command_has_identity(x.get("command"), identity)
+                isinstance(x, dict) and _command_has_identity(x.get("command"), identity, any_token=bool(explicit))
                 for x in e["hooks"]
             )
             for e in entries
@@ -143,6 +160,7 @@ def merge_required_pretooluse(settings: dict[str, Any]) -> dict[str, Any]:
         "matcher": REQUIRED_PRE_TOOL_USE_MATCHER,
         "command": REQUIRED_PRE_TOOL_USE_COMMAND,
         "timeout": REQUIRED_PRE_TOOL_USE_TIMEOUT,
+        "identity": REQUIRED_PRE_TOOL_USE_IDENTITY,
     }])
 
 
@@ -273,7 +291,7 @@ def _widen_dispatcher_matcher(settings: dict[str, Any]) -> dict[str, Any]:
         return e["hooks"] if isinstance(e, dict) and isinstance(e.get("hooks"), list) else []
 
     def _is_disp(h: Any) -> bool:
-        return isinstance(h, dict) and _command_has_identity(h.get("command"), DISPATCHER_IDENTITY)
+        return isinstance(h, dict) and _command_has_identity(h.get("command"), DISPATCHER_IDENTITY, any_token=True)
 
     routed: set[str] = set()
     for e in entries:
