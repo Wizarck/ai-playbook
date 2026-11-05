@@ -257,10 +257,15 @@ def _raise(exc: OSError) -> None:
     raise exc
 
 
+_JUNCTION_TAG = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", None)  # defined on Windows only
+
+
 def _is_link(path: str) -> bool:
     """A symlink or Windows junction: never walked into (rmtree removes only the link)."""
     st = os.lstat(path)
-    return stat.S_ISLNK(st.st_mode) or getattr(st, "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    return _JUNCTION_TAG is not None and getattr(st, "st_reparse_tag", None) == _JUNCTION_TAG
 
 
 def _walk(target: Path) -> Iterable[tuple[str, list[str], list[str]]]:
@@ -288,21 +293,18 @@ def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
         return []
     try:
         data = gitmodules.read_bytes()
-        result = subprocess.run(
-            ["git", "config", "--file", "-", "--null", "--get-regexp", r"^submodule\."],
-            input=data,
-            capture_output=True,
-            check=False,
-            timeout=15,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError:
         return None
-    if result.returncode == 1 and not result.stderr.strip():
+    out = _git(["config", "--file", "-", "--null", "--get-regexp", r"^submodule\."], stdin=data)
+    if out is None:
+        return None
+    returncode, stdout, stderr = out
+    if returncode == 1 and not stderr.strip():
         return []  # parsed, and no submodule.* key
-    if result.returncode != 0:
+    if returncode != 0:
         return None
     paths: dict[str, str] = {}
-    for record in result.stdout.decode("utf-8", errors="replace").split("\0"):
+    for record in stdout.split("\0"):
         key, _, value = record.partition("\n")
         if not key.startswith("submodule."):
             continue
@@ -315,22 +317,31 @@ def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
     return list(paths.items())
 
 
-def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
-    """Paths of every gitlink (submodule commit) in the index; None if git cannot tell."""
+def _git(args: list[str], *, cwd: Path | None = None, stdin: bytes | None = None) -> tuple[int, str, str] | None:
+    """(returncode, stdout, stderr) of a git command, decoded as UTF-8 (git's own
+    encoding for paths and config); None when git cannot run or the output is
+    not UTF-8, so callers fail closed."""
     try:
         result = subprocess.run(
-            ["git", "ls-files", "--stage", "-z"],
-            cwd=str(consumer_root),
+            ["git", *args],
+            cwd=str(cwd) if cwd is not None else None,
+            input=stdin,
             capture_output=True,
             check=False,
             timeout=15,
         )
-    except (OSError, subprocess.TimeoutExpired):
+        return result.returncode, result.stdout.decode("utf-8"), result.stderr.decode("utf-8", errors="replace")
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return None
-    if result.returncode != 0:
+
+
+def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
+    """Paths of every gitlink (submodule commit) in the index; None if git cannot tell."""
+    out = _git(["ls-files", "--stage", "-z"], cwd=consumer_root)
+    if out is None or out[0] != 0:
         return None
     links = []
-    for record in result.stdout.decode("utf-8", errors="replace").split("\0"):
+    for record in out[1].split("\0"):
         meta, _, path = record.partition("\t")
         if meta.startswith("160000 "):
             links.append(path)
@@ -351,80 +362,74 @@ def _gitfile_points_to(gitfile: Path, gitdir: Path) -> bool:
     if not gitfile.is_file():
         return False
     try:
-        pointer = gitfile.read_text(encoding="utf-8", errors="replace").strip()
-    except OSError:
+        pointer = gitfile.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
         return True
     if not pointer.startswith("gitdir:"):
         return False
     return _same_dir(gitfile.parent / pointer[len("gitdir:"):].strip(), gitdir)
 
 
-def _git_dir_in_use(gitdir: Path) -> bool:
-    """True when a checkout (`core.worktree`) or a linked worktree still uses `gitdir`,
-    or when that cannot be judged."""
-    try:
-        result = subprocess.run(
-            ["git", "config", "--file", str(gitdir / "config"), "--get", "core.worktree"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return True
-    if result.returncode == 0:
-        worktree = gitdir / result.stdout.strip()  # an absolute value replaces gitdir
-        if _gitfile_points_to(worktree / ".git", gitdir):
-            return True
-    elif result.returncode != 1 or result.stderr.strip():
-        return True
-    admin_root = gitdir / "worktrees"
-    if not admin_root.is_dir():
-        return False
-    for admin in admin_root.iterdir():
-        link = admin / "gitdir"
-        if not link.is_file():
+def _git_dir_use(gitdir: Path) -> str | None:
+    """What still needs `gitdir`, or None. Whatever cannot be judged counts as a use."""
+    # `git sparse-checkout` moves core.worktree into config.worktree.
+    for name in ("config", "config.worktree"):
+        if name != "config" and not (gitdir / name).is_file():
             continue
-        try:
-            dotgit = admin / link.read_text(encoding="utf-8", errors="replace").strip()
-        except OSError:
-            return True
-        if _gitfile_points_to(dotgit, admin):
-            return True
-    return False
+        out = _git(["config", "--file", str(gitdir / name), "--get", "core.worktree"])
+        if out is None or out[0] not in (0, 1) or (out[0] == 1 and out[2].strip()):
+            return "cannot be judged"
+        if out[0] == 0 and _gitfile_points_to(gitdir / out[1].strip() / ".git", gitdir):
+            return "has a checkout"  # an absolute core.worktree replaces gitdir in the join
+    admin_root = gitdir / "worktrees"
+    if admin_root.is_dir():
+        for admin in admin_root.iterdir():
+            if (admin / "locked").exists():
+                return "has a locked linked worktree"  # git never prunes one
+            link = admin / "gitdir"
+            if not link.is_file():
+                continue
+            try:
+                dotgit = admin / link.read_text(encoding="utf-8").strip()
+            except (OSError, UnicodeDecodeError):
+                return "cannot be judged"
+            if _gitfile_points_to(dotgit, admin):
+                return "has a linked worktree"
+    # Whatever the layout, deleting the git dir must not lose a commit that
+    # exists nowhere else: every ref, worktree HEAD and reflog entry must be
+    # reachable from a remote-tracking ref.
+    out = _git(["--git-dir", str(gitdir), "rev-list", "--max-count=1", "--all", "--reflog", "--not", "--remotes"])
+    if out is None or out[0] != 0:
+        return "cannot be judged"
+    if out[1].strip():
+        return "holds commits no remote has"
+    return None
 
 
-def _live_git_dir(target: Path) -> Path | None:
-    """A git dir at or under `target` that a checkout or a linked worktree still uses."""
+def _live_git_dir(target: Path) -> tuple[Path, str] | None:
+    """A git dir at or under `target` that is still needed, and why."""
     for root, dirs, files in _walk(target):
         keys = {_fs_key(name) for name in files}
         if _fs_key("HEAD") not in keys or _fs_key("config") not in keys:
             continue
         # Inside a git dir only `modules/` holds further git dirs.
         dirs[:] = [d for d in dirs if _fs_key(d) == _fs_key("modules")]
-        if _git_dir_in_use(Path(root)):
-            return Path(root)
+        use = _git_dir_use(Path(root))
+        if use is not None:
+            return Path(root), use
     return None
 
 
 def _tracked_under(rel: str, consumer_root: Path) -> SafetyResult | None:
     """A refusal when git tracks anything at or under `rel` (files or gitlinks)."""
     pathspec = f":(icase){rel}" if _CASE_INSENSITIVE_FS else rel
-    try:
-        result = subprocess.run(
-            ["git", "ls-files", "--", pathspec],
-            cwd=str(consumer_root),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        return SafetyResult(False, f"git ls-files failed: {exc}")
-    if result.returncode != 0:
+    out = _git(["ls-files", "--", pathspec], cwd=consumer_root)
+    if out is None:
+        return SafetyResult(False, "git ls-files failed: git unavailable or its output is not UTF-8")
+    if out[0] != 0:
         # An empty stdout from a FAILED probe is not "nothing tracked".
-        return SafetyResult(False, f"git ls-files failed: {result.stderr.strip()[:200]}")
-    if result.stdout.strip():
+        return SafetyResult(False, f"git ls-files failed: {out[2].strip()[:200]}")
+    if out[1].strip():
         return SafetyResult(False, "directory has tracked files")
     return None
 
@@ -487,7 +492,7 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
                 return SafetyResult(False, f"gitlink `{link}` still tracked — git dir is live")
         live = _live_git_dir(target)
         if live is not None:
-            return SafetyResult(False, f"`{_rel(live, consumer_root)}` is still in use — git dir is live")
+            return SafetyResult(False, f"`{_rel(live[0], consumer_root)}` {live[1]} — git dir is live")
     elif (embedded := _embedded_git(target)) is not None:
         return SafetyResult(False, f"`{_rel(embedded, consumer_root)}` is a git checkout")
     refusal = _tracked_under(rel, consumer_root)
@@ -663,7 +668,7 @@ def _iter_glob(root: Path, pattern: str) -> Iterable[Path]:
     pattern = pattern.replace("\\", "/")
     skip_dirs = {".git", "node_modules", "__pycache__", ".venv", "venv", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
     for current, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in skip_dirs]
+        dirs[:] = [d for d in dirs if d not in skip_dirs and not _is_link(os.path.join(current, d))]
         for name in files:
             full = Path(current) / name
             rel = str(full.relative_to(root)).replace("\\", "/")
@@ -678,10 +683,10 @@ def _iter_glob(root: Path, pattern: str) -> Iterable[Path]:
 
 def _clear_readonly_and_retry(func: Any, path: str, exc: Any) -> None:
     """rmtree hook: git marks loose objects read-only and Windows refuses to delete
-    those. Anything else (a link target, a missing permission) is re-raised."""
+    those. Anything else (another OS, a link target, a missing permission) is re-raised."""
     if not isinstance(exc, BaseException):
         exc = exc[1]  # onerror passes sys.exc_info()
-    if func not in (os.unlink, os.remove, os.rmdir) or not isinstance(exc, PermissionError):
+    if os.name != "nt" or func not in (os.unlink, os.remove, os.rmdir) or not isinstance(exc, PermissionError):
         raise exc
     os.chmod(path, stat.S_IWRITE)
     func(path)

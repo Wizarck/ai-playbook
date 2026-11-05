@@ -202,6 +202,7 @@ def test_check_gitmodules_first_blocks_when_path_present(tmp_path: Path) -> None
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0
     assert (consumer / ".skills-sources").exists(), "registered submodule path must not be deleted"
+    assert "still registered in .gitmodules" in _report_row(consumer, "test-entry")
 
 
 @pytest.mark.parametrize(
@@ -227,6 +228,7 @@ def test_check_gitmodules_first_blocks_when_a_submodule_is_nested_under_target(
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (nested / "README.md").is_file(), "a registered nested submodule was deleted"
+    assert "still registered in .gitmodules" in _report_row(consumer, "test-entry")
 
 
 def test_check_gitmodules_first_ignores_a_sibling_with_the_same_prefix(tmp_path: Path) -> None:
@@ -266,6 +268,15 @@ def _tree(path: Path) -> list[str]:
     return sorted(p.relative_to(path).as_posix() for p in path.rglob("*"))
 
 
+def _report_row(consumer: Path, entry_id: str) -> str:
+    """The zombie-report row for `entry_id`. Asserting its reason proves an entry
+    was kept for that reason: a crashing safety check is also an advisory."""
+    report = (consumer / ".ai-playbook" / "zombie-report.md").read_text(encoding="utf-8")
+    rows = [line for line in report.splitlines() if line.startswith(f"| `{entry_id}` |")]
+    assert rows, report
+    return rows[0]
+
+
 def test_shipped_manifest_keeps_nested_submodules_and_their_git_dirs(tmp_path: Path) -> None:
     """A consumer with real `.skills-sources/<repo>` submodules keeps both the
     checkout and `.git/modules/.skills-sources/<repo>` under the shipped
@@ -278,6 +289,8 @@ def test_shipped_manifest_keeps_nested_submodules_and_their_git_dirs(tmp_path: P
     result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (_tree(sources), _tree(modules)) == before, "a nested submodule or its git dir lost files"
+    assert "still registered in .gitmodules" in _report_row(consumer, "skills-sources-submodule")
+    assert "still registered in .gitmodules" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_shipped_manifest_keeps_the_git_dir_of_a_gitlink_without_a_gitmodules_entry(tmp_path: Path) -> None:
@@ -294,6 +307,8 @@ def test_shipped_manifest_keeps_the_git_dir_of_a_gitlink_without_a_gitmodules_en
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before, "git dir of a tracked gitlink lost files"
     assert (consumer / ".skills-sources" / "delta-skills" / ".git").is_file()
+    assert "still tracked" in _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "directory has tracked files" in _report_row(consumer, "skills-sources-submodule")
 
 
 @pytest.mark.parametrize("name", ["x", "hooks", "info", "logs", "refs", "objects", "lfs"])
@@ -315,6 +330,7 @@ def test_directory_orphan_keeps_a_git_dir_whose_checkout_points_back(tmp_path: P
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before, "a git dir with a live checkout lost files"
+    assert "has a checkout" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_check_gitmodules_first_keeps_a_gitlink_without_a_gitmodules_entry(tmp_path: Path) -> None:
@@ -326,6 +342,7 @@ def test_check_gitmodules_first_keeps_a_gitlink_without_a_gitmodules_entry(tmp_p
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (consumer / ".skills-sources" / ".git").exists(), "a tracked gitlink was deleted"
+    assert "directory has tracked files" in _report_row(consumer, "test-entry")
 
 
 def test_check_gitmodules_first_keeps_an_untracked_checkout(tmp_path: Path) -> None:
@@ -340,6 +357,7 @@ def test_check_gitmodules_first_keeps_an_untracked_checkout(tmp_path: Path) -> N
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (kept / "WIP.txt").is_file(), "an untracked checkout was deleted"
+    assert "is a git checkout" in _report_row(consumer, "test-entry")
 
 
 @pytest.mark.parametrize("kind", ["directory", "malformed"])
@@ -362,6 +380,8 @@ def test_an_unusable_gitmodules_fails_closed(tmp_path: Path, kind: str) -> None:
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (consumer / ".skills-sources").is_dir() and git_dir.is_dir()
+    assert "unreadable or git unavailable" in _report_row(consumer, "test-entry")
+    assert "unreadable or git unavailable" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 @pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="case-insensitive filesystem only")
@@ -373,6 +393,7 @@ def test_check_gitmodules_first_matches_a_tracked_gitlink_case_insensitively(tmp
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (consumer / ".Skills-Sources" / "delta-skills" / ".git").is_file()
+    assert "directory has tracked files" in _report_row(consumer, "test-entry")
 
 
 _GIT_MODULES_ENTRY = dict(
@@ -397,6 +418,7 @@ def test_directory_orphan_keeps_a_git_dir_with_a_live_linked_worktree(tmp_path: 
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before, "the git dir of a live linked worktree lost files"
+    assert "has a linked worktree" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_keeps_the_git_dir_of_a_deinited_tracked_gitlink(tmp_path: Path) -> None:
@@ -414,6 +436,7 @@ def test_directory_orphan_keeps_the_git_dir_of_a_deinited_tracked_gitlink(tmp_pa
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before, "the git dir of a tracked gitlink lost files"
+    assert "still tracked" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_keeps_a_git_dir_declared_without_a_path(tmp_path: Path) -> None:
@@ -428,6 +451,7 @@ def test_directory_orphan_keeps_a_git_dir_declared_without_a_path(tmp_path: Path
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert git_dir.is_dir()
+    assert "still registered in .gitmodules" in _report_row(consumer, "skills-sources-git-modules-orphan")
 
 
 def test_directory_orphan_keeps_a_directory_holding_a_repository(tmp_path: Path) -> None:
@@ -439,6 +463,7 @@ def test_directory_orphan_keeps_a_directory_holding_a_repository(tmp_path: Path)
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (nested / ".git").is_dir()
+    assert "is a git checkout" in _report_row(consumer, "stray")
 
 
 def test_shipped_manifest_fully_deletes_a_removed_submodules_leftovers(tmp_path: Path) -> None:
@@ -481,6 +506,7 @@ def test_link_loops_inside_a_target_do_not_hang_and_outside_data_survives(tmp_pa
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer, timeout=60)
     assert result.returncode == 0, result.stderr
     assert (outside / "keep.txt").is_file(), "data behind a link was deleted"
+    assert not (consumer / ".skills-sources").exists(), _report_row(consumer, "test-entry")
 
 
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions as non-root")
@@ -488,6 +514,8 @@ def test_an_unlistable_directory_fails_closed(tmp_path: Path) -> None:
     consumer = _seed_consumer(tmp_path)
     locked = consumer / ".skills-sources" / "locked"
     locked.mkdir(parents=True)
+    sibling = consumer / ".skills-sources" / "notes.txt"
+    sibling.write_text("keep", encoding="utf-8")
     locked.chmod(0)
     try:
         manifest = _write_manifest(tmp_path, [_base_entry()])
@@ -495,7 +523,8 @@ def test_an_unlistable_directory_fails_closed(tmp_path: Path) -> None:
     finally:
         locked.chmod(0o700)
     assert result.returncode == 0, result.stderr
-    assert locked.is_dir(), "a directory that could not be inspected was deleted"
+    assert locked.is_dir() and sibling.is_file(), "a directory that could not be inspected was (partly) deleted"
+    assert "safety raised" in _report_row(consumer, "test-entry")
 
 
 @pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="case-insensitive filesystem only")
@@ -519,6 +548,123 @@ def test_case_insensitive_matches_for_tracked_files_and_git_dirs(tmp_path: Path)
     assert result.returncode == 0, result.stderr
     assert tracked.is_file(), "a tracked mixed-case path was deleted"
     assert (kept / ".GIT").is_dir(), "a checkout with an upper-case .GIT was deleted"
+    assert "directory has tracked files" in _report_row(consumer, "test-entry")
+    assert "is a git checkout" in _report_row(consumer, "stray")
+
+
+def _git_in(cwd: Path, *args: str) -> None:
+    subprocess.run(["git", "-c", "user.email=t@example.com", "-c", "user.name=T", *args], cwd=str(cwd), check=True)
+
+
+def _drop_but_keep_checkout(consumer: Path, path: str) -> None:
+    """Deregister and untrack the submodule at `path`, leaving its checkout."""
+    _git_in(consumer, "rm", "-q", "--cached", "-f", path)
+    _git_in(consumer, "config", "-f", ".gitmodules", "--remove-section", f"submodule.{path}")
+
+
+def test_directory_orphan_keeps_a_sparse_checkout_whose_core_worktree_moved(tmp_path: Path) -> None:
+    """`git sparse-checkout` moves core.worktree into config.worktree."""
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/x")
+    _git_in(consumer, "commit", "-q", "-m", "add")
+    _git_in(consumer / ".skills-sources" / "x", "sparse-checkout", "set", "skills")
+    if not (consumer / ".git" / "modules" / ".skills-sources" / "x" / "config.worktree").is_file():
+        pytest.skip("this git keeps core.worktree in config")
+    _drop_but_keep_checkout(consumer, ".skills-sources/x")
+    modules = consumer / ".git" / "modules" / ".skills-sources"
+    before = _tree(modules)
+    manifest = _write_manifest(tmp_path, [_base_entry(**_GIT_MODULES_ENTRY)])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(modules) == before
+    assert "has a checkout" in _report_row(consumer, "skills-sources-git-modules-orphan")
+
+
+def test_directory_orphan_keeps_a_checkout_on_a_non_ascii_path(tmp_path: Path) -> None:
+    """core.worktree is UTF-8; decoding it with the locale code page lost the checkout."""
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/señales")
+    _git_in(consumer, "commit", "-q", "-m", "add")
+    _drop_but_keep_checkout(consumer, ".skills-sources/señales")
+    modules = consumer / ".git" / "modules" / ".skills-sources"
+    before = _tree(modules)
+    manifest = _write_manifest(tmp_path, [_base_entry(**_GIT_MODULES_ENTRY)])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(modules) == before
+    assert "has a checkout" in _report_row(consumer, "skills-sources-git-modules-orphan")
+
+
+def test_directory_orphan_keeps_a_git_dir_with_a_locked_absent_worktree(tmp_path: Path) -> None:
+    """A locked linked worktree on unplugged media: git never prunes it."""
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/x")
+    _git_in(consumer, "commit", "-q", "-m", "add")
+    sub_dir = consumer / ".skills-sources" / "x"
+    usb = tmp_path / "usb"
+    _git_in(sub_dir, "worktree", "add", "-q", "--detach", str(usb / "wt"))
+    _git_in(sub_dir, "worktree", "lock", "--reason", "on a USB stick", str(usb / "wt"))
+    os.rename(usb, tmp_path / "usb-unplugged")
+    for args in (["submodule", "deinit", "-f", "-q", ".skills-sources/x"], ["rm", "-q", "-f", ".skills-sources/x"],
+                 ["commit", "-q", "-m", "drop"]):
+        _git_in(consumer, *args)
+    modules = consumer / ".git" / "modules" / ".skills-sources"
+    before = _tree(modules)
+    manifest = _write_manifest(tmp_path, [_base_entry(**_GIT_MODULES_ENTRY)])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(modules) == before
+    assert "has a locked linked worktree" in _report_row(consumer, "skills-sources-git-modules-orphan")
+
+
+def test_directory_orphan_keeps_a_git_dir_holding_commits_no_remote_has(tmp_path: Path) -> None:
+    """Deregistered, untracked, no checkout, no worktree: but a local commit
+    exists only in the git dir, so deleting it would lose work."""
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/x")
+    _git_in(consumer, "commit", "-q", "-m", "add")
+    _git_in(consumer / ".skills-sources" / "x", "commit", "--allow-empty", "-q", "-m", "local only")
+    for args in (["submodule", "deinit", "-f", "-q", ".skills-sources/x"], ["rm", "-q", "-f", ".skills-sources/x"],
+                 ["commit", "-q", "-m", "drop"]):
+        _git_in(consumer, *args)
+    modules = consumer / ".git" / "modules" / ".skills-sources"
+    before = _tree(modules)
+    result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(modules) == before
+    assert "holds commits no remote has" in _report_row(consumer, "skills-sources-git-modules-orphan")
+
+
+def test_shipped_manifest_preview_does_not_hang_on_link_loops(tmp_path: Path) -> None:
+    """The Tier 3 auto-managed scan walks the whole consumer for `**/*.md`."""
+    consumer = _seed_consumer(tmp_path)
+    (consumer / ".ai-playbook" / "scripts").mkdir()
+    (consumer / ".ai-playbook" / "scripts" / "auto_managed.py").write_text("", encoding="utf-8")
+    loop = consumer / "docs" / "a"
+    loop.mkdir(parents=True)
+    _link_dir(loop, loop / "l1")
+    _link_dir(loop, loop / "l2")
+    result = _run_script(manifest=MANIFEST_PATH, consumer_root=consumer, timeout=60)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions as non-root")
+def test_the_rmtree_hook_leaves_modes_alone_on_posix(tmp_path: Path) -> None:
+    """Clearing a read-only bit is a Windows fix; on POSIX a permission error stands."""
+    consumer = _seed_consumer(tmp_path)
+    target = consumer / ".skills-sources"
+    target.mkdir()
+    notes = target / "notes.txt"
+    notes.write_text("keep", encoding="utf-8")
+    target.chmod(0o555)
+    try:
+        manifest = _write_manifest(tmp_path, [_base_entry()])
+        result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    finally:
+        target.chmod(0o755)
+    assert result.returncode == 0, result.stderr
+    assert "action raised" in _report_row(consumer, "test-entry")
+    assert notes.read_text(encoding="utf-8") == "keep" and (notes.stat().st_mode & 0o777) == 0o644
 
 
 def test_directory_orphan_skips_when_files_tracked(tmp_path: Path) -> None:

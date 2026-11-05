@@ -63,7 +63,8 @@ entries:
       clean it on `git submodule deinit`. It also holds the git dirs of nested
       `.skills-sources/<repo>` submodules, so it is an orphan only when no
       submodule at, under or above it is declared, tracked as a gitlink, still
-      checked out or used by a linked worktree.
+      checked out or used by a linked worktree, and none of its git dirs holds
+      a commit that no remote has.
     evidence: github.com/project-a/project-a/pull/125
 
   - id: auto-managed-orphan-blocks
