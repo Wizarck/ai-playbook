@@ -51,9 +51,9 @@ Tier × action × safety triples are validated against the matrix in the script.
 
 ## Safety checks
 
-Each entry names one check. Anything a check cannot establish counts as a failure: git missing, a probe failing, an unreadable or malformed `.gitmodules`, a directory it cannot list. Paths and the names `.git`, `HEAD`, `objects` and `refs` compare case-insensitively on Windows and macOS. A target that is itself a symlink or junction is refused. Scans below a target never follow one, and deletion removes only the link.
+Each entry names one check. Anything a check cannot establish counts as a failure: git missing, a probe failing, an unreadable or malformed `.gitmodules`, a directory it cannot list. Paths and the names `.git`, `HEAD`, `objects`, `refs`, `commondir` and `modules` compare case-insensitively on Windows and macOS, and wherever git's `core.ignorecase` is true (WSL's `/mnt/<drive>`, Docker Desktop bind mounts). `check_gitmodules_first` and `directory_orphan` refuse a target that is itself a symlink or junction. Scans below a target never follow one, and deletion removes only the link.
 
-A *repository* here is a `.git` entry (a checkout or a submodule) or a git dir itself: `HEAD` plus `objects/` or `refs/`, as under `.git/modules/` or in a bare clone.
+A *repository* here is a `.git` entry (a checkout or a submodule) or a git dir itself. A git dir is `HEAD` plus `objects/` or `refs/`, as under `.git/modules/` or in a bare clone, or `HEAD` plus a `commondir` file, as in a linked worktree's admin dir. A reflog named `HEAD`, as in a git dir's own `logs/`, does not count.
 
 - `check_gitmodules_first`: the target is an orphan only when all of these hold:
   - `.gitmodules`, as parsed by `git config`, registers no submodule at, under or above it;
@@ -61,7 +61,9 @@ A *repository* here is a `.git` entry (a checkout or a submodule) or a git dir i
   - no repository sits at or under it.
 - `directory_orphan`: git tracks nothing under the target and no repository sits at or under it. For `.git/modules/<name>`, no submodule whose name or path is at, under or above `<name>` may be declared in `.gitmodules` (a section without `path` still declares its name) or tracked as a gitlink.
   - Only leftovers without a git dir are deleted. git keeps a submodule's git dir after `deinit` because it may hold the only copy of a commit, and this check never deletes one either.
-  - The report names the git dir. Run `git --git-dir <dir> log --branches --tags --not --remotes`, and remove it by hand once that shows nothing you need.
+  - The report names every git dir under the target, including the git dirs of its own submodules (`<dir>/modules/…`).
+  - For each one, run `git --git-dir <dir> --work-tree . log --oneline --all --reflog --not --remotes` from the consumer root. Remove it by hand once that shows nothing you need.
+  - `--all --reflog` covers a detached HEAD and stashes. `--work-tree .` skips the stale `core.worktree` that a plain `git rm` leaves behind.
 - `file_mtime_and_drained`: the file is older than `rotation_days` and every JSONL record is `drained`.
 - `yaml_literal_rename`: at least one `rename_in_files` file parses and holds `rename_from` as a scalar value.
 - `auto_managed_orphan`: see the auto-managed sections concept below; Tier 3 only.
