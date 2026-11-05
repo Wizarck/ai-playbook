@@ -315,11 +315,27 @@ def add_submodule(
         check=False,
     )
     if result.returncode != 0:
-        return result.returncode
+        return RC_STRAY_DIR if _is_stray_dir(submodule_dir) else result.returncode
     return _checkout_pin(submodule_dir, pin)
 
 
 RC_PIN_FAILED = 3
+RC_STRAY_DIR = 4
+
+
+def _is_stray_dir(submodule_dir: Path) -> bool:
+    """A non-empty ``.ai-playbook/`` that is neither a git checkout nor a
+    playbook copy (e.g. only the overrides.log of a break-glass attempt):
+    ``git submodule add`` refuses to clone into it."""
+    try:
+        return (
+            submodule_dir.is_dir()
+            and any(submodule_dir.iterdir())
+            and not (submodule_dir / ".git").exists()
+            and not (submodule_dir / "specs").is_dir()
+        )
+    except OSError:
+        return False
 
 
 def _checkout_pin(submodule_dir: Path, pin: str) -> int:
@@ -981,6 +997,17 @@ def main(argv: list[str] | None = None) -> int:
                 f"`git -C {target_dir / SUBMODULE_PATH} tag`) and re-run.",
                 file=sys.stderr,
             )
+            print("   OVERRIDE: none", file=sys.stderr)
+            return 2
+        if rc == RC_STRAY_DIR:
+            stray = target_dir / SUBMODULE_PATH
+            print(
+                f"❌ {stray} exists but is not a git checkout (e.g. left by a failed "
+                f"break-glass attempt), so `git submodule add` cannot clone into it "
+                f"at {SCRIPT_BASENAME}:stray-playbook-dir",
+                file=sys.stderr,
+            )
+            print(f"   FIX: check what {stray} holds, remove it, and re-run.", file=sys.stderr)
             print("   OVERRIDE: none", file=sys.stderr)
             return 2
         if rc != 0:

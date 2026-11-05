@@ -830,6 +830,30 @@ def test_add_submodule_stray_dir_is_not_populated(
     assert any("submodule" in c and "add" in c for c in calls)
 
 
+def test_main_stray_dir_names_the_dir_not_connectivity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`git submodule add` exits 128 ("already exists and is not a valid git
+    repo") over a stray .ai-playbook/: say so instead of "check connectivity"."""
+    _stub_prereqs(monkeypatch)
+
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if "submodule" in cmd:
+            return _FakeProc(returncode=128, stderr="fatal: '.ai-playbook' already exists")
+        return _FakeProc(returncode=0)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+    target = tmp_path / "alpha"
+    (target / ".ai-playbook").mkdir(parents=True)
+    (target / ".ai-playbook" / "overrides.log").write_text("x\n", encoding="utf-8")
+
+    assert bs.add_submodule(target_dir=target, playbook_url="u", pin="v1", dry_run=False) == bs.RC_STRAY_DIR
+    assert bs.main(["alpha", "--path", str(target), "--owner", "a@b.c"]) == 2
+
+    err = capsys.readouterr().err
+    assert "not a git checkout" in err and "remove it" in err
+    assert "connectivity" not in err
+
+
 def test_main_missing_from_config_exits_1(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

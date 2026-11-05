@@ -2,7 +2,7 @@
 schema: tutorial/v1
 slug: bootstrap-new-project
 title: Bootstrap a new consumer project with one command
-description: Replace the 5-step manual quickstart with one invocation of scripts/bootstrap.py. Idempotent, schema-validated, ends with a green doctor verdict.
+description: Replace the 5-step manual quickstart with one invocation of scripts/bootstrap.py. Runs once per repo (re-runs use --update), schema-validated, ends with a green doctor verdict.
 estimated_time: "10 min"
 prerequisite_concepts: [dispatcher-chain, projects-registry]
 audience: operator
