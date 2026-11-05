@@ -168,3 +168,36 @@ def test_main_flag_matching_nothing_exits_1(
     ])
     assert rc == 1
     assert "--hindsight-url" in capsys.readouterr().err
+
+
+def test_main_live_rerun_adding_a_flag_succeeds(tmp_path: Path) -> None:
+    """Regression: run 1 rewrote the owner email; run 2 (adding --hindsight-url)
+    wrote its edits and then exited 1, because --owner-email is required and
+    its upstream literal was gone."""
+    _make_fake_playbook(tmp_path)
+    base = ["--org-name", "acme", "--owner-email", "ops@acme.example", "--root", str(tmp_path)]
+    assert io.main(base) == 0
+
+    assert io.main([*base, "--hindsight-url", "https://h.acme.example"]) == 0
+
+    env_vars = (tmp_path / "docs" / "concepts" / "env-vars.md").read_text(encoding="utf-8")
+    assert env_vars.strip() == "https://h.acme.example"
+    tmpl = (tmp_path / "templates" / "new-project" / "AGENTS.md.tmpl").read_text(encoding="utf-8")
+    assert "ops@acme.example" in tmpl
+
+
+def test_main_no_op_flag_writes_nothing(tmp_path: Path) -> None:
+    """The zero-hit check used to run after apply_edits had written the files."""
+    _make_fake_playbook(tmp_path)
+    for rel in ("docs/runbooks/hindsight-retain.md", "docs/concepts/env-vars.md",
+                "docs/concepts/session-start-hook.md", "templates/new-project/AGENTS.md.tmpl"):
+        (tmp_path / rel).write_text("nothing to replace\n", encoding="utf-8")
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+    rc = io.main([
+        "--org-name", "acme", "--owner-email", "ops@acme.example",
+        "--hindsight-url", "https://hindsight.acme.example", "--root", str(tmp_path),
+    ])
+
+    assert rc == 1
+    assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
