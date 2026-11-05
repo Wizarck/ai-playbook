@@ -603,6 +603,74 @@ def test_mcp_project_merges_into_current_file() -> None:
                               current_text=out) == out
 
 
+def test_mcp_project_merges_into_markerless_file_without_second_servers_key() -> None:
+    """Most consumers' mcp-servers.project.yaml has no marker block. Appending
+    the baseline block (which opens `servers:`) produced a duplicate top-level
+    key: PyYAML hid the consumer's mapping and check-yaml rejected the file."""
+    import yaml
+
+    from scripts._renderers._yaml_merge import duplicate_key
+    current = (
+        "schema: mcp-servers/v1\n"
+        "project: mine\n"
+        "\n"
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "    endpoint: https://real.example.com  # customised\n"
+        "  github:\n"
+        "    id: github\n"
+    )
+    bundle = {"mcp_project_servers": {
+        "github": {"id": "github", "x": 1},  # consumer-owned: not duplicated
+        "extra": {"id": "extra", "endpoint": None},
+    }}
+    out = render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                             current_text=current)
+    assert out.startswith(current)
+    assert duplicate_key(out) is None
+    assert out.count("\nservers:") == 1 and "ai-playbook:begin" not in out
+    loaded = yaml.safe_load(out)["servers"]
+    assert loaded["hindsight"]["endpoint"] == "https://real.example.com"
+    assert loaded["github"] == {"id": "github"}
+    assert loaded["extra"] == {"id": "extra", "endpoint": None}
+    assert render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                              current_text=out) == out
+    # Without a `servers:` mapping of its own, the baseline block is still added.
+    bare = render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle={},
+                              current_text="schema: mcp-servers/v1\n")
+    assert yaml.safe_load(bare)["servers"] == {"hindsight": {"id": "hindsight"}}
+
+
+def test_mcp_project_refuses_merge_that_misplaces_or_duplicates() -> None:
+    """The guard must not pass a merge whose bundle servers land under another
+    key, or one with a duplicate key that PyYAML would silently collapse."""
+    after_servers = (
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "settings:\n"
+        "  timeout: 5\n"
+    )
+    with pytest.raises(ValueError, match="after the `servers:`"):
+        render_mcp_project(template=_MCP_TMPL, substitutions={},
+                           bundle={"mcp_project_servers": {"extra": {"id": "extra"}}},
+                           current_text=after_servers)
+    duplicated = (
+        "# >>> ai-playbook:begin id=project-servers-baseline >>>\n"
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "# <<< ai-playbook:end project-servers-baseline <<<\n"
+        "servers:\n"
+        "  mine:\n"
+        "    id: mine\n"
+    )
+    with pytest.raises(ValueError, match="duplicate key 'servers'"):
+        render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle={},
+                           current_text=duplicated)
+
+
 def test_mcp_project_empty_extras() -> None:
     template = (
         "schema: mcp-servers/v1\n"
