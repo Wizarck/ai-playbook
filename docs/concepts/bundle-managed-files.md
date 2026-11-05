@@ -118,7 +118,8 @@ JSON5 / JS:
      extras of `.pre-commit-config.yaml` and `mcp-servers.project.yaml` sit
      between a `# Consumer … (preserved across apply_config)` header and a
      `# (end of …)` trailer comment, and that region is replaced on every
-     apply. `.coderabbit.yaml` extras are merged into the current mapping.
+     apply. `.coderabbit.yaml` extras are merged into the current mapping, so
+     an entry removed from the bundle stays in the file until deleted by hand.
      A markerless `AGENTS.md` is still generated from the template (its prose
      is recovered through backup + `curate`). A YAML file whose layout cannot
      take the merge (e.g. `repos:` items at column 0, or keys after the list
