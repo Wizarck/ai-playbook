@@ -373,6 +373,14 @@ def test_unparseable_global_config_is_never_overwritten(
     assert "skipping" in capsys.readouterr().err
 
 
+def test_force_with_reason_help_promises_no_override() -> None:
+    """1ba4418 made render's only gate OVERRIDE: none; the help still said the
+    flag would 'accept validation errors'."""
+    text = " ".join(mcp_render._build_parser().format_help().split())
+    assert "accept validation errors" not in text
+    assert "OVERRIDE: none" in text
+
+
 def test_failed_permission_step_leaves_global_config_intact(
     fake_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
