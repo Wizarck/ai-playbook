@@ -296,7 +296,7 @@ def _commit_msg_stage_wired(repo_root: Path) -> bool:
     except OSError:
         return False
     if "block_manual_spec_edit" in hook_text:
-        return True
+        return "--commit-msg-file" in hook_text
     if "pre-commit" not in hook_text:
         return False
     m = re.search(r"--config[= ]([^\s)\"']+)", hook_text)

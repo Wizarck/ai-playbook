@@ -376,7 +376,9 @@ def _pre_commit_stage_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *,
 @pytest.mark.parametrize("hook,config", [
     (None, _COMMIT_MSG_ENTRY),  # commit-msg hook type never installed
     (_PRE_COMMIT_HOOK, _PRE_COMMIT_STAGE_ENTRY),  # installed, entry still at pre-commit
-], ids=["no-commit-msg-hook", "entry-not-migrated"])
+    # hand-installed, but in path mode: it would get the message file as a path
+    ('#!/bin/sh\nexec python .ai-playbook/scripts/block_manual_spec_edit.py "$1"\n', None),
+], ids=["no-commit-msg-hook", "entry-not-migrated", "hand-installed-path-mode"])
 def test_pre_commit_stage_blocks_when_nothing_would_check_the_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     hook: str | None, config: str,
