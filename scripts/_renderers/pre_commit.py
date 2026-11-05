@@ -5,6 +5,8 @@ hooks from ``bundle.pre_commit_extras.hooks`` are appended after the
 ``repos:`` block as a second ``- repo: local`` group (pre-commit accepts
 several ``local`` repos; any other name would need a ``rev``), between a
 ``# Consumer hooks …`` header and a ``# (end of consumer hooks)`` trailer.
+Each such hook must carry ``id``, ``name``, ``entry`` and ``language`` (else
+the render fails: pre-commit would reject the whole config).
 
 When the file already exists (``current_text``), it is merged instead of
 regenerated: the marker block is refreshed in place, the bundle-extras region
@@ -25,6 +27,7 @@ from scripts._renderers._yaml_merge import MergeConflictError, duplicate_key, lo
 from scripts._template_classifier import compute_sha
 
 _BLOCK_ID = "playbook-hooks"
+_LOCAL_HOOK_REQUIRED = ("id", "name", "entry", "language")
 _EXTRAS_HEADER = "# Consumer hooks (preserved across apply_config)"
 _EXTRAS_TRAILER = "# (end of consumer hooks)"
 _EXTRAS_REGION_RE = re.compile(
@@ -56,6 +59,15 @@ def _render_extras_yaml(hooks: list[dict]) -> str:
     hooks = [h for h in hooks if isinstance(h, dict)]
     if not hooks:
         return ""
+    for hook in hooks:
+        missing = [k for k in _LOCAL_HOOK_REQUIRED
+                   if not (isinstance(hook.get(k), str) and hook[k].strip())]
+        if missing:
+            raise ValueError(
+                f"pre_commit_extras hook {hook.get('id') or '(no id)'!r} lacks "
+                f"{', '.join(missing)}: a `repo: local` hook needs id, name, entry "
+                "and language, or pre-commit rejects the whole config"
+            )
     dumped = yaml.safe_dump(
         [{"repo": "local", "hooks": hooks}],
         sort_keys=False, default_flow_style=False, allow_unicode=True,
