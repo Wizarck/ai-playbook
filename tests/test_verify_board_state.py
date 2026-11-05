@@ -14,7 +14,9 @@ is mocked at the boundary — tests don't hit a real GH project.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -116,6 +118,86 @@ def test_sibling_slice_with_longer_id_does_not_match() -> None:
             ["--change-id", "risk-engine", "--owner", "Wizarck", "--project-number", "2"]
         )
     assert rc == verify_board_state.EXIT_STATUS_MISMATCH
+
+
+def test_issue_sync_consumer_prefix_matches() -> None:
+    """issue_sync files board issues as '[<consumer>] <change-id>'; exact
+    matching must not turn those boards into exit 2 (item not found)."""
+    payload = _make_graphql_response([_item(title="[iguanatrader] risk-engine", status="Done")])
+    with _mock_subprocess_run_returning(payload):
+        rc = verify_board_state.main(
+            ["--change-id", "risk-engine", "--owner", "Wizarck", "--project-number", "2"]
+        )
+    assert rc == verify_board_state.EXIT_OK
+
+
+def test_consumer_prefixed_sibling_does_not_match() -> None:
+    payload = _make_graphql_response([
+        _item(title="[iguanatrader] risk-engine-protections", status="Done"),
+        _item(title="[iguanatrader] risk-engine", status="In Progress"),
+    ])
+    with _mock_subprocess_run_returning(payload):
+        rc = verify_board_state.main(
+            ["--change-id", "risk-engine", "--owner", "Wizarck", "--project-number", "2"]
+        )
+    assert rc == verify_board_state.EXIT_STATUS_MISMATCH
+
+
+# (title, matches "risk-engine"?) — shared by the Python matcher and the jq
+# filter the consumer workflow templates carry.
+TITLE_CASES = [
+    ("risk-engine", True),
+    ("  risk-engine  ", True),
+    ("[iguanatrader] risk-engine", True),
+    ("risk-engine-protections", False),
+    ("[iguanatrader] risk-engine-protections", False),
+    ("feat: risk-engine", False),
+    ("[a] [b] risk-engine", False),
+    ("", False),
+]
+
+
+@pytest.mark.parametrize("title,expected", TITLE_CASES)
+def test_title_matches(title: str, expected: bool) -> None:
+    assert verify_board_state.title_matches(title, "risk-engine") is expected
+
+
+# ---------------------------------------------------------------------------
+# The consumer workflow templates must match titles the same way
+# ---------------------------------------------------------------------------
+
+_WORKFLOWS = (
+    Path(__file__).resolve().parents[1] / "templates" / "new-project" / ".github" / "workflows"
+)
+# The one jq title filter every board workflow template uses (exact as written
+# between the template's single quotes).
+TITLE_SELECT = (
+    r'select((.content.title // "" | tostring | sub("^\\s+"; "") | sub("\\s+$"; "")'
+    r' | sub("^\\[[^\\]]+\\]\\s+"; "")) == $cid)'
+)
+
+
+@pytest.mark.parametrize("name,uses", [
+    ("project-board-synced-check.yml.tmpl", 1),
+    ("project-status-slice-progress.yml.tmpl", 2),
+])
+def test_workflow_templates_match_titles_exactly(name: str, uses: int) -> None:
+    """A substring match (`contains($cid)` + `head -1`) lets a sibling slice
+    whose id contains this one answer for it in the PR gates."""
+    text = (_WORKFLOWS / name).read_text(encoding="utf-8")
+    assert "contains($cid)" not in text
+    assert text.count(TITLE_SELECT) == uses
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="jq not on PATH")
+def test_workflow_title_filter_agrees_with_title_matches() -> None:
+    nodes = [{"id": str(i), "content": {"title": t}} for i, (t, _) in enumerate(TITLE_CASES)]
+    nodes.append({"id": "no-content", "content": None})
+    out = subprocess.run(
+        ["jq", "-c", "--arg", "cid", "risk-engine", f"[.[] | {TITLE_SELECT} | .id]"],
+        input=json.dumps(nodes), capture_output=True, text=True, check=True,
+    ).stdout
+    assert json.loads(out) == [str(i) for i, (_, ok) in enumerate(TITLE_CASES) if ok]
 
 
 def test_default_expected_status_is_done() -> None:
