@@ -368,6 +368,26 @@ def test_commit_msg_stage_ignores_commits_without_spec_changes(
     assert bmse.main(["--commit-msg-file", str(msg)]) == 0
 
 
+def test_commit_msg_stage_reads_a_non_utf8_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`git commit -F` of an ANSI (cp1252) file must not crash the hook, which
+    would block every commit, spec or not."""
+    _bootstrap_repo(tmp_path)
+    msg = tmp_path / "m.txt"
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("changed", encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    msg.write_bytes("docs: café readme\n".encode("cp1252"))
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 0
+    _stage_spec(tmp_path, "v1\n")
+    msg.write_bytes("archive: café\n\nopenspec-archive: add-auth\n".encode("cp1252"))
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 0
+    msg.write_bytes("chore: café wording\n".encode("cp1252"))
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 1
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX hook shebang")
 def test_real_commit_msg_hook_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Real `git commit` with the guard installed as a commit-msg hook."""

@@ -120,6 +120,15 @@ def _has_staged(repo_root: Path) -> bool | None:
     return {0: False, 1: True}.get(rc)
 
 
+def _read_message_file(path: Path) -> str | None:
+    """The message file's text. It need not be UTF-8 (e.g. `git commit -F` of an
+    ANSI file), so undecodable bytes become U+FFFD instead of raising."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
 def read_commit_message(repo_root: Path) -> str | None:
     """Resolve the commit message(s) for pre-commit-stage / CI runs.
 
@@ -144,10 +153,7 @@ def read_commit_message(repo_root: Path) -> str | None:
     if env_path:
         p = Path(env_path)
         if p.is_file():
-            try:
-                return p.read_text(encoding="utf-8")
-            except OSError:
-                return None
+            return _read_message_file(p)
 
     from_ref = os.environ.get("PRE_COMMIT_FROM_REF")
     to_ref = os.environ.get("PRE_COMMIT_TO_REF")
@@ -165,6 +171,7 @@ def read_commit_message(repo_root: Path) -> str | None:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                errors="replace",
             )
             if r.returncode == 0 and r.stdout:
                 return r.stdout
@@ -177,7 +184,7 @@ def read_commit_message(repo_root: Path) -> str | None:
             r = subprocess.run(
                 ["git", "log", "-1", "--format=%B", "HEAD"],
                 cwd=str(repo_root), check=False, capture_output=True,
-                text=True, encoding="utf-8",
+                text=True, encoding="utf-8", errors="replace",
             )
             if r.returncode == 0:
                 return r.stdout
@@ -275,12 +282,7 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = find_repo_root(Path.cwd())
 
-    commit_msg: str | None = None
     if args.commit_msg_file:
-        try:
-            commit_msg = Path(args.commit_msg_file).read_text(encoding="utf-8")
-        except OSError:
-            commit_msg = None
         staged = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],
             cwd=str(repo_root), check=False, capture_output=True, text=True, encoding="utf-8",
@@ -290,6 +292,10 @@ def main(argv: list[str] | None = None) -> int:
     candidates = [f for f in args.files if is_protected_path(f)]
     if not candidates:
         return 0
+
+    commit_msg: str | None = None
+    if args.commit_msg_file:
+        commit_msg = _read_message_file(Path(args.commit_msg_file))
 
     # Filter candidates to those ACTUALLY modified by the staged change.
     # Pre-commit may pass us files at protected paths that exist on the
