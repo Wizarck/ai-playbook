@@ -360,6 +360,11 @@ def _run_absorb(
         print(f"# [absorb] {len(res.report_project)} server(s) look project-scoped — NOT "
               f"written (add to mcp-servers.project.yaml by hand if shared): "
               f"{', '.join(res.report_project)}")
+    if res.report_manual:
+        print(f"# [absorb] {len(res.report_manual)} tenant server(s) have args that one "
+              f"`command` string cannot hold losslessly (backslash paths, spaces, quotes) — "
+              f"NOT written (add to {_path_str(res.personal_path)} by hand): "
+              f"{', '.join(res.report_manual)}")
     if res.skipped:
         print(f"# [absorb] {len(res.skipped)} already in a layer, skipped: {', '.join(res.skipped)}")
     if res.backed_up_mcp:
