@@ -186,7 +186,12 @@ python -m scripts.caveman mcp-restore --json   # unwrap them
 These are exposed for explicit invocation but the typical flow is
 `caveman on --components mcp_shrink`, which calls them automatically.
 
-### Not implemented yet (exit 2 with FIX guidance)
+### `stats` / `rollback` — reporting and recovery
+
+```bash
+python -m scripts.caveman stats    [--since ISO | --since-caveman-on] [--update-statusline] [--json]
+python -m scripts.caveman rollback [--list] [--yes] [--json]
+```
 
 - `stats`    — session-token stats from Claude Code transcripts.
 - `rollback` — manual restore-from-latest caveman backup (`agents-caveman`,
@@ -213,11 +218,12 @@ Every component → exact set of files mutated, paired with backup paths:
 
 Backup retention: 10 newest backups per `(area, basename)`, older
 backups pruned by `scripts.caveman.backup.prune_backups`. (Currently
-not auto-invoked; CLI prune will land alongside the `rollback`
-subcommand.)
+not auto-invoked, and the CLI has no prune command.)
 
-Timestamp format: `YYYY-MM-DDTHH-MM-SSZ` (colons stripped — Windows
-filenames cannot contain `:`).
+Timestamp format: `YYYY-MM-DDTHH-MM-SS-ffffffZ` (microseconds; colons
+stripped — Windows filenames cannot contain `:`). Before v0.24.2 it was
+`YYYY-MM-DDTHH-MM-SSZ`, and caveman's AGENTS.md snapshots lived in the
+shared `agents/` area.
 
 ## 4. State machine
 
@@ -269,7 +275,7 @@ shrink layer is mode-agnostic (it's about input tokens, not output).
 | MCP shrink: `caveman-shrink` npm not installed | Wrap still applied; CLI warns; commands will fail at runtime. Use `mcp-restore`. |
 | toggle file schema-invalid on read            | Refuse with FIX: "repair or delete state file".  |
 
-**Rollback procedure (manual, before `rollback` subcommand exists):**
+**Rollback by hand (what `caveman rollback --yes` automates):**
 
 ```bash
 # Restore the latest AGENTS.md backup:
@@ -282,17 +288,16 @@ cp .ai-playbook/backups/mcp/.mcp.json.<ts>.bak ./.mcp.json
 python -m scripts.caveman off --project .
 ```
 
-## 6. Telemetry (future)
+## 6. Telemetry
 
-When `scripts/caveman/stats.py` lands (deferred — needs Claude Code
-session-log access patterns to stabilise), the UI will read:
+`python -m scripts.caveman stats --json` reads the Claude Code session
+logs and returns token counts (each assistant message counted once),
+an extrapolated "saved" figure and an estimated cost. With
+`--update-statusline` it also writes
+`<project>/.ai-playbook/.caveman-statusline-suffix`, the short string
+the statusline displays (`⛏ 12.4k`); it writes no other file.
 
-- `<project>/.ai-playbook/.caveman-stats.json` — running lifetime
-  counts: tokens saved, USD saved, sessions tracked.
-- `<project>/.ai-playbook/.caveman-statusline-suffix` — short string
-  the statusline displays (`⛏ 12.4k`).
-
-For now, the UI can compute a coarse "is materialised + how long since
+The UI can also compute a coarse "is materialised + how long since
 last toggle" from `state.applied_at` and `derived.materialised`.
 
 ## 7. Future UI integration recipe

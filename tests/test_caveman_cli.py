@@ -1,6 +1,7 @@
 """Tests for scripts.caveman.cli — on / off / status flows."""
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -443,6 +444,16 @@ def test_rollback_yes_says_agents_md_was_not_restored_from_legacy_area(
     assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
     assert "AGENTS.md not restored" in capsys.readouterr().err
     assert (project / "AGENTS.md").read_text(encoding="utf-8") == block
+
+
+def test_architecture_doc_matches_the_cli_subcommands() -> None:
+    """Regression F11: the doc listed implemented commands under 'Not implemented yet'."""
+    doc = (Path(__file__).resolve().parents[1] / "docs" / "operations" / "caveman-architecture.md").read_text(
+        encoding="utf-8"
+    )
+    sub = next(a for a in cli._build_parser()._actions if isinstance(a, argparse._SubParsersAction))
+    assert [name for name in sub.choices if f"`{name}`" not in doc] == []
+    assert ("Not implemented yet" in doc) == bool(cli.PHASE_B_NOT_IMPLEMENTED)
 
 
 def test_rollback_foreign_block_prefixes_match_the_features() -> None:
