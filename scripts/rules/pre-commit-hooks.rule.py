@@ -190,7 +190,9 @@ def validate(cwd: Path | None = None) -> int:
         _emit_error(
             why="hook id `ai-playbook` is not exported by the playbook (pre-commit fails every commit)",
             where=str(path),
-            fix="replace `- id: ai-playbook` with: " + ", ".join(f"`- id: {h}`" for h in EXPORTED_HOOK_IDS) + ".",
+            fix="replace that remote ai-playbook repo item with the `repo: local` block in "
+            ".ai-playbook/docs/rules/pre-commit-hooks.rule.md (after deleting the item, `apply` "
+            "inserts the block if nothing else in the file mentions ai-playbook).",
         )
         return 1
 

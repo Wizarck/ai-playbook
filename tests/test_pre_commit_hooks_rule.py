@@ -304,13 +304,17 @@ def test_apply_refuses_unparseable_target(tmp_path: Path) -> None:
     assert (root / ".pre-commit-config.yaml").read_text(encoding="utf-8") == before
 
 
-def test_validate_flags_unexported_hook_id(tmp_path: Path) -> None:
+def test_validate_flags_unexported_hook_id(tmp_path: Path, capsys) -> None:
     bad = BASE_CONFIG_WITHOUT_PLAYBOOK + (
         "  - repo: https://github.com/Wizarck/ai-playbook\n"
         "    rev: v0.20.0\n    hooks:\n      - id: ai-playbook\n"
     )
     root = _make_consumer(tmp_path, config=bad)
     assert _pch.validate(cwd=root) == 1
+    # The remedy is the canonical by-path block, not the (non-canonical) remote form.
+    fix = next(ln for ln in capsys.readouterr().err.splitlines() if "FIX:" in ln)
+    assert "`repo: local` block" in fix and "pre-commit-hooks.rule.md" in fix
+    assert "- id: validate-pairing" not in fix
 
 
 def test_validate_accepts_a_local_hook_named_ai_playbook(tmp_path: Path) -> None:
