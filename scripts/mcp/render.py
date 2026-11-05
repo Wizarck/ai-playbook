@@ -343,6 +343,17 @@ def _summary(*, merged: dict[str, dict[str, Any]],
     return "\n".join(lines)
 
 
+def _warn_ignored_args(*layers: Any) -> None:  # noqa: ANN401
+    """v1 has no ``args`` field (render emits ``command`` only), yet absorb up to
+    v0.24.1 wrote one into the personal layer: say so instead of dropping it."""
+    for layer in layers:
+        for sid, entry in ((layer.data or {}).get("servers") or {}).items():
+            if isinstance(entry, dict) and entry.get("args"):
+                print(f"⚠️  [mcp] {layer.name} layer server `{sid}`: `args` is not an "
+                      "mcp-servers/v1 field and is ignored; fold it into `command` "
+                      f"({_path_str(layer.path)}).", file=sys.stderr)
+
+
 def _run_absorb(
     *, consumer_root: Path, playbook_root: Path, personal_file: Path | None, dry_run: bool,
 ) -> None:
@@ -411,6 +422,8 @@ def run(args: argparse.Namespace) -> int:
                  "or ensure .ai-playbook/ is submoduled under the consumer repo"),
         ))
         return 2
+
+    _warn_ignored_args(base, project, personal)
 
     # Personal layer is only applied if its file is present on this machine.
     # merge_servers already tolerates an absent (present=False) personal layer.

@@ -139,6 +139,24 @@ def test_render_includes_personal_when_personal_file_present(tmp_path: Path) -> 
             == "https://gws-acme.example/")
 
 
+def test_render_warns_about_an_ignored_args_key(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """absorb up to v0.24.1 wrote `args:` into the personal layer; v1 has no such
+    field and render dropped it silently."""
+    personal = {
+        "schema": "mcp-servers/v1", "layer": "personal",
+        "servers": {"rag-local": {
+            "id": "rag-local", "transport": "stdio", "command": "python",
+            "args": ["-m", "rag"], "scope": "personal",
+        }},
+    }
+    playbook, consumer, personal_path = _stack(tmp_path, personal=personal)
+    assert _run(playbook, consumer, personal_path, "--dry-run") == 0
+    err = capsys.readouterr().err
+    assert "`rag-local`" in err and "`args` is not an mcp-servers/v1 field" in err
+
+
 def test_render_excludes_personal_when_personal_file_absent(tmp_path: Path) -> None:
     playbook, consumer, _ = _stack(tmp_path, project=PROJECT_MIN)
     # Point --personal-file at a non-existent path explicitly.
