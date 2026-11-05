@@ -79,16 +79,19 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
    systemctl --user restart <service>
    ```
 
-6. **If the leaked credential was the SOPS / age master key**, re-key the store. Do this before Steps 3–4 (see Step 2). Needs sops ≥ 3.7 (the first release with age). Paste the whole block, parentheses included, from the repo root, after replacing `<leaked-pub-key>`:
+6. **If the leaked credential was the SOPS / age master key**, re-key the store. Do this before Steps 3–4 (see Step 2). Needs sops ≥ 3.7 (the first release with age). Paste the whole block, parentheses included, from the repo root, after replacing `<leaked-pub-key>` (and `STORE`, if the store's files are named otherwise):
    ```bash
    (
      set -euo pipefail   # inside ( ): a failure ends this block, not your shell or SSH session
+     STORE=('*secrets*.env')   # git pathspecs of every sops dotenv file to re-key, e.g. ('.secrets/*.env.enc')
      K=~/.config/sops/age   # the directory holding keys.txt (sops on Windows defaults to %AppData%/sops/age)
+     FILES=$(git ls-files -- "${STORE[@]}")
+     [ -n "$FILES" ] || { echo "no store files matched ${STORE[*]}; nothing changed" >&2; exit 1; }
      [ -f "$K/keys-new.txt" ] || age-keygen -o "$K/keys-new.txt"   # a retry reuses the key it made
      NEW_PUB=$(age-keygen -y "$K/keys-new.txt")
      OLD_PUB=<leaked-pub-key>   # age1...; `age-keygen -y ~/.config/sops/age/keys.txt` prints it
      dec() { SOPS_AGE_KEY_FILE="$1" sops -d --input-type dotenv --output-type dotenv "$2" > /dev/null 2>&1; }
-     for f in $(git ls-files '*secrets*.env'); do
+     for f in $FILES; do
        # Removal is read from the file's recipients: keys.txt may also hold a kept recipient's identity.
        if dec "$K/keys-new.txt" "$f" && ! grep -qF "$OLD_PUB" "$f"; then continue; fi   # done by an earlier run
        grep -qF "$OLD_PUB" "$f" || { echo "$OLD_PUB is not a recipient of $f; nothing changed" >&2; exit 1; }
@@ -148,7 +151,8 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
 ### Symptom: SOPS master key rotation stopped part-way
 **Cause**: the block in Step 6 stopped on one file and named it; the files before it are re-keyed, that file (restored from `<file>.pre-rekey` when its re-key did not verify) and the rest are not.
 **Fix**: act on the message it printed, then re-run the whole block: it reuses `keys-new.txt` and skips the files already done.
-- `<key> is not a recipient of <file>`: `<leaked-pub-key>` is mistyped (compare it with the `recipient` entries in the file's sops metadata), or that file was never encrypted to the leaked key and needs no re-key: leave it out of the `git ls-files` pathspec.
+- `no store files matched <pathspecs>`: set `STORE` to the pathspecs of your store's files (`git ls-files -- <pathspec>` shows what one matches). Nothing was changed.
+- `<key> is not a recipient of <file>`: `<leaked-pub-key>` is mistyped (compare it with the `recipient` entries in the file's sops metadata), or that file was never encrypted to the leaked key and needs no re-key: leave it out of `STORE` (an extra `':!<file>'` pathspec excludes it).
 - `keys.txt cannot decrypt <file>` or `re-key of <file> did not verify`: run `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops -d <file>` (and the same with `keys-new.txt`) to see the sops error, and fix its cause.
 
 Do NOT take the leaked identity out of `keys.txt` until every file decrypts with `keys-new.txt` alone.
