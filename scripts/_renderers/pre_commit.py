@@ -11,6 +11,9 @@ the render fails: pre-commit would reject the whole config).
 When the file already exists (``current_text``), it is merged instead of
 regenerated: the marker block is refreshed in place, the bundle-extras region
 is replaced, and everything else the consumer wrote is kept verbatim. A
+markerless file that already lists a hook of the block (the playbook hooks
+copied without their marker lines) does not get the block appended, since
+each such hook would run twice; its own copies are kept as they are. A
 current file that is not a valid YAML mapping (e.g. corrupted by an older renderer) is
 regenerated from the template; the orchestrator backs it up first. A merge the
 consumer's layout cannot take raises ``MergeConflictError`` (that file is
@@ -77,6 +80,15 @@ def _render_extras_yaml(hooks: list[dict]) -> str:
                    for line in dumped.splitlines(keepends=True))
 
 
+def _hook_ids(repos: object) -> set[str]:
+    """Ids of the hooks under a parsed ``repos:`` list."""
+    if not isinstance(repos, list):
+        return set()
+    return {hook["id"] for repo in repos if isinstance(repo, dict)
+            for hook in (repo.get("hooks") or [])
+            if isinstance(hook, dict) and isinstance(hook.get("id"), str)}
+
+
 def _merge_error(body: str, *, markerless: bool) -> str:
     dup = duplicate_key(body)
     cause = ("this file has no playbook-hooks marker block, so the block was "
@@ -106,16 +118,24 @@ def render(
     body = _inject_sha(body)
 
     merging = bool(current_text) and load_mapping(current_text) is not None
-    markerless = False
+    markerless = False  # the block is appended to a file that had no markers
     appended: list = []  # repo items this render appends at the end of the file
     if merging:
         # Merge: refresh the canonical block(s) in the consumer's own file.
         sealed = parse_blocks(body, CommentStyle.HASH).blocks
-        markerless = (_BLOCK_ID in sealed
-                      and _BLOCK_ID not in parse_blocks(current_text, CommentStyle.HASH).blocks)
-        if markerless:
+        if (_BLOCK_ID in sealed
+                and _BLOCK_ID not in parse_blocks(current_text, CommentStyle.HASH).blocks):
             items = yaml.safe_load(sealed[_BLOCK_ID].content)
-            appended.extend(items if isinstance(items, list) else [])
+            items = items if isinstance(items, list) else []
+            own = (load_mapping(_EXTRAS_REGION_RE.sub("", current_text))
+                   or load_mapping(current_text) or {})
+            if _hook_ids(items) & _hook_ids(own.get("repos")):
+                # The playbook hooks are already listed, without markers:
+                # appending the block would run each of them twice.
+                sealed.pop(_BLOCK_ID)
+            else:
+                markerless = True
+                appended.extend(items)
         body = write_blocks(current_text, sealed, style=CommentStyle.HASH)
         body, removed = _EXTRAS_REGION_RE.subn("", body)
         if removed:

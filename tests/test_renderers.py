@@ -432,6 +432,54 @@ def test_pre_commit_merge_refuses_items_landing_under_a_later_key() -> None:
                           ]}})
 
 
+def test_pre_commit_markerless_file_with_playbook_hooks_does_not_get_them_twice() -> None:
+    """Consumers' configs copied from an older template list the playbook hooks
+    without the marker lines. Appending the block made each of them run twice."""
+    import collections
+    from pathlib import Path
+
+    import yaml
+    tmpl = (Path(__file__).resolve().parents[1] / "templates" / "new-project"
+            / ".pre-commit-config.yaml.tmpl").read_text(encoding="utf-8")
+    ruff = ("  - repo: https://github.com/astral-sh/ruff-pre-commit\n"
+            "    rev: v0.5.0\n"
+            "    hooks:\n"
+            "      - id: ruff\n")
+    current = (
+        "repos:\n"
+        "  - repo: https://github.com/pre-commit/pre-commit-hooks\n"
+        "    rev: v4.6.0\n"
+        "    hooks:\n"
+        "      - id: trailing-whitespace\n"
+        "      - id: check-yaml\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: schema-validate-agents\n"
+        "        name: Validate AGENTS.md\n"
+        "        entry: python .ai-playbook/scripts/schema_validate.py AGENTS.md\n"
+        "        language: system\n"
+        + ruff
+    )
+    bundle = {"pre_commit_extras": {"hooks": [_hook("mine")]}}
+
+    def hook_ids(text: str) -> collections.Counter:
+        return collections.Counter(h["id"] for repo in yaml.safe_load(text)["repos"]
+                                   for h in repo["hooks"])
+
+    out = render_pre_commit(template=tmpl, substitutions={}, bundle=bundle, current_text=current)
+    assert out.startswith(current) and "ai-playbook:begin" not in out
+    assert max(hook_ids(out).values()) == 1
+    assert yaml.safe_load(out)["repos"][-1]["hooks"] == [_hook("mine")]
+    assert render_pre_commit(template=tmpl, substitutions={}, bundle=bundle,
+                             current_text=out) == out
+    # A markerless file without playbook hooks still gets the block, once.
+    added = render_pre_commit(template=tmpl, substitutions={}, bundle=bundle,
+                              current_text="repos:\n" + ruff)
+    assert "ai-playbook:begin id=playbook-hooks" in added
+    assert {"gitleaks", "ruff", "mine"} <= set(hook_ids(added))
+    assert max(hook_ids(added).values()) == 1
+
+
 def test_pre_commit_regenerates_current_file_that_is_not_yaml() -> None:
     import yaml
     corrupt = "# a `# >>> x >>>\n` b\n` block below\nrepos: []\n"
