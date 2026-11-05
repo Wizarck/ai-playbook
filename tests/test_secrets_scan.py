@@ -483,6 +483,26 @@ def test_private_key_sanitise_redacts_escaped_and_armored_bodies(
     assert redacted == before + "[REDACTED:private_key]" + after
 
 
+# Regression: names that follow `_`, a letter or a digit, or run past the name
+# bound, were caught by v0.24.1 and missed by a6cd276's lookbehind (SS-2).
+_ENV_VAL = "Ab12Cd34Ef56Gh78Ij90Kl"
+
+
+@pytest.mark.parametrize("sample", [
+    f'_API_KEY = "{_ENV_VAL}"',
+    f'self._API_TOKEN = "{_ENV_VAL}"',
+    f'app_SECRET_KEY = "{_ENV_VAL}"',
+    f'__SECRET_KEY = "{_ENV_VAL}"',
+    f'MyApp_API_KEY = "{_ENV_VAL}"',
+    f'2FA_SECRET = "{_ENV_VAL}"',
+    "X" * 70 + f'_TOKEN = "{_ENV_VAL}"',
+    f"_API_KEY={_ENV_VAL}",
+])
+def test_generic_env_secret_fires_on_any_name_prefix(sample: str) -> None:
+    assert "generic_env_secret" in {m.kind for m in scan(sample)}, sample
+    assert _ENV_VAL not in sanitise(sample)[0]
+
+
 def test_generic_env_secret_is_linear_on_long_uppercase_line() -> None:
     import time
     line = "ABCDEF0123456789" * 6000  # ~96 KB, no assignment

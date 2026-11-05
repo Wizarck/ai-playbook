@@ -148,12 +148,15 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # quoted or unquoted (dotenv), terminated by whitespace / a quote / end of
     # text, and contains a mix of classes (lowers/UPPERS/digits). The
     # mix-class requirement is asserted post-match in `_looks_like_secret`.
-    # The lookbehind + bounded name length keep this linear on long
-    # uppercase runs (otherwise every offset of the run restarts the match).
+    # The name may start anywhere, so `_API_KEY`, `self._API_TOKEN`,
+    # `app_SECRET_KEY` and `2FA_SECRET` match from their uppercase tail. Its
+    # bounded length keeps this linear on long uppercase runs (an unbounded
+    # name restarts from every offset of the run); a longer name still
+    # matches from a later offset.
     (
         "generic_env_secret",
         re.compile(
-            r"""(?<![A-Z0-9_])(?P<prefix>[A-Z][A-Z0-9_]{0,64}(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
+            r"""(?P<prefix>[A-Z][A-Z0-9_]{0,64}(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
             + _ASSIGN
             + r"""(?P<val>[A-Za-z0-9/+=_\-]{20,})(?=[\s'\"]|\Z)['\"]?""",
         ),
