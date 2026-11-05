@@ -1,6 +1,7 @@
 """Tests for scripts.caveman.backup — make / list / restore / prune."""
 from __future__ import annotations
 
+import errno
 import time
 from pathlib import Path
 
@@ -41,6 +42,26 @@ def test_make_backup_same_instant_does_not_overwrite(tmp_path: Path) -> None:
     assert b1.read_text(encoding="utf-8") == "pristine\n"
     assert b2.read_text(encoding="utf-8") == "mutated\n"
     assert backup.latest_backup(tmp_path, "agents", "AGENTS.md") == b2
+
+
+def test_make_backup_failed_copy_leaves_no_empty_backup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed copy must not leave a 0-byte .bak that sorts newest and gets restored."""
+    src = tmp_path / "AGENTS.md"
+    _write(src, "good\n")
+    good = backup.make_backup(tmp_path, "agents", src)
+
+    def disk_full(s: Path, d: Path) -> None:
+        Path(d).write_bytes(b"")
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(backup.shutil, "copy2", disk_full)
+    with pytest.raises(OSError):
+        backup.make_backup(tmp_path, "agents", src)
+
+    assert backup.list_backups(tmp_path, "agents") == [good]
+    assert backup.latest_backup(tmp_path, "agents", "AGENTS.md") == good
 
 
 def test_make_backup_raises_when_source_missing(tmp_path: Path) -> None:
