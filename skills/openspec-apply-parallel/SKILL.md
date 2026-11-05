@@ -135,7 +135,8 @@ If ANY subagent returned `blocked: ...`, stop. Show the user which group blocked
 git checkout slice/<change-id>
 # Abort point for step 9, recorded before any cherry-pick. A ref, not a shell
 # variable: step 9 runs in a later Bash call (a fresh shell), and a ref also
-# survives context compaction.
+# survives context compaction. Run this block once: a second run would move
+# the abort point onto the half-recombined HEAD.
 git branch -f slice/<change-id>--pre-recombine HEAD
 for group in <ordered groups>; do
   git cherry-pick <group's-sha-range>
@@ -153,7 +154,7 @@ pytest apps/api/tests/   # (or the equivalent for your stack)
 ```
 
 If the test fails:
-- **Conflict in shared files** → fix the shared-file edit in step 8 + re-run.
+- **Conflict in shared files** → fix the shared-file edit (commit it on `slice/<change-id>`) and re-run the suite above. Do NOT re-run step 8's block: its cherry-picks are already applied, and its `git branch -f` would move the abort point onto this half-recombined HEAD.
 - **Two groups had implicit cross-dependency not caught in step 3** → ABORT recombination + fall back to sequential `/opsx:apply`. File a slicing-too-coarse retro for next time.
   Aborting discards the recombined commits, so confirm with the user first, then return `slice/<id>` to the `slice/<id>--pre-recombine` ref recorded in step 8 — never to `origin/main`, which would also drop every slice commit made before this parallel run:
   ```bash
