@@ -178,6 +178,16 @@ def _is_dir(path: Path) -> bool:
         return False
 
 
+def _same_dir(a: Path, b: Path) -> bool:
+    """Same directory, also when one side is spelled through a junction/symlink."""
+    if _norm(a) == _norm(b):
+        return True
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
 def _under_any(path: Path | str, roots: list[Path]) -> bool:
     p = Path(_norm(path))
     return any(p == r or r in p.parents for r in (Path(_norm(root)) for root in roots))
@@ -331,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
                 pruned.append((name, "no path"))
             continue
         path = Path(old_path)
-        if hit is not None and _norm(hit.path) == _norm(path):
+        if hit is not None and _same_dir(hit.path, path):
             continue  # rescanned: the found entry carries fresh metadata
         alias = found_by_path.get(_norm(path))
         if alias is not None:

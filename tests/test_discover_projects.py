@@ -230,6 +230,24 @@ def test_refresh_does_not_repoint_a_registered_path_that_still_holds_it(
     assert "re-point" in capsys.readouterr().err
 
 
+def test_refresh_same_dir_through_a_symlink_is_not_a_repoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
+    real = _write_project(tmp_path / "roots", "alpha")
+    link = tmp_path / "alpha-link"
+    try:
+        link.symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available")
+    registry = _registry_with(tmp_path / "registry.yaml", {"alpha": {"path": str(link)}})
+
+    assert dp.main(["--roots", str(tmp_path / "roots"), "--registry", str(registry)]) == 0
+
+    assert "re-point" not in capsys.readouterr().err
+    assert yaml.safe_load(registry.read_text(encoding="utf-8"))["projects"]["alpha"]["path"] == str(real.resolve())
+
+
 def test_refresh_rekeys_a_renamed_project_instead_of_keeping_an_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
