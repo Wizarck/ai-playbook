@@ -719,6 +719,50 @@ def test_persisted_bundle_reapply_is_noop_despite_base_shas(tmp_path: Path) -> N
     assert "base_shas" not in json.loads(applied.read_text(encoding="utf-8"))
 
 
+def test_feature_rewrite_earlier_in_apply_is_not_a_cas_conflict(tmp_path: Path) -> None:
+    """A config-UI export stamps base_shas and carries project_meta, so it
+    re-renders AGENTS.md. caveman (like graphify / ponytail) rewrites AGENTS.md
+    earlier in the same apply; the CAS gate must compare the UI's token with
+    the file as it was before this apply, not after (false conflict, exit 1)."""
+    from scripts._template_classifier import compute_file_sha
+    from scripts.apply_config import SectionResult
+
+    target = tmp_path
+    agents = target / "AGENTS.md"
+    agents.write_text(
+        "---\nschema: agents-md/v1\nproject: demo\nowner: a@b.c\n---\n\n# demo\n\n"
+        "<!-- ai-playbook:begin id=bootstrap-directive -->\nold\n"
+        "<!-- ai-playbook:end bootstrap-directive -->\n",
+        encoding="utf-8",
+    )
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "project_meta": {"project_identity": "alpha"},
+        "base_shas": {"AGENTS.md": compute_file_sha(agents.read_text(encoding="utf-8"))},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+
+    def caveman_on(_target: Path, _intent: object, dry_run: bool = False) -> SectionResult:
+        if not dry_run:
+            with agents.open("a", encoding="utf-8") as fh:
+                fh.write("\n<!-- BEGIN auto-managed: caveman/ruleset:full -->\nterse\n"
+                         "<!-- END auto-managed -->\n")
+        return SectionResult(name="features.caveman", ok=True, changes=["invoked: caveman on"])
+
+    with patch.object(apply_config, "apply_caveman", side_effect=caveman_on):
+        report = apply_config.apply(bp, target=target)
+        md = report.to_markdown()
+        assert report.ok, md
+        assert "compare-and-swap" not in md
+        text = agents.read_text(encoding="utf-8")
+        assert "caveman/ruleset:full" in text and "old\n" not in text
+        # An edit made after the UI loaded the file is still refused.
+        agents.write_text(text + "\nhand edit\n", encoding="utf-8")
+        report2 = apply_config.apply(bp, target=target)
+    assert not report2.ok
+    assert "compare-and-swap" in report2.to_markdown()
+
+
 def test_apply_session_ids_unique_within_same_second(tmp_path: Path) -> None:
     """Two applies in one second must not share a backup session id, else a
     failed second run's restore_session also reverts the first run's files."""

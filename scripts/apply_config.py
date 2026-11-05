@@ -969,6 +969,12 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
 
     report = ApplyReport(target=target, bundle_path=bundle_path)
 
+    # The compare-and-swap baseline is read before any section mutates the
+    # consumer: caveman / graphify / ponytail rewrite AGENTS.md and .gitignore
+    # below, and the managed-files gate must not mistake that for an edit made
+    # after the UI loaded the file.
+    cas_shas = _managed_files.snapshot_cas_shas(target, bundle)
+
     # Pre-flight: caveman's enabled-state before any mutation, so a rolled-back
     # managed-files transaction can surface a precise manual reconcile step
     # (caveman is a subprocess and is not covered by the session rollback).
@@ -1006,6 +1012,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
                 playbook_root=playbook_root_for_mf or Path("."),
                 bundle=bundle,
                 dry_run=True,
+                cas_shas=cas_shas,
             )
             mf_sr_dry = SectionResult(
                 name="managed_files", ok=mf_dry.ok, detail=mf_dry.detail,
@@ -1176,6 +1183,7 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
                 playbook_root=playbook_root_for_mf,
                 bundle=bundle,
                 session_id=session_id,
+                cas_shas=cas_shas,
             )
             mf_sr_section.ok = mf_result.ok
             mf_sr_section.detail = mf_result.detail
