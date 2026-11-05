@@ -396,6 +396,38 @@ def test_cas_matching_sha_allows_write(
     assert "node_modules/" in text  # consumer line preserved
 
 
+def test_cas_gate_checks_the_snapshot_taken_before_the_run(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """With cas_shas, the gate compares base_shas with the file as it stood
+    before the reconcile, so an in-run rewrite (graphify's .gitignore block) is
+    not a conflict; without it the same rewrite is one."""
+    from scripts._template_classifier import compute_file_sha
+    gi = fake_consumer / ".gitignore"
+    _write_lf(gi, "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": compute_file_sha(gi.read_text(encoding="utf-8")),
+                      "AGENTS.md": "000000000000"},  # not triggered: never checked
+    }
+    snapshot = _managed_files.snapshot_cas_shas(fake_consumer, bundle)
+    assert set(snapshot) == {".gitignore", "AGENTS.md"}
+    _write_lf(gi, "node_modules/\n# graphify\ngraphify-out/\n")  # earlier section
+    stale = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+        dry_run=True,
+    )
+    assert stale.ok is False and "cas_conflict" in stale.file_states[".gitignore"]
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+        cas_shas=snapshot,
+    )
+    assert result.ok is True, result.changes
+    text = gi.read_text(encoding="utf-8")
+    assert "graphify-out/" in text and "dist/" in text
+
+
 def test_cas_conflict_reported_in_dry_run(
     fake_playbook: Path, fake_consumer: Path,
 ) -> None:
@@ -619,7 +651,7 @@ def test_yaml_renderers_keep_consumer_edits_outside_managed_content(
     import yaml
     bundle = {
         "schema": "ai-playbook-config/v1",
-        "pre_commit_extras": {"hooks": [{"id": "extra", "entry": "echo hi",
+        "pre_commit_extras": {"hooks": [{"id": "extra", "name": "extra", "entry": "echo hi",
                                          "language": "system"}]},
         "coderabbit_extras": {"path_filters": ["!gen/**"]},
         "mcp_project_servers": {"extra-srv": {"id": "extra-srv", "endpoint": None}},
@@ -659,6 +691,35 @@ def test_yaml_renderers_keep_consumer_edits_outside_managed_content(
         consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
     )
     assert sum("identical, no write" in c for c in third.changes) == 3
+
+
+def test_merge_that_does_not_fit_skips_only_that_file(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A YAML file whose layout cannot take the merge is a per-file conflict:
+    it is left untouched and the section fails, but the rest of the batch
+    (here .gitignore) still applies instead of the whole batch aborting."""
+    sample = ("repos:\n-   repo: https://github.com/pre-commit/pre-commit-hooks\n"
+              "    rev: v4.6.0\n    hooks:\n    -   id: trailing-whitespace\n")
+    _write_lf(fake_consumer / ".pre-commit-config.yaml", sample)
+    _write_lf(fake_consumer / ".gitignore", "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "pre_commit_extras": {"hooks": []},
+        "gitignore_extras": {"patterns": ["dist/"]},
+    }
+    for dry_run in (True, False):
+        result = _managed_files.apply_managed_files(
+            consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+            dry_run=dry_run,
+        )
+        assert result.ok is False
+        assert "merge_conflict" in result.file_states[".pre-commit-config.yaml"]
+        assert any(".pre-commit-config.yaml" in c and "column 0" in c and "not written" in c
+                   for c in result.changes)
+        assert not any("staging failed" in c for c in result.changes)
+    assert (fake_consumer / ".pre-commit-config.yaml").read_text(encoding="utf-8") == sample
+    assert "dist/" in (fake_consumer / ".gitignore").read_text(encoding="utf-8")
 
 
 def test_malformed_current_markers_fail_closed(

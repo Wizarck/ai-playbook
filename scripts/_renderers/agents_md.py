@@ -10,7 +10,11 @@ verbatim (see ``render``). The renderer:
 2. Substitutes the free-form consumer-content placeholders
    ({{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}, etc.) with values from
    ``bundle.project_meta`` when present; otherwise leaves them as
-   sentinel TODO lines for the operator to fill in.
+   sentinel TODO lines for the operator to fill in. A value that itself
+   still contains a slot placeholder (a section read back with its
+   placeholder unfilled) is not substituted into the consumer's file;
+   rendered from the template, it replaces the whole slot (placeholder
+   and template text after it), so the section comes back as it was read.
 3. Honours per-block curate intents from
    ``bundle.file_curate_intents["AGENTS.md"]`` — blocks marked
    ``keep_mine`` are overridden with content from ``current_text`` (the
@@ -20,6 +24,8 @@ verbatim (see ``render``). The renderer:
    drift without consulting the bundle manifest.
 """
 from __future__ import annotations
+
+import re
 
 from scripts._marker_blocks import (
     CommentStyle,
@@ -36,6 +42,10 @@ _PROJECT_META_TO_PLACEHOLDER = {
     "inherited_overrides": "{{NONE_OR_EXPLICIT_OVERRIDES_WITH_RATIONALE}}",
     "gotchas": "{{EMPTY_FILL_AS_YOU_LEARN}}",
 }
+
+# A template slot runs from its placeholder to the next section header or
+# canonical block.
+_SLOT_END_RE = re.compile(r"^(?:## |<!-- ai-playbook:begin )", re.MULTILINE)
 
 _DEFAULT_TODO_TEXT = {
     "project_identity": "TODO: 1-3 lines describing what this project does.",
@@ -55,14 +65,50 @@ def _apply_substitutions(template: str, substitutions: dict[str, str]) -> str:
     return out
 
 
-def _apply_project_meta(text: str, project_meta: dict | None) -> str:
+def _apply_project_meta(text: str, project_meta: dict | None, *, splice: bool) -> str:
     project_meta = project_meta or {}
     for meta_key, placeholder in _PROJECT_META_TO_PLACEHOLDER.items():
         value = project_meta.get(meta_key)
         if not isinstance(value, str) or not value.strip():
             value = _DEFAULT_TODO_TEXT.get(meta_key, "")
+        elif any(ph in value for ph in _PROJECT_META_TO_PLACEHOLDER.values()):
+            # A section read back by extract_project_meta: its placeholder, the
+            # template tail after it and anything the consumer added, verbatim.
+            # Substituting it for the placeholder repeats the tail (in the
+            # consumer's own file, on every render). The consumer's file keeps
+            # the slot as it is; the template takes the value as the whole slot.
+            start = text.find(placeholder)
+            if not splice and start >= 0 and placeholder in value:
+                nxt = _SLOT_END_RE.search(text, start)
+                end = len(text[:nxt.start() if nxt else len(text)].rstrip("\n"))
+                text = text[:start] + value + text[end:]
+            continue
         text = text.replace(placeholder, value)
     return text
+
+
+def _carry_auto_managed(body: str, current_text: str) -> str:
+    """Append the ``auto-managed`` blocks of ``current_text`` that ``body`` lacks.
+
+    caveman / ponytail / graphify write their block into AGENTS.md earlier in
+    the same apply; regenerating a markerless file from the template would
+    drop it until the next apply. A block whose source (ignoring a trailing
+    ``:<mode>``) ``body`` already has, e.g. through ``project_meta``, is not
+    added again.
+    """
+    from scripts.auto_managed import find_sections
+
+    try:
+        carried = find_sections(current_text)
+        present = {s.source.rsplit(":", 1)[0] for s in find_sections(body)}
+    except ValueError:
+        return body
+    lines = current_text.replace("\r\n", "\n").split("\n")
+    for sec in carried:
+        if sec.source.rsplit(":", 1)[0] not in present:
+            block = "\n".join(lines[sec.start_line - 1:sec.end_line])
+            body = body.rstrip("\n") + "\n\n" + block + "\n"
+    return body
 
 
 def _resolve_block_action(
@@ -146,7 +192,8 @@ def render(
     * No file, or a markerless (never-adopted) file: the output is generated
       from the template, with ``project_meta`` filling the free-form slots
       (markerless prose is recovered through backup + ``curate``, see
-      openspec/changes/lossless-adoption D2).
+      openspec/changes/lossless-adoption D2). The file's ``auto-managed``
+      blocks (caveman / ponytail / graphify) are appended to it.
     * A file that already carries marker blocks: the template's canonical
       blocks are spliced INTO ``current_text`` (missing ones appended); the
       frontmatter and every section outside the blocks are kept verbatim.
@@ -157,10 +204,13 @@ def render(
     the template.
     """
     body = _apply_substitutions(template, substitutions)
-    if current_text and parse_blocks(current_text, CommentStyle.HTML).blocks:
+    splice = bool(current_text) and bool(parse_blocks(current_text, CommentStyle.HTML).blocks)
+    if splice:
         sealed = parse_blocks(_inject_sha_into_markers(body), CommentStyle.HTML).blocks
         body = write_blocks(current_text, sealed, style=CommentStyle.HTML)
-    body = _apply_project_meta(body, bundle.get("project_meta"))
+    body = _apply_project_meta(body, bundle.get("project_meta"), splice=splice)
+    if current_text and not splice:
+        body = _carry_auto_managed(body, current_text)
     intents = (bundle.get("file_curate_intents") or {}).get("AGENTS.md")
     body = _apply_curate_intents(body, current_text, intents)
     body = _inject_sha_into_markers(body)
