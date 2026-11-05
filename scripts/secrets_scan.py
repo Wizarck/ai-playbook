@@ -39,6 +39,7 @@ import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import IO
 
 # Force UTF-8 stdio — Windows default cp1252 cannot encode the ❌/⚠️/✅ sigils
 # we emit, and secrets-scan output on Windows CI is routinely piped into UTF-8
@@ -65,15 +66,41 @@ for _stream in (sys.stdout, sys.stderr):
 # test in `tests/test_secrets_scan.py`.
 # ---------------------------------------------------------------------------
 
+# Assignment operator between a NAME and its value. A quoted value may sit on a
+# later line (YAML `KEY:\n  "v"`, JS `const KEY =\n  "v";`); an unquoted one
+# must share the NAME's line, or an empty `API_KEY=` would take the next dotenv
+# line (`CLAUDE_MODEL=…`) as its value.
+_ASSIGN = r"""(?:\s*[:=]\s*['"]|[ \t]*[:=][ \t]*)"""
+
+# One line-break unit inside a PEM block: a newline followed by `#`, `//` or
+# `>` line prefixes (a commented-out or quoted key); real whitespace; an
+# escaped `\n`, `\r` or `\u000a` (JSON, env values; any escape depth); a
+# backslash line continuation; an XML / HTML `&#10;`, `&#xA;` or `<br>`; or a
+# quote that ends a string literal plus the operator that may join it to the
+# next one (`" +`, `" .`, `",`: concatenation, a list of lines).
+_PEM_BREAK = (
+    r"(?:\n(?:[ \t]*(?:[#>]|//))+|\s|\\+(?:[nr]|u000[aAdD])|\\(?=\r?\n)"
+    r"""|&#(?:1[03]|[xX]0{0,2}[aAdD]);|<[bB][rR][ \t]*/?>|["'](?:\s*[+.,])?)"""
+)
+
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Anthropic API key. Example: sk-ant-api03-abc...XYZ (>= 50 chars after prefix).
     ("anthropic_api_key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{50,}")),
     # OpenAI API key — legacy (sk-<32+ alnum>) and the prefixed project /
-    # service-account / admin keys, whose bodies include `_` and `-`.
+    # service-account / admin keys, whose bodies include `_` and `-` (real ones
+    # are ~150 chars). The prefixed form must not follow a letter unless that
+    # letter ends an escape (`\n`, `%3D`, or a JSON `\uXXXX`, which Go's
+    # json.Marshal uses for `<` and `>`), and its body must pass
+    # `_looks_like_secret`, so kebab-case (`task-proj-…`, `helpdesk-admin-…`)
+    # and `.env.example` placeholders do not fire.
     # Example: sk-proj-abc...xyz, sk-svcacct-..., sk-admin-...
     (
         "openai_api_key",
-        re.compile(r"sk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})"),
+        re.compile(
+            r"(?:(?<![A-Za-z])|(?<=\\[nrt])|(?<=\\u[0-9A-Fa-f]{4})|(?<=%[0-9A-Fa-f]{2}))"
+            r"sk-(?:proj|svcacct|admin)-(?P<body>[A-Za-z0-9_\-]{40,})"
+            r"|sk-[A-Za-z0-9]{32,}"
+        ),
     ),
     # GitHub classic tokens (ghp_/gho_/ghu_/ghs_/ghr_) and fine-grained PATs
     # (github_pat_<22>_<59>).
@@ -85,23 +112,34 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Example: AKIAIOSFODNN7EXAMPLE.
     ("aws_access_key", re.compile(r"(?:AKIA|ASIA)[0-9A-Z]{16}")),
     # AWS Secret Access Key: only when paired with an obvious assignment.
-    # Quotes optional (dotenv / ~/.aws/credentials are unquoted).
+    # Quotes optional (dotenv / ~/.aws/credentials are unquoted); see
+    # `_ASSIGN` for why only a quoted value may sit on a later line.
     # Example: aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
     (
         "aws_secret_access_key",
         re.compile(
-            r"aws_secret_access_key\s*[:=]\s*['\"]?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])['\"]?",
+            r"aws_secret_access_key" + _ASSIGN
+            + r"[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])['\"]?",
             re.IGNORECASE,
         ),
     ),
-    # PEM / OpenSSH / PGP private key. The match swallows the base64 body up
-    # to (and including) the END line so sanitise() redacts the key material,
-    # not just the header. Example header: "BEGIN OPENSSH PRIVATE KEY" in dashes.
+    # PEM / OpenSSH / PGP private key: the BEGIN line, optional armor headers
+    # (PGP `Comment:`, encrypted-PEM `Proc-Type:`), then key material whose
+    # first line is 40+ base64 chars that pass `_looks_like_secret`. A header
+    # alone (prose, a constant, a `MIIE...` placeholder) does not fire. Lines
+    # may be split as `_PEM_BREAK` lists (real or escaped breaks, string
+    # literals joined by `+` / `.` / `,` or adjacency, `#` / `//` / `>`
+    # prefixes), and the match runs through the END line so sanitise()
+    # redacts the key material, not just the header.
+    # Example header: "BEGIN OPENSSH PRIVATE KEY" in dashes.
     (
         "private_key",
         re.compile(
-            r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----[A-Za-z0-9+/=\s]*"
-            r"(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)?"
+            r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----" + _PEM_BREAK + r"*+"
+            + r"(?:[A-Za-z][A-Za-z0-9-]{0,40}:[ \t][^\r\n\\]*+" + _PEM_BREAK + r"++){0,10}"
+            + r"(?P<body>(?:[A-Za-z0-9+/]|\\/){40,}+)"
+            + r"(?:" + _PEM_BREAK + r"|[A-Za-z0-9+/=]|\\/)*+"
+            + r"(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)?"
         ),
     ),
     # Langfuse observability keys.
@@ -118,17 +156,41 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Generic SECRET/TOKEN/KEY=value envs. Only fires when RHS is >=20 chars,
     # quoted or unquoted (dotenv), terminated by whitespace / a quote / end of
     # text, and contains a mix of classes (lowers/UPPERS/digits). The
-    # mix-class requirement is asserted post-match in `_generic_env_is_secret`.
-    # The lookbehind + bounded name length keep this linear on long
-    # uppercase runs (otherwise every offset of the run restarts the match).
+    # terminator is checked by `_env_assignments` and the mix-class
+    # requirement post-match in `_looks_like_secret`.
+    # The name may start anywhere, so `_API_KEY`, `self._API_TOKEN`,
+    # `app_SECRET_KEY` and `2FA_SECRET` match from their uppercase tail. Its
+    # bounded length keeps this linear on long uppercase runs (an unbounded
+    # name restarts from every offset of the run); a longer name still
+    # matches from a later offset.
     (
         "generic_env_secret",
         re.compile(
-            r"""(?<![A-Z0-9_])(?P<prefix>[A-Z][A-Z0-9_]{0,64}(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
-            r"""\s*[:=]\s*['\"]?(?P<val>[A-Za-z0-9/+=_\-]{20,})(?=[\s'\"]|\Z)['\"]?""",
+            r"""(?P<prefix>[A-Z][A-Z0-9_]{0,64}(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
+            + _ASSIGN
+            + r"""(?P<val>[A-Za-z0-9/+=_\-]{20,}+)""",
         ),
     ),
 ]
+
+# Longest name generic_env_secret matches: [A-Z] + {0,64} + "PASSWORD".
+_ENV_NAME_MAX = 1 + 64 + len("PASSWORD")
+_ENV_VALUE_END = re.compile(r"""[\s'"]""")
+
+# Placeholder markers: a value containing one is documentation, not a secret.
+# Key bodies (prefixed OpenAI, PEM material) are checked against the long words
+# only: a random ~150-char body contains "xxxx" (any case) about once in 7,000.
+_PLACEHOLDER_WORDS = ("example", "changeme", "redacted", "your-")
+_PLACEHOLDER_MARKERS = (*_PLACEHOLDER_WORDS, "xxxx", "****", "<", ">")
+
+# kind -> (named group holding the value, placeholder markers) for kinds whose
+# matches must also pass `_looks_like_secret`. A group that did not take part
+# in the match (the legacy `sk-` branch has no `body`) is not checked.
+_VALUE_CHECKS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "openai_api_key": ("body", _PLACEHOLDER_WORDS),
+    "private_key": ("body", _PLACEHOLDER_WORDS),
+    "generic_env_secret": ("val", _PLACEHOLDER_MARKERS),
+}
 
 
 # Directory names we will not recurse into when scanning a tree.
@@ -156,20 +218,45 @@ class Match:
         return f"{self.path.as_posix()}:{self.line_no}"
 
 
-def _generic_env_is_secret(value: str) -> bool:
-    """Heuristic: the RHS looks secret-y (classes mix + no obvious placeholder)."""
+def _looks_like_secret(value: str, markers: tuple[str, ...] = _PLACEHOLDER_MARKERS) -> bool:
+    """Heuristic: the value looks secret-y (classes mix + no obvious placeholder)."""
     if len(value) < 20:
         return False
     lowered = value.lower()
-    if any(ph in lowered for ph in (
-        "example", "changeme", "redacted", "xxxx", "****", "your-", "<", ">",
-    )):
+    if any(ph in lowered for ph in markers):
         return False
     has_lower = any(c.islower() for c in value)
     has_upper = any(c.isupper() for c in value)
     has_digit = any(c.isdigit() for c in value)
     classes = sum([has_lower, has_upper, has_digit])
     return classes >= 2
+
+
+def _env_assignments(
+    pattern: re.Pattern[str], text: str,
+) -> Iterator[tuple[int, int, re.Match[str]]]:
+    """Yield ``(start, end, match)`` per generic_env_secret hit, in linear time.
+
+    Same hits as ``finditer`` over the pattern plus ``(?=[\\s'"]|\\Z)['"]?``:
+    the value must end at whitespace, a quote (kept in the hit) or the end of
+    text; otherwise it is part of a longer token (``TOKEN = getToken()``).
+    With that check inside the regex, each ``NAME=`` start inside one long run
+    of value characters rescanned the run (quadratic). Every later start whose
+    name ends before the value's end shares that end and fails too, so the
+    search resumes at the first start whose name could end exactly there
+    (``…NAME: "v"``).
+    """
+    n = len(text)
+    pos = 0
+    while (m := pattern.search(text, pos)) is not None:
+        end = m.end("val")
+        if end < n and not _ENV_VALUE_END.match(text, end):
+            pos = max(m.start() + 1, end - _ENV_NAME_MAX)
+            continue
+        if end < n and text[end] in "'\"":
+            end += 1
+        yield m.start(), end, m
+        pos = end
 
 
 def scan(text: str, *, kinds: list[str] | None = None) -> list[Match]:
@@ -202,18 +289,23 @@ def scan(text: str, *, kinds: list[str] | None = None) -> list[Match]:
 
     out: list[Match] = []
     for kind, pattern in selected:
-        for m in pattern.finditer(text):
-            if kind == "generic_env_secret":
-                val = m.group("val")
-                if not _generic_env_is_secret(val):
+        check = _VALUE_CHECKS.get(kind)
+        if kind == "generic_env_secret":
+            hits = _env_assignments(pattern, text)
+        else:
+            hits = ((m.start(), m.end(), m) for m in pattern.finditer(text))
+        for start, end, m in hits:
+            if check is not None:
+                value = m.group(check[0])
+                if value is not None and not _looks_like_secret(value, check[1]):
                     continue
             out.append(
                 Match(
                     kind=kind,
                     path=None,
-                    line_no=_line_no_of(m.start()),
-                    start=m.start(),
-                    end=m.end(),
+                    line_no=_line_no_of(start),
+                    start=start,
+                    end=end,
                 )
             )
     # Stable ordering by offset.
@@ -255,30 +347,46 @@ def sanitise(text: str) -> tuple[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def _is_binary_sample(chunk: bytes) -> bool:
-    if not chunk:
-        return False
-    # Null byte ⇒ binary.
-    if b"\x00" in chunk:
-        return True
-    # Try decoding as UTF-8; anything that fails is considered binary for our
-    # purposes (we don't want to false-positive on compiled artefacts). The
-    # incremental decoder with final=False tolerates a multibyte character
-    # split by the sample boundary.
+# UTF-32 first: its little-endian BOM starts with the UTF-16 one.
+_TEXT_BOMS = (
+    (codecs.BOM_UTF32_LE, "utf-32"), (codecs.BOM_UTF32_BE, "utf-32"),
+    (codecs.BOM_UTF16_LE, "utf-16"), (codecs.BOM_UTF16_BE, "utf-16"),
+)
+# C0 controls legacy 8-bit text may contain: tab, LF, VT, FF, CR, SUB, ESC.
+_TEXT_CONTROLS = frozenset(b"\t\n\v\f\r\x1a\x1b")
+
+
+def _text_encoding(sample: bytes) -> str | None:
+    """Codec for a file whose first bytes are `sample`; None means binary (skip).
+
+    UTF-16/32 text carries a BOM (Windows PowerShell 5.1 `>` / Out-File write
+    UTF-16LE). Otherwise a NUL byte means binary; UTF-8 is tried next (the
+    incremental decoder tolerates a multibyte char split by the sample
+    boundary), then legacy 8-bit text (cp1252, e.g. PS 5.1 Set-Content) when
+    the sample has no other control bytes, as compiled artefacts do.
+    """
+    for bom, codec in _TEXT_BOMS:
+        if sample.startswith(bom):
+            return codec
+    if b"\x00" in sample:
+        return None
     try:
-        codecs.getincrementaldecoder("utf-8")().decode(chunk, final=False)
+        codecs.getincrementaldecoder("utf-8")().decode(sample, final=False)
+        return "utf-8"
     except UnicodeDecodeError:
-        return True
-    return False
+        pass
+    if any((b < 0x20 and b not in _TEXT_CONTROLS) or b == 0x7F for b in sample):
+        return None
+    return "cp1252"
 
 
-def _is_probably_binary(path: Path, sample_size: int = 2048) -> bool:
+def _file_encoding(path: Path, sample_size: int = 2048) -> str | None:
     try:
         with path.open("rb") as fh:
-            chunk = fh.read(sample_size)
+            sample = fh.read(sample_size)
     except OSError:
-        return True
-    return _is_binary_sample(chunk)
+        return None
+    return _text_encoding(sample)
 
 
 def _walk_paths(paths: Iterable[Path]) -> Iterator[Path]:
@@ -301,10 +409,11 @@ def _walk_paths(paths: Iterable[Path]) -> Iterator[Path]:
 
 
 def _scan_file(path: Path) -> list[Match]:
-    if _is_probably_binary(path):
+    encoding = _file_encoding(path)
+    if encoding is None:
         return []
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding=encoding, errors="replace")
     except OSError as exc:
         print(
             f"⚠️  Could not read {path.as_posix()}: {exc}", file=sys.stderr,
@@ -366,8 +475,11 @@ def _git(*args: str) -> bytes:
         ).stdout
     except (OSError, subprocess.SubprocessError) as exc:
         detail = getattr(exc, "stderr", b"") or b""
+        cmd = args
+        while cmd[:1] == ("-c",):  # name the subcommand, not `-c key=value`
+            cmd = cmd[2:]
         raise _GitError(
-            f"git {' '.join(args[:2])} failed: {exc} {detail.decode(errors='replace').strip()}"
+            f"git {' '.join(cmd[:2])} failed: {exc} {detail.decode(errors='replace').strip()}"
         ) from exc
 
 
@@ -375,12 +487,15 @@ def _staged_blobs() -> list[tuple[str, str]]:
     """Return ``(toplevel-relative path, blob sha)`` for every staged file.
 
     Reads the INDEX (what will be committed), not the working tree. ``-z``
-    avoids C-quoting of non-ASCII paths; gitlinks (submodule bumps, mode
+    avoids C-quoting of non-ASCII paths; ``diff.relative=false`` keeps files
+    outside the current directory (that setting drops them); ``T`` covers a
+    symlink replaced by a regular file; gitlinks (submodule bumps, mode
     160000) are skipped. Raises ``_GitError`` when git fails (not a repo, …).
     """
     raw = _git(
+        "-c", "diff.relative=false",
         "diff", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev",
-        "--diff-filter=ACMR",
+        "--diff-filter=ACMRT",
     )
     fields = raw.split(b"\0")
     out: list[tuple[str, str]] = []
@@ -393,6 +508,61 @@ def _staged_blobs() -> list[tuple[str, str]]:
             continue
         out.append((os.fsdecode(path), new_sha))
     return out
+
+
+def _read_exact(stream: IO[bytes], size: int) -> bytes:
+    data = stream.read(size)
+    if len(data) != size:
+        raise EOFError("output ended early")
+    return data
+
+
+def _staged_texts(blobs: list[tuple[str, str]]) -> Iterator[tuple[str, str]]:
+    """Yield ``(path, text)`` per staged text blob, read via one ``git cat-file --batch``.
+
+    One process serves every blob (a spawn per file cost ~20 ms on Windows).
+    A blob is held only once its first 2 KB show it is text; a binary one is
+    drained in chunks and skipped. Raises ``_GitError`` when git fails.
+    """
+    try:
+        proc = subprocess.Popen(
+            ["git", "cat-file", "--batch"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        raise _GitError(f"git cat-file --batch failed: {exc}") from exc
+    stdin, stdout = proc.stdin, proc.stdout
+    assert stdin is not None and stdout is not None
+    error = ""
+    try:
+        for name, sha in blobs:
+            stdin.write(sha.encode("ascii") + b"\n")
+            stdin.flush()
+            # Reply: "<sha> blob <size>\n<content>\n", or "<sha> missing\n".
+            header = stdout.readline().split()
+            if len(header) != 3 or header[1] != b"blob":
+                error = f"no blob {sha} for {name}"
+                break
+            size = int(header[2])
+            head = _read_exact(stdout, min(size, 2048))
+            encoding = _text_encoding(head)
+            if encoding is None:
+                rest = size - len(head)
+                while rest:
+                    rest -= len(_read_exact(stdout, min(rest, 1 << 20)))
+                _read_exact(stdout, 1)
+                continue
+            data = head + _read_exact(stdout, size - len(head))
+            _read_exact(stdout, 1)
+            yield name, data.decode(encoding, errors="replace")
+    except (OSError, ValueError, EOFError) as exc:
+        error = str(exc)
+    finally:
+        _, err = proc.communicate()
+    if error or proc.returncode:
+        raise _GitError(
+            f"git cat-file --batch failed: {error} {err.decode(errors='replace').strip()}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -500,14 +670,11 @@ def _run_staged_mode() -> int:
             return 0
         top = Path(os.fsdecode(_git("rev-parse", "--show-toplevel").strip()))
         matches: list[Match] = []
-        for name, sha in blobs:
-            data = _git("cat-file", "blob", sha)
-            if _is_binary_sample(data[:2048]):
-                continue
+        for name, text in _staged_texts(blobs):
             path = Path(name)
             matches.extend(
                 Match(kind=m.kind, path=path, line_no=m.line_no, start=m.start, end=m.end)
-                for m in scan(data.decode("utf-8", errors="replace"))
+                for m in scan(text)
             )
     except _GitError as exc:
         # Fail closed: a vacuous pass here would let the commit through unscanned.
