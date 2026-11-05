@@ -48,8 +48,10 @@ Exit codes
 ----------
     0  success (retained or queued in degraded mode)
     1  user-actionable error (missing required field, malformed JSONL)
-    2  setup error (missing env vars, missing JSONL file)
-    3  hard block (sanitiser detected secret-shaped content; OVERRIDE: none)
+    2  setup error (missing env vars, missing JSONL file), or the secrets
+       sanitiser itself failed: fail closed, nothing retained or queued
+    3  hard block (sanitiser detected secret-shaped content in any field;
+       OVERRIDE: none)
 """
 from __future__ import annotations
 
@@ -354,6 +356,7 @@ def _items_from_args(args: argparse.Namespace) -> list[RetainItem]:
             context=args.context,
             ttl_days=args.ttl_days,
             timestamp=args.timestamp,
+            document_id=args.document_id,
         ))
     return items
 

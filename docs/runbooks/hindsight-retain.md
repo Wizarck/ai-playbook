@@ -89,12 +89,16 @@ Skip retain when the content is already trivially recoverable from `git log`, `g
 ## Troubleshooting
 
 ### Symptom: script exits 3 with `OVERRIDE: none` after a content scan
-**Cause**: the merged `content` + `why` text contains a shape matching a hard-blocked secret pattern (e.g., `anthropic-api-key`, `openai-api-key`, `github-pat`, `aws-secret`). `scripts.secrets_scan.sanitise` runs before POST and hard-blocks these. No break-glass is available for this gate.
-**Fix**: clean up the lesson body — paraphrase the key reference, or replace the token-shaped substring with `<redacted>`. Re-run.
+**Cause**: a field of the item contains a shape matching a hard-blocked secret pattern. `scripts.secrets_scan.sanitise` runs before POST over every field that reaches Hindsight or the degraded queue — `content`, `why`, `context`, each tag, `project`, `kind`, `trace_id`, `timestamp`, `document_id` — and any match whose kind ends in `key`, `secret` or `pat` hard-blocks (e.g. `anthropic_api_key`, `openai_api_key`, `github_pat`, `aws_secret_access_key`, `private_key`, `generic_env_secret`). No break-glass is available for this gate.
+**Fix**: clean up the offending field — paraphrase the key reference, or replace the token-shaped substring with `<redacted>`. Re-run.
 
 ### Symptom: item retained but tagged `sanitised`
-**Cause**: a softer pattern matched (URL with embedded token, base64-ish string). The script redacted the match and added the `sanitised` tag.
+**Cause**: a softer pattern matched (a JWT, kind `jwt`). The script redacted the match and added the `sanitised` tag.
 **Fix**: expected behaviour. If the redaction was over-eager, re-author the lesson with the redacted span as an explicit placeholder and retain again.
+
+### Symptom: script exits 2 with `secrets sanitiser failed`
+**Cause**: `scripts/secrets_scan.py` raised while scanning the item. The retain fails closed: nothing was posted or queued.
+**Fix**: the stderr line names the exception; repair or update the playbook's `scripts/secrets_scan.py`, then re-run. There is no override.
 
 ### Symptom: `degraded:retain_failed` or network error
 **Cause**: `HINDSIGHT_URL` unset OR Hindsight unreachable. The script appended the item to `<consumer>/.ai-playbook/hindsight-queue.jsonl` (gitignored) and exited 0.
