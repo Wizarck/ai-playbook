@@ -44,6 +44,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -151,13 +152,15 @@ def build_edit_plan(
                                  flag="--hindsight-url"))
 
     # SOPS path: the SessionStart hook in the template settings.json (sibling
-    # consumer-a) + the runbooks' sops exec-env examples.
+    # consumer-a) + the runbooks' sops exec-env examples. Inside a JSON string
+    # the value is escaped: a Windows path's backslashes are JSON escapes.
     if secrets_env_path:
         for f in ("templates/new-project/.claude/settings.json.tmpl",
                   "templates/new-project/AGENTS.md.tmpl",
                   "docs/runbooks/hindsight-retain.md",
                   "docs/runbooks/onboard-new-project.md"):
-            plan.append(FileEdit(f, [(s, secrets_env_path) for s in SECRETS_ENV_PATHS],
+            value = json.dumps(secrets_env_path, ensure_ascii=False)[1:-1] if _is_json(f) else secrets_env_path
+            plan.append(FileEdit(f, [(s, value) for s in SECRETS_ENV_PATHS],
                                  flag="--secrets-env-path"))
 
     # Owner email: the fork's own AGENTS.md frontmatter + the registry example.
@@ -169,6 +172,10 @@ def build_edit_plan(
     return plan
 
 
+def _is_json(rel: str) -> bool:
+    return rel.endswith((".json", ".json.tmpl"))
+
+
 def apply_edits(
     root: Path, plan: list[FileEdit], *, dry_run: bool,
     flag_hits: dict[str, int] | None = None,
@@ -178,6 +185,8 @@ def apply_edits(
 
     When ``flag_hits`` is given, it receives the replacement count per
     ``FileEdit.flag`` (0 for a flag whose literals matched nothing).
+
+    Raises ``ValueError`` when an edit would turn a valid JSON file invalid.
     """
     files_touched = 0
     total_replacements = 0
@@ -201,6 +210,16 @@ def apply_edits(
 
         if new_text == text:
             continue
+        if _is_json(edit.path):
+            try:
+                json.loads(text)
+            except ValueError:
+                pass  # not plain JSON to begin with; nothing to keep valid
+            else:
+                try:
+                    json.loads(new_text)
+                except ValueError as exc:
+                    raise ValueError(f"{edit.path} would become invalid JSON ({exc})") from exc
         files_touched += 1
         total_replacements += local_replacements
         action = "would write" if dry_run else "wrote"
@@ -245,6 +264,12 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     _validate_org_name(args.org_name)
+    if args.secrets_env_path and any(c in args.secrets_env_path for c in '"\r\n'):
+        # The template puts it inside a double-quoted shell arg of a JSON string.
+        print(f"❌ --secrets-env-path must not contain a double quote or a line break: "
+              f"got {args.secrets_env_path!r}", file=sys.stderr)
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 1
     root = _detect_playbook_root(args.root)
     print(f"playbook root: {root}")
     print(f"target org   : {args.org_name}")
@@ -266,7 +291,13 @@ def main(argv: list[str] | None = None) -> int:
     # Silent dry pass first: nothing is written unless every flag passed either
     # rewrites an upstream literal or already holds its value (a re-run).
     flag_hits: dict[str, int] = {}
-    apply_edits(root, plan, dry_run=True, flag_hits=flag_hits, quiet=True)
+    try:
+        apply_edits(root, plan, dry_run=True, flag_hits=flag_hits, quiet=True)
+    except ValueError as exc:
+        print(f"❌ {exc}; nothing was written at scripts/init_org.py:apply_edits", file=sys.stderr)
+        print("   FIX: pass a value that is valid inside a JSON string, then rerun.", file=sys.stderr)
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 1
     passed = ["--owner-email"]
     if args.hindsight_url:
         passed.append("--hindsight-url")
