@@ -95,8 +95,11 @@ is present at that SHA and `git checkout <sha> -- <path>` restores it exactly.
 
 
 def git(root: Path, *args: str) -> str:
+    # Literal pathspecs: ledger paths are file names, not globs. `git rm --
+    # app/[id].tsx` would otherwise also remove a tracked app/i.tsx.
     out = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True, check=False
+        ["git", "--literal-pathspecs", "-C", str(root), *args],
+        capture_output=True, text=True, check=False,
     )
     if out.returncode != 0:
         raise ConfigError(f"git {' '.join(args)} failed: {out.stderr.strip()}")
@@ -384,7 +387,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
     untracked = [
         p for p in paths
         if subprocess.run(
-            ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", p],
+            ["git", "--literal-pathspecs", "-C", str(root), "ls-files", "--error-unmatch", "--", p],
             capture_output=True, text=True, check=False,
         ).returncode != 0
     ]
