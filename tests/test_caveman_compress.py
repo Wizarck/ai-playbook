@@ -121,6 +121,34 @@ def test_contract_inline_code_never_spans_a_paragraph_or_a_block() -> None:
     assert spans("- item `a\n  b` c\n") == ["`a\n  b`"]
 
 
+_RUNBOOK = (
+    "# Runbook\n\nNEVER skip the smoke test before deploying to prod. Always page on-call first.\n\n"
+    "Run `make deploy` then check https://example.com/status and docs/ops/deploy.md.\n"
+)
+
+
+def test_contract_rejects_a_token_skeleton() -> None:
+    """Regression F10: output made of nothing but the protected tokens must not pass."""
+    skeleton = "# Runbook\n`make deploy` https://example.com/status docs/ops/deploy.md\n"
+    found = _src_and_violations(_RUNBOOK, skeleton)
+    assert len(found) == 1
+    assert found[0].startswith("prose: only 0 of the source's")
+
+
+def test_contract_accepts_a_terse_but_real_compression() -> None:
+    ultra = (
+        "# Runbook\n\nNEVER skip smoke test pre-prod deploy. Page on-call first.\n\n"
+        "`make deploy` → check https://example.com/status, docs/ops/deploy.md.\n"
+    )
+    assert _src_and_violations(_RUNBOOK, ultra) == []
+
+
+def test_contract_does_not_judge_prose_of_a_tiny_source() -> None:
+    src = "# Setup\n\nRun `make install`.\n"
+    assert compress.extract_contract(src).prose_words < compress.MIN_PROSE_WORDS
+    assert _src_and_violations(src, "# Setup\n\n`make install`\n") == []
+
+
 def test_contract_accepts_crlf_output() -> None:
     """Regression F9: CRLF line endings must not make every heading look missing."""
     src = "# Title\n\nbody text here\n\n```sh\nmake test\n```\n"
@@ -261,6 +289,25 @@ def test_compress_retry_prompt_includes_source_and_previous_output(tmp_path: Pat
     assert src in prompts[1]
     assert bad_output in prompts[1]
     assert "https://example.com/docs" in prompts[1]
+
+
+def test_compress_retries_a_skeleton_and_never_writes_one(tmp_path: Path) -> None:
+    skeleton = "# Runbook\n`make deploy` https://example.com/status docs/ops/deploy.md\n"
+    good = (
+        "# Runbook\n\nNever skip smoke test before prod deploy. Page on-call first.\n\n"
+        "Run `make deploy`, check https://example.com/status and docs/ops/deploy.md.\n"
+    )
+    source = _write_fixture(tmp_path, _RUNBOOK)
+    result = compress.compress(source, mode="full", llm_call=_mock_llm([skeleton, good]))
+    assert result.retries_used == 1
+    assert source.read_text(encoding="utf-8") == good
+
+    again = tmp_path / "again"
+    again.mkdir()
+    source = _write_fixture(again, _RUNBOOK)
+    with pytest.raises(compress.CompressionFailedError, match="prose"):
+        compress.compress(source, mode="full", llm_call=_mock_llm([skeleton] * 3))
+    assert source.read_text(encoding="utf-8") == _RUNBOOK
 
 
 def test_compress_accepts_crlf_output_without_retry(tmp_path: Path) -> None:

@@ -167,8 +167,10 @@ python -m scripts.caveman compress path/to/file.md \
 - Validates byte-preservation contract (whole-line headings, backtick
   and tilde fenced code blocks at any indentation, inline code spans —
   paired per paragraph, so a span may wrap onto the next line and come
-  back reflowed — URLs, paths). Retries up to 2 times on violation;
-  restores source from backup on final failure.
+  back reflowed — URLs, paths), plus a skeleton guard: output keeping
+  under `MIN_PROSE_KEPT` (10%) of the source's prose words is a violation
+  when the source has at least `MIN_PROSE_WORDS` (10). Retries up to 2
+  times on violation; restores source from backup on final failure.
 
 This is independent of `enabled`/`on`/`off` — it's a one-shot operation
 gated by the user, not by the toggle. (The `components.compress_docs`

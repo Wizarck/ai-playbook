@@ -173,6 +173,8 @@ What this does:
    block (backtick or tilde, including list-indented ones), inline code span,
    URL, and file path from the source appears byte-for-byte in the output.
    An inline span the source wraps across two lines may come back on one.
+   Output that keeps those tokens but drops the prose (under 10% of the
+   source's prose words, for a source with at least 10) is a violation too.
 4. On violation, retries with a targeted patch (up to 2 times). After
    2 failed retries, restores from `AGENTS.md.original.md` and exits 1.
 
