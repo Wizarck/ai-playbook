@@ -619,7 +619,7 @@ def test_yaml_renderers_keep_consumer_edits_outside_managed_content(
     import yaml
     bundle = {
         "schema": "ai-playbook-config/v1",
-        "pre_commit_extras": {"hooks": [{"id": "extra", "entry": "echo hi",
+        "pre_commit_extras": {"hooks": [{"id": "extra", "name": "extra", "entry": "echo hi",
                                          "language": "system"}]},
         "coderabbit_extras": {"path_filters": ["!gen/**"]},
         "mcp_project_servers": {"extra-srv": {"id": "extra-srv", "endpoint": None}},

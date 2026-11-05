@@ -254,6 +254,11 @@ def test_gitignore_dedupes_preserved_and_extras() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _hook(hook_id: str) -> dict:
+    """A complete `repo: local` hook (pre-commit requires all four keys)."""
+    return {"id": hook_id, "name": hook_id, "entry": "true", "language": "system"}
+
+
 def test_pre_commit_renders_baseline_and_extras() -> None:
     template = (
         "repos:\n"
@@ -267,7 +272,7 @@ def test_pre_commit_renders_baseline_and_extras() -> None:
     out = render_pre_commit(
         template=template,
         substitutions={},
-        bundle={"pre_commit_extras": {"hooks": [{"id": "custom-hook", "language": "system"}]}},
+        bundle={"pre_commit_extras": {"hooks": [_hook("custom-hook")]}},
     )
     assert "trailing-whitespace" in out  # canonical preserved
     assert "custom-hook" in out
@@ -277,7 +282,7 @@ def test_pre_commit_renders_baseline_and_extras() -> None:
     repos = yaml.safe_load(out)["repos"]
     assert [r["repo"] for r in repos][-1] == "local"
     assert all(r["repo"] in ("local", "meta") or "rev" in r for r in repos)
-    assert repos[-1]["hooks"] == [{"id": "custom-hook", "language": "system"}]
+    assert repos[-1]["hooks"] == [_hook("custom-hook")]
 
 
 def test_pre_commit_bool_fields_render_lowercase_yaml() -> None:
@@ -293,7 +298,7 @@ def test_pre_commit_bool_fields_render_lowercase_yaml() -> None:
         template=template,
         substitutions={},
         bundle={"pre_commit_extras": {"hooks": [
-            {"id": "h", "pass_filenames": False, "args": ["--fix"]},
+            {**_hook("h"), "pass_filenames": False, "args": ["--fix"]},
         ]}},
     )
     assert "pass_filenames: false" in out
@@ -327,11 +332,25 @@ _PRE_COMMIT_TMPL = (
 
 def test_pre_commit_extras_values_round_trip() -> None:
     import yaml
-    hook = {"id": "x", "entry": "bash -c 'a: b # not a comment'", "language": "system",
+    hook = {"id": "x", "name": "x: y", "entry": "bash -c 'a: b # not a comment'",
+            "language": "system",
             "args": ["--k", "v: w"], "pass_filenames": False, "exclude": None}
     out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
                             bundle={"pre_commit_extras": {"hooks": [hook]}})
     assert yaml.safe_load(out)["repos"][-1]["hooks"] == [hook]
+
+
+@pytest.mark.parametrize(("hook", "missing"), [
+    ({"id": "only-id"}, "name, entry, language"),
+    ({"id": "blank", "name": "Blank", "entry": "  ", "language": "system"}, "entry"),
+])
+def test_pre_commit_refuses_incomplete_local_hook(hook: dict, missing: str) -> None:
+    """The config UI accepts a hook with only an id; written as a `repo: local`
+    hook, pre-commit rejects the whole config ("Missing required key: name")
+    and every commit is blocked. The render must fail instead."""
+    with pytest.raises(ValueError, match=f"{hook['id']!r} lacks {missing}:"):
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                          bundle={"pre_commit_extras": {"hooks": [_hook("ok"), hook]}})
 
 
 def test_pre_commit_merges_into_current_file() -> None:
@@ -356,7 +375,7 @@ def test_pre_commit_merges_into_current_file() -> None:
         "      - id: stale\n"
         "        language: system\n"
     )
-    bundle = {"pre_commit_extras": {"hooks": [{"id": "new", "language": "system"}]}}
+    bundle = {"pre_commit_extras": {"hooks": [_hook("new")]}}
     out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
                             bundle=bundle, current_text=current)
     assert out.startswith("# my own header\n")
@@ -365,7 +384,7 @@ def test_pre_commit_merges_into_current_file() -> None:
         "local", "https://github.com/astral-sh/ruff-pre-commit", "local",
     ]
     assert repos[0]["hooks"] == []  # canonical block refreshed from template
-    assert repos[-1]["hooks"] == [{"id": "new", "language": "system"}]
+    assert repos[-1]["hooks"] == [_hook("new")]
     assert "stale" not in out and "local-extras" not in out
     again = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
                               bundle=bundle, current_text=out)
