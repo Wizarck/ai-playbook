@@ -236,8 +236,13 @@ def restore_file(project_root: Path, file_path: Path) -> tuple[Path | None, int]
     Raises ``ValueError`` if the file exists, cannot be parsed as JSON and
     contains the wrap marker — refuse rather than guess.
     """
+    return _apply_restore(project_root, file_path, _restore_plan(file_path))
+
+
+def _restore_plan(file_path: Path) -> tuple[dict[str, Any], int] | None:
+    """``(unwrapped doc, n_unwrapped)`` for ``file_path``; ``None`` when nothing is wrapped."""
     if not file_path.is_file():
-        return None, 0
+        return None
     doc = _read_json(file_path)
     if doc is None:
         raw = file_path.read_bytes()
@@ -246,12 +251,17 @@ def restore_file(project_root: Path, file_path: Path) -> tuple[Path | None, int]
                 f"cannot parse {file_path} as UTF-8 JSON but it contains caveman-wrapped "
                 "entries; fix it (e.g. remove comments, re-save as UTF-8) and re-run."
             )
-        return None, 0
-
+        return None
     new_doc, count = _process_doc(doc, wrap=False)
-    if count == 0:
-        return None, 0
+    return (new_doc, count) if count else None
 
+
+def _apply_restore(
+    project_root: Path, file_path: Path, plan: tuple[dict[str, Any], int] | None
+) -> tuple[Path | None, int]:
+    if plan is None:
+        return None, 0
+    new_doc, count = plan
     backup = make_backup(project_root, "mcp", file_path)
     _write_json(file_path, new_doc)
     return backup, count
@@ -285,11 +295,16 @@ def shrink_project(project_root: Path) -> dict[str, Any]:
 
 
 def restore_project(project_root: Path) -> dict[str, Any]:
-    """Unwrap both ``.mcp.json`` and ``.gemini/settings.json``."""
+    """Unwrap both ``.mcp.json`` and ``.gemini/settings.json``.
+
+    Both files are checked before either is written, so a ``ValueError``
+    (unparseable wrapped file) leaves both untouched.
+    """
     claude = project_root / ".mcp.json"
     gemini = project_root / ".gemini" / "settings.json"
-    cbp, ccount = restore_file(project_root, claude)
-    gbp, gcount = restore_file(project_root, gemini)
+    cplan, gplan = _restore_plan(claude), _restore_plan(gemini)
+    cbp, ccount = _apply_restore(project_root, claude, cplan)
+    gbp, gcount = _apply_restore(project_root, gemini, gplan)
     return {
         "claude": {
             "path": claude.as_posix(),

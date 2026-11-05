@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,6 +72,28 @@ def _resolve_project_root(arg_project: Path | None) -> Path | None:
 
 def _applied_by_default() -> str | None:
     return os.environ.get("USER") or os.environ.get("USERNAME") or None
+
+
+def _mcp_undo(result: dict[str, Any]) -> list[tuple[Path, Path]]:
+    """``(file, pre-mutation backup)`` pairs from a shrink/restore_project result."""
+    return [(Path(r["path"]), Path(r["backup"])) for r in (result["claude"], result["gemini"]) if r["backup"]]
+
+
+def _undo(undo: list[tuple[Path, Path]]) -> str:
+    """Copy each pre-mutation backup back over its file, newest first.
+
+    Returns a sentence (with a leading space, or empty when there was
+    nothing to undo) for the FIX line of a failed on/off.
+    """
+    failed = []
+    for target, bak in reversed(undo):
+        try:
+            shutil.copy2(bak, target)
+        except OSError as e:
+            failed.append(f"{target}: {e}")
+    if failed:
+        return " Could not undo every earlier change (" + "; ".join(failed) + "); restore from .ai-playbook/backups/."
+    return " Earlier changes were undone; nothing was changed." if undo else ""
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +185,10 @@ def cmd_on(args: argparse.Namespace) -> int:
 
     # Side effects FIRST so that on failure we never end up with state-says-ON
     # but file-wasn't-materialised drift. Each side effect handles its own
-    # backup before mutation.
+    # backup before mutation; on a later failure those backups are copied
+    # back, so a failed `on` leaves the files as they were.
     side_effects: dict[str, Any] = {}
+    undo: list[tuple[Path, Path]] = []
 
     # Reconcile: a component ON in the prior state but not requested now gets
     # its inverse, so the files match the state we are about to write.
@@ -174,6 +199,7 @@ def cmd_on(args: argparse.Namespace) -> int:
             stripped = materialise_mod.strip(root)
             if stripped is not None:
                 side_effects["agents_md_strip_backup"] = stripped.as_posix()
+                undo.append((root / "AGENTS.md", stripped))
         except (FileNotFoundError, ValueError) as e:
             _emit_error(
                 why=f"strip failed: {e}",
@@ -184,11 +210,12 @@ def cmd_on(args: argparse.Namespace) -> int:
     if "mcp_shrink" in dropped:
         try:
             side_effects["mcp_restore"] = mcp_shrink_mod.restore_project(root)
+            undo += _mcp_undo(side_effects["mcp_restore"])
         except Exception as e:  # noqa: BLE001
             _emit_error(
                 why=f"mcp restore failed: {e}",
                 where="caveman:on:mcp_restore",
-                fix="fix the JSON syntax of .mcp.json / .gemini/settings.json then retry.",
+                fix=f"fix the JSON syntax of .mcp.json / .gemini/settings.json then retry.{_undo(undo)}",
             )
             return 1
 
@@ -196,11 +223,15 @@ def cmd_on(args: argparse.Namespace) -> int:
         try:
             backup = materialise_mod.materialise(root, mode)
             side_effects["agents_md_backup"] = backup.as_posix()
+            undo.append((root / "AGENTS.md", backup))
         except (FileNotFoundError, ValueError, LookupError) as e:
             _emit_error(
                 why=f"materialise failed: {e}",
                 where="caveman:on:materialise",
-                fix="ensure AGENTS.md exists at the project root and SKILL.md has the required H2 sections.",
+                fix=(
+                    "ensure AGENTS.md exists at the project root and SKILL.md has the required "
+                    f"H2 sections.{_undo(undo)}"
+                ),
             )
             return 1
 
@@ -208,11 +239,12 @@ def cmd_on(args: argparse.Namespace) -> int:
         try:
             shrink_result = mcp_shrink_mod.shrink_project(root)
             side_effects["mcp_shrink"] = shrink_result
+            undo += _mcp_undo(shrink_result)
         except Exception as e:  # noqa: BLE001
             _emit_error(
                 why=f"mcp shrink failed: {e}",
                 where="caveman:on:mcp_shrink",
-                fix="re-run scripts/mcp/render.py to regenerate clean .mcp.json then retry.",
+                fix=f"re-run scripts/mcp/render.py to regenerate clean .mcp.json then retry.{_undo(undo)}",
             )
             return 1
 
@@ -234,7 +266,7 @@ def cmd_on(args: argparse.Namespace) -> int:
         _emit_error(
             why=f"failed to write state: {e}",
             where="caveman:on:write",
-            fix="check file permissions on .ai-playbook/caveman.json and re-run.",
+            fix=f"check file permissions on .ai-playbook/caveman.json and re-run.{_undo(undo)}",
         )
         return 2
 
@@ -270,10 +302,12 @@ def cmd_off(args: argparse.Namespace) -> int:
         return 2
 
     side_effects: dict[str, Any] = {}
+    undo: list[tuple[Path, Path]] = []
     try:
         backup = materialise_mod.strip(root)
         if backup is not None:
             side_effects["agents_md_backup"] = backup.as_posix()
+            undo.append((root / "AGENTS.md", backup))
     except (FileNotFoundError, ValueError) as e:
         _emit_error(
             why=f"strip failed: {e}",
@@ -284,6 +318,7 @@ def cmd_off(args: argparse.Namespace) -> int:
 
     try:
         restore_result = mcp_shrink_mod.restore_project(root)
+        undo += _mcp_undo(restore_result)
         # Only surface when something was actually unwrapped.
         if restore_result["claude"]["unwrapped"] or restore_result["gemini"]["unwrapped"]:
             side_effects["mcp_restore"] = restore_result
@@ -291,7 +326,10 @@ def cmd_off(args: argparse.Namespace) -> int:
         _emit_error(
             why=f"mcp restore failed: {e}",
             where="caveman:off:mcp_restore",
-            fix="run `python -m scripts.caveman mcp-restore` to retry, or manually unwrap the .mcp.json entries.",
+            fix=(
+                "fix the JSON syntax of .mcp.json / .gemini/settings.json (e.g. remove comments), "
+                f"then re-run `caveman off`.{_undo(undo)}"
+            ),
         )
         return 1
 
@@ -309,7 +347,7 @@ def cmd_off(args: argparse.Namespace) -> int:
         _emit_error(
             why=f"failed to write state: {e}",
             where="caveman:off:write",
-            fix="check file permissions on .ai-playbook/caveman.json and re-run.",
+            fix=f"check file permissions on .ai-playbook/caveman.json and re-run.{_undo(undo)}",
         )
         return 2
 

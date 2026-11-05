@@ -338,6 +338,21 @@ def test_shrink_project_handles_only_claude(tmp_path: Path) -> None:
     assert result["gemini"]["backup"] is None
 
 
+def test_restore_project_checks_both_files_before_writing_either(tmp_path: Path) -> None:
+    """Regression F7: an unparseable wrapped gemini file must not leave .mcp.json unwrapped."""
+    claude = tmp_path / ".mcp.json"
+    gemini = tmp_path / ".gemini" / "settings.json"
+    _write_json(claude, {"mcpServers": {"a": {"command": "uv"}}})
+    _write_json(gemini, {"mcpServers": {"b": {"command": "go"}}})
+    mcp_shrink.shrink_project(tmp_path)
+    gemini.write_text("// note\n" + gemini.read_text(encoding="utf-8"), encoding="utf-8")
+    before = claude.read_bytes()
+
+    with pytest.raises(ValueError, match="cannot parse"):
+        mcp_shrink.restore_project(tmp_path)
+    assert claude.read_bytes() == before
+
+
 def test_shrink_then_restore_round_trip(tmp_path: Path) -> None:
     original_claude = {"mcpServers": {"a": {"command": "uv", "args": ["run"]}, "b": {"url": "http://x"}}}
     original_gemini = {"mcpServers": {"c": {"command": "go", "args": ["v"]}}}
