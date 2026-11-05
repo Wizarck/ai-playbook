@@ -396,6 +396,38 @@ def test_cas_matching_sha_allows_write(
     assert "node_modules/" in text  # consumer line preserved
 
 
+def test_cas_gate_checks_the_snapshot_taken_before_the_run(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """With cas_shas, the gate compares base_shas with the file as it stood
+    before the reconcile, so an in-run rewrite (graphify's .gitignore block) is
+    not a conflict; without it the same rewrite is one."""
+    from scripts._template_classifier import compute_file_sha
+    gi = fake_consumer / ".gitignore"
+    _write_lf(gi, "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": compute_file_sha(gi.read_text(encoding="utf-8")),
+                      "AGENTS.md": "000000000000"},  # not triggered: never checked
+    }
+    snapshot = _managed_files.snapshot_cas_shas(fake_consumer, bundle)
+    assert set(snapshot) == {".gitignore", "AGENTS.md"}
+    _write_lf(gi, "node_modules/\n# graphify\ngraphify-out/\n")  # earlier section
+    stale = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+        dry_run=True,
+    )
+    assert stale.ok is False and "cas_conflict" in stale.file_states[".gitignore"]
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+        cas_shas=snapshot,
+    )
+    assert result.ok is True, result.changes
+    text = gi.read_text(encoding="utf-8")
+    assert "graphify-out/" in text and "dist/" in text
+
+
 def test_cas_conflict_reported_in_dry_run(
     fake_playbook: Path, fake_consumer: Path,
 ) -> None:
