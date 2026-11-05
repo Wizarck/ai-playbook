@@ -226,41 +226,61 @@ def _find_consumer_root(start: Path) -> Path | None:
 # ---------------------------------------------------------------------------
 
 
-def _safety_check_gitmodules_first(target: Path, entry: dict[str, Any], consumer_root: Path) -> SafetyResult:
-    if not target.exists():
-        return SafetyResult(False, "target absent — no zombie")
+def _norm_rel(path: str) -> str:
+    path = path.strip().replace("\\", "/").rstrip("/")
+    return path[2:] if path.startswith("./") else path
+
+
+def _paths_overlap(a: str, b: str) -> bool:
+    """True when `a` and `b` are the same path or one contains the other."""
+    if sys.platform in ("win32", "darwin"):  # case-insensitive filesystems by default
+        a, b = a.casefold(), b.casefold()
+    return a == b or a.startswith(b + "/") or b.startswith(a + "/")
+
+
+def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
+    """(name, path) of every submodule `.gitmodules` registers; None if unreadable.
+
+    `git config` resolves quoting and escapes; parsing the raw file is the
+    fallback when git is unavailable or rejects the file.
+    """
     gitmodules = consumer_root / ".gitmodules"
     if not gitmodules.is_file():
-        return SafetyResult(True, ".gitmodules absent — directory is orphan")
-    text = gitmodules.read_text(encoding="utf-8")
-    rel = str(target.relative_to(consumer_root)).replace("\\", "/")
-    # Match a `path = <rel>` line under any [submodule "..."] block.
-    pattern = re.compile(rf"^\s*path\s*=\s*{re.escape(rel)}\s*$", re.MULTILINE)
-    if pattern.search(text):
-        return SafetyResult(False, f"submodule path `{rel}` still registered in .gitmodules")
-    return SafetyResult(True, ".gitmodules does not register this path")
-
-
-def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root: Path) -> SafetyResult:
-    if not target.exists():
-        return SafetyResult(False, "target absent — no zombie")
-    if not target.is_dir():
-        return SafetyResult(False, "target is not a directory")
-    rel = str(target.relative_to(consumer_root)).replace("\\", "/")
-    # `.git/modules/<name>` is never tracked, so the ls-files probe below always
-    # passes for it. It is the git dir of submodule <name> (unpushed commits
-    # live there) — an orphan only once .gitmodules stops registering <name>.
-    if rel.startswith(".git/modules/"):
-        name = rel[len(".git/modules/"):]
-        gitmodules = consumer_root / ".gitmodules"
-        text = gitmodules.read_text(encoding="utf-8", errors="replace") if gitmodules.is_file() else ""
-        registered = re.search(
-            rf'^\s*\[submodule\s+"{re.escape(name)}"\]|^\s*path\s*=\s*{re.escape(name)}\s*$',
-            text,
-            re.MULTILINE,
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "config", "--file", str(gitmodules), "--null", "--get-regexp", r"^submodule\..*\.path$"],
+            capture_output=True,
+            check=False,
+            timeout=15,
         )
-        if registered:
-            return SafetyResult(False, f"submodule `{name}` still registered in .gitmodules — git dir is live")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        result = None
+    if result is not None and result.returncode in (0, 1):  # 1 = no submodule.*.path key
+        pairs = []
+        for record in result.stdout.decode("utf-8", errors="replace").split("\0"):
+            key, _, value = record.partition("\n")
+            if key.startswith("submodule.") and key.endswith(".path"):
+                pairs.append((key[len("submodule."):-len(".path")], value))
+        return pairs
+    try:
+        text = gitmodules.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    pairs, name = [], ""
+    for line in text.splitlines():
+        section = re.match(r'^\s*\[submodule\s+"(.*)"\s*\]', line)
+        if section:
+            name = section.group(1)
+            continue
+        value = re.match(r"^\s*path\s*=\s*(.*?)\s*$", line)
+        if value:
+            pairs.append((name, value.group(1).strip('"')))
+    return pairs
+
+
+def _tracked_under(rel: str, consumer_root: Path) -> SafetyResult | None:
+    """A refusal when git tracks anything at or under `rel` (files or gitlinks)."""
     try:
         result = subprocess.run(
             ["git", "ls-files", "--", rel],
@@ -277,6 +297,54 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
         return SafetyResult(False, f"git ls-files failed: {result.stderr.strip()[:200]}")
     if result.stdout.strip():
         return SafetyResult(False, "directory has tracked files")
+    return None
+
+
+def _safety_check_gitmodules_first(target: Path, entry: dict[str, Any], consumer_root: Path) -> SafetyResult:
+    if not target.exists():
+        return SafetyResult(False, "target absent — no zombie")
+    rel = _norm_rel(str(target.relative_to(consumer_root)))
+    submodules = _registered_submodules(consumer_root)
+    if submodules is None:
+        return SafetyResult(False, ".gitmodules unreadable — cannot rule out a registered submodule")
+    # A submodule registered AT, UNDER or ABOVE the target makes it live:
+    # `.skills-sources` holding `.skills-sources/<repo>` checkouts is not an orphan.
+    for _name, path in submodules:
+        if _paths_overlap(rel, _norm_rel(path)):
+            return SafetyResult(False, f"submodule path `{path}` still registered in .gitmodules")
+    # A gitlink left in the index after its .gitmodules entry went is live too.
+    refusal = _tracked_under(rel, consumer_root)
+    if refusal is not None:
+        return refusal
+    if not submodules:
+        return SafetyResult(True, "no submodule registered and nothing tracked — directory is orphan")
+    return SafetyResult(True, ".gitmodules does not register this path")
+
+
+def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root: Path) -> SafetyResult:
+    if not target.exists():
+        return SafetyResult(False, "target absent — no zombie")
+    if not target.is_dir():
+        return SafetyResult(False, "target is not a directory")
+    rel = _norm_rel(str(target.relative_to(consumer_root)))
+    # `.git/modules/<name>` is never tracked, so the ls-files probe below always
+    # passes for it. It is the git dir of submodule <name> (unpushed commits
+    # live there) — an orphan only once .gitmodules registers no submodule at,
+    # under or above <name> (`.git/modules/.skills-sources` holds the git dirs
+    # of `.skills-sources/<repo>`).
+    if rel.startswith(".git/modules/"):
+        name = rel[len(".git/modules/"):]
+        submodules = _registered_submodules(consumer_root)
+        if submodules is None:
+            return SafetyResult(False, ".gitmodules unreadable — git dir may be live")
+        for sub_name, sub_path in submodules:
+            if _paths_overlap(name, _norm_rel(sub_name)) or _paths_overlap(name, _norm_rel(sub_path)):
+                return SafetyResult(
+                    False, f"submodule `{sub_name}` still registered in .gitmodules — git dir is live"
+                )
+    refusal = _tracked_under(rel, consumer_root)
+    if refusal is not None:
+        return refusal
     return SafetyResult(True, "no tracked files under directory")
 
 
