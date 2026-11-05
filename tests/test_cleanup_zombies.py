@@ -241,48 +241,134 @@ def test_check_gitmodules_first_ignores_a_sibling_with_the_same_prefix(tmp_path:
     assert not (consumer / ".skills-sources").exists()
 
 
+def _upstream(tmp_path: Path) -> Path:
+    """A local repo with one commit, to add as a submodule."""
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    for args in (["init", "--quiet"], ["config", "user.email", "t@example.com"],
+                 ["config", "user.name", "T"], ["commit", "--allow-empty", "-q", "-m", "init"]):
+        subprocess.run(["git", *args], cwd=str(upstream), check=True)
+    return upstream
+
+
+def _add_submodule(consumer: Path, upstream: Path, path: str, *extra: str) -> None:
+    subprocess.run(
+        ["git", "-c", "protocol.file.allow=always", "submodule", "add", "--quiet", *extra,
+         str(upstream), path],
+        cwd=str(consumer), check=True, capture_output=True,
+    )
+
+
+def _tree(path: Path) -> list[str]:
+    """Every path under `path`, so a partial rmtree cannot pass as `is_dir()`."""
+    return sorted(p.relative_to(path).as_posix() for p in path.rglob("*"))
+
+
 def test_shipped_manifest_keeps_nested_submodules_and_their_git_dirs(tmp_path: Path) -> None:
     """A consumer with real `.skills-sources/<repo>` submodules keeps both the
     checkout and `.git/modules/.skills-sources/<repo>` under the shipped
     manifest's `--apply` (both skills-sources Tier 1 entries)."""
-    upstream = tmp_path / "upstream"
-    upstream.mkdir()
-    for args in (["init", "--quiet"], ["config", "user.email", "t@example.com"],
-                 ["config", "user.name", "T"], ["commit", "--allow-empty", "-q", "-m", "init"]):
-        subprocess.run(["git", *args], cwd=str(upstream), check=True)
     consumer = _seed_consumer(tmp_path)
-    subprocess.run(
-        ["git", "-c", "protocol.file.allow=always", "submodule", "add", "--quiet",
-         str(upstream), ".skills-sources/ai-playbook"],
-        cwd=str(consumer), check=True, capture_output=True,
-    )
-    checkout = consumer / ".skills-sources" / "ai-playbook"
-    git_dir = consumer / ".git" / "modules" / ".skills-sources" / "ai-playbook"
-    assert (checkout / ".git").exists() and git_dir.is_dir()
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/ai-playbook")
+    sources, modules = consumer / ".skills-sources", consumer / ".git" / "modules" / ".skills-sources"
+    before = (_tree(sources), _tree(modules))
+    assert "ai-playbook/.git" in before[0] and "ai-playbook/HEAD" in before[1]
     result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
-    assert (checkout / ".git").exists(), "nested submodule checkout was deleted"
-    assert git_dir.is_dir(), "git dir of a nested submodule was deleted"
+    assert (_tree(sources), _tree(modules)) == before, "a nested submodule or its git dir lost files"
+
+
+def test_shipped_manifest_keeps_the_git_dir_of_a_gitlink_without_a_gitmodules_entry(tmp_path: Path) -> None:
+    """The index still holds `.skills-sources/<repo>` after its .gitmodules section
+    went: its git dir under `.git/modules/.skills-sources` is live."""
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/delta-skills")
+    subprocess.run(["git", "commit", "-q", "-m", "add"], cwd=str(consumer), check=True)
+    subprocess.run(["git", "config", "-f", ".gitmodules", "--remove-section",
+                    "submodule..skills-sources/delta-skills"], cwd=str(consumer), check=True)
+    modules = consumer / ".git" / "modules" / ".skills-sources"
+    before = _tree(modules)
+    result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(modules) == before, "git dir of a tracked gitlink lost files"
+    assert (consumer / ".skills-sources" / "delta-skills" / ".git").is_file()
+
+
+def test_directory_orphan_keeps_a_git_dir_whose_checkout_points_back(tmp_path: Path) -> None:
+    """Neither registered nor tracked, but a kept checkout's `.git` still points
+    at the git dir: deleting it would orphan that checkout and its commits."""
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), "vendor/x", "--name", ".skills-sources/x")
+    subprocess.run(["git", "rm", "-q", "--cached", "vendor/x"], cwd=str(consumer), check=True)
+    (consumer / ".gitmodules").unlink()
+    modules = consumer / ".git" / "modules" / ".skills-sources"
+    before = _tree(modules)
+    assert "x/HEAD" in before
+    manifest = _write_manifest(tmp_path, [_base_entry(
+        id="skills-sources-git-modules-orphan", safety="directory_orphan",
+        path=".git/modules/.skills-sources",
+    )])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(modules) == before, "a git dir with a live checkout lost files"
 
 
 def test_check_gitmodules_first_keeps_a_gitlink_without_a_gitmodules_entry(tmp_path: Path) -> None:
     """A gitlink still in the index is live even after `.gitmodules` lost it."""
-    upstream = tmp_path / "upstream"
-    upstream.mkdir()
-    for args in (["init", "--quiet"], ["config", "user.email", "t@example.com"],
-                 ["config", "user.name", "T"], ["commit", "--allow-empty", "-q", "-m", "init"]):
-        subprocess.run(["git", *args], cwd=str(upstream), check=True)
     consumer = _seed_consumer(tmp_path)
-    subprocess.run(
-        ["git", "-c", "protocol.file.allow=always", "submodule", "add", "--quiet",
-         str(upstream), ".skills-sources"],
-        cwd=str(consumer), check=True, capture_output=True,
-    )
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources")
     (consumer / ".gitmodules").unlink()
     manifest = _write_manifest(tmp_path, [_base_entry()])
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert (consumer / ".skills-sources" / ".git").exists(), "a tracked gitlink was deleted"
+
+
+def test_check_gitmodules_first_keeps_an_untracked_checkout(tmp_path: Path) -> None:
+    """A repository under the target that nothing registers or tracks may still
+    hold uncommitted work."""
+    consumer = _seed_consumer(tmp_path)
+    kept = consumer / ".skills-sources" / "kept"
+    kept.mkdir(parents=True)
+    subprocess.run(["git", "init", "--quiet"], cwd=str(kept), check=True)
+    (kept / "WIP.txt").write_text("uncommitted", encoding="utf-8")
+    manifest = _write_manifest(tmp_path, [_base_entry()])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert (kept / "WIP.txt").is_file(), "an untracked checkout was deleted"
+
+
+@pytest.mark.parametrize("kind", ["directory", "malformed"])
+def test_an_unusable_gitmodules_fails_closed(tmp_path: Path, kind: str) -> None:
+    """A .gitmodules that cannot be read or that git rejects proves nothing orphan."""
+    consumer = _seed_consumer(tmp_path)
+    (consumer / ".skills-sources").mkdir()
+    git_dir = consumer / ".git" / "modules" / ".skills-sources"
+    git_dir.mkdir(parents=True)
+    gitmodules = consumer / ".gitmodules"
+    if kind == "directory":
+        gitmodules.mkdir()
+    else:
+        gitmodules.write_text('[Submodule "x"]\n\tPath = .skills-sources/x\nnot valid config\n', encoding="utf-8")
+    manifest = _write_manifest(tmp_path, [
+        _base_entry(),
+        _base_entry(id="skills-sources-git-modules-orphan", safety="directory_orphan",
+                    path=".git/modules/.skills-sources"),
+    ])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert (consumer / ".skills-sources").is_dir() and git_dir.is_dir()
+
+
+@pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="case-insensitive filesystem only")
+def test_check_gitmodules_first_matches_a_tracked_gitlink_case_insensitively(tmp_path: Path) -> None:
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".Skills-Sources/delta-skills")
+    (consumer / ".gitmodules").unlink()
+    manifest = _write_manifest(tmp_path, [_base_entry()])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert (consumer / ".Skills-Sources" / "delta-skills" / ".git").is_file()
 
 
 def test_directory_orphan_skips_when_files_tracked(tmp_path: Path) -> None:
@@ -317,14 +403,15 @@ def test_directory_orphan_keeps_git_dir_of_an_active_submodule(tmp_path: Path) -
         cwd=str(consumer), check=True, capture_output=True,
     )
     git_dir = consumer / ".git" / "modules" / ".skills-sources"
-    assert git_dir.is_dir()
+    before = _tree(git_dir)
+    assert "HEAD" in before
     manifest = _write_manifest(tmp_path, [_base_entry(
         id="skills-sources-git-modules-orphan", safety="directory_orphan",
         path=".git/modules/.skills-sources",
     )])
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
-    assert git_dir.is_dir(), "git dir of a registered submodule was deleted"
+    assert _tree(git_dir) == before, "git dir of a registered submodule lost files"
 
 
 def test_directory_orphan_deletes_git_dir_of_a_removed_submodule(tmp_path: Path) -> None:

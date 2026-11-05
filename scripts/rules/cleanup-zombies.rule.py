@@ -226,64 +226,137 @@ def _find_consumer_root(start: Path) -> Path | None:
 # ---------------------------------------------------------------------------
 
 
+_CASE_INSENSITIVE_FS = sys.platform in ("win32", "darwin")  # their default filesystems
+_GIT_DIR_INTERNALS = frozenset({"objects", "refs", "logs", "hooks", "info", "lfs"})
+
+
 def _norm_rel(path: str) -> str:
     path = path.strip().replace("\\", "/").rstrip("/")
     return path[2:] if path.startswith("./") else path
 
 
+def _rel(path: Path, consumer_root: Path) -> str:
+    return _norm_rel(str(path.relative_to(consumer_root)))
+
+
 def _paths_overlap(a: str, b: str) -> bool:
     """True when `a` and `b` are the same path or one contains the other."""
-    if sys.platform in ("win32", "darwin"):  # case-insensitive filesystems by default
+    if _CASE_INSENSITIVE_FS:
         a, b = a.casefold(), b.casefold()
     return a == b or a.startswith(b + "/") or b.startswith(a + "/")
 
 
-def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
-    """(name, path) of every submodule `.gitmodules` registers; None if unreadable.
+def _same_dir(a: Path, b: Path) -> bool:
+    return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
 
-    `git config` resolves quoting and escapes; parsing the raw file is the
-    fallback when git is unavailable or rejects the file.
+
+def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
+    """(name, path) of every submodule `.gitmodules` registers; None when that cannot be known.
+
+    Only git's own parse counts. The bytes are read here and fed to `git config`
+    on stdin, so a permission error is an OSError, not git's "no match" exit 1.
+    A file git cannot parse leaves its submodules unusable to git as well, so
+    nothing they might own can be proven orphan.
     """
     gitmodules = consumer_root / ".gitmodules"
-    if not gitmodules.is_file():
+    if not gitmodules.exists() and not gitmodules.is_symlink():
         return []
     try:
+        data = gitmodules.read_bytes()
         result = subprocess.run(
-            ["git", "config", "--file", str(gitmodules), "--null", "--get-regexp", r"^submodule\..*\.path$"],
+            ["git", "config", "--file", "-", "--null", "--get-regexp", r"^submodule\..*\.path$"],
+            input=data,
             capture_output=True,
             check=False,
             timeout=15,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        result = None
-    if result is not None and result.returncode in (0, 1):  # 1 = no submodule.*.path key
-        pairs = []
-        for record in result.stdout.decode("utf-8", errors="replace").split("\0"):
-            key, _, value = record.partition("\n")
-            if key.startswith("submodule.") and key.endswith(".path"):
-                pairs.append((key[len("submodule."):-len(".path")], value))
-        return pairs
-    try:
-        text = gitmodules.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return None
-    pairs, name = [], ""
-    for line in text.splitlines():
-        section = re.match(r'^\s*\[submodule\s+"(.*)"\s*\]', line)
-        if section:
-            name = section.group(1)
-            continue
-        value = re.match(r"^\s*path\s*=\s*(.*?)\s*$", line)
-        if value:
-            pairs.append((name, value.group(1).strip('"')))
+    if result.returncode == 1 and not result.stderr.strip():
+        return []  # parsed, and no submodule.*.path key
+    if result.returncode != 0:
+        return None
+    pairs = []
+    for record in result.stdout.decode("utf-8", errors="replace").split("\0"):
+        key, _, value = record.partition("\n")
+        if key.startswith("submodule.") and key.endswith(".path"):
+            pairs.append((key[len("submodule."):-len(".path")], value))
     return pairs
+
+
+def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
+    """Paths of every gitlink (submodule commit) in the index; None if git cannot tell."""
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--stage", "-z"],
+            cwd=str(consumer_root),
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    links = []
+    for record in result.stdout.decode("utf-8", errors="replace").split("\0"):
+        meta, _, path = record.partition("\t")
+        if meta.startswith("160000 "):
+            links.append(path)
+    return links
+
+
+def _embedded_git(target: Path) -> Path | None:
+    """The first `.git` (a repository or a submodule checkout) at or under `target`."""
+    for root, dirs, files in os.walk(target):
+        if ".git" in dirs or ".git" in files:
+            return Path(root) / ".git"
+    return None
+
+
+def _live_git_dir(target: Path) -> Path | None:
+    """A git dir at or under `target` whose `core.worktree` checkout still points back at it.
+
+    A git dir that cannot be judged counts as live.
+    """
+    for root, dirs, files in os.walk(target):
+        dirs[:] = [d for d in dirs if d not in _GIT_DIR_INTERNALS]
+        if "HEAD" not in files or "config" not in files:
+            continue
+        gitdir = Path(root)
+        try:
+            result = subprocess.run(
+                ["git", "config", "--file", str(gitdir / "config"), "--get", "core.worktree"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return gitdir
+        if result.returncode == 1 and not result.stderr.strip():
+            continue  # no core.worktree: no checkout points here
+        if result.returncode != 0:
+            return gitdir
+        worktree = gitdir / result.stdout.strip()  # an absolute value replaces gitdir
+        gitfile = worktree / ".git"
+        if not gitfile.is_file():
+            continue
+        try:
+            pointer = gitfile.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            return gitdir
+        if pointer.startswith("gitdir:") and _same_dir(worktree / pointer[len("gitdir:"):].strip(), gitdir):
+            return gitdir
+    return None
 
 
 def _tracked_under(rel: str, consumer_root: Path) -> SafetyResult | None:
     """A refusal when git tracks anything at or under `rel` (files or gitlinks)."""
+    pathspec = f":(icase){rel}" if _CASE_INSENSITIVE_FS else rel
     try:
         result = subprocess.run(
-            ["git", "ls-files", "--", rel],
+            ["git", "ls-files", "--", pathspec],
             cwd=str(consumer_root),
             capture_output=True,
             text=True,
@@ -303,7 +376,7 @@ def _tracked_under(rel: str, consumer_root: Path) -> SafetyResult | None:
 def _safety_check_gitmodules_first(target: Path, entry: dict[str, Any], consumer_root: Path) -> SafetyResult:
     if not target.exists():
         return SafetyResult(False, "target absent — no zombie")
-    rel = _norm_rel(str(target.relative_to(consumer_root)))
+    rel = _rel(target, consumer_root)
     submodules = _registered_submodules(consumer_root)
     if submodules is None:
         return SafetyResult(False, ".gitmodules unreadable — cannot rule out a registered submodule")
@@ -316,6 +389,10 @@ def _safety_check_gitmodules_first(target: Path, entry: dict[str, Any], consumer
     refusal = _tracked_under(rel, consumer_root)
     if refusal is not None:
         return refusal
+    # So is a checkout kept after both went: it may hold uncommitted work.
+    embedded = _embedded_git(target)
+    if embedded is not None:
+        return SafetyResult(False, f"`{_rel(embedded, consumer_root)}` is a git checkout")
     if not submodules:
         return SafetyResult(True, "no submodule registered and nothing tracked — directory is orphan")
     return SafetyResult(True, ".gitmodules does not register this path")
@@ -326,12 +403,13 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
         return SafetyResult(False, "target absent — no zombie")
     if not target.is_dir():
         return SafetyResult(False, "target is not a directory")
-    rel = _norm_rel(str(target.relative_to(consumer_root)))
+    rel = _rel(target, consumer_root)
     # `.git/modules/<name>` is never tracked, so the ls-files probe below always
     # passes for it. It is the git dir of submodule <name> (unpushed commits
-    # live there) — an orphan only once .gitmodules registers no submodule at,
-    # under or above <name> (`.git/modules/.skills-sources` holds the git dirs
-    # of `.skills-sources/<repo>`).
+    # live there), and `.git/modules/.skills-sources` holds the git dirs of
+    # `.skills-sources/<repo>`. It is an orphan only when no submodule at, under
+    # or above <name> is registered, tracked as a gitlink (the default name is
+    # the path), or still checked out with its `.git` pointing back here.
     if rel.startswith(".git/modules/"):
         name = rel[len(".git/modules/"):]
         submodules = _registered_submodules(consumer_root)
@@ -342,6 +420,17 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
                 return SafetyResult(
                     False, f"submodule `{sub_name}` still registered in .gitmodules — git dir is live"
                 )
+        links = _tracked_gitlinks(consumer_root)
+        if links is None:
+            return SafetyResult(False, "git ls-files failed — git dir may be live")
+        for link in links:
+            if _paths_overlap(name, _norm_rel(link)):
+                return SafetyResult(False, f"gitlink `{link}` still tracked — git dir is live")
+        live = _live_git_dir(target)
+        if live is not None:
+            return SafetyResult(False, f"`{_rel(live, consumer_root)}` still has a checkout — git dir is live")
+    elif (embedded := _embedded_git(target)) is not None:
+        return SafetyResult(False, f"`{_rel(embedded, consumer_root)}` is a git checkout")
     refusal = _tracked_under(rel, consumer_root)
     if refusal is not None:
         return refusal

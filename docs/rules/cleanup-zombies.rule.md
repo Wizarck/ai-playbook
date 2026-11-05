@@ -49,6 +49,17 @@ Tier × action × safety triples are validated against the matrix in the script.
 
 **Tier governs mutation; safety governs detection.** The two were coupled 1:1 until v0.19.29, which forced any entry wanting real detection to also claim auto-delete rights — that is how `auto-managed-orphan-blocks` shipped as Tier 1. A Tier 3 entry MAY now carry a detection safety (`auto_managed_orphan`) so its advisory can name specific findings; `_process_entry` enforces the no-mutation half structurally, returning before the action dispatch for every Tier 3 entry regardless of the safety outcome or `--apply`. Before that guard existed the Tier 3 guarantee held only by accident, because `report_only` always failed its safety and short-circuited earlier.
 
+## Safety checks
+
+Each entry names one check. Anything a check cannot establish (git missing, a probe failing, an unreadable or malformed `.gitmodules`) counts as a failure. Paths compare case-insensitively on Windows and macOS.
+
+- `check_gitmodules_first`: the target is an orphan only when `.gitmodules`, as parsed by `git config`, registers no submodule at, under or above it, git tracks nothing under it (files or gitlinks), and no `.git` (a repository or submodule checkout) sits at or under it.
+- `directory_orphan`: git tracks nothing under the target. For a `.git/modules/<name>` git dir it also requires that no submodule whose name or path is at, under or above `<name>` is registered or tracked as a gitlink, and that no checkout's `core.worktree`/`.git` pair still points into it.
+- `file_mtime_and_drained`: the file is older than `rotation_days` and every JSONL record is `drained`.
+- `yaml_literal_rename`: at least one `rename_in_files` file parses and holds `rename_from` as a scalar value.
+- `auto_managed_orphan`: see the auto-managed sections concept below; Tier 3 only.
+- `report_only`: always fails, so the entry is reported and never acted on.
+
 ## Channels (3-channel report)
 
 When any non-empty run occurs the script writes:

@@ -3,8 +3,8 @@
 # Shipped with the ai-playbook submodule and consumed by
 # `scripts/rules/cleanup-zombies.rule.py` on consumer-side `git pull` / `git checkout`.
 #
-# Contract: `docs/rules/cleanup-zombies.rule.md`. Schema: §2. Tier semantics: §3.
-# Safety checks: §4.
+# Contract: `docs/rules/cleanup-zombies.rule.md`, sections "Manifest schema",
+# "Tier semantics" and "Safety checks".
 #
 # Rolling document. When a playbook release REMOVES or RENAMES any
 # consumer-surface artefact (file the bootstrap script propagated, a
@@ -20,7 +20,7 @@
 #     (not playbook-driven).
 
 version: 1
-manifest_version: "2026-09-06.1"
+manifest_version: "2026-11-05.1"
 
 # NOTE (v0.19.0): the push-pipeline retirement deleted PLAYBOOK-INTERNAL
 # files (consumers.yaml, consumers.yaml.example, propagate_bump.py,
@@ -45,10 +45,10 @@ entries:
     removed_in: v0.17.0  # v0.17.0 dropped RFC-0001; submodule has no upstream use
     reason: >
       RFC-0001 multi-source pattern, removed upstream in ai-playbook v0.17.0
-      (slice single-source-skills-reset). The `.skills-sources/` directory is
-      always orphan now — no upstream code references it. Safety check
-      `check_gitmodules_first` still applies (avoid deleting an active submodule
-      a consumer somehow re-added).
+      (slice single-source-skills-reset); no upstream code references
+      `.skills-sources/`. Consumers may keep their own `.skills-sources/<repo>`
+      submodules, so `check_gitmodules_first` deletes it only when nothing at,
+      under or above it is registered, tracked or checked out.
     evidence: github.com/project-a/project-a/pull/125
 
   - id: skills-sources-git-modules-orphan
@@ -60,8 +60,10 @@ entries:
     removed_in: deprecation_only
     reason: >
       Git stores submodule metadata under `.git/modules/<name>/` and does not
-      clean it on `git submodule deinit`. Once `.gitmodules` no longer lists
-      the submodule, this directory is an orphan.
+      clean it on `git submodule deinit`. It also holds the git dirs of nested
+      `.skills-sources/<repo>` submodules, so it is an orphan only when no
+      submodule at, under or above it is registered, tracked as a gitlink or
+      still checked out.
     evidence: github.com/project-a/project-a/pull/125
 
   - id: auto-managed-orphan-blocks
@@ -270,10 +272,9 @@ entries:
     removed_in: v0.17.0
     reason: >
       Tightens the v1 entry `skills-sources-submodule`. Post-v0.17.0 the
-      upstream playbook has zero use for `.skills-sources/` — the directory
-      is always orphan. Safety check still verifies the consumer has
-      deregistered the submodule via `.gitmodules`; once that holds, the
-      directory is safe-delete.
+      upstream playbook has zero use for `.skills-sources/`. It is safe-delete
+      only once nothing at, under or above it is registered in `.gitmodules`,
+      tracked (a gitlink left in the index keeps it) or checked out.
     evidence: ai-playbook v0.17.0 CHANGELOG; project-a PR #125
 
   - id: skills-sources-frontmatter
