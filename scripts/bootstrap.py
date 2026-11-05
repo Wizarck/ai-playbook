@@ -229,7 +229,7 @@ def resolve_target_path(project_name: str, cli_path: Path | None) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def _is_bootstrapped(target_dir: Path) -> bool:
+def _declares_agents_md_v1(target_dir: Path) -> bool:
     """True when ``target_dir/AGENTS.md`` carries the playbook's v1 frontmatter."""
     agents = target_dir / "AGENTS.md"
     if not agents.is_file():
@@ -241,6 +241,27 @@ def _is_bootstrapped(target_dir: Path) -> bool:
     return any(
         line.replace('"', "").replace("'", "").strip() == "schema: agents-md/v1"
         for line in front.splitlines()
+    )
+
+
+def _submodule_registered(target_dir: Path) -> bool:
+    gitmodules = target_dir / ".gitmodules"
+    return gitmodules.is_file() and SUBMODULE_PATH in gitmodules.read_text(
+        encoding="utf-8", errors="replace"
+    )
+
+
+def _is_bootstrapped(target_dir: Path) -> bool:
+    """True when a plain bootstrap would copy templates over a live install: a
+    v1 AGENTS.md AND the playbook itself (a registered submodule, or the
+    ``specs/`` of an offline ``--playbook-path`` copy).
+
+    A v1 AGENTS.md alone is not an install: uninstall keeps that frontmatter
+    (it sits outside the marker blocks), so refusing on it dead-ended every
+    reinstall, and ``--update`` never adds a submodule.
+    """
+    return _declares_agents_md_v1(target_dir) and (
+        _submodule_registered(target_dir) or (target_dir / SUBMODULE_PATH / "specs").is_dir()
     )
 
 
@@ -267,11 +288,7 @@ def add_submodule(
     the playbook left at the remote default HEAD.
     """
     submodule_dir = target_dir / SUBMODULE_PATH
-    gitmodules = target_dir / ".gitmodules"
-    registered = gitmodules.is_file() and SUBMODULE_PATH in gitmodules.read_text(
-        encoding="utf-8", errors="replace"
-    )
-    if registered and (submodule_dir / "specs").is_dir():
+    if _submodule_registered(target_dir) and (submodule_dir / "specs").is_dir():
         print(f"ℹ️  {submodule_dir} already populated; re-checking out pin {pin}.")
         if dry_run:
             print(f"(dry-run) Would `git -C {submodule_dir} checkout {pin}`.")
@@ -864,16 +881,27 @@ def main(argv: list[str] | None = None) -> int:
     if _is_bootstrapped(target_dir):
         print(
             f"❌ {target_dir} is already bootstrapped (AGENTS.md declares "
-            f"agents-md/v1) at {SCRIPT_BASENAME}:already-bootstrapped",
+            f"agents-md/v1 and {SUBMODULE_PATH} is installed) at "
+            f"{SCRIPT_BASENAME}:already-bootstrapped",
             file=sys.stderr,
         )
-        print(
-            f"   FIX: run `python -m scripts.bootstrap --update --path {target_dir}` "
-            "to reconcile without overwriting your files.",
-            file=sys.stderr,
-        )
+        update = f"`python -m scripts.bootstrap --update --path {target_dir}`"
+        if (target_dir / SUBMODULE_PATH / "specs").is_dir():
+            print(f"   FIX: run {update} to reconcile without overwriting your files.",
+                  file=sys.stderr)
+        else:  # registered but never checked out (e.g. a fresh clone)
+            print(
+                f"   FIX: run `git -C {target_dir} submodule update --init {SUBMODULE_PATH}`, "
+                f"then {update}.",
+                file=sys.stderr,
+            )
         print("   OVERRIDE: none", file=sys.stderr)
         return 1
+    if _declares_agents_md_v1(target_dir):
+        print(
+            f"ℹ️  {target_dir / 'AGENTS.md'} declares agents-md/v1 but {SUBMODULE_PATH} is not "
+            "installed (e.g. after uninstall): bootstrapping as a fresh install."
+        )
 
     if args.from_config is not None and not args.from_config.expanduser().is_file():
         print(
