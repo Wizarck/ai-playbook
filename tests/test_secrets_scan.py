@@ -7,7 +7,10 @@ real credentials into tests.
 from __future__ import annotations
 
 import io
+import random
+import re
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -504,11 +507,57 @@ def test_generic_env_secret_fires_on_any_name_prefix(sample: str) -> None:
 
 
 def test_generic_env_secret_is_linear_on_long_uppercase_line() -> None:
-    import time
     line = "ABCDEF0123456789" * 6000  # ~96 KB, no assignment
     t0 = time.perf_counter()
     scan(line)
     assert time.perf_counter() - t0 < 2.0
+
+
+# Regression: a value that runs into a non-terminator made every NAME= start
+# inside it rescan the run: 'AKEY=' * 8000 + ')' took ~2.9 s (SS-3).
+@pytest.mark.parametrize("text", [
+    "AKEY=" * 40000 + ")",
+    "ABKEY=" * 40000 + ":",
+    "A_KEY=" * 40000 + "(",
+    "X_TOKEN=a1B2" * 20000 + ".",
+], ids=["paren", "colon", "call", "dot"])  # short ids: PYTEST_CURRENT_TEST is an env var
+def test_generic_env_secret_is_linear_on_chained_assignments(text: str) -> None:
+    t0 = time.perf_counter()
+    scan(text)
+    assert time.perf_counter() - t0 < 2.0
+
+
+def _reference_env_hits(text: str) -> list[tuple[int, int]]:
+    """generic_env_secret hits from plain finditer with the terminator in-regex."""
+    head = dict(secrets_scan._PATTERNS)["generic_env_secret"]
+    full = re.compile(head.pattern + r"""(?=[\s'"]|\Z)['"]?""")
+    return [
+        (m.start(), m.end()) for m in full.finditer(text)
+        if secrets_scan._looks_like_secret(m.group("val"))
+    ]
+
+
+_ENV_TOKENS = [
+    "API_KEY", "AKEY", "X_TOKEN", "PASS", "SECRET", "B" * 70, "A", "Ab1", "zZ9", "x1" * 12,
+    "_", "=", ":", " ", "\t", "\n", '"', "'", "(", ".", "-", "/", "+", _ENV_VAL,
+]
+
+
+def test_generic_env_secret_linear_scan_matches_plain_finditer() -> None:
+    cases = [
+        # a NAME that ends where an unterminated value ends must still be found
+        "A_KEY=" + "x1" * 15 + 'API_KEY: "' + _ENV_VAL + '"',
+        "A_KEY=" + "x1" * 500 + 'API_KEY: "' + _ENV_VAL + '"',
+        "A_KEY=" + "x1" * 30 + "B" * 100 + '_KEY: "' + _ENV_VAL + '"',
+    ]
+    rng = random.Random(20261105)
+    cases += ["".join(rng.choices(_ENV_TOKENS, k=40)) for _ in range(2000)]
+    hits = 0
+    for text in cases:
+        got = [(m.start, m.end) for m in scan(text, kinds=["generic_env_secret"])]
+        assert got == _reference_env_hits(text), text
+        hits += bool(got)
+    assert hits > 100  # the token mix must actually exercise matches
 
 
 # ---------------------------------------------------------------------------

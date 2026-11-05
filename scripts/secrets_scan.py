@@ -147,7 +147,8 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Generic SECRET/TOKEN/KEY=value envs. Only fires when RHS is >=20 chars,
     # quoted or unquoted (dotenv), terminated by whitespace / a quote / end of
     # text, and contains a mix of classes (lowers/UPPERS/digits). The
-    # mix-class requirement is asserted post-match in `_looks_like_secret`.
+    # terminator is checked by `_env_assignments` and the mix-class
+    # requirement post-match in `_looks_like_secret`.
     # The name may start anywhere, so `_API_KEY`, `self._API_TOKEN`,
     # `app_SECRET_KEY` and `2FA_SECRET` match from their uppercase tail. Its
     # bounded length keeps this linear on long uppercase runs (an unbounded
@@ -158,10 +159,14 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.compile(
             r"""(?P<prefix>[A-Z][A-Z0-9_]{0,64}(?:SECRET|TOKEN|KEY|PASSWORD|PASS|APIKEY))"""
             + _ASSIGN
-            + r"""(?P<val>[A-Za-z0-9/+=_\-]{20,})(?=[\s'\"]|\Z)['\"]?""",
+            + r"""(?P<val>[A-Za-z0-9/+=_\-]{20,}+)""",
         ),
     ),
 ]
+
+# Longest name generic_env_secret matches: [A-Z] + {0,64} + "PASSWORD".
+_ENV_NAME_MAX = 1 + 64 + len("PASSWORD")
+_ENV_VALUE_END = re.compile(r"""[\s'"]""")
 
 # Placeholder markers: a value containing one is documentation, not a secret.
 # Key bodies (prefixed OpenAI, PEM material) are checked against the long words
@@ -218,6 +223,33 @@ def _looks_like_secret(value: str, markers: tuple[str, ...] = _PLACEHOLDER_MARKE
     return classes >= 2
 
 
+def _env_assignments(
+    pattern: re.Pattern[str], text: str,
+) -> Iterator[tuple[int, int, re.Match[str]]]:
+    """Yield ``(start, end, match)`` per generic_env_secret hit, in linear time.
+
+    Same hits as ``finditer`` over the pattern plus ``(?=[\\s'"]|\\Z)['"]?``:
+    the value must end at whitespace, a quote (kept in the hit) or the end of
+    text; otherwise it is part of a longer token (``TOKEN = getToken()``).
+    With that check inside the regex, each ``NAME=`` start inside one long run
+    of value characters rescanned the run (quadratic). Every later start whose
+    name ends before the value's end shares that end and fails too, so the
+    search resumes at the first start whose name could end exactly there
+    (``…NAME: "v"``).
+    """
+    n = len(text)
+    pos = 0
+    while (m := pattern.search(text, pos)) is not None:
+        end = m.end("val")
+        if end < n and not _ENV_VALUE_END.match(text, end):
+            pos = max(m.start() + 1, end - _ENV_NAME_MAX)
+            continue
+        if end < n and text[end] in "'\"":
+            end += 1
+        yield m.start(), end, m
+        pos = end
+
+
 def scan(text: str, *, kinds: list[str] | None = None) -> list[Match]:
     """Scan a literal string. Return all matches (possibly empty).
 
@@ -249,7 +281,11 @@ def scan(text: str, *, kinds: list[str] | None = None) -> list[Match]:
     out: list[Match] = []
     for kind, pattern in selected:
         check = _VALUE_CHECKS.get(kind)
-        for m in pattern.finditer(text):
+        if kind == "generic_env_secret":
+            hits = _env_assignments(pattern, text)
+        else:
+            hits = ((m.start(), m.end(), m) for m in pattern.finditer(text))
+        for start, end, m in hits:
             if check is not None:
                 value = m.group(check[0])
                 if value is not None and not _looks_like_secret(value, check[1]):
@@ -258,9 +294,9 @@ def scan(text: str, *, kinds: list[str] | None = None) -> list[Match]:
                 Match(
                     kind=kind,
                     path=None,
-                    line_no=_line_no_of(m.start()),
-                    start=m.start(),
-                    end=m.end(),
+                    line_no=_line_no_of(start),
+                    start=start,
+                    end=end,
                 )
             )
     # Stable ordering by offset.
