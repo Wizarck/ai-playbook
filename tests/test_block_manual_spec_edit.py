@@ -388,6 +388,25 @@ def test_commit_msg_stage_reads_a_non_utf8_message(
     assert bmse.main(["--commit-msg-file", str(msg)]) == 1
 
 
+@pytest.mark.parametrize("message", [
+    "chore: tweak wording\n# openspec-archive: add-auth\n",
+    "chore: tweak wording\n# ------------------------ >8 ------------------------\n"
+    "diff --git a/x.md b/x.md\n+openspec-archive: add-auth\n",
+], ids=["comment-line", "below-scissors"])
+def test_commit_msg_stage_ignores_a_marker_git_will_not_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, message: str
+) -> None:
+    _bootstrap_repo(tmp_path)
+    _stage_spec(tmp_path, "hand edit\n")
+    msg = tmp_path / "m.txt"
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    msg.write_text(message, encoding="utf-8")
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 1
+    msg.write_text("openspec-archive: add-auth\n" + message, encoding="utf-8")
+    assert bmse.main(["--commit-msg-file", str(msg)]) == 0
+
+
 def test_non_ascii_spec_path_is_protected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`git diff --name-only` C-quotes non-ASCII paths; the guard must still see them."""
     _bootstrap_repo(tmp_path)

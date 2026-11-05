@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -80,6 +81,8 @@ from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa
 SCRIPT_BASENAME = "block_manual_spec_edit.py"
 GATE_NAME = "openspec-specs-handedit"
 ARCHIVE_MARKER = "openspec-archive:"
+# git's cut line (`git commit -v`, --cleanup=scissors): everything from it on is dropped.
+_SCISSORS_RE = re.compile(r"^\S -{24} >8 -{24}[ \t]*$", re.MULTILINE)
 
 
 def emit_error(
@@ -121,12 +124,21 @@ def _has_staged(repo_root: Path) -> bool | None:
 
 
 def _read_message_file(path: Path) -> str | None:
-    """The message file's text. It need not be UTF-8 (e.g. `git commit -F` of an
-    ANSI file), so undecodable bytes become U+FFFD instead of raising."""
+    """The message as git will record it, from a message file.
+
+    The file holds more than the message: git's ``#`` comment lines (status
+    template, ``# Conflicts:``) and, under ``git commit -v``, the diff below the
+    scissors line — a marker quoted there must not count. It need not be UTF-8
+    (e.g. ``git commit -F`` of an ANSI file): undecodable bytes become U+FFFD.
+    """
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        raw = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
+    cut = _SCISSORS_RE.search(raw)
+    if cut:
+        raw = raw[: cut.start()]
+    return "\n".join(ln for ln in raw.splitlines() if not ln.startswith("#"))
 
 
 def read_commit_message(repo_root: Path) -> str | None:
