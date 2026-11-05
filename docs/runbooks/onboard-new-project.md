@@ -19,7 +19,7 @@ The new repo has:
 - `.claude/settings.json` with the SessionStart hook auto-fired.
 - `.mcp.json` + `.gemini/settings.json` rendered from the 3-layer merge.
 - `.gitignore` extended with playbook entries.
-- Pre-commit hooks installed (schema, secrets, verdict, drift).
+- Git hooks wired through `scripts/git-hooks/`: the pre-commit chain (schema, secrets, verdict, drift) on commit, the skills sync on checkout and merge.
 - `~/.ai-playbook/projects.yaml` updated for local path resolution.
 - GitHub Project board with the canonical Status schema (and, for Profile A, branch protection + CodeRabbit + merge queue).
 
@@ -159,12 +159,24 @@ time you run it.
 Expect around half a minute, and roughly 3300 new files in your repo. That
 number surprises people: about 99 % of it is the same 86 skills written into
 three mirrors (`.claude/`, `.gemini/` and `skills/`) so every host finds them
-where it looks. Your own tree gains 11 workflow files, 4 scripts, and one file
+where it looks. Your own tree gains 11 workflow files, 6 scripts, and one file
 each for the dispatcher, the routers and the tool config.
 
 Bootstrap also writes outside the target directory: it registers the project in
 `~/.ai-playbook/projects.yaml`, and leaves `.ai-playbook-state/` plus an
 `applied-config.json` for the reconcile step.
+
+Then wire the git hooks, once per clone:
+
+```bash
+bash scripts/install-playbook-hooks.sh
+```
+
+It adds the `pre-commit` and `commit-msg` shims to `scripts/git-hooks/` if they
+are missing, points `core.hooksPath` there and runs the first skills sync. The
+shims run your `.pre-commit-config.yaml` hooks and replace `pre-commit
+install`, which refuses to run once `core.hooksPath` is set. Commit
+`scripts/git-hooks/` so every clone and worktree gets them.
 
 ### 4. Fill the manual placeholders in AGENTS.md
 
@@ -322,6 +334,19 @@ All four must end in success. Each script prints a `FIX:` line on failure with t
 ### Symptom: schema_validate fails with "unsubstituted placeholder"
 **Cause**: AGENTS.md still has `{{PLACEHOLDER}}` literals.
 **Fix**: `grep -nE "\{\{[A-Z_]+\}\}" AGENTS.md` and fill each one per step 4.
+
+### Symptom: `pre-commit install` fails with "Cowardly refusing to install hooks with `core.hooksPath` set"
+**Cause**: `scripts/install-playbook-hooks.sh` set `core.hooksPath`, so git ignores `.git/hooks/` and pre-commit will not write there.
+**Fix**: nothing to install. The `pre-commit` and `commit-msg` shims in `scripts/git-hooks/` run the chain; drop `pre-commit install` from setup scripts and Makefiles. If the shims are missing (a consumer bootstrapped before v0.24.2), copy the installer again (diff it first if you customised your copy) and re-run it:
+```bash
+cp .ai-playbook/templates/new-project/scripts/install-playbook-hooks.sh.tmpl scripts/install-playbook-hooks.sh
+bash scripts/install-playbook-hooks.sh
+git add scripts/install-playbook-hooks.sh scripts/git-hooks/
+```
+
+### Symptom: a commit prints `warn: pre-commit hook skipped: pre-commit not found on PATH`
+**Cause**: neither `python -m pre_commit` nor a `pre-commit` executable is reachable from the hook, so the commit went through unchecked.
+**Fix**: `pipx install pre-commit` (or `python -m pip install pre-commit`), then check what went in unchecked with `pre-commit run --all-files`.
 
 ### Symptom: SOPS path mismatch on the SessionStart hook
 **Cause**: the repo is not co-located with `consumer-d/` where the canonical CF Access creds live.
