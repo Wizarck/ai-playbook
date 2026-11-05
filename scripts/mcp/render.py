@@ -85,7 +85,9 @@ def _build_parser() -> argparse.ArgumentParser:
                              "others reported for manual project-layer add) before rendering.")
     parser.add_argument("--force-with-reason", dest="force_reason", default=None,
                         metavar="TEXT",
-                        help="Break-glass: accept validation errors with audit trail (≥10 chars).")
+                        help="Break-glass flag, kept for CLI compatibility. render's only gate "
+                             "(a scope:personal leak) declares OVERRIDE: none, so it is refused "
+                             "there (exit 3).")
     return parser
 
 
