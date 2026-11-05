@@ -1185,6 +1185,42 @@ def test_agents_md_rerender_with_unfilled_slots_does_not_grow() -> None:
     assert rerender(filled, extract_project_meta(filled)) == filled
 
 
+def test_agents_md_from_template_keeps_content_added_to_an_unfilled_slot() -> None:
+    """A missing or markerless AGENTS.md is generated from the template. A
+    project_meta value read back with its placeholder still in it, here dated
+    gotchas appended under {{EMPTY_FILL_AS_YOU_LEARN}} as the template invites,
+    must come back whole: neither dropped nor with the template tail doubled."""
+    import re
+    from pathlib import Path
+
+    from scripts.migrate_to_bundle import extract_project_meta
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    subs = {"PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+            "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0"}
+    legacy = tmpl
+    for key, value in subs.items():
+        legacy = legacy.replace("{{" + key + "}}", value)
+    legacy = re.sub(r"^<!-- ai-playbook:(?:begin|end) [^>]*-->\n", "", legacy, flags=re.M)
+    assert not parse_blocks(legacy, CommentStyle.HTML).blocks  # never adopted
+    legacy += "- 2026-02-01 — a real gotcha. The rule for next time.\n"
+    meta = extract_project_meta(legacy)
+    assert "{{EMPTY_FILL_AS_YOU_LEARN}}" in meta["gotchas"]
+
+    for current in (legacy, None):
+        out = render_agents_md(template=tmpl, substitutions=subs,
+                               bundle={"project_meta": meta}, current_text=current)
+        assert "ai-playbook:begin id=bootstrap-directive" in out
+        assert out.split("## 8 Gotchas\n", 1)[1] == legacy.split("## 8 Gotchas\n", 1)[1]
+        assert out.count("Append one-line dated entries") == 1
+        assert out.count("Typical §7 sub-sections") == 1
+        # Later applies splice into the file, which now has markers.
+        assert render_agents_md(template=tmpl, substitutions=subs, current_text=out,
+                                bundle={"project_meta": extract_project_meta(out)}) == out
+
+
 def test_every_shipped_marker_template_renders_to_valid_output() -> None:
     # Regression: the pre-commit template's header comment quoted the begin
     # marker; the unanchored parser treated it as the real marker and injected
