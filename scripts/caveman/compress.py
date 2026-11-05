@@ -14,8 +14,9 @@ Behavior
    URLs, file paths.
 4. Call the LLM via ``scripts._llm.call`` with task_class ``doc_writing_edit``,
    system prompt = caveman ruleset + preservation contract.
-5. Validate the response: every preserved token must appear in the output
-   byte-for-byte.
+5. Validate the response (CRLF normalised to LF): every preserved token must
+   appear in the output byte-for-byte, and at least ``MIN_PROSE_KEPT`` of the
+   source's prose words must survive (no token-only skeleton).
 6. On validation failure, send a targeted retry prompt naming the missing
    tokens. Up to ``max_retries`` retries.
 7. After max_retries exhausted, restore source from backup and raise
@@ -46,15 +47,16 @@ VALID_MODES = ("lite", "full", "ultra")
 DEFAULT_MAX_RETRIES = 2
 MAX_FILE_BYTES = 100 * 1024  # 100 KB — anything larger requires --force in the CLI
 # Skeleton guard: output that keeps every protected token but (nearly) none of
-# the prose passes the token checks. Ultra keeps ~25%+ of the prose words; a
-# source with fewer prose words than the floor is not judged.
+# the prose passes the token checks. Keeping under 10% of the prose words is a
+# skeleton, not a compression (even ultra targets ~75% fewer bytes); a source
+# with fewer prose words than the floor is not judged.
 MIN_PROSE_WORDS = 10
 MIN_PROSE_KEPT = 0.10
 
 # Regexes for the preservation contract.
 # Fence opener/closer at any indentation (list items indent their fences).
 _FENCE_OPEN_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
-# Matched per paragraph (see _inline_code), so a span may wrap onto the next line.
+# Matched per paragraph (see _scan_inline_code), so a span may wrap onto the next line.
 _INLINE_CODE_RE = re.compile(r"(?<!`)(`+)(?!`)(?:[^\n]|\n(?![ \t]*\n))+?(?<!`)\1(?!`)")
 _LINE_BREAK_RE = re.compile(r"[ \t]*\n[ \t]*")
 # Lines that open a block (heading, table row, quote, list item): a span never
