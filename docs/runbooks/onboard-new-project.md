@@ -296,7 +296,7 @@ Configure:
 - Variable `PROJECT_OWNER`: `<your-org>` (your GitHub user or org login).
 - Variable `PROJECT_NUMBER`: `<N>` from step 8.
 
-`project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty — only uses `secrets.GITHUB_TOKEN`.
+`project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty. It posts with `secrets.GITHUB_TOKEN`; its submodule checkout uses `secrets.CONSUMER_D_GOD_MODE` (§10) when set and falls back to `github.token`, enough while the playbook repo is public. A copy made before v0.24.2 references the invalid `secrets.consumer-a_GOD_MODE` and fails on every PR: re-copy the template, or set its `token:` line to `${{ secrets.CONSUMER_D_GOD_MODE || github.token }}`.
 
 `bootstrap_gh_project.py --profile auto` (v0.9.0+) copies `coderabbit-fallback.yml` automatically; the manual `cp` is for consumers skipping the bootstrap script.
 

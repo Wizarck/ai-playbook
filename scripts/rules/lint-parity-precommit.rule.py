@@ -6,11 +6,12 @@ CI runs). A linter that only exists in CI is a linter developers discover
 post-push; without branch protection the red merges and becomes ambient debt
 (geeplo 2026-07-13: a wave merged with 41 ruff errors nobody saw locally).
 
-`apply` inserts the canonical ruff-pre-commit repo after the last `repos:` item
-of `.pre-commit-config.yaml` (matching its indentation, preserving user comments
-and formatting — same helper as pre-commit-hooks.rule.py), using the pin
-detected from the CI workflows. If the result would not parse as YAML, nothing
-is written (exit 2).
+`apply` inserts the canonical ruff-pre-commit repo at the end of the `repos:`
+sequence of `.pre-commit-config.yaml` — after the playbook marker block or
+consumer-extras region that closes it, never inside one — matching its
+indentation and preserving user comments and formatting (same helper as
+pre-commit-hooks.rule.py), using the pin detected from the CI workflows. If the
+result would not parse as YAML, nothing is written (exit 2).
 
 CLI:
     python scripts/rules/lint-parity-precommit.rule.py validate
@@ -194,7 +195,9 @@ def apply(*, dry_run: bool, rev: str | None = None, cwd: Path | None = None) -> 
         return 1
 
     try:
-        existing = config.read_text(encoding="utf-8", errors="replace")
+        # Bytes, not read_text/write_text: keep the file's own line endings
+        # (insert_repo matches CRLF) instead of rewriting every line.
+        existing = config.read_bytes().decode("utf-8", errors="replace")
     except OSError as exc:
         print(f"error: cannot read {config}: {exc}", file=sys.stderr)
         return 2
@@ -230,7 +233,7 @@ def apply(*, dry_run: bool, rev: str | None = None, cwd: Path | None = None) -> 
         )
         return 2
     try:
-        config.write_text(new_text, encoding="utf-8")
+        config.write_bytes(new_text.encode("utf-8"))
     except OSError as exc:
         print(f"error: cannot write {config}: {exc}", file=sys.stderr)
         return 2

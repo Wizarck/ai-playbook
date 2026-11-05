@@ -38,11 +38,15 @@ hardrule warns on drift. The canonical declaration `apply` inserts is:
         args: [--fix]
 ```
 
-Declaration MUST be additive — `apply` inserts the item after the last `repos:`
-entry, matching the file's indentation, rather than rewriting the YAML, so
-consumer comments, formatting, and unrelated hooks survive intact (same contract
-as [pre-commit-hooks](pre-commit-hooks.rule.md)). If the result would not parse,
-nothing is written and `apply` exits 2 with the item to paste by hand.
+Declaration MUST be additive — `apply` inserts the item at the end of the
+`repos:` sequence, matching the file's indentation, rather than rewriting the
+YAML, so consumer comments, formatting, and unrelated hooks survive intact (same
+contract as [pre-commit-hooks](pre-commit-hooks.rule.md)). In a playbook-rendered
+file that is after the sealed `playbook-hooks` block and the consumer-extras
+region, never inside them: the next reconcile would flag the block as drifted or
+regenerate the region without the item. If the result would not parse, or would
+change a marker block, nothing is written and `apply` exits 2 with the item to
+paste by hand.
 
 ## Trust boundary
 

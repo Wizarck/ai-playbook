@@ -2,6 +2,60 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [Unreleased]
+
+### Fixed — pre-commit config tooling and the spec-edit guard
+- **`lint-parity-precommit apply` / `pre-commit-hooks apply`** insert at the
+  end of `repos:`, after the sealed `playbook-hooks` block and the
+  consumer-extras region (inside them, the next reconcile flagged drift or
+  dropped the repo); they refuse to change a marker block and keep the file's
+  line endings.
+- **`pre-commit-hooks apply`** inserts a `repo: local` block that runs the four
+  gates from `.ai-playbook/scripts/` against the consumer's own AGENTS.md and
+  docs/. The exported `python -m scripts.<x>` hooks failed with `No module
+  named 'scripts'`, or checked another checkout. `validate` flags
+  `- id: ai-playbook` only under a remote playbook repo.
+- **Template pre-commit hooks** skip while their script is missing (an
+  uninitialised submodule blocked commits) and still fail when the validator
+  fails. Fresh renders set `default_stages: [pre-commit]`, a stage name that
+  needs pre-commit 3.2.0 or later (older versions reject the whole config).
+- **`block_manual_spec_edit`**: a clean merge that brings in an archived spec
+  passes; a non-UTF-8 message no longer blocks every commit; a marker in `#`
+  comments or below the `git commit -v` scissors line no longer counts;
+  non-ASCII spec paths are protected; a pre-commit-stage entry with no
+  commit-msg wiring blocks with migration steps instead of passing silently (a
+  commit-msg entry whose `files:`/`types:` filter drops the message file does
+  not count as wiring).
+
+### Consumer action
+- **`block-manual-spec-edit` entries that run at the pre-commit stage on the
+  staged files** (e.g. `entry: python .ai-playbook/scripts/block_manual_spec_edit.py`
+  with `files: ^openspec/specs/.*\.md$`) now block spec commits until migrated:
+  add `--commit-msg-file` and `stages: [commit-msg]`, delete `files:` (at
+  commit-msg pre-commit passes only the message file, so the filter skips the
+  hook and nothing is checked), add top-level `default_stages: [pre-commit]`
+  (pre-commit >= 3.2.0), then run `pre-commit install --hook-type commit-msg`.
+  The v0.24.1 template's commented entry
+  (`bash -c '... block_manual_spec_edit.py || exit 0'`) never got the file
+  names and never checked anything: replace it with the new template entry.
+- **Template hooks now block.** Validator exit codes propagate, verdict-lint
+  receives the staged review/verify files (touching an old artefact without a
+  verdict line fails), and `python` must be on PATH (exit 127, not a skip).
+  `--update` re-renders the block only on a fresh bootstrap or for a bundle
+  with `pre_commit_extras`; otherwise copy the playbook-hooks entries by hand.
+- **Remote `repo: https://github.com/Wizarck/ai-playbook` hooks**: replace them
+  with the `repo: local` block in `docs/rules/pre-commit-hooks.rule.md`.
+- **`coderabbit-fallback.yml` copied before v0.24.2**: re-copy the template, or
+  set its `token:` to `${{ secrets.CONSUMER_D_GOD_MODE || github.token }}`.
+
+### Known issues (deferred)
+- The remote-form hooks in `.pre-commit-hooks.yaml` still need `python` to
+  import the playbook (true since v0.18.0); a self-contained form needs a
+  `language: python` package build, out of patch scope.
+- On git < 2.38 (no `merge-tree --write-tree`), a merge whose two sides both
+  changed one spec is judged as a hand edit; put the marker in the merge
+  message or use `SKIP=block-manual-spec-edit`.
+
 ## [0.24.1] — 2026-09-25 — hooks stop depending on the session's cwd
 
 Claude Code runs hooks in the session's *current* directory, not the project

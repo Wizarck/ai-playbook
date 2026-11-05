@@ -162,7 +162,108 @@ def test_apply_inserts_parseable_repo_item(tmp_path: Path, precommit: str) -> No
         assert data["ci"] == {"autofix_prs": False}
 
 
+_HOOKS_ITEM = ("repos:\n  - repo: https://github.com/pre-commit/pre-commit-hooks\n    rev: v4.6.0\n"
+               "    hooks:\n      - id: trailing-whitespace\n")
+
+
+@pytest.mark.parametrize("precommit,tail", [
+    (_HOOKS_ITEM + "\n# pre-commit.ci settings\nci:\n  autofix_prs: false\n",
+     "# pre-commit.ci settings\nci:\n  autofix_prs: false\n"),
+    (_HOOKS_ITEM + "# vim: set ft=yaml:\n", "# vim: set ft=yaml:\n"),
+    ("repos:\r\n-   repo: https://github.com/pre-commit/pre-commit-hooks\r\n    rev: v3.2.0\r\n"
+     "    hooks:\r\n    -   id: trailing-whitespace\r\n# ---- settings ----\r\nexclude: ^vendor/\r\n",
+     "# ---- settings ----\r\nexclude: ^vendor/\r\n"),
+], ids=["header-of-ci", "trailing-modeline", "sample-config-header"])
+def test_apply_leaves_a_column0_comment_with_what_it_heads(tmp_path: Path, precommit: str, tail: str) -> None:
+    root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit=None)
+    config = root / ".pre-commit-config.yaml"
+    config.write_bytes(precommit.encode("utf-8"))
+    assert _lpp.apply(dry_run=False, cwd=root) == 0
+    out = config.read_bytes().decode("utf-8")
+    assert out.endswith(tail) and _lpp.RUFF_PRECOMMIT_REPO in out[: -len(tail)]
+
+
+def test_insert_knows_the_extras_trailer() -> None:
+    from scripts._renderers.pre_commit import _EXTRAS_TRAILER
+    from scripts.rules import _precommit_yaml
+
+    assert _precommit_yaml._EXTRAS_TRAILER == _EXTRAS_TRAILER
+
+
+@pytest.mark.parametrize("nl", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_apply_keeps_the_files_line_endings(tmp_path: Path, nl: str) -> None:
+    root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit=None)
+    (root / ".pre-commit-config.yaml").write_bytes(PRECOMMIT_WITHOUT_RUFF.replace("\n", nl).encode("utf-8"))
+    assert _lpp.apply(dry_run=False, cwd=root) == 0
+    out = (root / ".pre-commit-config.yaml").read_bytes().decode("utf-8")
+    assert _lpp.RUFF_PRECOMMIT_REPO in out
+    assert out.count("\r\n") == (out.count("\n") if nl == "\r\n" else 0)  # no line rewritten
+
+
 def test_apply_refuses_when_result_would_not_parse(tmp_path: Path) -> None:
     root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit="repos: [\n")
     assert _lpp.apply(dry_run=False, cwd=root) == 2
     assert (root / ".pre-commit-config.yaml").read_text(encoding="utf-8") == "repos: [\n"
+
+
+# --- the layout the playbook itself renders ---------------------------------------
+
+REPO = Path(__file__).resolve().parent.parent
+_EXTRAS = {"hooks": [{"id": "my-hook", "name": "my hook", "entry": "true", "language": "system"}]}
+
+
+def _blocks(text: str) -> dict[str, str]:
+    from scripts._marker_blocks import CommentStyle, parse_blocks
+
+    return {bid: b.content for bid, b in parse_blocks(text, CommentStyle.HASH).blocks.items()}
+
+
+@pytest.mark.parametrize("extras", [{}, _EXTRAS], ids=["no-extras", "extras"])
+def test_apply_on_rendered_template_survives_reconcile(tmp_path: Path, extras: dict) -> None:
+    """The ruff repo lands after the sealed block / extras trailer, so the next
+    reconcile neither flags drift nor drops it (a5061e7 spliced it inside)."""
+    from scripts._managed_files import apply_managed_files
+    from scripts._renderers.pre_commit import render
+
+    template = (REPO / "templates" / "new-project" / ".pre-commit-config.yaml.tmpl").read_text(encoding="utf-8")
+    bundle = {"pre_commit_extras": extras}
+    rendered = render(template=template, substitutions={"PROJECT_NAME": "demo"}, bundle=bundle)
+    root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit=None)
+    config = root / ".pre-commit-config.yaml"
+    config.write_bytes(rendered.encode("utf-8"))
+
+    assert _lpp.apply(dry_run=False, cwd=root) == 0
+    after = config.read_text(encoding="utf-8")
+    assert _blocks(after) == _blocks(rendered)
+    lines = after.splitlines()
+    ruff_at = lines.index(f"  - repo: {_lpp.RUFF_PRECOMMIT_REPO}")
+    assert ruff_at > lines.index("# <<< ai-playbook:end playbook-hooks <<<")
+    if extras:
+        assert ruff_at > lines.index("# (end of consumer hooks)")
+
+    check = apply_managed_files(consumer_root=root, playbook_root=REPO, bundle=bundle, dry_run=True)
+    assert check.ok, check.changes
+    apply_managed_files(consumer_root=root, playbook_root=REPO, bundle=bundle, dry_run=False)
+    assert _lpp.RUFF_PRECOMMIT_REPO in config.read_text(encoding="utf-8")
+    assert _lpp.validate(cwd=root) == 0
+
+
+def test_insert_never_splices_into_a_marker_block() -> None:
+    from scripts.rules._precommit_yaml import insert_repo
+
+    block = _lpp._canonical_block("0.9.3")
+    # A begin marker before a trailing key opens what follows: insert before it.
+    opener = (
+        "repos:\n  - repo: https://github.com/pre-commit/pre-commit-hooks\n    rev: v4.6.0\n"
+        "    hooks:\n      - id: trailing-whitespace\n"
+        "# >>> ai-playbook:begin id=ci >>>\nci:\n  autofix_prs: false\n# <<< ai-playbook:end ci <<<\n"
+    )
+    out = insert_repo(opener, block, repo_url=_lpp.RUFF_PRECOMMIT_REPO, hook_ids=["ruff"])
+    assert _blocks(out) == _blocks(opener)
+    # A block that spans the end of `repos:` leaves no safe spot: refuse.
+    spanning = (
+        "repos:\n# >>> ai-playbook:begin id=all >>>\n  - repo: local\n    hooks: []\n"
+        "ci:\n  autofix_prs: false\n# <<< ai-playbook:end all <<<\n"
+    )
+    with pytest.raises(ValueError, match="marker block"):
+        insert_repo(spanning, block, repo_url=_lpp.RUFF_PRECOMMIT_REPO, hook_ids=["ruff"])

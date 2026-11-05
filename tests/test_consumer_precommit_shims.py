@@ -1,8 +1,9 @@
 """Consumer pre-commit entries must propagate validator failures.
 
-The ``[ ! -d .ai-playbook ] || python ...`` guard skips cleanly when the
-playbook is absent, but a failing validator must fail the hook — the former
-``A && python ... || exit 0`` shape swallowed every failure.
+The ``[ ! -f .ai-playbook/scripts/<x>.py ] || python ...`` guard skips cleanly
+when the playbook checkout is absent or uninitialised, but a failing validator
+must fail the hook — the former ``A && python ... || exit 0`` shape swallowed
+every failure.
 """
 from __future__ import annotations
 
@@ -64,9 +65,24 @@ def test_passing_validator_passes_the_hook(tmp_path: Path) -> None:
         assert _run(entry, tmp_path, ["f.md"]).returncode == 0, entry
 
 
-def test_hook_skips_when_playbook_absent(tmp_path: Path) -> None:
+@pytest.mark.parametrize("checkout", ["absent", "empty"])
+@pytest.mark.parametrize("registries", [False, True], ids=["no-registries", "registries"])
+def test_hook_skips_when_playbook_cannot_run(tmp_path: Path, checkout: str, registries: bool) -> None:
+    # "empty" = an uninitialised submodule (clone without --recurse-submodules,
+    # fresh `git worktree add`): the directory exists, the scripts do not.
+    if checkout == "empty":
+        (tmp_path / ".ai-playbook").mkdir()
+    if registries:
+        (tmp_path / "wiring.yaml").write_text("{}\n", encoding="utf-8")
+        (tmp_path / "repo-hygiene.yaml").write_text("{}\n", encoding="utf-8")
     for entry in _entries():
         assert _run(entry, tmp_path, ["f.md"]).returncode == 0, entry
+
+
+def test_guard_checks_the_script_it_runs() -> None:
+    for entry in _entries():
+        guarded = re.findall(r"\[ ! -f (\.ai-playbook/\S+\.py) \]", entry)
+        assert guarded == re.findall(r"python (\S+\.py)", entry), entry
 
 
 def test_filename_hooks_receive_staged_files(tmp_path: Path) -> None:
