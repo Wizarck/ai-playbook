@@ -229,7 +229,7 @@ def _is_playbook_hook(hook: object) -> bool:
     return ".ai-playbook/" in str(hook.get("command", "")).replace("\\", "/")
 
 
-def remove_playbook_hooks(consumer_root: Path, report: UninstallReport) -> None:
+def remove_playbook_hooks(consumer_root: Path, report: UninstallReport, *, dry_run: bool = False) -> None:
     """Drop hooks whose command runs a script inside ``.ai-playbook/``.
 
     Once the submodule is removed those commands fail with exit 2, which
@@ -270,6 +270,9 @@ def remove_playbook_hooks(consumer_root: Path, report: UninstallReport) -> None:
             else:
                 del hooks[event]
         if not changed:
+            continue
+        if dry_run:
+            report.stripped.append(f"(dry-run) would drop hooks pointing into .ai-playbook/ from {rel}")
             continue
         if not hooks:
             del data["hooks"]
@@ -400,6 +403,7 @@ def uninstall(
         for rel in MANAGED_PATHS:
             if (rel not in base or not restore_from_bak) and (consumer_root / rel).is_file():
                 report.stripped.append(f"(dry-run) would strip markers from {rel}")
+        remove_playbook_hooks(consumer_root, report, dry_run=True)
         if (consumer_root / ".ai-playbook").exists():
             report.submodule_removed = True
         if (
