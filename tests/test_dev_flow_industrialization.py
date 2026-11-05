@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts import auto_tick_tasks as att
 from scripts import schema_validate as sv
 
@@ -186,6 +188,21 @@ class TestTickTasksMd:
         changed, ticked = att.tick_tasks_md(f, refs=refs)
         assert changed is False
         assert ticked == []
+
+    @pytest.mark.parametrize("eol", ["\n", "\r\n"])
+    def test_only_the_ticked_box_changes_whatever_the_line_endings(
+        self, tmp_path: Path, eol: str,
+    ):
+        """Text mode rewrote every line with the platform's newline (CRLF on
+        Windows): without eol attributes the tick became one whole-file hunk,
+        so `git add -p` could not stage it apart from other tasks.md edits."""
+        f = tmp_path / "tasks.md"
+        original = (SAMPLE_TASKS.replace("\n", eol) + "- [ ] 3.3 no final newline").encode()
+        f.write_bytes(original)
+        changed, ticked = att.tick_tasks_md(f, refs=att.parse_subject("§3.1"))
+        assert changed is True
+        assert ticked == ["- [x] 3.1 README"]
+        assert f.read_bytes() == original.replace(b"- [ ] 3.1", b"- [x] 3.1")
 
 
 # ---------------------------------------------------------------------------
