@@ -90,9 +90,53 @@ def test_unwrap_entry_strips_markers_even_when_original_missing() -> None:
     assert "_caveman_original" not in out
 
 
+def test_unwrap_entry_recovers_wrapper_whose_markers_were_removed() -> None:
+    """Regression F6: the wrapper's argv holds the original command losslessly."""
+    entry = {"command": "npx", "args": ["-y", "caveman-shrink", "--", "uv", "run", "srv"], "env": {"K": "v"}}
+    assert mcp_shrink.unwrap_entry(entry) == {"command": "uv", "args": ["run", "srv"], "env": {"K": "v"}}
+
+
+def test_unwrap_entry_marker_without_original_falls_back_to_argv() -> None:
+    entry = {"command": "npx", "args": ["-y", "caveman-shrink", "--", "go", "run"], "_caveman_wrapped": True}
+    assert mcp_shrink.unwrap_entry(entry) == {"command": "go", "args": ["run"]}
+
+
+def test_unwrap_entry_peels_nested_wrappers() -> None:
+    once = {"command": "npx", "args": ["-y", "caveman-shrink", "--", "uv", "run"]}
+    twice = {
+        "command": "npx",
+        "args": ["-y", "caveman-shrink", "--", *["npx", *once["args"]]],
+        "_caveman_wrapped": True,
+        "_caveman_original": once,
+    }
+    assert mcp_shrink.unwrap_entry(twice) == {"command": "uv", "args": ["run"]}
+
+
+def test_unwrap_entry_leaves_other_npx_servers_alone() -> None:
+    entry = {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]}
+    assert mcp_shrink.unwrap_entry(entry) == entry
+
+
 # ---------------------------------------------------------------------------
 # shrink_file / restore_file (document-level)
 # ---------------------------------------------------------------------------
+
+
+def test_restore_file_unwraps_wrapper_whose_markers_were_removed(tmp_path: Path) -> None:
+    mcp = tmp_path / ".mcp.json"
+    _write_json(mcp, {"mcpServers": {"a": {"command": "uv", "args": ["run", "srv"]}}})
+    mcp_shrink.shrink_file(tmp_path, mcp)
+    doc = json.loads(mcp.read_text(encoding="utf-8"))
+    doc["mcpServers"]["a"].pop("_caveman_wrapped")
+    doc["mcpServers"]["a"].pop("_caveman_original")
+    _write_json(mcp, doc)
+
+    # shrink must not wrap the bare wrapper a second time
+    assert mcp_shrink.shrink_file(tmp_path, mcp) == (None, 0)
+    _, count = mcp_shrink.restore_file(tmp_path, mcp)
+    assert count == 1
+    restored = json.loads(mcp.read_text(encoding="utf-8"))
+    assert restored == {"mcpServers": {"a": {"command": "uv", "args": ["run", "srv"]}}}
 
 
 def test_shrink_file_wraps_all_stdio_entries(tmp_path: Path) -> None:
@@ -165,10 +209,7 @@ def test_restore_file_never_copies_backup_when_no_markers(tmp_path: Path) -> Non
     mcp = tmp_path / ".mcp.json"
     _write_json(mcp, {"mcpServers": {"a": {"command": "uv"}}})
     mcp_shrink.shrink_file(tmp_path, mcp)  # creates a backup
-    doc = json.loads(mcp.read_text(encoding="utf-8"))
-    doc["mcpServers"]["a"].pop("_caveman_wrapped", None)
-    doc["mcpServers"]["a"].pop("_caveman_original", None)
-    _write_json(mcp, doc)
+    _write_json(mcp, {"mcpServers": {"a": {"command": "node", "args": ["a.js"]}}})  # user rewrote it
     before = mcp.read_bytes()
 
     assert mcp_shrink.restore_file(tmp_path, mcp) == (None, 0)
@@ -226,6 +267,43 @@ def test_restore_file_refuses_unparseable_wrapped_file(tmp_path: Path) -> None:
     assert gemini.read_text(encoding="utf-8") == broken
 
 
+def test_restore_file_unwraps_file_resaved_with_utf8_bom(tmp_path: Path) -> None:
+    """Regression F5: PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM."""
+    mcp = tmp_path / ".mcp.json"
+    _write_json(mcp, {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}})
+    mcp_shrink.shrink_file(tmp_path, mcp)
+    mcp.write_bytes(b"\xef\xbb\xbf" + mcp.read_bytes())
+
+    backup, count = mcp_shrink.restore_file(tmp_path, mcp)
+    assert count == 1
+    assert backup is not None
+    assert not mcp.read_bytes().startswith(b"\xef\xbb\xbf")
+    assert json.loads(mcp.read_text(encoding="utf-8")) == {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+
+
+def test_shrink_file_wraps_file_with_utf8_bom(tmp_path: Path) -> None:
+    mcp = tmp_path / ".mcp.json"
+    mcp.write_bytes(b"\xef\xbb\xbf" + json.dumps({"mcpServers": {"a": {"command": "uv"}}}).encode("utf-8"))
+    _, count = mcp_shrink.shrink_file(tmp_path, mcp)
+    assert count == 1
+    assert json.loads(mcp.read_text(encoding="utf-8"))["mcpServers"]["a"]["command"] == "npx"
+
+
+def test_restore_file_utf16_file_refuses_only_when_wrapped(tmp_path: Path) -> None:
+    """PowerShell 5.1 `>` / Out-File writes UTF-16: never crash, never guess."""
+    mcp = tmp_path / ".mcp.json"
+    plain = json.dumps({"mcpServers": {"a": {"command": "uv"}}})
+    mcp.write_text(plain, encoding="utf-16")
+    before = mcp.read_bytes()
+    assert mcp_shrink.restore_file(tmp_path, mcp) == (None, 0)
+    assert mcp.read_bytes() == before
+
+    wrapped = json.dumps({"mcpServers": {"a": mcp_shrink.wrap_entry({"command": "uv"})}})
+    mcp.write_text(wrapped, encoding="utf-16")
+    with pytest.raises(ValueError, match="cannot parse"):
+        mcp_shrink.restore_file(tmp_path, mcp)
+
+
 def test_restore_file_returns_none_when_nothing_to_do(tmp_path: Path) -> None:
     mcp = tmp_path / ".mcp.json"
     _write_json(mcp, {"mcpServers": {"a": {"command": "uv"}}})  # not wrapped
@@ -258,6 +336,21 @@ def test_shrink_project_handles_only_claude(tmp_path: Path) -> None:
     assert result["claude"]["wrapped"] == 1
     assert result["gemini"]["wrapped"] == 0
     assert result["gemini"]["backup"] is None
+
+
+def test_restore_project_checks_both_files_before_writing_either(tmp_path: Path) -> None:
+    """Regression F7: an unparseable wrapped gemini file must not leave .mcp.json unwrapped."""
+    claude = tmp_path / ".mcp.json"
+    gemini = tmp_path / ".gemini" / "settings.json"
+    _write_json(claude, {"mcpServers": {"a": {"command": "uv"}}})
+    _write_json(gemini, {"mcpServers": {"b": {"command": "go"}}})
+    mcp_shrink.shrink_project(tmp_path)
+    gemini.write_text("// note\n" + gemini.read_text(encoding="utf-8"), encoding="utf-8")
+    before = claude.read_bytes()
+
+    with pytest.raises(ValueError, match="cannot parse"):
+        mcp_shrink.restore_project(tmp_path)
+    assert claude.read_bytes() == before
 
 
 def test_shrink_then_restore_round_trip(tmp_path: Path) -> None:

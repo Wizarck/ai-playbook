@@ -142,8 +142,10 @@ What this does:
 1. Strips the marker-fenced block from AGENTS.md (idempotent — no-op
    if no block).
 2. Unwraps every MCP entry carrying the in-file `_caveman_wrapped`
-   marker. Files without markers (or missing) are left untouched — a
-   backup is never auto-copied; use `caveman rollback` for that.
+   marker, or still shaped `npx -y caveman-shrink -- <cmd> ...` after the
+   markers were removed by hand. Files with no wrapped entries (or
+   missing) are left untouched — a backup is never auto-copied; use
+   `caveman rollback` for that.
 3. Writes the state file with `enabled: false` and all components
    `false`.
 
@@ -170,6 +172,9 @@ What this does:
 3. Validates: every heading (as a whole line, same level), fenced code
    block (backtick or tilde, including list-indented ones), inline code span,
    URL, and file path from the source appears byte-for-byte in the output.
+   An inline span the source wraps across two lines may come back on one.
+   Output that keeps those tokens but drops the prose (under 10% of the
+   source's prose words, for a source with at least 10) is a violation too.
 4. On violation, retries with a targeted patch (up to 2 times). After
    2 failed retries, restores from `AGENTS.md.original.md` and exits 1.
 
@@ -180,7 +185,30 @@ proxy setup.
 
 ## Rolling back
 
-### Restore the latest AGENTS.md backup
+### `caveman rollback`
+
+```bash
+python -m scripts.caveman rollback --list --project .   # what would be restored
+python -m scripts.caveman rollback --yes --project .
+```
+
+Restores the newest backup caveman itself took of AGENTS.md
+(`backups/agents-caveman/`) and of `.mcp.json` / `.gemini/settings.json`
+(`backups/mcp/`), then re-syncs `components.response_style` with the
+restored AGENTS.md.
+
+The AGENTS.md backup is a whole-file snapshot, so ponytail and graphify
+blocks are compared by content first:
+
+- A ponytail/graphify block that is in AGENTS.md now but missing from, or
+  different in, caveman's backup would be lost. AGENTS.md is left as is
+  and rollback exits 1; the MCP files are still restored. Turn that
+  feature off (`python -m scripts.ponytail off`), re-run rollback, then
+  turn it back on — or run `caveman off`, which removes only the caveman
+  block.
+- A block that was removed after the backup was taken stays removed.
+
+### Restore the latest AGENTS.md backup by hand
 
 ```bash
 ls C:/Projects/delta-core/.ai-playbook/backups/agents-caveman/
@@ -189,7 +217,12 @@ cp .ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak ./AGENTS.md
 python -m scripts.caveman off --project .  # sync the state file
 ```
 
-### Restore the latest MCP backups
+Snapshots taken before v0.24.2 are in `.ai-playbook/backups/agents/`
+(names without microseconds, e.g. `AGENTS.md.2026-09-01T10-00-00Z.bak`).
+That folder is shared with ponytail and graphify, so check a file before
+copying it; `caveman rollback` only names them, it does not restore them.
+
+### Restore the latest MCP backups by hand
 
 ```bash
 cp .ai-playbook/backups/mcp/.mcp.json.<ts>.bak ./.mcp.json

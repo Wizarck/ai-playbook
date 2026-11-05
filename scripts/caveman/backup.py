@@ -18,6 +18,7 @@ same tick never overwrite each other and name order stays chronological.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import sys
@@ -66,7 +67,13 @@ def make_backup(project_root: Path, area: str, source_file: Path) -> Path:
             break
         except FileExistsError:
             now += timedelta(microseconds=1)
-    shutil.copy2(source_file, target)
+    try:
+        shutil.copy2(source_file, target)
+    except BaseException:
+        # The claimed name sorts newest: left empty/partial, rollback would restore it.
+        with contextlib.suppress(OSError):
+            target.unlink()
+        raise
     return target
 
 
