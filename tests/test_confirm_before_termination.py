@@ -152,20 +152,33 @@ def test_a_blank_receipt_does_not_authorise(monkeypatch, tmp_path) -> None:
     assert v.blocked
 
 
-@pytest.mark.parametrize("raw", [
-    b"\x80\x81user said yes",            # not UTF-8, no BOM
-    b"\xff\xfeu\x00s\x00e",              # UTF-16 BOM, truncated (odd length)
-])
-def test_an_undecodable_receipt_blocks_and_is_consumed(monkeypatch, tmp_path, raw) -> None:
+def test_an_undecodable_receipt_blocks_and_is_consumed(monkeypatch, tmp_path) -> None:
     """An undecodable receipt used to raise UnicodeDecodeError: the dispatcher
     failed open AND the file survived as a standing override."""
     monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
     receipt = tmp_path / "receipt"
     monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
-    receipt.write_bytes(raw)
+    receipt.write_bytes(b"\xff\xfeu\x00s\x00e")  # UTF-16 BOM, truncated (odd length)
     v = rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}})
     assert v.blocked
     assert not receipt.exists(), "an unreadable receipt must still be single-use"
+
+
+@pytest.mark.parametrize("raw", [
+    "el usuario dijo sí \r\n".encode("cp850"),  # cmd `echo ... > <path>` (OEM code page)
+    "el usuario dijo sí\r\n".encode("cp1252"),  # PS 5.1 `Set-Content` without -Encoding
+    b"\x80\x81user said yes",
+])
+def test_a_legacy_code_page_receipt_authorises_exactly_one_stop(monkeypatch, tmp_path, raw) -> None:
+    """Only blankness is judged: a non-ASCII reason written in the console's code
+    page used to be refused again and again, with nothing saying why."""
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_bytes(raw)
+    assert not rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+    assert not receipt.exists()
+    assert rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
 
 
 @pytest.mark.parametrize("raw", [

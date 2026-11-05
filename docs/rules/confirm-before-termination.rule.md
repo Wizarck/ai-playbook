@@ -95,9 +95,11 @@ channel that matches the tool being gated:
   with forward slashes, which works unchanged in bash (Git Bash included),
   PowerShell and cmd; an unquoted `C:\Users\…` loses its backslashes in bash.
   The receipt is consumed on use: one confirmation authorises exactly one stop.
-  UTF-8 and BOM-marked UTF-16 (what Windows PowerShell 5.1 `>` writes) are
-  read; a blank or undecodable receipt authorises nothing — it is deleted all
-  the same.
+  Only whether it is blank is judged, whatever wrote it: UTF-8, BOM-marked
+  UTF-16 (what Windows PowerShell 5.1 `>` writes), or an OEM / ANSI code page
+  (cmd `echo`, PowerShell 5.1 `Set-Content` without `-Encoding`). A blank
+  receipt, or a BOM-marked one that does not decode, authorises nothing — it is
+  deleted all the same.
 - A hook-level env var still works where a wrapper genuinely exports it before
   the hook runs (e.g. CI harnesses).
 
