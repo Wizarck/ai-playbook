@@ -79,21 +79,34 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
    systemctl --user restart <service>
    ```
 
-6. **If the leaked credential was the SOPS / age master key**, re-key the store. Do this before Steps 3–4 (see Step 2).
+6. **If the leaked credential was the SOPS / age master key**, re-key the store. Do this before Steps 3–4 (see Step 2). Needs sops ≥ 3.7 (the first release with age). Paste the whole block, parentheses included, from the repo root, after replacing `<leaked-pub-key>`:
    ```bash
-   set -euo pipefail
-   age-keygen -o ~/.config/sops/age/keys-new.txt        # prints the new public key
-   # Decrypting needs the old key, verifying needs the new one: load both.
-   cat ~/.config/sops/age/keys.txt ~/.config/sops/age/keys-new.txt > ~/.config/sops/age/keys-both.txt
-   export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys-both.txt
-   for f in $(git ls-files '*secrets*.env'); do
-       sops -d "$f" \
-         | sops -e --input-type dotenv --output-type dotenv --age <new-pub-key> /dev/stdin > "$f.new"
-       sops -d --input-type dotenv --output-type dotenv "$f.new" > /dev/null   # proves the new file decrypts
-       mv "$f.new" "$f"
-   done
+   (
+     set -euo pipefail   # inside ( ): a failure ends this block, not your shell or SSH session
+     K=~/.config/sops/age   # the directory holding keys.txt (sops on Windows defaults to %AppData%/sops/age)
+     [ -f "$K/keys-new.txt" ] || age-keygen -o "$K/keys-new.txt"   # a retry reuses the key it made
+     NEW_PUB=$(age-keygen -y "$K/keys-new.txt")
+     OLD_PUB=<leaked-pub-key>   # age1...; `age-keygen -y ~/.config/sops/age/keys.txt` prints it
+     dec() { SOPS_AGE_KEY_FILE="$1" sops -d --input-type dotenv --output-type dotenv "$2" > /dev/null 2>&1; }
+     for f in $(git ls-files '*secrets*.env'); do
+       if dec "$K/keys-new.txt" "$f" && ! dec "$K/keys.txt" "$f"; then continue; fi   # done by an earlier run
+       # sops 3.7 `--rotate` exits 0 and EMPTIES the file when it cannot decrypt it:
+       # prove the old key can, keep a copy, and put it back unless the new key alone can.
+       dec "$K/keys.txt" "$f" || { echo "keys.txt cannot decrypt $f; nothing changed" >&2; exit 1; }
+       cp "$f" "$f.pre-rekey"
+       if SOPS_AGE_KEY_FILE="$K/keys.txt" sops --rotate --in-place \
+            --add-age "$NEW_PUB" --rm-age "$OLD_PUB" --input-type dotenv --output-type dotenv "$f" \
+          && dec "$K/keys-new.txt" "$f" && ! dec "$K/keys.txt" "$f"; then
+         rm "$f.pre-rekey"
+       else
+         mv "$f.pre-rekey" "$f"
+         echo "re-key of $f did not verify (the new key alone must decrypt it, the leaked one must not); restored it" >&2
+         exit 1
+       fi
+     done
+   )
    ```
-   `pipefail` + `set -e` stop the loop on the first failure, before `mv`, so an original is never replaced by an empty or unreadable file. Then point `.sops.yaml` recipients at the new public key, replace `keys.txt` with the new key, delete `keys-both.txt`, and commit.
+   In place, so there is no `/dev/stdin` (which native sops cannot open from Git Bash) and no new file name for a path-scoped `.sops.yaml` creation rule to reject. `--rotate` re-encrypts each file under a fresh data key for its current recipients, minus the leaked key, plus the new one; other recipients (a server or CI key) keep access. The first failure stops the block with that file restored and the rest untouched, and re-running it skips the files already done. Then point the `.sops.yaml` recipients at the new public key, replace `keys.txt` with `keys-new.txt`, and commit.
    The old ciphertext stays in git history and the leaked key still decrypts it: every secret that was in the store counts as leaked and goes through Steps 2–4.
 
 7. **Force-push history rewrite IF the leak was in a published commit.**
@@ -130,9 +143,9 @@ Severity: **S1** if customer data is reachable via the leaked credential; **S2**
 **Cause**: branch protection prevents force-push on the default branch, OR the remote has new commits since the rewrite.
 **Fix**: temporarily relax branch protection (admin override), force-push, then re-enable protection. If the remote has new commits, rebase the new commits on top of the rewritten history before force-pushing — coordinate with collaborators first.
 
-### Symptom: SOPS master key rotation leaves a file partially encrypted with the old key
-**Cause**: the loop in Step 6 errored mid-way on one file.
-**Fix**: identify the failed file (`sops -d <file>` will fail), decrypt with the OLD key (still present in keys.txt), re-encrypt with the NEW pub key, verify, commit. Do NOT remove the old key from keys.txt until every file decrypts with the new key.
+### Symptom: SOPS master key rotation stopped part-way
+**Cause**: the block in Step 6 stopped on one file and named it; the files before it are re-keyed, that file (restored from `<file>.pre-rekey`) and the rest are not.
+**Fix**: run `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops -d <file>` to see the sops error, fix its cause (wrong `<leaked-pub-key>`, a `keys.txt` that also holds another recipient's identity), and re-run the whole block: it reuses `keys-new.txt` and skips the files already done. Do NOT replace `keys.txt` until every file decrypts with `keys-new.txt` alone.
 
 ## Post-incident artefact required
 
