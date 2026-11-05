@@ -57,6 +57,14 @@ from scripts._marker_blocks import (  # noqa: E402
     parse_blocks,
     style_for_filename,
 )
+from scripts.auto_managed import find_sections  # noqa: E402
+
+# AGENTS.md ruleset blocks injected by scripts/<feature>/materialise.py.
+_FEATURE_BLOCK_PREFIXES = (
+    ("caveman", "caveman/ruleset:"),
+    ("ponytail", "ponytail/ruleset:"),
+    ("graphify", "graphify/ruleset"),
+)
 
 MANAGED_PATHS = [
     "AGENTS.md",
@@ -164,17 +172,53 @@ def strip_managed_markers(consumer_root: Path, report: UninstallReport) -> None:
 
 def _strip_feature_blocks(consumer_root: Path, report: UninstallReport) -> None:
     """Remove the caveman/ponytail/graphify ``auto-managed`` ruleset blocks from
-    AGENTS.md; they instruct the agent to run toggles that no longer exist."""
-    from scripts.caveman import materialise as caveman_m
-    from scripts.graphify import materialise as graphify_m
-    from scripts.ponytail import materialise as ponytail_m
+    AGENTS.md; they instruct the agent to run toggles that no longer exist.
 
-    for name, mod in (("caveman", caveman_m), ("ponytail", ponytail_m), ("graphify", graphify_m)):
+    Mirrors each feature's ``materialise.strip`` without calling it: importing
+    those pulls in toggles that self-install jsonschema (or exit 2) at import
+    time, and their backup goes to ``.ai-playbook/backups/``, inside the
+    submodule removed moments later (creating ``.ai-playbook/`` if it is gone).
+    """
+    agents = consumer_root / "AGENTS.md"
+    if not agents.is_file():
+        return
+    try:
+        raw = agents.read_text(encoding="utf-8")
+    except OSError as exc:
+        report.errors.append(f"strip feature blocks from AGENTS.md: {exc}")
+        return
+    lines = raw.replace("\r\n", "\n").split("\n")
+    stripped: list[str] = []
+    for name, prefix in _FEATURE_BLOCK_PREFIXES:
         try:
-            if mod.strip(consumer_root) is not None:
-                report.stripped.append(f"AGENTS.md ({name} block)")
-        except (OSError, ValueError) as exc:
+            sections = [s for s in find_sections("\n".join(lines)) if s.source.startswith(prefix)]
+        except ValueError as exc:
             report.errors.append(f"strip {name} block from AGENTS.md: {exc}")
+            return
+        if len(sections) > 1:
+            report.errors.append(
+                f"strip {name} block from AGENTS.md: {len(sections)} blocks, expected 1; "
+                "remove them by hand"
+            )
+            continue
+        if not sections:
+            continue
+        start, end = sections[0].start_line - 1, sections[0].end_line
+        if start > 0 and lines[start - 1].strip() == "":
+            start -= 1  # the blank line the materialiser adds before the block
+        lines = lines[:start] + lines[end:]
+        stripped.append(name)
+    if not stripped:
+        return
+    new_text = "\n".join(lines)
+    if raw.endswith("\n") and not new_text.endswith("\n"):
+        new_text += "\n"
+    try:
+        agents.write_text(new_text, encoding="utf-8", newline="\n")
+    except OSError as exc:
+        report.errors.append(f"strip feature blocks from AGENTS.md: {exc}")
+        return
+    report.stripped.extend(f"AGENTS.md ({name} block)" for name in stripped)
 
 
 def _is_playbook_hook(hook: object) -> bool:
