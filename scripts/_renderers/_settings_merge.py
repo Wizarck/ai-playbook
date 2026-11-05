@@ -7,8 +7,10 @@ content — only ENSURE that a required hook exists, deduping by the command's
 script identity (basename) rather than by an exact matcher string. Matching by
 basename is what lets the canonical template's ``Edit|Write|MultiEdit|Bash``
 matcher satisfy the ``Edit|Write|MultiEdit`` invariant without producing a
-duplicate PreToolUse entry. The one rewrite allowed is ``anchor_hook_commands``,
-which anchors cwd-relative script paths to ``$CLAUDE_PROJECT_DIR``.
+duplicate PreToolUse entry. Two rewrites are allowed: ``anchor_hook_commands``
+anchors cwd-relative script paths to ``$CLAUDE_PROJECT_DIR``, and
+``merge_required_dispatcher`` ADDS the tools no dispatcher entry routes yet
+(never narrowing a matcher, never moving or dropping a hook).
 
 Stdlib-only; pure functions (no filesystem, no mutation of inputs).
 """
@@ -30,11 +32,23 @@ REQUIRED_PRE_TOOL_USE_IDENTITY = "openspec-apply-enforce.py"
 _SCRIPT_EXTS = (".py", ".sh", ".bash", ".js", ".mjs", ".cjs", ".ts", ".ps1", ".rb", ".pl")
 
 
+def _script_tokens(command: str) -> list[str]:
+    """Basenames of the command's script tokens (``.py`` / ``.sh`` / …), in order."""
+    out = []
+    for raw in command.replace("\\", "/").split():
+        base = raw.strip("\"'").rsplit("/", 1)[-1]
+        if base.lower().endswith(_SCRIPT_EXTS):
+            out.append(base)
+    return out
+
+
 def command_identity(command: str) -> str:
     """Return the identity used to dedupe hook commands.
 
-    The identity is the basename of the command's first script token (a token
-    ending in a script extension such as ``.py`` / ``.sh``), so
+    The identity is the basename of the command's LAST script token (a token
+    ending in a script extension such as ``.py`` / ``.sh``): wrappers come first
+    (``bash with-env.sh python …``, ``source env.sh && python …``) and the
+    script doing the work comes last. So
     ``"sops exec-env -- python .claude/hooks/openspec-apply-enforce.py"`` and
     ``'python "$CLAUDE_PROJECT_DIR/.claude/hooks/openspec-apply-enforce.py"'``
     both reduce to ``"openspec-apply-enforce.py"`` regardless of wrapper
@@ -42,20 +56,22 @@ def command_identity(command: str) -> str:
     quoting. A command with no script token falls back to the whole
     (stripped) command, i.e. exact command equality.
     """
-    for raw in command.replace("\\", "/").split():
-        base = raw.strip("\"'").rsplit("/", 1)[-1]
-        if base.lower().endswith(_SCRIPT_EXTS):
-            return base
-    return command.strip()
+    tokens = _script_tokens(command)
+    return tokens[-1] if tokens else command.strip()
 
 
-def _command_has_identity(command: object, identity: str) -> bool:
-    return bool(identity) and command_identity(str(command or "")) == identity
+def _command_has_identity(command: object, identity: str, *, any_token: bool = False) -> bool:
+    """``any_token``: a caller-declared identity matches ANY script token, so a
+    required hook is found however a consumer wrapped or chained it."""
+    if not identity:
+        return False
+    cmd = str(command or "")
+    return command_identity(cmd) == identity or (any_token and identity in _script_tokens(cmd))
 
 
 def has_hook(settings: dict[str, Any], event: str, identity: str) -> bool:
-    """True iff some hook under ``settings.hooks[event]`` has exactly
-    ``identity`` as its :func:`command_identity` (any matcher)."""
+    """True iff some hook under ``settings.hooks[event]`` runs a script whose
+    basename is exactly ``identity`` (any matcher, any position)."""
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return False
@@ -69,7 +85,7 @@ def has_hook(settings: dict[str, Any], event: str, identity: str) -> bool:
         if not isinstance(sub, list):
             continue
         for h in sub:
-            if isinstance(h, dict) and _command_has_identity(h.get("command"), identity):
+            if isinstance(h, dict) and _command_has_identity(h.get("command"), identity, any_token=True):
                 return True
     return False
 
@@ -77,12 +93,13 @@ def has_hook(settings: dict[str, Any], event: str, identity: str) -> bool:
 def ensure_hooks(settings: dict[str, Any], hooks: list[dict[str, Any]]) -> dict[str, Any]:
     """Idempotently ensure each entry in ``hooks`` is wired into ``settings``.
 
-    Each ``hooks`` item is a flat dict ``{event, matcher?, command, timeout?}``.
-    Dedup is by command identity (basename) across ALL matcher entries for that
-    event — so a hook already present under a broader matcher is left untouched
-    and never duplicated. When absent, the hook is appended to the entry whose
-    ``matcher`` equals the requested one, or a fresh entry is created. Returns a
-    new dict; inputs are not mutated.
+    Each ``hooks`` item is a flat dict ``{event, matcher?, command, timeout?,
+    identity?}``. Dedup is by command identity (basename) across ALL matcher
+    entries for that event — so a hook already present under a broader matcher
+    is left untouched and never duplicated; an explicit ``identity`` is found in
+    any script position of an existing command. When absent, the hook is
+    appended to the entry whose ``matcher`` equals the requested one, or a fresh
+    entry is created. Returns a new dict; inputs are not mutated.
     """
     out = dict(settings)
     hooks_root = dict(out.get("hooks", {})) if isinstance(out.get("hooks"), dict) else {}
@@ -94,13 +111,15 @@ def ensure_hooks(settings: dict[str, Any], hooks: list[dict[str, Any]]) -> dict[
             continue
         matcher = h.get("matcher")
         timeout = h.get("timeout")
-        # An explicit `identity` overrides the derived script identity.
-        identity = h.get("identity") or command_identity(str(command))
+        # An explicit `identity` overrides the derived script identity and is
+        # matched against every script token of the existing commands.
+        explicit = h.get("identity")
+        identity = explicit or command_identity(str(command))
 
         entries = list(hooks_root.get(event, [])) if isinstance(hooks_root.get(event), list) else []
         if any(
             isinstance(e, dict) and isinstance(e.get("hooks"), list) and any(
-                isinstance(x, dict) and _command_has_identity(x.get("command"), identity)
+                isinstance(x, dict) and _command_has_identity(x.get("command"), identity, any_token=bool(explicit))
                 for x in e["hooks"]
             )
             for e in entries
@@ -141,6 +160,7 @@ def merge_required_pretooluse(settings: dict[str, Any]) -> dict[str, Any]:
         "matcher": REQUIRED_PRE_TOOL_USE_MATCHER,
         "command": REQUIRED_PRE_TOOL_USE_COMMAND,
         "timeout": REQUIRED_PRE_TOOL_USE_TIMEOUT,
+        "identity": REQUIRED_PRE_TOOL_USE_IDENTITY,
     }])
 
 
@@ -152,14 +172,39 @@ def merge_required_pretooluse(settings: dict[str, Any]) -> dict[str, Any]:
 # `pretooluse()` rule acts on (secrets-handling / english-only-docs: Edit|Write|
 # MultiEdit; shared-test-db-mutex: Bash; confirm-before-termination: KillShell|
 # TaskStop|BashOutputKill; jira-ticket-standard: create/editJiraIssue;
-# jira-closure-evidence: transitionJiraIssue + addCommentToJiraIssue). The
-# canonical settings.json.tmpl carries the same string (pinned by a test); an
-# existing narrower dispatcher entry is widened on merge.
-DISPATCHER_PRE_TOOL_USE_MATCHER = (
-    "Edit|Write|MultiEdit|Bash|KillShell|TaskStop|BashOutputKill|"
-    "mcp__.*__(createJiraIssue|editJiraIssue|transitionJiraIssue|addCommentToJiraIssue)"
-)
-_MATCH_ALL = (None, "", "*")
+# jira-closure-evidence: transitionJiraIssue + addCommentToJiraIssue). The Jira
+# tools are MCP tools whose `mcp__<alias>__` prefix varies per client, hence the
+# regex. The canonical settings.json.tmpl carries the same string (pinned by a
+# test); tools an existing dispatcher wiring does not route are added on merge.
+_DISPATCHER_TOOLS = ("Edit", "Write", "MultiEdit", "Bash", "KillShell", "TaskStop", "BashOutputKill")
+_DISPATCHER_MCP_TOOLS = ("createJiraIssue", "editJiraIssue", "transitionJiraIssue", "addCommentToJiraIssue")
+
+
+def _dispatcher_matcher(tools: list[str] | tuple[str, ...], mcp_tools: list[str] | tuple[str, ...]) -> str:
+    parts = list(tools)
+    if mcp_tools:
+        parts.append("mcp__.*__(" + "|".join(mcp_tools) + ")")
+    return "|".join(parts)
+
+
+DISPATCHER_PRE_TOOL_USE_MATCHER = _dispatcher_matcher(_DISPATCHER_TOOLS, _DISPATCHER_MCP_TOOLS)
+# Matchers earlier versions wired the dispatcher under (merge path / template).
+# Each routes a subset of the canonical tools, so it may become the canonical one.
+# Changing the canonical matcher? Add its old value here.
+_PREVIOUS_DISPATCHER_MATCHERS = frozenset({
+    "Edit|Write|MultiEdit|Bash",
+    "Edit|Write|MultiEdit|Bash|KillShell|TaskStop",
+    "Edit|Write|MultiEdit|Bash|KillShell|TaskStop|mcp__.*__(create|edit)JiraIssue",
+})
+# A Jira tool counts as routed only if it is under every probe alias (a local
+# `atlassian` MCP server, the claude.ai connector).
+_MCP_PROBE_ALIASES = ("atlassian", "claude_ai_Atlassian")
+# Claude Code reads a PreToolUse matcher made only of these characters as a list
+# of exact tool names separated by `|` or `,`; anything else is a regex.
+_PLAIN_MATCHER_RE = re.compile(r"[A-Za-z0-9_|, -]+")
+# `<interpreter> <path>/hook_dispatcher.py PreToolUse` and nothing else: no
+# wrapper (`sops exec-env`, `export`, `cd … ||`) that more tools would also run.
+_BARE_DISPATCHER_RE = re.compile(r'\s*\S+\s+\S*hook_dispatcher\.py"?\s+PreToolUse\s*')
 # Anchor to $CLAUDE_PROJECT_DIR (like the openspec-apply-enforce hook) instead of
 # a bare relative path. A relative `.ai-playbook/...` resolves against the hook's
 # cwd — which can be a sibling repo when the session's shell has cd'd away — so a
@@ -178,8 +223,8 @@ def merge_required_dispatcher(
     """Ensure the generic L1 dispatcher PreToolUse entry. Idempotent.
 
     Deduped by the ``hook_dispatcher.py`` basename, so re-running never
-    duplicates; an existing entry under a narrower matcher is widened to
-    :data:`DISPATCHER_PRE_TOOL_USE_MATCHER` (see ``_widen_dispatcher_matcher``).
+    duplicates; canonical tools the existing dispatcher wiring does not route
+    yet are added to it (see ``_widen_dispatcher_matcher``).
 
     ``available`` lets the caller suppress the entry when the consumer's submodule
     pin does NOT ship ``hook_dispatcher.py`` (older pins). Wiring a hook to an
@@ -199,45 +244,95 @@ def merge_required_dispatcher(
     return _widen_dispatcher_matcher(out)
 
 
+def _plain_names(matcher: str) -> list[str]:
+    return [p.strip() for p in re.split(r"[|,]", matcher) if p.strip()]
+
+
+def _matcher_routes(matcher: object, tool: str) -> bool:
+    """Whether a PreToolUse ``matcher`` sends ``tool`` to its hooks, read the way
+    Claude Code reads it: empty or ``*`` match every tool, a plain ``A|B`` list
+    matches names exactly, anything else is an unanchored regex search."""
+    if matcher in (None, "", "*"):
+        return True
+    if not isinstance(matcher, str):
+        return False
+    if _PLAIN_MATCHER_RE.fullmatch(matcher):
+        return tool in _plain_names(matcher)
+    try:
+        return re.search(matcher, tool) is not None
+    except re.error:
+        return False
+
+
+def _routed_dispatcher_tools(matcher: object) -> set[str]:
+    routed = {t for t in _DISPATCHER_TOOLS if _matcher_routes(matcher, t)}
+    routed.update(t for t in _DISPATCHER_MCP_TOOLS
+                  if all(_matcher_routes(matcher, f"mcp__{a}__{t}") for a in _MCP_PROBE_ALIASES))
+    return routed
+
+
 def _widen_dispatcher_matcher(settings: dict[str, Any]) -> dict[str, Any]:
-    """Move a dispatcher hook wired under a narrower matcher to the canonical one.
+    """Route every canonical tool to the dispatcher by ADDING the missing ones.
 
     Basename dedup alone would freeze an older ``Edit|Write|MultiEdit|Bash``
-    entry forever, leaving TaskStop/KillShell/Jira rules silently inert. An
-    entry holding only dispatcher hooks gets its matcher rewritten; a shared
-    entry keeps its other hooks (and their routing) and the dispatcher hook
-    moves to a canonical-matcher entry. Match-all matchers are left alone.
+    entry forever, leaving TaskStop/KillShell/Jira rules silently inert. The
+    tools no dispatcher entry routes yet are appended to the matcher of the first
+    entry that holds only bare dispatcher hooks (a matcher an earlier version
+    wrote becomes the canonical one); without such an entry they get a new entry
+    of their own. A matcher is never narrowed, a hook is never moved or dropped,
+    and a tool some dispatcher entry already routes is not routed again, so a
+    wrapped (``sops exec-env …``) or shared entry keeps exactly its routing.
     """
     entries = settings["hooks"].get("PreToolUse")
     if not isinstance(entries, list):
         return settings
 
-    def _is_disp(h: Any) -> bool:
-        return isinstance(h, dict) and _command_has_identity(h.get("command"), DISPATCHER_IDENTITY)
+    def _hooks(e: Any) -> list[Any]:
+        return e["hooks"] if isinstance(e, dict) and isinstance(e.get("hooks"), list) else []
 
-    new_entries: list[Any] = []
-    moved: list[dict[str, Any]] = []
+    def _is_disp(h: Any) -> bool:
+        return isinstance(h, dict) and _command_has_identity(h.get("command"), DISPATCHER_IDENTITY, any_token=True)
+
+    routed: set[str] = set()
     for e in entries:
-        if (not isinstance(e, dict) or not isinstance(e.get("hooks"), list)
-                or e.get("matcher") in _MATCH_ALL
-                or e.get("matcher") == DISPATCHER_PRE_TOOL_USE_MATCHER
-                or not any(_is_disp(h) for h in e["hooks"])):
-            new_entries.append(e)
-        elif all(_is_disp(h) for h in e["hooks"]):
-            new_entries.append({**e, "matcher": DISPATCHER_PRE_TOOL_USE_MATCHER})
-        else:
-            moved.extend(h for h in e["hooks"] if _is_disp(h))
-            new_entries.append({**e, "hooks": [h for h in e["hooks"] if not _is_disp(h)]})
-    if moved:
-        idx = next((i for i, e in enumerate(new_entries) if isinstance(e, dict)
-                    and e.get("matcher") == DISPATCHER_PRE_TOOL_USE_MATCHER
-                    and isinstance(e.get("hooks"), list)), None)
-        if idx is None:
-            new_entries.append({"matcher": DISPATCHER_PRE_TOOL_USE_MATCHER, "hooks": moved[:1]})
-        elif not any(_is_disp(h) for h in new_entries[idx]["hooks"]):
-            new_entries[idx] = {**new_entries[idx], "hooks": [*new_entries[idx]["hooks"], moved[0]]}
-    if new_entries == entries:
+        if any(_is_disp(h) for h in _hooks(e)):
+            routed |= _routed_dispatcher_tools(e.get("matcher"))
+    missing = [t for t in _DISPATCHER_TOOLS if t not in routed]
+    missing_mcp = [t for t in _DISPATCHER_MCP_TOOLS if t not in routed]
+    if not missing and not missing_mcp:
         return settings
+
+    def _extendable(e: Any) -> bool:
+        m = e.get("matcher") if isinstance(e, dict) else None
+        if not isinstance(m, str) or not _hooks(e):
+            return False
+        try:
+            re.compile(m)
+        except re.error:
+            return False
+        return all(_is_disp(h) and _BARE_DISPATCHER_RE.fullmatch(str(h["command"])) for h in _hooks(e))
+
+    addition = _dispatcher_matcher(missing, missing_mcp)
+    new_entries = list(entries)
+    idx = next((i for i, e in enumerate(entries) if _extendable(e)), None)
+    if idx is None:
+        new_entries.append({"matcher": addition, "hooks": [{
+            "type": "command",
+            "command": DISPATCHER_PRE_TOOL_USE_COMMAND,
+            "timeout": DISPATCHER_PRE_TOOL_USE_TIMEOUT,
+        }]})
+    else:
+        matcher = entries[idx]["matcher"]
+        if matcher in _PREVIOUS_DISPATCHER_MATCHERS and routed <= _routed_dispatcher_tools(matcher):
+            new_matcher = DISPATCHER_PRE_TOOL_USE_MATCHER
+        else:
+            if _PLAIN_MATCHER_RE.fullmatch(matcher):
+                # Normalise to `A|B` first: once the addition makes the matcher a
+                # regex, `Edit, Write` would mean that literal text and an empty
+                # alternative (`Edit|`) would match every tool.
+                matcher = "|".join(_plain_names(matcher))
+            new_matcher = "|".join(p for p in (matcher, addition) if p)
+        new_entries[idx] = {**entries[idx], "matcher": new_matcher}
     return {**settings, "hooks": {**settings["hooks"], "PreToolUse": new_entries}}
 
 
