@@ -56,7 +56,8 @@ Each entry names one check. Anything a check cannot establish counts as a failur
 - `check_gitmodules_first`: the target is an orphan only when `.gitmodules`, as parsed by `git config`, registers no submodule at, under or above it, git tracks nothing under it (files or gitlinks), and no `.git` (a repository or submodule checkout) sits at or under it.
 - `directory_orphan`: git tracks nothing under the target. Outside `.git/modules`, no `.git` sits at or under it. For a `.git/modules/<name>` git dir:
   - no submodule whose name or path is at, under or above `<name>` is declared in `.gitmodules` (a section without `path` still declares its name) or tracked as a gitlink;
-  - no git dir under it is still used, either by a checkout whose `core.worktree` and `.git` point back at it, or by a linked worktree in its `worktrees/`.
+  - no git dir under it is still used: by a checkout whose `core.worktree` (in `config` or `config.worktree`) and `.git` point back at it, or by a linked worktree in its `worktrees/` (a locked one counts even when absent);
+  - no git dir under it holds a commit that no remote-tracking ref reaches (`git rev-list --all --reflog --not --remotes` is empty).
 - `file_mtime_and_drained`: the file is older than `rotation_days` and every JSONL record is `drained`.
 - `yaml_literal_rename`: at least one `rename_in_files` file parses and holds `rename_from` as a scalar value.
 - `auto_managed_orphan`: see the auto-managed sections concept below; Tier 3 only.
