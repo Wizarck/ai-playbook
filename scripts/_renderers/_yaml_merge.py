@@ -6,6 +6,15 @@ import yaml
 _MERGE_TAG = "tag:yaml.org,2002:merge"
 
 
+class MergeConflictError(ValueError):
+    """The consumer's file cannot take the merge as it is laid out.
+
+    The orchestrator skips only that file as a conflict (not written,
+    applied-config not advanced) instead of aborting the whole batch; the
+    message names the hand edit that makes the merge fit.
+    """
+
+
 def duplicate_key(text: str) -> str | None:
     """Return the first mapping key that appears twice in ``text``, else None.
 
@@ -54,4 +63,4 @@ def load_mapping(text: str, *, strict: bool = False) -> dict | None:
     return data
 
 
-__all__ = ["duplicate_key", "load_mapping"]
+__all__ = ["MergeConflictError", "duplicate_key", "load_mapping"]

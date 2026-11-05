@@ -46,6 +46,7 @@ for _stream in (sys.stdout, sys.stderr):
 from scripts._backup_helper import BackupLocation, backup_once, restore_session  # noqa: E402
 from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks  # noqa: E402
 from scripts._renderers import (  # noqa: E402
+    MergeConflictError,
     render_agents_md,
     render_claude_settings_local,
     render_coderabbit,
@@ -432,7 +433,7 @@ def apply_managed_files(
     # (dest, rendered_text, ManagedFile, existed_before).
     planned: list[tuple[Path, str, ManagedFile, bool]] = []
     staging_failed = False  # a render/template error ⇒ abort the whole batch
-    conflicts: list[str] = []  # drifted-without-decision ⇒ per-file skip
+    conflicts: list[str] = []  # drift / CAS / malformed / merge ⇒ per-file skip
     for mf in triggered:
         template_path = templates_root / mf.template_rel
         if not template_path.is_file():
@@ -532,6 +533,21 @@ def apply_managed_files(
                 rendered = mf.renderer(
                     template=template, substitutions=substitutions, bundle=bundle,
                 )
+        except MergeConflictError as exc:
+            # The consumer's layout cannot take the merge: like a drift
+            # conflict, only this file is skipped; the batch still applies.
+            result.ok = False
+            conflicts.append(f"{mf.rel_path} (merge)")
+            result.file_states[mf.rel_path] = {
+                "merge_conflict": str(exc),
+                "last_seen": timestamp_iso,
+            }
+            result.changes.append(f"✗ {mf.rel_path}: {exc} — not written")
+            trace_emit.add_event(
+                "reconcile.managed_files.merge_conflict",
+                {"ai_playbook.managed_files.file": mf.rel_path},
+            )
+            continue
         except Exception as exc:  # noqa: BLE001
             result.ok = False
             staging_failed = True
