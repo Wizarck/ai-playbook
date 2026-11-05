@@ -38,6 +38,15 @@ def test_the_abort_point_is_a_ref_recorded_before_cherry_picking() -> None:
     assert step8.index(f"git branch -f {REF}") < step8.index("git cherry-pick")
 
 
+def test_a_failed_suite_reruns_the_tests_not_the_recombine_block() -> None:
+    """Re-running step 8's block would `git branch -f` the abort point onto the
+    half-recombined HEAD, so step 9's abort could no longer undo it."""
+    step9 = _section("### 9.", "### 10.")
+    assert "in step 8 + re-run" not in step9
+    assert "re-run the suite above" in step9
+    assert "Do NOT re-run step 8's block" in step9
+
+
 def test_the_abort_resets_to_that_ref_and_cleanup_removes_it() -> None:
     assert f"git reset --hard {REF}" in _section("### 9.", "### 10.")
     assert f"git branch -D {REF}" in _section("### 11.", "## Anti-patterns")
