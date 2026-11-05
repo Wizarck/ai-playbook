@@ -413,6 +413,11 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
     when = datetime.now(UTC).date().isoformat()
     rows = [tombstone_row(f, now, when) for f in ready]
+    tomb_file = root / args.tombstones
+    try:
+        prior = tomb_file.read_bytes() if tomb_file.is_file() else None
+    except OSError as exc:
+        raise ConfigError(f"cannot read the tombstone file {tomb_file}: {exc}") from exc
 
     # One `git rm` for the whole batch: git refuses the entire command if any
     # pathspec fails, so the tree is never left half-deleted.
@@ -421,10 +426,22 @@ def cmd_apply(args: argparse.Namespace) -> int:
         tomb = append_tombstones(root, args.tombstones, rows)
         git(root, "add", "--", tomb.resolve().relative_to(root).as_posix())
     except (OSError, ConfigError) as exc:
-        # No tombstone, no deletion: put the files back before surfacing the error.
+        # No tombstone, no deletion: put the files back before surfacing the
+        # error — and the tombstone file as it was (e.g. `git add` refused an
+        # ignored path after the append), or every retry appends the rows again.
         git(root, "reset", "-q", "--", *paths)
         git(root, "checkout", "--", *paths)
-        raise ConfigError(f"writing tombstones failed ({exc}); the deletions were rolled back") from exc
+        note = ""
+        try:
+            if prior is not None:
+                tomb_file.write_bytes(prior)
+            elif tomb_file.is_file():
+                tomb_file.unlink()
+        except OSError as undo_exc:
+            note = f"; {args.tombstones} could not be reset and may hold the rows ({undo_exc})"
+        raise ConfigError(
+            f"writing tombstones failed ({exc}); the deletions were rolled back{note}"
+        ) from exc
 
     print(f"sweep-execute: removed {len(ready)} file(s), {len(rows)} tombstone(s) -> {args.tombstones}")
     for f in ready:
