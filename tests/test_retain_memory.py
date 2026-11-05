@@ -136,6 +136,21 @@ def test_cli_dry_run_does_not_post(
     assert parsed["content"] == "x" * 50
 
 
+def test_cli_document_id_reaches_the_item(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--document-id was parsed but never put on the single item, so it was
+    neither retained nor scanned (only bulk records carried it)."""
+    _wire_creds(monkeypatch)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["retain_memory", "--bank", "acme-corp", "--content", "x" * 20,
+         "--document-id", "adr-0042", "--dry-run"],
+    )
+    assert rl.main() == 0
+    assert json.loads(capsys.readouterr().out)["document_id"] == "adr-0042"
+
+
 def test_cli_bulk_jsonl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -427,6 +442,7 @@ def _no_post(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     ["--tag", _FAKE_PAT],
     ["--project", _FAKE_PAT],
     ["--trace-id", _FAKE_PAT],
+    ["--document-id", _FAKE_PAT],
 ])
 def test_secret_in_any_cli_field_blocks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra: list[str],
