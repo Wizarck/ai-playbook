@@ -36,11 +36,13 @@ Behaviour
     3. Nothing staged (e.g. CI `--all-files` on a pushed commit): HEAD's
        message, matching the `HEAD~1..HEAD` diff used in that case.
 - Local pre-commit stage (staged changes, no message yet): exit 0 with a
-  notice when a commit-msg hook will run this guard (_commit_msg_stage_wired)
-  — that stage decides. Otherwise (e.g. a pre-commit-stage entry kept from
-  v0.24.1) the commit is blocked with the steps to move the hook, instead of
-  passing unchecked. If the message cannot be resolved for any other reason
-  AND a protected file changed, the commit is blocked.
+  notice when a commit-msg hook will run this guard on the message file
+  (_commit_msg_stage_wired) — that stage decides. Otherwise (e.g. an entry that
+  still calls the script with the staged filenames at the pre-commit stage, or
+  a commit-msg entry whose `files:` filter drops the message file) the commit
+  is blocked with the steps to move the hook, instead of passing unchecked. If
+  the message cannot be resolved for any other reason AND a protected file
+  changed, the commit is blocked.
 - Files outside `openspec/specs/*.md` are ignored (exit 0).
 - `--force-with-reason="<text>"`: allowed; logs override and exits 0.
 
@@ -278,18 +280,76 @@ def _commit_paths(repo_root: Path) -> set[str]:
     return paths
 
 
+# The `identify` tags pre-commit's type filters see on a message file on every
+# OS; it also carries `executable` (Windows) or `non-executable` (POSIX).
+_MESSAGE_FILE_TAGS = frozenset({"file", "text"})
+_MESSAGE_FILE_MAYBE_TAGS = _MESSAGE_FILE_TAGS | {"executable", "non-executable"}
+
+
+def _hook_gets_message_file(hook: dict, config: dict, message_paths: list[str]) -> bool:
+    """Whether pre-commit's commit-msg run hands this hook entry the message file.
+
+    At commit-msg the message file is the only filename pre-commit has, and the
+    top-level and hook ``files``/``exclude`` regexes and type filters still apply
+    to it: a ``files: ^openspec/specs/`` kept from a pre-commit-stage entry skips
+    the hook on every commit. When unsure, say no (the caller then blocks with
+    the migration steps rather than defer to a hook that never runs).
+    """
+    cmd = " ".join(str(part) for part in [hook.get("entry", ""), *(hook.get("args") or [])])
+    if "block_manual_spec_edit" not in cmd or "--commit-msg-file" not in cmd:
+        return False
+    stages = hook.get("stages") or config.get("default_stages")  # neither: every stage
+    if (stages and "commit-msg" not in stages) or hook.get("pass_filenames", True) is not True:
+        return False
+    try:
+        for scope in (config, hook):
+            include = re.compile(scope.get("files", ""))
+            exclude = re.compile(scope.get("exclude", "^$"))
+            if any(not include.search(p) or exclude.search(p) for p in message_paths):
+                return False
+    except (re.error, TypeError):
+        return False
+    types, types_or = set(hook.get("types") or ["file"]), set(hook.get("types_or") or [])
+    return (types <= _MESSAGE_FILE_TAGS
+            and (not types_or or bool(types_or & _MESSAGE_FILE_TAGS))
+            and not set(hook.get("exclude_types") or []) & _MESSAGE_FILE_MAYBE_TAGS)
+
+
+def _config_wires_guard(config_text: str, message_paths: list[str]) -> bool:
+    """Whether some hook in this pre-commit config runs the guard on the message."""
+    try:
+        import yaml
+    except ImportError:  # PyYAML missing: entry wiring only, filters unchecked
+        code = "\n".join(ln.split("#", 1)[0] for ln in config_text.splitlines())
+        return "block_manual_spec_edit" in code and "--commit-msg-file" in code
+    try:
+        config = yaml.safe_load(config_text)
+    except yaml.YAMLError:
+        return False
+    if not isinstance(config, dict) or not isinstance(config.get("repos"), list):
+        return False
+    return any(
+        isinstance(hook, dict) and _hook_gets_message_file(hook, config, message_paths)
+        for repo in config["repos"] if isinstance(repo, dict)
+        for hook in (repo.get("hooks") if isinstance(repo.get("hooks"), list) else [])
+    )
+
+
 def _commit_msg_stage_wired(repo_root: Path) -> bool:
     """Whether a commit-msg hook will run this guard with ``--commit-msg-file``.
 
     The hook must exist (``--git-path`` honours core.hooksPath) and either call
-    this script itself, or be pre-commit's with a config that wires the
-    ``--commit-msg-file`` mode. It only decides whether the pre-commit stage may
-    defer: a miss blocks with migration steps instead of passing unchecked.
+    this script itself, or be pre-commit's with a config entry that wires the
+    ``--commit-msg-file`` mode and that pre-commit actually hands the message
+    file (_hook_gets_message_file). It only decides whether the pre-commit stage
+    may defer: a miss blocks with migration steps instead of passing unchecked.
     """
-    rc, out = _git_out(repo_root, "rev-parse", "--git-path", "hooks/commit-msg")
-    if rc != 0:
+    rc, out = _git_out(repo_root, "rev-parse", "--git-path", "hooks/commit-msg",
+                       "--git-path", "COMMIT_EDITMSG", "--git-path", "MERGE_MSG")
+    paths = out.split("\n")
+    if rc != 0 or len(paths) < 3:
         return False
-    hook = Path(out.strip())
+    hook = Path(paths[0].strip())
     try:
         hook_text = (hook if hook.is_absolute() else repo_root / hook).read_text(
             encoding="utf-8", errors="replace")
@@ -305,8 +365,9 @@ def _commit_msg_stage_wired(repo_root: Path) -> bool:
             encoding="utf-8", errors="replace")
     except OSError:
         return False
-    code = "\n".join(ln.split("#", 1)[0] for ln in config.splitlines())
-    return "block_manual_spec_edit" in code and "--commit-msg-file" in code
+    # The path git passes the hook: `.git/COMMIT_EDITMSG` (`.git/MERGE_MSG` for
+    # `git merge`), absolute in a linked worktree; pre-commit uses `/` on Windows.
+    return _config_wires_guard(config, [p.strip().replace("\\", "/") for p in paths[1:3]])
 
 
 def find_repo_root(start: Path) -> Path:
@@ -439,9 +500,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     if unwired:
         why = ("openspec/specs/*.md change checked at the pre-commit stage, where the "
-               "commit message does not exist yet, and no commit-msg hook runs this guard")
+               "commit message does not exist yet, and no commit-msg hook runs this guard "
+               "on the message file")
         fix = ("move the hook to the commit-msg stage: entry `python .ai-playbook/scripts/"
-               "block_manual_spec_edit.py --commit-msg-file` with `stages: [commit-msg]` (see "
+               "block_manual_spec_edit.py --commit-msg-file` with `stages: [commit-msg]` and "
+               "no `files:`/`types:` filter (at commit-msg the only file pre-commit passes is "
+               "the message, so a filter skips the hook; see "
                ".ai-playbook/templates/new-project/.pre-commit-config.yaml.tmpl), top-level "
                "`default_stages: [pre-commit]`, then `pre-commit install --hook-type commit-msg`.")
     elif commit_msg:
