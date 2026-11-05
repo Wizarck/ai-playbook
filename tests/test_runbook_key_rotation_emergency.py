@@ -156,21 +156,27 @@ def sandbox(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(bin=bin_dir, keys=keys, repo=repo)
 
 
-def _seed(sb: SimpleNamespace, keys_txt: str, recipients: tuple[str, ...] = (LEAKED, KEPT)) -> None:
+def _seed(
+    sb: SimpleNamespace, keys_txt: str, recipients: tuple[str, ...] = (LEAKED, KEPT),
+    files: tuple[str, ...] = STORE_FILES,
+) -> None:
     (sb.keys / "keys.txt").write_bytes(keys_txt.encode())
     store = "API_TOKEN=ENC[x]\n" + "".join(
         f"sops_age__list_{i}__map_recipient={pub}\n" for i, pub in enumerate(recipients)
     )
-    for rel in STORE_FILES:
+    for rel in files:
+        (sb.repo / rel).parent.mkdir(parents=True, exist_ok=True)
         (sb.repo / rel).write_bytes(store.encode())
     # -f: a developer's global gitignore may cover *.env.
-    subprocess.run(["git", "add", "-f", "--", *STORE_FILES], cwd=sb.repo, check=True)
+    subprocess.run(["git", "add", "-f", "--", *files], cwd=sb.repo, check=True)
 
 
-def _run(sb: SimpleNamespace, leaked: str = LEAKED) -> tuple[int, str]:
+def _run(sb: SimpleNamespace, leaked: str = LEAKED, store: str | None = None) -> tuple[int, str]:
     """The block's exit status and stderr; asserts the outer shell survived it."""
     script = BLOCK.replace("K=~/.config/sops/age", f"K='{sb.keys.as_posix()}'", 1)
     script = script.replace("<leaked-pub-key>", leaked)
+    if store is not None:
+        script = script.replace("STORE=('*secrets*.env')", f"STORE=({store})", 1)
     env = dict(os.environ, PATH=str(sb.bin) + os.pathsep + os.environ.get("PATH", ""))
     r = subprocess.run(
         [BASH, "-c", script + '\necho "block-rc=$?"'], cwd=sb.repo, env=env,
@@ -218,6 +224,30 @@ def test_a_mistyped_leaked_key_changes_nothing(sandbox) -> None:
     assert rc == 1
     assert f"{OTHER} is not a recipient" in err
     assert _snapshot(sandbox) == before
+
+
+def test_a_store_pathspec_that_matches_nothing_fails_before_any_change(sandbox) -> None:
+    """A store the default pathspec misses (`.secrets/*.env.enc`) used to exit 0
+    having re-keyed nothing, and the next step, retiring the leaked identity,
+    then locked the operator out of a store still encrypted to it."""
+    enc = (".secrets/app.env.enc",)
+    _seed(sandbox, _identity(LEAKED), files=enc)
+    before = (sandbox.repo / enc[0]).read_bytes()
+    rc, err = _run(sandbox)
+    assert rc == 1
+    assert "no store files matched *secrets*.env" in err
+    assert not (sandbox.keys / "keys-new.txt").exists()
+    assert (sandbox.repo / enc[0]).read_bytes() == before
+
+    rc, err = _run(sandbox, store="'.secrets/*.env.enc'")
+    assert rc == 0, err
+    assert _recipients(sandbox.repo / enc[0]) == {KEPT, NEW}
+
+
+def test_the_store_pathspec_is_named_and_checked_before_any_side_effect() -> None:
+    assert LINES[2].strip().startswith("STORE=(")
+    assert 'git ls-files -- "${STORE[@]}"' in BLOCK
+    assert BLOCK.index('[ -n "$FILES" ] ||') < BLOCK.index("age-keygen -o")
 
 
 def test_a_keys_txt_that_cannot_decrypt_changes_nothing(sandbox) -> None:
