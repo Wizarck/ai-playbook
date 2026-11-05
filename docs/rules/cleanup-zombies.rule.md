@@ -51,13 +51,17 @@ Tier × action × safety triples are validated against the matrix in the script.
 
 ## Safety checks
 
-Each entry names one check. Anything a check cannot establish counts as a failure: git missing, a probe failing, an unreadable or malformed `.gitmodules`, a directory it cannot list. Paths and the names `.git`, `HEAD` and `config` compare case-insensitively on Windows and macOS. Scans never follow a symlink or junction, and deletion removes only the link.
+Each entry names one check. Anything a check cannot establish counts as a failure: git missing, a probe failing, an unreadable or malformed `.gitmodules`, a directory it cannot list. Paths and the names `.git`, `HEAD`, `objects` and `refs` compare case-insensitively on Windows and macOS. A target that is itself a symlink or junction is refused. Scans below a target never follow one, and deletion removes only the link.
 
-- `check_gitmodules_first`: the target is an orphan only when `.gitmodules`, as parsed by `git config`, registers no submodule at, under or above it, git tracks nothing under it (files or gitlinks), and no `.git` (a repository or submodule checkout) sits at or under it.
-- `directory_orphan`: git tracks nothing under the target. Outside `.git/modules`, no `.git` sits at or under it. For a `.git/modules/<name>` git dir:
-  - no submodule whose name or path is at, under or above `<name>` is declared in `.gitmodules` (a section without `path` still declares its name) or tracked as a gitlink;
-  - no git dir under it is still used: by a checkout whose `core.worktree` (in `config` or `config.worktree`) and `.git` point back at it, or by a linked worktree in its `worktrees/` (a locked one counts even when absent);
-  - no git dir under it holds a commit that no remote-tracking ref reaches (`git rev-list --all --reflog --not --remotes` is empty).
+A *repository* here is a `.git` entry (a checkout or a submodule) or a git dir itself: `HEAD` plus `objects/` or `refs/`, as under `.git/modules/` or in a bare clone.
+
+- `check_gitmodules_first`: the target is an orphan only when all of these hold:
+  - `.gitmodules`, as parsed by `git config`, registers no submodule at, under or above it;
+  - git tracks nothing under it (files or gitlinks);
+  - no repository sits at or under it.
+- `directory_orphan`: git tracks nothing under the target and no repository sits at or under it. For `.git/modules/<name>`, no submodule whose name or path is at, under or above `<name>` may be declared in `.gitmodules` (a section without `path` still declares its name) or tracked as a gitlink.
+  - Only leftovers without a git dir are deleted. git keeps a submodule's git dir after `deinit` because it may hold the only copy of a commit, and this check never deletes one either.
+  - The report names the git dir. Run `git --git-dir <dir> log --branches --tags --not --remotes`, and remove it by hand once that shows nothing you need.
 - `file_mtime_and_drained`: the file is older than `rotation_days` and every JSONL record is `drained`.
 - `yaml_literal_rename`: at least one `rename_in_files` file parses and holds `rename_from` as a scalar value.
 - `auto_managed_orphan`: see the auto-managed sections concept below; Tier 3 only.

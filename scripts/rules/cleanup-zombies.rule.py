@@ -228,6 +228,7 @@ def _find_consumer_root(start: Path) -> Path | None:
 
 
 _CASE_INSENSITIVE_FS = sys.platform in ("win32", "darwin")  # their default filesystems
+_JUNCTION_TAG = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", None)  # defined on Windows only
 
 
 def _fs_key(name: str) -> str:
@@ -249,15 +250,8 @@ def _paths_overlap(a: str, b: str) -> bool:
     return a == b or a.startswith(b + "/") or b.startswith(a + "/")
 
 
-def _same_dir(a: Path, b: Path) -> bool:
-    return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
-
-
 def _raise(exc: OSError) -> None:
     raise exc
-
-
-_JUNCTION_TAG = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", None)  # defined on Windows only
 
 
 def _is_link(path: str) -> bool:
@@ -277,6 +271,24 @@ def _walk(target: Path) -> Iterable[tuple[str, list[str], list[str]]]:
     for root, dirs, files in os.walk(target, onerror=_raise):
         yield root, dirs, files
         dirs[:] = [d for d in dirs if not _is_link(os.path.join(root, d))]
+
+
+def _git(args: list[str], *, cwd: Path | None = None, stdin: bytes | None = None) -> tuple[int, str, str] | None:
+    """(returncode, stdout, stderr) of a git command, decoded as UTF-8 (git's own
+    encoding for paths and config); None when git cannot run or the output is
+    not UTF-8, so callers fail closed."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=str(cwd) if cwd is not None else None,
+            input=stdin,
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+        return result.returncode, result.stdout.decode("utf-8"), result.stderr.decode("utf-8", errors="replace")
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
+        return None
 
 
 def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
@@ -317,24 +329,6 @@ def _registered_submodules(consumer_root: Path) -> list[tuple[str, str]] | None:
     return list(paths.items())
 
 
-def _git(args: list[str], *, cwd: Path | None = None, stdin: bytes | None = None) -> tuple[int, str, str] | None:
-    """(returncode, stdout, stderr) of a git command, decoded as UTF-8 (git's own
-    encoding for paths and config); None when git cannot run or the output is
-    not UTF-8, so callers fail closed."""
-    try:
-        result = subprocess.run(
-            ["git", *args],
-            cwd=str(cwd) if cwd is not None else None,
-            input=stdin,
-            capture_output=True,
-            check=False,
-            timeout=15,
-        )
-        return result.returncode, result.stdout.decode("utf-8"), result.stderr.decode("utf-8", errors="replace")
-    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
-        return None
-
-
 def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
     """Paths of every gitlink (submodule commit) in the index; None if git cannot tell."""
     out = _git(["ls-files", "--stage", "-z"], cwd=consumer_root)
@@ -348,75 +342,17 @@ def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
     return links
 
 
-def _embedded_git(target: Path) -> Path | None:
-    """The first `.git` (a repository or a submodule checkout) at or under `target`."""
+def _repository_at(target: Path) -> Path | None:
+    """The first repository at or under `target`: a `.git` entry (a checkout or a
+    submodule) or a git dir itself (HEAD plus objects/ or refs/, as under
+    `.git/modules/` or in a bare clone)."""
+    git_dir_parts = {_fs_key("objects"), _fs_key("refs")}
     for root, dirs, files in _walk(target):
         for name in (*dirs, *files):
             if _fs_key(name) == ".git":
                 return Path(root) / name
-    return None
-
-
-def _gitfile_points_to(gitfile: Path, gitdir: Path) -> bool:
-    """True when the `.git` file `gitfile` names `gitdir`, or cannot be read."""
-    if not gitfile.is_file():
-        return False
-    try:
-        pointer = gitfile.read_text(encoding="utf-8").strip()
-    except (OSError, UnicodeDecodeError):
-        return True
-    if not pointer.startswith("gitdir:"):
-        return False
-    return _same_dir(gitfile.parent / pointer[len("gitdir:"):].strip(), gitdir)
-
-
-def _git_dir_use(gitdir: Path) -> str | None:
-    """What still needs `gitdir`, or None. Whatever cannot be judged counts as a use."""
-    # `git sparse-checkout` moves core.worktree into config.worktree.
-    for name in ("config", "config.worktree"):
-        if name != "config" and not (gitdir / name).is_file():
-            continue
-        out = _git(["config", "--file", str(gitdir / name), "--get", "core.worktree"])
-        if out is None or out[0] not in (0, 1) or (out[0] == 1 and out[2].strip()):
-            return "cannot be judged"
-        if out[0] == 0 and _gitfile_points_to(gitdir / out[1].strip() / ".git", gitdir):
-            return "has a checkout"  # an absolute core.worktree replaces gitdir in the join
-    admin_root = gitdir / "worktrees"
-    if admin_root.is_dir():
-        for admin in admin_root.iterdir():
-            if (admin / "locked").exists():
-                return "has a locked linked worktree"  # git never prunes one
-            link = admin / "gitdir"
-            if not link.is_file():
-                continue
-            try:
-                dotgit = admin / link.read_text(encoding="utf-8").strip()
-            except (OSError, UnicodeDecodeError):
-                return "cannot be judged"
-            if _gitfile_points_to(dotgit, admin):
-                return "has a linked worktree"
-    # Whatever the layout, deleting the git dir must not lose a commit that
-    # exists nowhere else: every ref, worktree HEAD and reflog entry must be
-    # reachable from a remote-tracking ref.
-    out = _git(["--git-dir", str(gitdir), "rev-list", "--max-count=1", "--all", "--reflog", "--not", "--remotes"])
-    if out is None or out[0] != 0:
-        return "cannot be judged"
-    if out[1].strip():
-        return "holds commits no remote has"
-    return None
-
-
-def _live_git_dir(target: Path) -> tuple[Path, str] | None:
-    """A git dir at or under `target` that is still needed, and why."""
-    for root, dirs, files in _walk(target):
-        keys = {_fs_key(name) for name in files}
-        if _fs_key("HEAD") not in keys or _fs_key("config") not in keys:
-            continue
-        # Inside a git dir only `modules/` holds further git dirs.
-        dirs[:] = [d for d in dirs if _fs_key(d) == _fs_key("modules")]
-        use = _git_dir_use(Path(root))
-        if use is not None:
-            return Path(root), use
+        if _fs_key("HEAD") in {_fs_key(name) for name in files} and git_dir_parts & {_fs_key(d) for d in dirs}:
+            return Path(root)
     return None
 
 
@@ -437,6 +373,8 @@ def _tracked_under(rel: str, consumer_root: Path) -> SafetyResult | None:
 def _safety_check_gitmodules_first(target: Path, entry: dict[str, Any], consumer_root: Path) -> SafetyResult:
     if not target.exists():
         return SafetyResult(False, "target absent — no zombie")
+    if _is_link(str(target)):
+        return SafetyResult(False, "target is a link")
     rel = _rel(target, consumer_root)
     submodules = _registered_submodules(consumer_root)
     if submodules is None:
@@ -452,10 +390,10 @@ def _safety_check_gitmodules_first(target: Path, entry: dict[str, Any], consumer
     refusal = _tracked_under(rel, consumer_root)
     if refusal is not None:
         return refusal
-    # So is a checkout kept after both went: it may hold uncommitted work.
-    embedded = _embedded_git(target)
-    if embedded is not None:
-        return SafetyResult(False, f"`{_rel(embedded, consumer_root)}` is a git checkout")
+    # So is any repository kept under it: it may hold uncommitted work.
+    repo = _repository_at(target)
+    if repo is not None:
+        return SafetyResult(False, f"`{_rel(repo, consumer_root)}` is a git repository or checkout")
     if not submodules:
         return SafetyResult(True, "no submodule registered and nothing tracked — directory is orphan")
     return SafetyResult(True, ".gitmodules does not register this path")
@@ -466,14 +404,14 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
         return SafetyResult(False, "target absent — no zombie")
     if not target.is_dir():
         return SafetyResult(False, "target is not a directory")
+    if _is_link(str(target)):
+        return SafetyResult(False, "target is a link")
     rel = _rel(target, consumer_root)
     # `.git/modules/<name>` is never tracked, so the ls-files probe below always
-    # passes for it. It is the git dir of submodule <name> (unpushed commits
-    # live there), and `.git/modules/.skills-sources` holds the git dirs of
-    # `.skills-sources/<repo>`. It is an orphan only when no submodule at, under
-    # or above <name> is declared (by name, even without a path) or registered,
-    # tracked as a gitlink (the default name is the path), or still used by a
-    # checkout or linked worktree whose `.git` points back here.
+    # passes for it. It holds the git dir of submodule <name> (and of nested
+    # `<name>/<repo>` submodules). git itself keeps a submodule's git dir after
+    # `deinit` because it may hold the only copy of a commit, so a real git dir
+    # is never deleted here: only leftovers without one are.
     if rel.startswith(".git/modules/"):
         name = rel[len(".git/modules/"):]
         submodules = _registered_submodules(consumer_root)
@@ -490,11 +428,19 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
         for link in links:
             if _paths_overlap(name, _norm_rel(link)):
                 return SafetyResult(False, f"gitlink `{link}` still tracked — git dir is live")
-        live = _live_git_dir(target)
-        if live is not None:
-            return SafetyResult(False, f"`{_rel(live[0], consumer_root)}` {live[1]} — git dir is live")
-    elif (embedded := _embedded_git(target)) is not None:
-        return SafetyResult(False, f"`{_rel(embedded, consumer_root)}` is a git checkout")
+        repo = _repository_at(target)
+        if repo is not None:
+            where = _rel(repo, consumer_root)
+            return SafetyResult(
+                False,
+                f"`{where}` is a git dir, never deleted automatically: once "
+                f"`git --git-dir {where} log --branches --tags --not --remotes` shows nothing you need, "
+                "delete it by hand",
+            )
+    else:
+        repo = _repository_at(target)
+        if repo is not None:
+            return SafetyResult(False, f"`{_rel(repo, consumer_root)}` is a git repository or checkout")
     refusal = _tracked_under(rel, consumer_root)
     if refusal is not None:
         return refusal
@@ -917,6 +863,12 @@ def _write_stdout_summary(report: RunReport, quiet: bool) -> None:
     print(summary)
 
 
+def _cell(text: Any) -> str:
+    """One Markdown table cell: folded YAML reasons end in a newline, and a `|`
+    would split the row."""
+    return " ".join(str(text).split()).replace("|", "\\|")
+
+
 def _write_report_file(report: RunReport, consumer_root: Path) -> None:
     report_path = consumer_root / REPORT_REL
     if not report.has_any():
@@ -942,7 +894,7 @@ def _write_report_file(report: RunReport, consumer_root: Path) -> None:
         lines.append("|---|---|---|---|")
         for outcome in tier_outcomes:
             lines.append(
-                f"| `{outcome.entry_id}` | `{outcome.path}` | {outcome.action_taken} | {outcome.detail} |"
+                f"| `{outcome.entry_id}` | `{outcome.path}` | {outcome.action_taken} | {_cell(outcome.detail)} |"
             )
         lines.append("")
     report_path.parent.mkdir(parents=True, exist_ok=True)
