@@ -58,9 +58,10 @@ if _PLAYBOOK_ROOT not in sys.path:
 from scripts import _curate_validate  # noqa: E402
 from scripts._backup_helper import (  # noqa: E402
     BackupLocation,
+    BackupRecord,
     backup_base,
     backup_once,
-    restore_session,
+    restore_backup,
 )
 from scripts._dispatcher_shape import (  # noqa: E402
     CANONICAL_DISPATCHER,
@@ -203,11 +204,14 @@ def _apply_moves(
     # usually already taken at install, so it does not hold prose added since.
     run_id = f"curate-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
     touched = {m.source_rel_path for m in moves} | {m.dest_rel_path for m in moves}
+    snapshots: dict[str, BackupRecord] = {}
     for rel in sorted(touched):
         p = consumer_root / rel
         if p.is_file():
             backup_base(consumer_root, p)
-            backup_once(consumer_root, p, location=BackupLocation.CENTRAL, session_id=run_id)
+            record = backup_once(consumer_root, p, location=BackupLocation.CENTRAL, session_id=run_id)
+            if record is not None:
+                snapshots[rel] = record
 
     # Accumulate edits in memory keyed by rel_path so multiple moves compose.
     src_text: dict[str, str] = {}
@@ -250,13 +254,27 @@ def _apply_moves(
             done.append(rel)
             changes.append(line)
     except OSError as exc:
-        restore_session(consumer_root, run_id)
+        # Undo only what this run wrote (the failed write was atomic, so its
+        # file is unchanged), one file at a time: a file that cannot be put
+        # back (e.g. still locked) must not stop the others.
+        still_changed: list[str] = []
         for rel in done:
-            if rel not in existed:
-                (consumer_root / rel).unlink(missing_ok=True)
+            try:
+                if rel in existed:
+                    restore_backup(consumer_root, snapshots[rel])
+                else:
+                    (consumer_root / rel).unlink(missing_ok=True)
+            except (OSError, KeyError) as undo_exc:
+                still_changed.append(f"{rel} ({undo_exc})")
+        snapshot = f"pre-curate snapshot: session `{run_id}` in .ai-playbook-state/backups"
+        if still_changed:
+            raise RuntimeError(
+                f"{exc}; PARTIAL rollback: {len(still_changed)} of {len(done)} written file(s) "
+                f"are still modified: {', '.join(still_changed)} — restore them by hand ({snapshot})"
+            ) from exc
         raise RuntimeError(
             f"{exc}; rolled back {len(done)} already-written file(s) — no file was changed "
-            f"(pre-curate snapshot: session `{run_id}` in .ai-playbook-state/backups)"
+            f"({snapshot})"
         ) from exc
 
     return changes
