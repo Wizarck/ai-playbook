@@ -45,6 +45,11 @@ for _stream in (sys.stdout, sys.stderr):
 VALID_MODES = ("lite", "full", "ultra")
 DEFAULT_MAX_RETRIES = 2
 MAX_FILE_BYTES = 100 * 1024  # 100 KB — anything larger requires --force in the CLI
+# Skeleton guard: output that keeps every protected token but (nearly) none of
+# the prose passes the token checks. Ultra keeps ~25%+ of the prose words; a
+# source with fewer prose words than the floor is not judged.
+MIN_PROSE_WORDS = 10
+MIN_PROSE_KEPT = 0.10
 
 # Regexes for the preservation contract.
 # Fence opener/closer at any indentation (list items indent their fences).
@@ -69,6 +74,7 @@ class PreservationContract:
     headings: list[str] = field(default_factory=list)
     urls: list[str] = field(default_factory=list)
     paths: list[str] = field(default_factory=list)
+    prose_words: int = 0  # source words outside every protected token (0 = not checked)
 
     def as_prompt_block(self) -> str:
         """Format the contract as a string the LLM can read."""
@@ -149,33 +155,47 @@ def _flat(text: str) -> str:
     return _LINE_BREAK_RE.sub(" ", text)
 
 
-def _inline_code(prose: str) -> list[str]:
-    """Inline code spans, paired within a paragraph: a span may wrap onto a
-    continuation line, never across a blank line or into a new block line.
-    Headings never continue; table rows pair per cell (GFM splits cells first)."""
+def _scan_inline_code(prose: str) -> tuple[list[str], str]:
+    """``(inline code spans, prose with each span blanked out)``.
+
+    Spans pair within a paragraph: a span may wrap onto a continuation line,
+    never across a blank line or into a new block line. Headings never
+    continue; table rows pair per cell (GFM splits cells first).
+    """
     spans: list[str] = []
+    rest: list[str] = []
     para: list[str] = []
 
+    def scan(text: str) -> None:
+        spans.extend(m.group(0) for m in _INLINE_CODE_RE.finditer(text))
+        rest.append(_INLINE_CODE_RE.sub(" ", text))
+
     def flush() -> None:
-        spans.extend(m.group(0) for m in _INLINE_CODE_RE.finditer("\n".join(para)))
-        para.clear()
+        if para:
+            scan("\n".join(para))
+            para.clear()
 
     for line in prose.split("\n"):
         head = line.lstrip()
         if not head or _BLOCK_LINE_RE.match(line):
             flush()
         if head.startswith("|"):
-            single_line = _TABLE_CELL_SPLIT_RE.split(line)
+            for cell in _TABLE_CELL_SPLIT_RE.split(line):
+                scan(cell)
         elif head.startswith("#"):
-            single_line = [line]
-        else:
-            if head:
-                para.append(line)
-            continue
-        for part in single_line:
-            spans.extend(m.group(0) for m in _INLINE_CODE_RE.finditer(part))
+            scan(line)
+        elif head:
+            para.append(line)
     flush()
-    return spans
+    return spans, "\n".join(rest)
+
+
+def _prose_words(prose: str) -> int:
+    """Words in fence-free text outside inline code, headings, URLs and paths."""
+    rest = _scan_inline_code(prose)[1]
+    for rx in (_HEADING_RE, _URL_RE, _PATH_RE):
+        rest = rx.sub(" ", rest)
+    return len(re.findall(r"\w+", rest))
 
 
 def extract_contract(text: str) -> PreservationContract:
@@ -183,7 +203,7 @@ def extract_contract(text: str) -> PreservationContract:
     code_blocks, stripped = _split_fences(text)
     # Code blocks are stripped before scanning for the rest so things inside
     # code are not double-counted (they survive via the code-block contract).
-    inline_code = list(dict.fromkeys(_inline_code(stripped)))
+    inline_code = list(dict.fromkeys(_scan_inline_code(stripped)[0]))
     headings = [match.group(0).strip() for match in _HEADING_RE.finditer(stripped)]
     urls = sorted(set(_URL_RE.findall(stripped)))
     # Paths: filter out URL fragments and obvious noise.
@@ -196,6 +216,7 @@ def extract_contract(text: str) -> PreservationContract:
         headings=headings,
         urls=urls,
         paths=paths,
+        prose_words=_prose_words(stripped),
     )
 
 
@@ -223,6 +244,13 @@ def violations(contract: PreservationContract, output: str) -> list[str]:
     for p in contract.paths:
         if p not in output:
             missing.append(f"path: {p}")
+    if contract.prose_words >= MIN_PROSE_WORDS:
+        kept = _prose_words(_split_fences(output)[1])
+        if kept < contract.prose_words * MIN_PROSE_KEPT:
+            missing.append(
+                f"prose: only {kept} of the source's {contract.prose_words} prose words survive; "
+                "compress the prose, do not drop it"
+            )
     return missing
 
 
