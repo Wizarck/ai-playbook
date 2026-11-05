@@ -162,6 +162,34 @@ def test_apply_inserts_parseable_repo_item(tmp_path: Path, precommit: str) -> No
         assert data["ci"] == {"autofix_prs": False}
 
 
+_HOOKS_ITEM = ("repos:\n  - repo: https://github.com/pre-commit/pre-commit-hooks\n    rev: v4.6.0\n"
+               "    hooks:\n      - id: trailing-whitespace\n")
+
+
+@pytest.mark.parametrize("precommit,tail", [
+    (_HOOKS_ITEM + "\n# pre-commit.ci settings\nci:\n  autofix_prs: false\n",
+     "# pre-commit.ci settings\nci:\n  autofix_prs: false\n"),
+    (_HOOKS_ITEM + "# vim: set ft=yaml:\n", "# vim: set ft=yaml:\n"),
+    ("repos:\r\n-   repo: https://github.com/pre-commit/pre-commit-hooks\r\n    rev: v3.2.0\r\n"
+     "    hooks:\r\n    -   id: trailing-whitespace\r\n# ---- settings ----\r\nexclude: ^vendor/\r\n",
+     "# ---- settings ----\r\nexclude: ^vendor/\r\n"),
+], ids=["header-of-ci", "trailing-modeline", "sample-config-header"])
+def test_apply_leaves_a_column0_comment_with_what_it_heads(tmp_path: Path, precommit: str, tail: str) -> None:
+    root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit=None)
+    config = root / ".pre-commit-config.yaml"
+    config.write_bytes(precommit.encode("utf-8"))
+    assert _lpp.apply(dry_run=False, cwd=root) == 0
+    out = config.read_bytes().decode("utf-8")
+    assert out.endswith(tail) and _lpp.RUFF_PRECOMMIT_REPO in out[: -len(tail)]
+
+
+def test_insert_knows_the_extras_trailer() -> None:
+    from scripts._renderers.pre_commit import _EXTRAS_TRAILER
+    from scripts.rules import _precommit_yaml
+
+    assert _precommit_yaml._EXTRAS_TRAILER == _EXTRAS_TRAILER
+
+
 @pytest.mark.parametrize("nl", ["\n", "\r\n"], ids=["lf", "crlf"])
 def test_apply_keeps_the_files_line_endings(tmp_path: Path, nl: str) -> None:
     root = _consumer(tmp_path, ci=CI_WITH_RUFF_PINNED, precommit=None)
