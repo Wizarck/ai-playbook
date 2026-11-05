@@ -1221,6 +1221,38 @@ def test_agents_md_from_template_keeps_content_added_to_an_unfilled_slot() -> No
                                 bundle={"project_meta": extract_project_meta(out)}) == out
 
 
+def test_agents_md_from_template_keeps_feature_blocks_of_a_markerless_file() -> None:
+    """caveman / ponytail / graphify write their auto-managed block into AGENTS.md
+    before the managed-files render. Regenerating a markerless file from the
+    template dropped that block until the next apply, which still reported ok."""
+    from pathlib import Path
+
+    from scripts.auto_managed import find_sections
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    caveman = ("<!-- BEGIN auto-managed: caveman/ruleset:ultra -->\n"
+               "**Caveman mode: ON · intensity ultra**\n"
+               "<!-- END auto-managed -->")
+    graphify = ("<!-- BEGIN auto-managed: graphify/ruleset -->\n"
+                "graphify rules\n"
+                "<!-- END auto-managed -->")
+    current = f"# my project\n\nSome prose.\n\n{caveman}\n\n{graphify}\n"
+    bundle = {"project_meta": {"project_identity": "alpha"}}
+
+    out = render_agents_md(template=tmpl, substitutions={}, bundle=bundle, current_text=current)
+    assert "alpha" in out and parse_blocks(out, CommentStyle.HTML).blocks
+    assert out.endswith(f"{caveman}\n\n{graphify}\n")
+    assert [s.source for s in find_sections(out)] == ["caveman/ruleset:ultra", "graphify/ruleset"]
+    assert render_agents_md(template=tmpl, substitutions={}, bundle=bundle,
+                            current_text=out) == out
+    # A block project_meta already brings back (any mode) is not added twice.
+    again = render_agents_md(template=tmpl, substitutions={}, current_text=current,
+                             bundle={"project_meta": {"gotchas": caveman.replace("ultra", "lite")}})
+    assert [s.source for s in find_sections(again)] == ["caveman/ruleset:lite", "graphify/ruleset"]
+
+
 def test_every_shipped_marker_template_renders_to_valid_output() -> None:
     # Regression: the pre-commit template's header comment quoted the begin
     # marker; the unanchored parser treated it as the real marker and injected

@@ -127,7 +127,8 @@ JSON5 / JS:
      them, replace them with the template's block, begin/end marker lines
      included.
      A markerless `AGENTS.md` is still generated from the template (its prose
-     is recovered through backup + `curate`). A YAML file whose layout cannot
+     is recovered through backup + `curate`; its caveman / ponytail / graphify
+     `auto-managed` blocks are carried over). A YAML file whose layout cannot
      take the merge (e.g. `repos:` items at column 0, or keys after the list
      the extras continue) is skipped as a conflict (`merge`), naming the hand
      edit; the other files of the batch still apply.
