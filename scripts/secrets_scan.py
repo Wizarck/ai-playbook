@@ -71,6 +71,11 @@ for _stream in (sys.stdout, sys.stderr):
 # line (`CLAUDE_MODEL=…`) as its value.
 _ASSIGN = r"""(?:\s*[:=]\s*['"]|[ \t]*[:=][ \t]*)"""
 
+# One line-break unit inside a PEM block: real whitespace, an escaped `\n` /
+# `\r` (JSON, env values; any escape depth) or a quote from the seam between
+# concatenated string literals.
+_PEM_BREAK = r"""(?:\s|\\+[nr]|["'])"""
+
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Anthropic API key. Example: sk-ant-api03-abc...XYZ (>= 50 chars after prefix).
     ("anthropic_api_key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{50,}")),
@@ -110,14 +115,22 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             re.IGNORECASE,
         ),
     ),
-    # PEM / OpenSSH / PGP private key. The match swallows the base64 body up
-    # to (and including) the END line so sanitise() redacts the key material,
-    # not just the header. Example header: "BEGIN OPENSSH PRIVATE KEY" in dashes.
+    # PEM / OpenSSH / PGP private key: the BEGIN line, optional armor headers
+    # (PGP `Comment:`, encrypted-PEM `Proc-Type:`), then key material whose
+    # first line is 40+ base64 chars that pass `_looks_like_secret`. A header
+    # alone (prose, a constant, a `MIIE...` placeholder) does not fire. Line
+    # breaks may be real, escaped (`\n` in JSON / env values) or the seam
+    # between concatenated string literals, and the match runs through the END
+    # line so sanitise() redacts the key material, not just the header.
+    # Example header: "BEGIN OPENSSH PRIVATE KEY" in dashes.
     (
         "private_key",
         re.compile(
-            r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----[A-Za-z0-9+/=\s]*"
-            r"(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)?"
+            r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----" + _PEM_BREAK + r"*+"
+            + r"(?:[A-Za-z][A-Za-z0-9-]{0,40}:[ \t][^\r\n\\]*+" + _PEM_BREAK + r"++){0,10}"
+            + r"(?P<body>(?:[A-Za-z0-9+/]|\\/){40,}+)"
+            + r"""(?:[A-Za-z0-9+/=\s"']|\\+[nr]|\\/)*+"""
+            + r"(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)?"
         ),
     ),
     # Langfuse observability keys.
@@ -158,6 +171,7 @@ _PLACEHOLDER_MARKERS = (*_PLACEHOLDER_WORDS, "xxxx", "****", "<", ">")
 # in the match (the legacy `sk-` branch has no `body`) is not checked.
 _VALUE_CHECKS: dict[str, tuple[str, tuple[str, ...]]] = {
     "openai_api_key": ("body", _PLACEHOLDER_WORDS),
+    "private_key": ("body", _PLACEHOLDER_WORDS),
     "generic_env_secret": ("val", _PLACEHOLDER_MARKERS),
 }
 

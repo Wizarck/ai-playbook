@@ -340,7 +340,6 @@ _PEM_TAIL = "-----END " + "OPENSSH PRIVATE KEY-----"
     ("github_pat", "github_" + "pat_" + "11AB" * 6 + "_" + "xY9z" * 15),
     ("aws_access_key", "id=" + "ASIA" + "Q" * 16),
     ("private_key", _PEM_HEAD + "\n" + "b3BlbnNzaC1rZXk" * 4 + "\n" + _PEM_TAIL),
-    ("private_key", "-----BEGIN " + "PRIVATE KEY-----\nMIIE"),
     ("aws_secret_access_key",
      "aws_secret_access_key=" + "wJalrXUtnFEMI/K7MDENG/bPxRfiCY" + "0123456789"),
     ("generic_env_secret", "CF_ACCESS_CLIENT_SECRET=" + "a1b2c3d4" * 8),
@@ -416,6 +415,72 @@ def test_private_key_sanitise_redacts_body() -> None:
     assert kinds == ["private_key"]
     assert body not in redacted
     assert redacted.startswith("before\n") and redacted.endswith("\nafter")
+
+
+# private_key needs key material (SS-1 c) and absorbs escaped / armored bodies
+# so sanitise() redacts them (SS-4). The base64 lines are fake.
+_PK_HEAD = "-----BEGIN " + "PRIVATE KEY-----"
+_PK_TAIL = "-----END " + "PRIVATE KEY-----"
+_PK_LINE = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDGb8IqRkE9Lkks"
+_PK_LINE2 = "x9Kq2mZ7Lp4Wn8Rt" * 4
+_BS_N = "\\" + "n"  # backslash + n, as inside a JSON / env string
+_PGP_HEAD = "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----"
+_PGP_TAIL = "-----END PGP " + "PRIVATE KEY BLOCK-----"
+_RSA_HEAD = "-----BEGIN RSA " + "PRIVATE KEY-----"
+_RSA_TAIL = "-----END RSA " + "PRIVATE KEY-----"
+
+
+@pytest.mark.parametrize("sample", [
+    "it should contain TWO `" + _PK_HEAD + "`\nblocks.",
+    "A key starts with " + _PK_HEAD + " and must never be committed.",
+    'PEM_HEADER = "' + _PK_HEAD + '"\nPEM_FOOTER = "' + _PK_TAIL + '"',
+    _PK_HEAD + "\nMIIE",
+    _PK_HEAD + "\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC...\n" + _PK_TAIL,
+    _PK_HEAD + "\n" + _PK_TAIL,
+    _PK_HEAD + "\n" + "X" * 64 + "\n" + _PK_TAIL,
+    _PK_HEAD + "\n<paste your private key here>\n" + _PK_TAIL,
+    "regexes = ['''" + _PK_HEAD + "''', '''" + _RSA_HEAD + "''']",
+])
+def test_private_key_header_without_key_material_does_not_fire(sample: str) -> None:
+    assert scan(sample) == [], sample
+
+
+@pytest.mark.parametrize("sample", [
+    '    "' + _PK_HEAD + _BS_N + '"\n    "' + _PK_LINE + _BS_N + '"\n    "' + _PK_TAIL + '"',
+    '{"private_key": "' + _PK_HEAD + _BS_N + _PK_LINE + _BS_N + _PK_TAIL + _BS_N + '"}',
+    "key: |\n  " + _PK_HEAD + "\n  " + _PK_LINE + "\n  " + _PK_TAIL,
+    _PK_HEAD + " " + _PK_LINE + " " + _PK_TAIL,
+    '"' + _PK_HEAD + _BS_N + _PK_LINE[:30] + "\\/" + _PK_LINE[30:] + '"',  # PHP-escaped '/'
+    _PGP_HEAD + "\nVersion: GnuPG v2\nComment: test key\n\nlQOYBF" + _PK_LINE2 + "\n" + _PGP_TAIL,
+    _RSA_HEAD + "\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,9C2F0A1B\n\n" + _PK_LINE
+    + "\n" + _RSA_TAIL,
+])
+def test_private_key_fires_on_key_material(sample: str) -> None:
+    assert "private_key" in {m.kind for m in scan(sample)}, sample
+
+
+@pytest.mark.parametrize("before,block,after", [
+    ('{"private_key": "',
+     _PK_HEAD + _BS_N + _PK_LINE + _BS_N + _PK_LINE2 + _BS_N + _PK_TAIL,
+     _BS_N + '", "client_email": "svc@x.invalid"}'),
+    ("key:\n",
+     _PGP_HEAD + "\nComment: gpg\n\nlQOYBF" + _PK_LINE2 + "\n=Ab1C\n" + _PGP_TAIL,
+     "\nnext line"),
+    ("pem:\n",
+     _RSA_HEAD + "\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,9C2F0A1B\n\n"
+     + _PK_LINE + "\n" + _PK_LINE2 + "\n" + _RSA_TAIL,
+     "\nend"),
+    ('KEY = (\n    "',
+     _PK_HEAD + _BS_N + '"\n    "' + _PK_LINE + _BS_N + '"\n    "' + _PK_LINE2 + _BS_N
+     + '"\n    "' + _PK_TAIL,
+     _BS_N + '"\n)'),
+])
+def test_private_key_sanitise_redacts_escaped_and_armored_bodies(
+    before: str, block: str, after: str,
+) -> None:
+    redacted, kinds = sanitise(before + block + after)
+    assert kinds == ["private_key"]
+    assert redacted == before + "[REDACTED:private_key]" + after
 
 
 def test_generic_env_secret_is_linear_on_long_uppercase_line() -> None:
