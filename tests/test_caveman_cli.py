@@ -423,7 +423,7 @@ def test_rollback_list_points_at_legacy_agents_snapshots(
 
     assert cli.main(["--project", str(project), "rollback", "--list", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["legacy_agents_backups"] == [str(legacy)]
+    assert [Path(p).resolve() for p in payload["legacy_agents_backups"]] == [legacy.resolve()]
 
 
 def test_rollback_yes_says_agents_md_was_not_restored_from_legacy_area(
