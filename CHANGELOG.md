@@ -25,7 +25,9 @@ All notable changes to `ai-playbook` are documented here. Semver.
   `wt_sweep`, `curate` and `sweep_execute` stop losing work or registry entries.
 - **Safety / IO.** `secrets_scan` catches more key formats without new false
   positives; `retain_memory` fails closed; cmd.exe no longer mangles Windows
-  `gemini` prompts; the SOPS re-key runbook cannot empty the store.
+  `gemini` prompts; the SOPS re-key runbook cannot empty the store;
+  `cleanup-zombies --apply` keeps a directory that holds registered or tracked
+  submodules (`.skills-sources/<repo>`) and their git dirs.
 
 ### Upgrading — behaviour changes
 Bump and reconcile per `upgrade-playbook-pin.md`. Expect new, genuine failures.
@@ -59,8 +61,8 @@ Bump and reconcile per `upgrade-playbook-pin.md`. Expect new, genuine failures.
 - `uninstall` keeps no copy of what it overwrites (commit first); a reinstall
   over a kept `.ai-playbook-state/` reuses its snapshots (copy what you need,
   then delete it); tombstone restores glob `[*?` (`git --literal-pathspecs`).
-- Template git hooks still call `cleanup_zombies.py`, gone since v0.18.0 (call
-  `scripts/rules/cleanup-zombies.rule.py --apply --quiet`). Under
+- Template git hooks still call `cleanup_zombies.py`, gone since v0.18.0 (run
+  `scripts/rules/cleanup-zombies.rule.py` to preview, then `--apply`). Under
   `core.hooksPath`, `/dev-flow start`'s prepare-commit-msg belongs in
   `scripts/git-hooks/`, and `pre-commit install` hints in the docs, template
   and spec-edit FIX do not apply (bootstrap hides that failure).
