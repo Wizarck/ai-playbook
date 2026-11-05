@@ -19,7 +19,9 @@ Pipeline
    every Claude Code tool call).
 4. ``git submodule deinit -f .ai-playbook`` + ``git rm -f .ai-playbook``.
 5. Remove ``.ai-playbook-state/`` — unless it holds a BASE snapshot that was
-   not restored (the only copy of the consumer's original): kept + warned.
+   not restored (the only copy of the consumer's original): kept + warned,
+   and listed in the local ``info/exclude`` since step 2 stripped the
+   ``.gitignore`` block that ignored it.
 6. Print summary.
 
 Idempotent: running twice has no incremental effect.
@@ -338,7 +340,8 @@ def remove_state_dir(consumer_root: Path, report: UninstallReport) -> None:
         report.warnings.append(
             "kept .ai-playbook-state/: BASE (pre-playbook) snapshot not restored for "
             f"{', '.join(pending)}. Copy what you need from .ai-playbook-state/backups/ "
-            "(index.json maps each file), then delete the dir by hand."
+            "(index.json maps each file), then delete the dir by hand. Never commit it: "
+            "the copies may hold secrets (e.g. an inline .mcp.json)."
         )
         return
     try:
@@ -346,6 +349,34 @@ def remove_state_dir(consumer_root: Path, report: UninstallReport) -> None:
         report.state_dir_removed = True
     except OSError as exc:
         report.errors.append(f"failed to remove .ai-playbook-state/: {exc}")
+
+
+def keep_state_dir_out_of_git(consumer_root: Path, report: UninstallReport) -> None:
+    """A kept ``.ai-playbook-state/`` lost its ignore line with the playbook's
+    ``.gitignore`` block; list it in the local ``info/exclude`` instead."""
+    rc, _ = _run_git("check-ignore", "-q", ".ai-playbook-state/", cwd=consumer_root)
+    if rc != 1:
+        return  # 0: still ignored; otherwise not a git repo, nothing to commit it into
+    rc, out = _run_git("rev-parse", "--git-path", "info/exclude", cwd=consumer_root)
+    if rc != 0 or not out:
+        report.warnings.append(".ai-playbook-state/ is no longer gitignored; do not commit it")
+        return
+    exclude = consumer_root / out.splitlines()[0]
+    try:
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        existing = exclude.read_text(encoding="utf-8") if exclude.is_file() else ""
+        with exclude.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(("\n" if existing and not existing.endswith("\n") else "") + ".ai-playbook-state/\n")
+    except OSError as exc:
+        report.warnings.append(
+            f".ai-playbook-state/ is no longer gitignored and adding it to {exclude} failed "
+            f"({exc}); do not commit it"
+        )
+        return
+    report.warnings.append(
+        f".ai-playbook-state/ lost its .gitignore entry with the playbook block; "
+        f"added it to {exclude} (local, uncommitted)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +417,8 @@ def uninstall(
     remove_submodule(consumer_root, report)
     if not keep_state_dir:
         remove_state_dir(consumer_root, report)
+    if (consumer_root / ".ai-playbook-state").exists():
+        keep_state_dir_out_of_git(consumer_root, report)
     return report
 
 
