@@ -181,11 +181,13 @@ These are exposed for explicit invocation but the typical flow is
 
 - `stats`    — session-token stats from Claude Code transcripts.
 - `rollback` — manual restore-from-latest caveman backup (`agents-caveman`,
-  `mcp` areas). Refuses when ponytail/graphify (shared `agents` area)
-  backed up AGENTS.md after caveman's latest snapshot; re-syncs
-  `components.response_style` with the restored file. Backup names carry
-  microsecond timestamps claimed with `O_EXCL`, so same-second backups
-  never overwrite each other.
+  `mcp` areas). The AGENTS.md snapshot is compared with the live file by
+  the content of its ponytail/graphify blocks: when the restore would drop
+  or rewrite one that is there now, AGENTS.md is left as is and the
+  command exits 1 (the MCP files are still restored); a block removed
+  after the snapshot stays removed. Re-syncs `components.response_style`
+  with the restored file. Backup names carry microsecond timestamps
+  claimed with `O_EXCL`, so same-second backups never overwrite each other.
 
 ## 3. Side-effect manifest
 
