@@ -17,7 +17,9 @@ When the file already exists (``current_text``) and is a YAML mapping, the
 extras are merged into IT rather than into the template, so consumer keys
 (``profile``, ``tone_instructions``, …) survive; with no extras the current
 file is returned untouched. A current file that is not a YAML mapping is
-regenerated from the template (the orchestrator backs it up first).
+regenerated from the template (the orchestrator backs it up first). Nothing
+records which entries came from the bundle, so an entry later removed from the
+bundle stays in the file until it is deleted by hand.
 """
 from __future__ import annotations
 
