@@ -230,8 +230,13 @@ def tick_tasks_md(
     if not tasks_path.is_file():
         return False, []
 
-    text = tasks_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
+    # Untranslated newlines in and out, each line keeping its own ending: text
+    # mode rewrote every line with the platform's newline (CRLF on Windows), so
+    # without eol attributes the tick was one whole-file hunk that
+    # `git add -p` could not stage apart from the developer's other edits.
+    with tasks_path.open(encoding="utf-8", newline="") as fh:
+        text = fh.read()
+    lines = text.splitlines(keepends=True)
 
     ticked: list[str] = []
     new_lines: list[str] = []
@@ -258,7 +263,8 @@ def tick_tasks_md(
         r"^(\s*-\s*)\[ \](\s+(?:(\d+(?:\.\d+)*)\.?\s+)?.*)$"
     )
 
-    for line in lines:
+    for raw in lines:
+        line = raw.splitlines()[0]  # without its ending, whichever kind it is
         # Header detection — re-evaluate scope.
         depth_m = heading_depth_re.match(line)
         if depth_m:
@@ -311,20 +317,19 @@ def tick_tasks_md(
 
             if should_tick:
                 new_line = f"{prefix}[x]{suffix}"
-                new_lines.append(new_line)
+                new_lines.append(new_line + raw[len(line):])
                 ticked.append(new_line.strip())
                 continue
 
-        new_lines.append(line)
+        new_lines.append(raw)
 
-    new_text = "\n".join(new_lines)
-    if text.endswith("\n") and not new_text.endswith("\n"):
-        new_text += "\n"
+    new_text = "".join(new_lines)
 
     if new_text == text:
         return False, ticked  # ticked may be empty
 
-    tasks_path.write_text(new_text, encoding="utf-8")
+    with tasks_path.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(new_text)
     return True, ticked
 
 
