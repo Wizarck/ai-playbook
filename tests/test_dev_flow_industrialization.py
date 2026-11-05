@@ -277,7 +277,46 @@ class TestAutoTickMain:
         assert rc == 0
         assert "[x]" in (change_dir / "tasks.md").read_text(encoding="utf-8")
         assert git("diff", "--cached", "--name-only") == ""
-        assert "NOT part of this commit" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "NOT part of this commit" in err
+        assert "git commit --amend --no-edit -- openspec/changes/test-change/tasks.md" in err
+
+    def test_unstaged_tasks_hunks_get_a_remedy_that_does_not_sweep_them(
+        self, tmp_path: Path, capsys,
+    ):
+        """`git commit --amend -- <tasks.md>` commits the whole working-tree file.
+        When tasks.md already had hunks this commit leaves out, recommending it
+        would sweep them in -- the defect the never-stage change removed."""
+        import subprocess
+
+        def git(*a: str) -> str:
+            return subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t.test", *a],
+                cwd=tmp_path, check=True, capture_output=True, text=True,
+            ).stdout
+
+        git("init", "-q")
+        change_dir = tmp_path / "openspec" / "changes" / "test-change"
+        change_dir.mkdir(parents=True)
+        tasks = change_dir / "tasks.md"
+        _write_tasks(tasks, SAMPLE_TASKS)
+        git("add", "-A")
+        git("commit", "-q", "-m", "seed")
+        # A deliberately unstaged edit, far from the boxes that will be ticked.
+        tasks.write_text(SAMPLE_TASKS + "\nNote: WIP, not for this commit.\n", encoding="utf-8")
+        msg = tmp_path / "msg.txt"
+        msg.write_text("feat(persistence): group 1\n", encoding="utf-8")
+
+        rc = att.main(
+            ["--quiet", "--change-id", "test-change", "--repo-root", str(tmp_path), str(msg)],
+        )
+
+        assert rc == 0
+        assert "[x]" in tasks.read_text(encoding="utf-8")
+        err = capsys.readouterr().err
+        assert "NOT part of this commit" in err
+        assert "git add -p -- openspec/changes/test-change/tasks.md" in err
+        assert "git commit --amend --no-edit -- " not in err
 
     def test_missing_commit_msg_file_returns_2(self, tmp_path: Path):
         rc = att.main(
