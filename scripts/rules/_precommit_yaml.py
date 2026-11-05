@@ -7,7 +7,9 @@ sequence, re-indented to the file's own style (`  - repo:`, zero-indent
 Comment lines count as part of the sequence: in a playbook-rendered file the
 sequence ends with the sealed `playbook-hooks` end marker or the consumer-extras
 trailer, and an item spliced before either would be rewritten away (or flagged
-as drift) by the next reconcile.
+as drift) by the next reconcile. Any other column-0 comment after the last item
+heads what follows it (`# pre-commit.ci settings` above `ci:`, a trailing
+modeline) and stays there, below the new item.
 The result is then parsed with `yaml.safe_load`; anything that does not parse,
 does not yield the new repo in `repos`, or changes the content of an
 ai-playbook marker block, raises instead of being written.
@@ -22,6 +24,14 @@ from scripts._marker_blocks import CommentStyle, parse_blocks
 
 _REPOS_RE = re.compile(r"^repos\s*:\s*(#.*)?$")
 _BLOCK_BEGIN_RE = re.compile(r"^\s*#\s*>>>\s*ai-playbook:begin\b")
+_BLOCK_END_RE = re.compile(r"^\s*#\s*<<<\s*ai-playbook:end\b")
+# Closes the bundle-extras region (`_EXTRAS_TRAILER` in scripts/_renderers/pre_commit.py).
+_EXTRAS_TRAILER = "# (end of consumer hooks)"
+
+
+def _heads_what_follows(line: str) -> bool:
+    """A column-0 comment that does not close a region the sequence ends with."""
+    return line.startswith("#") and not _BLOCK_END_RE.match(line) and line.rstrip() != _EXTRAS_TRAILER
 
 
 def _sealed_blocks(text: str) -> dict[str, str] | None:
@@ -73,6 +83,8 @@ def insert_repo(text: str, block: str, *, repo_url: str, hook_ids: list[str]) ->
             break  # next top-level key ends the sequence
         if not _BLOCK_BEGIN_RE.match(ln):  # a begin marker opens what follows it
             last = k  # items and comments alike: end markers and trailers close what precedes them
+    while last > first and _heads_what_follows(lines[last]):
+        last = max(i for i in range(first, last) if lines[i].strip())
 
     out: list[str] = []
     for bl in block.strip("\n").splitlines():
