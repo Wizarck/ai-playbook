@@ -172,6 +172,7 @@ What this does:
 3. Validates: every heading (as a whole line, same level), fenced code
    block (backtick or tilde, including list-indented ones), inline code span,
    URL, and file path from the source appears byte-for-byte in the output.
+   An inline span the source wraps across two lines may come back on one.
 4. On violation, retries with a targeted patch (up to 2 times). After
    2 failed retries, restores from `AGENTS.md.original.md` and exits 1.
 

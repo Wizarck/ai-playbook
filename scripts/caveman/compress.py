@@ -49,7 +49,13 @@ MAX_FILE_BYTES = 100 * 1024  # 100 KB — anything larger requires --force in th
 # Regexes for the preservation contract.
 # Fence opener/closer at any indentation (list items indent their fences).
 _FENCE_OPEN_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
-_INLINE_CODE_RE = re.compile(r"(?<!`)(`+)(?!`)[^\n]+?(?<!`)\1(?!`)")
+# Matched per paragraph (see _inline_code), so a span may wrap onto the next line.
+_INLINE_CODE_RE = re.compile(r"(?<!`)(`+)(?!`)(?:[^\n]|\n(?![ \t]*\n))+?(?<!`)\1(?!`)")
+_LINE_BREAK_RE = re.compile(r"[ \t]*\n[ \t]*")
+# Lines that open a block (heading, table row, quote, list item): a span never
+# continues from the previous line into them.
+_BLOCK_LINE_RE = re.compile(r"[ \t]*(?:#|\||>|[-*+][ \t]|\d{1,9}[.)][ \t])")
+_TABLE_CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 _URL_RE = re.compile(r"https?://[^\s)\]>}'\"`]+")
 # File path heuristic: contains a `/` and a `.<ext>` or ends with a `/`; excludes URLs (already captured).
@@ -74,7 +80,7 @@ class PreservationContract:
             parts.append(f"Code blocks: {len(self.code_blocks)} block(s) — copy each byte-identical to source.")
         if self.inline_code:
             parts.append("Inline code:")
-            parts.extend(f"  {c}" for c in self.inline_code)
+            parts.extend(f"  {_flat(c)}" for c in self.inline_code)
         if self.urls:
             parts.append("URLs:")
             parts.extend(f"  {u}" for u in self.urls)
@@ -133,8 +139,43 @@ def _split_fences(text: str) -> tuple[list[str], str]:
         while j < len(lines) and not close_re.match(lines[j]):
             j += 1
         blocks.append("\n".join(lines[i : j + 1]))
+        prose.append("")  # a block ends the paragraph: no code span pairs across it
         i = j + 1
     return blocks, "\n".join(prose)
+
+
+def _flat(text: str) -> str:
+    """Each line break (with the blanks around it) as one space, as CommonMark renders a wrapped span."""
+    return _LINE_BREAK_RE.sub(" ", text)
+
+
+def _inline_code(prose: str) -> list[str]:
+    """Inline code spans, paired within a paragraph: a span may wrap onto a
+    continuation line, never across a blank line or into a new block line.
+    Headings never continue; table rows pair per cell (GFM splits cells first)."""
+    spans: list[str] = []
+    para: list[str] = []
+
+    def flush() -> None:
+        spans.extend(m.group(0) for m in _INLINE_CODE_RE.finditer("\n".join(para)))
+        para.clear()
+
+    for line in prose.split("\n"):
+        head = line.lstrip()
+        if not head or _BLOCK_LINE_RE.match(line):
+            flush()
+        if head.startswith("|"):
+            single_line = _TABLE_CELL_SPLIT_RE.split(line)
+        elif head.startswith("#"):
+            single_line = [line]
+        else:
+            if head:
+                para.append(line)
+            continue
+        for part in single_line:
+            spans.extend(m.group(0) for m in _INLINE_CODE_RE.finditer(part))
+    flush()
+    return spans
 
 
 def extract_contract(text: str) -> PreservationContract:
@@ -142,7 +183,7 @@ def extract_contract(text: str) -> PreservationContract:
     code_blocks, stripped = _split_fences(text)
     # Code blocks are stripped before scanning for the rest so things inside
     # code are not double-counted (they survive via the code-block contract).
-    inline_code = list(dict.fromkeys(m.group(0) for m in _INLINE_CODE_RE.finditer(stripped)))
+    inline_code = list(dict.fromkeys(_inline_code(stripped)))
     headings = [match.group(0).strip() for match in _HEADING_RE.finditer(stripped)]
     urls = sorted(set(_URL_RE.findall(stripped)))
     # Paths: filter out URL fragments and obvious noise.
@@ -171,9 +212,11 @@ def violations(contract: PreservationContract, output: str) -> list[str]:
             missing.append(
                 f"code block (first 40 chars): {cb[:40]!r}..."
             )
+    flat_output = _flat(output)
     for ic in contract.inline_code:
-        if ic not in output:
-            missing.append(f"inline code: {ic}")
+        # A span wrapped across lines may come back on one line (or re-wrapped).
+        if ic not in output and ("\n" not in ic or _flat(ic) not in flat_output):
+            missing.append(f"inline code: {_flat(ic)}")
     for u in contract.urls:
         if u not in output:
             missing.append(f"url: {u}")

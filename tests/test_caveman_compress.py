@@ -98,6 +98,29 @@ def test_contract_catches_demoted_heading() -> None:
     assert _src_and_violations(src, "# Title\n\nbod\n") == []
 
 
+def test_contract_inline_code_may_wrap_across_one_line_break() -> None:
+    """Regression F8: a wrapped span must not pair its closing backtick with the next span."""
+    src = "Run `make\ntest` now and then `x` later.\n"
+    assert compress.extract_contract(src).inline_code == ["`make\ntest`", "`x`"]
+    # Reflowed onto one line (or re-wrapped elsewhere) is the same span.
+    assert _src_and_violations(src, "Run `make test` now, then `x`.\n") == []
+    assert _src_and_violations(src, "Run `make\n  test`, then `x`.\n") == []
+    assert _src_and_violations(src, "Run make test now, then `x`.\n") == ["inline code: `make test`"]
+
+
+def test_contract_inline_code_never_spans_a_paragraph_or_a_block() -> None:
+    def spans(src: str) -> list[str]:
+        return compress.extract_contract(src).inline_code
+
+    assert spans("A lone ` here.\n\nRun `x` now.\n") == ["`x`"]
+    assert spans("Use `a\n```\ncode\n```\nb` then.\n") == []
+    # Table rows, headings and list items are blocks of their own.
+    assert spans("| `a | b |\n| c` | `d` |\n") == ["`d`"]
+    assert spans("# Use `a\nb` now\n") == []
+    assert spans("- item `a\n- item b `c`\n") == ["`c`"]
+    assert spans("- item `a\n  b` c\n") == ["`a\n  b`"]
+
+
 def test_contract_accepts_crlf_output() -> None:
     """Regression F9: CRLF line endings must not make every heading look missing."""
     src = "# Title\n\nbody text here\n\n```sh\nmake test\n```\n"
