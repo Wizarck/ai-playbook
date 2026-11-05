@@ -896,6 +896,10 @@ def apply_mcp_render(target: Path, *, dry_run: bool = False) -> SectionResult:
 
 
 _PER_RUN_BUNDLE_KEYS = frozenset({"base_shas"})
+_STALE_BASE_SHAS_NOTE = (
+    "· ignored stale base_shas left in the bundle by an earlier apply "
+    "(compare-and-swap tokens are one-shot)"
+)
 
 
 def _write_applied_bundle(target: Path, bundle: dict[str, Any]) -> SectionResult:
@@ -969,6 +973,15 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
 
     report = ApplyReport(target=target, bundle_path=bundle_path)
 
+    # The config UI never exports file_states, and apply_config no longer
+    # persists base_shas, so a bundle carrying both is an applied-config.json
+    # written by an older apply (<= v0.24.1). Its tokens predate the files that
+    # apply rewrote: honouring them fails every re-apply (bootstrap --update /
+    # --check) with a CAS conflict, and applied-config.json never advances.
+    stale_base_shas = bool(bundle.get("base_shas")) and "file_states" in bundle
+    if stale_base_shas:
+        bundle = {k: v for k, v in bundle.items() if k not in _PER_RUN_BUNDLE_KEYS}
+
     # The compare-and-swap baseline is read before any section mutates the
     # consumer: caveman / graphify / ponytail rewrite AGENTS.md and .gitignore
     # below, and the managed-files gate must not mistake that for an edit made
@@ -1017,6 +1030,8 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
             mf_sr_dry = SectionResult(
                 name="managed_files", ok=mf_dry.ok, detail=mf_dry.detail,
             )
+            if stale_base_shas:
+                mf_sr_dry.changes.append(_STALE_BASE_SHAS_NOTE)
             mf_sr_dry.changes.extend(mf_dry.changes)
             report.sections.append(mf_sr_dry)
         except Exception as exc:  # noqa: BLE001
@@ -1187,6 +1202,8 @@ def apply(bundle_path: Path, *, target: Path | None = None, dry_run: bool = Fals
             )
             mf_sr_section.ok = mf_result.ok
             mf_sr_section.detail = mf_result.detail
+            if stale_base_shas:
+                mf_sr_section.changes.append(_STALE_BASE_SHAS_NOTE)
             mf_sr_section.changes.extend(mf_result.changes)
             # caveman ran (and possibly mutated AGENTS.md) before this batch; if
             # the batch rolled back, caveman's non-transactional changes are now
