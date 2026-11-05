@@ -241,7 +241,7 @@ python -m scripts.bootstrap --update --path .
 
 This runs `apply_config` against your existing `.ai-playbook/applied-config.json` (or migrates the legacy state first via `scripts/migrate_to_bundle`), backs up each managed file before overwrite (default: `<file>.<ISO>.bak` alongside the original — configurable via `bundle.backup_preferences`), and surfaces a "restart Claude / Gemini session" banner when LLM-read files changed. **Never use `bootstrap <project>` (without `--update`) on an already-bootstrapped consumer** — that's the install path; it would clobber customisations.
 
-To uninstall the playbook cleanly: `python -m scripts.uninstall` (restores files from the oldest `.bak`, strips marker blocks for files without `.bak`, deinitialises the submodule). Pre-commit + workflow shims tolerate a missing submodule, so even a manual `rm -rf .ai-playbook/` does not turn CI red.
+To uninstall the playbook cleanly: `python -m scripts.uninstall` (overwrites every file that has a pre-playbook BASE snapshot with that snapshot — preview with `--dry-run`, keep current content with `--no-restore` — strips marker blocks from the rest, drops hooks pointing into `.ai-playbook/`, deinitialises the submodule). Pre-commit + workflow shims tolerate a missing submodule, so even a manual `rm -rf .ai-playbook/` does not turn CI red.
 
 Automate with Dependabot:
 

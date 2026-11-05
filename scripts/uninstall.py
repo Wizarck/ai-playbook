@@ -457,7 +457,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.yes and not args.dry_run:
         print(f"This will uninstall ai-playbook from: {target}")
-        print(f"  - {'restore from .bak when available' if not args.no_restore else 'strip markers only'}")
+        base = [] if args.no_restore else sorted(r.rel_path for r in _base_records(read_index(target)))
+        if base:
+            print(f"  - OVERWRITE {len(base)} file(s) with their pre-playbook (BASE) snapshot, "
+                  f"discarding current content: {', '.join(base)}")
+            print("    (preview: --dry-run; keep current content: --no-restore)")
+        print("  - strip playbook markers from the other managed files")
         print("  - remove .ai-playbook/ submodule")
         print(f"  - {'remove' if not args.keep_state_dir else 'keep'} .ai-playbook-state/")
         answer = "y" if os.environ.get("PLAYBOOK_NO_PROMPT") else input("Continue? [y/N] ").strip().lower()

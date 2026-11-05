@@ -179,6 +179,27 @@ def test_uninstall_restores_base_for_files_outside_managed_paths(tmp_path: Path)
     assert not report.errors
 
 
+def test_confirmation_prompt_names_the_files_a_restore_overwrites(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A default run reverts every BASE-snapshotted file, not just MANAGED_PATHS:
+    the prompt must say which, before anything is overwritten."""
+    consumer = tmp_path / "c"
+    consumer.mkdir()
+    _write_lf(consumer / "docs" / "runbook.md", "# mine\n")
+    bh.backup_base(consumer, consumer / "docs" / "runbook.md")
+    _write_lf(consumer / "docs" / "runbook.md", "# edited after install\n")
+    monkeypatch.delenv("PLAYBOOK_NO_PROMPT", raising=False)
+    monkeypatch.setattr("builtins.input", lambda _prompt: "n")
+
+    assert un.main(["--target", str(consumer)]) == 1
+
+    out = capsys.readouterr().out
+    assert "OVERWRITE 1 file(s)" in out and "docs/runbook.md" in out
+    assert "--no-restore" in out
+    assert (consumer / "docs" / "runbook.md").read_text(encoding="utf-8") == "# edited after install\n"
+
+
 def test_uninstall_keeps_state_dir_when_base_not_restored(tmp_path: Path) -> None:
     """--no-restore must not destroy BASE snapshots by removing the state dir."""
     consumer = tmp_path / "c"
