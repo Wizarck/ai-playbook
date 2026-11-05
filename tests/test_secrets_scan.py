@@ -6,6 +6,7 @@ real credentials into tests.
 """
 from __future__ import annotations
 
+import codecs
 import io
 import random
 import re
@@ -595,6 +596,41 @@ def test_multibyte_char_at_sample_boundary_is_still_scanned(
 
 
 # ---------------------------------------------------------------------------
+# Regression: UTF-16/32 (with BOM) and legacy 8-bit text were skipped as
+# binary, so they were never scanned (SS-5)
+# ---------------------------------------------------------------------------
+
+_PAT_LINE = "GITHUB_TOKEN=ghp_" + "A" * 40 + "\n"
+_NON_UTF8_TEXT = {
+    # Windows PowerShell 5.1 `>` / Out-File
+    "utf16le-bom": codecs.BOM_UTF16_LE + ("# notas\r\n" + _PAT_LINE).encode("utf-16-le"),
+    "utf16be-bom": codecs.BOM_UTF16_BE + _PAT_LINE.encode("utf-16-be"),
+    "utf32le-bom": codecs.BOM_UTF32_LE + _PAT_LINE.encode("utf-32-le"),
+    # Windows PowerShell 5.1 Set-Content
+    "cp1252": ("contraseña = segura\n" + _PAT_LINE).encode("cp1252"),
+}
+
+
+@pytest.mark.parametrize("data", _NON_UTF8_TEXT.values(), ids=_NON_UTF8_TEXT.keys())
+def test_non_utf8_text_file_is_scanned(
+    data: bytes, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    f = tmp_path / "notes.env"
+    f.write_bytes(data)
+    monkeypatch.setattr(secrets_scan, "_gitleaks_available", lambda: False)
+    assert main([str(f)]) == 3
+
+
+def test_control_bytes_without_nul_are_still_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    f = tmp_path / "blob.dat"
+    f.write_bytes(b"\x01\x02\xff ghp_" + b"A" * 40 + b"\x03")
+    monkeypatch.setattr(secrets_scan, "_gitleaks_available", lambda: False)
+    assert main([str(f)]) == 0
+
+
+# ---------------------------------------------------------------------------
 # Regression: --staged scans the index, not the worktree (S1-61)
 # ---------------------------------------------------------------------------
 
@@ -619,6 +655,13 @@ def test_staged_scans_index_content_not_worktree(repo: Path) -> None:
     f.write_text("token ghp_" + "A" * 40 + "\n", encoding="utf-8")
     _git(repo, "add", "app.cfg")
     f.write_text("clean now\n", encoding="utf-8")  # unstaged edit hides it
+    assert main(["--staged"]) == 3
+
+
+@pytest.mark.parametrize("data", _NON_UTF8_TEXT.values(), ids=_NON_UTF8_TEXT.keys())
+def test_staged_non_utf8_text_is_scanned(repo: Path, data: bytes) -> None:
+    (repo / "notes.env").write_bytes(data)
+    _git(repo, "add", "notes.env")
     assert main(["--staged"]) == 3
 
 

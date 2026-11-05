@@ -338,30 +338,46 @@ def sanitise(text: str) -> tuple[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def _is_binary_sample(chunk: bytes) -> bool:
-    if not chunk:
-        return False
-    # Null byte ⇒ binary.
-    if b"\x00" in chunk:
-        return True
-    # Try decoding as UTF-8; anything that fails is considered binary for our
-    # purposes (we don't want to false-positive on compiled artefacts). The
-    # incremental decoder with final=False tolerates a multibyte character
-    # split by the sample boundary.
+# UTF-32 first: its little-endian BOM starts with the UTF-16 one.
+_TEXT_BOMS = (
+    (codecs.BOM_UTF32_LE, "utf-32"), (codecs.BOM_UTF32_BE, "utf-32"),
+    (codecs.BOM_UTF16_LE, "utf-16"), (codecs.BOM_UTF16_BE, "utf-16"),
+)
+# C0 controls legacy 8-bit text may contain: tab, LF, VT, FF, CR, SUB, ESC.
+_TEXT_CONTROLS = frozenset(b"\t\n\v\f\r\x1a\x1b")
+
+
+def _text_encoding(sample: bytes) -> str | None:
+    """Codec for a file whose first bytes are `sample`; None means binary (skip).
+
+    UTF-16/32 text carries a BOM (Windows PowerShell 5.1 `>` / Out-File write
+    UTF-16LE). Otherwise a NUL byte means binary; UTF-8 is tried next (the
+    incremental decoder tolerates a multibyte char split by the sample
+    boundary), then legacy 8-bit text (cp1252, e.g. PS 5.1 Set-Content) when
+    the sample has no other control bytes, as compiled artefacts do.
+    """
+    for bom, codec in _TEXT_BOMS:
+        if sample.startswith(bom):
+            return codec
+    if b"\x00" in sample:
+        return None
     try:
-        codecs.getincrementaldecoder("utf-8")().decode(chunk, final=False)
+        codecs.getincrementaldecoder("utf-8")().decode(sample, final=False)
+        return "utf-8"
     except UnicodeDecodeError:
-        return True
-    return False
+        pass
+    if any((b < 0x20 and b not in _TEXT_CONTROLS) or b == 0x7F for b in sample):
+        return None
+    return "cp1252"
 
 
-def _is_probably_binary(path: Path, sample_size: int = 2048) -> bool:
+def _file_encoding(path: Path, sample_size: int = 2048) -> str | None:
     try:
         with path.open("rb") as fh:
-            chunk = fh.read(sample_size)
+            sample = fh.read(sample_size)
     except OSError:
-        return True
-    return _is_binary_sample(chunk)
+        return None
+    return _text_encoding(sample)
 
 
 def _walk_paths(paths: Iterable[Path]) -> Iterator[Path]:
@@ -384,10 +400,11 @@ def _walk_paths(paths: Iterable[Path]) -> Iterator[Path]:
 
 
 def _scan_file(path: Path) -> list[Match]:
-    if _is_probably_binary(path):
+    encoding = _file_encoding(path)
+    if encoding is None:
         return []
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding=encoding, errors="replace")
     except OSError as exc:
         print(
             f"⚠️  Could not read {path.as_posix()}: {exc}", file=sys.stderr,
@@ -585,12 +602,13 @@ def _run_staged_mode() -> int:
         matches: list[Match] = []
         for name, sha in blobs:
             data = _git("cat-file", "blob", sha)
-            if _is_binary_sample(data[:2048]):
+            encoding = _text_encoding(data[:2048])
+            if encoding is None:
                 continue
             path = Path(name)
             matches.extend(
                 Match(kind=m.kind, path=path, line_no=m.line_no, start=m.start, end=m.end)
-                for m in scan(data.decode("utf-8", errors="replace"))
+                for m in scan(data.decode(encoding, errors="replace"))
             )
     except _GitError as exc:
         # Fail closed: a vacuous pass here would let the commit through unscanned.
