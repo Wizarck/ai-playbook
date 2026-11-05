@@ -1,11 +1,16 @@
 """Insert a repo item into a consumer's `.pre-commit-config.yaml` without a YAML rewrite.
 
 Shared by the `pre-commit-hooks` and `lint-parity-precommit` hardrules. The
-block is spliced as text right after the last item of the top-level `repos:`
+block is spliced as text right after the last line of the top-level `repos:`
 sequence, re-indented to the file's own style (`  - repo:`, zero-indent
 `- repo:` or sample-config `-   repo:`), so comments and formatting survive.
+Comment lines count as part of the sequence: in a playbook-rendered file the
+sequence ends with the sealed `playbook-hooks` end marker or the consumer-extras
+trailer, and an item spliced before either would be rewritten away (or flagged
+as drift) by the next reconcile.
 The result is then parsed with `yaml.safe_load`; anything that does not parse,
-or does not yield the new repo in `repos`, raises instead of being written.
+does not yield the new repo in `repos`, or changes the content of an
+ai-playbook marker block, raises instead of being written.
 """
 from __future__ import annotations
 
@@ -13,7 +18,18 @@ import re
 
 import yaml
 
+from scripts._marker_blocks import CommentStyle, parse_blocks
+
 _REPOS_RE = re.compile(r"^repos\s*:\s*(#.*)?$")
+_BLOCK_BEGIN_RE = re.compile(r"^\s*#\s*>>>\s*ai-playbook:begin\b")
+
+
+def _sealed_blocks(text: str) -> dict[str, str] | None:
+    """``{block_id: content}`` of the file's marker blocks; None if they do not parse."""
+    try:
+        return {bid: b.content for bid, b in parse_blocks(text, CommentStyle.HASH).blocks.items()}
+    except ValueError:
+        return None  # malformed markers: the reconcile already fails closed on them
 
 
 def insert_repo(text: str, block: str, *, repo_url: str, hook_ids: list[str]) -> str:
@@ -51,11 +67,12 @@ def insert_repo(text: str, block: str, *, repo_url: str, hook_ids: list[str]) ->
     last = first
     for k in range(first + 1, len(lines)):
         ln = lines[k]
-        if not ln.strip() or ln.lstrip().startswith("#"):
+        if not ln.strip():
             continue
-        if not ln[0].isspace() and not ln.startswith("-"):
+        if not ln[0].isspace() and not ln.startswith(("-", "#")):
             break  # next top-level key ends the sequence
-        last = k
+        if not _BLOCK_BEGIN_RE.match(ln):  # a begin marker opens what follows it
+            last = k  # items and comments alike: end markers and trailers close what precedes them
 
     out: list[str] = []
     for bl in block.strip("\n").splitlines():
@@ -82,4 +99,7 @@ def insert_repo(text: str, block: str, *, repo_url: str, hook_ids: list[str]) ->
     )
     if not ok:
         raise ValueError("insertion did not yield the new repo as a `repos` item")
+    before = _sealed_blocks(text)
+    if before is not None and _sealed_blocks(new_text) != before:
+        raise ValueError("insertion would land inside an ai-playbook marker block")
     return new_text
