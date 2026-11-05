@@ -9,7 +9,8 @@
 # this template.
 
 # Hooks without `stages:` run at pre-commit only, even once another hook type is
-# installed (e.g. commit-msg, for block-manual-spec-edit below).
+# installed (e.g. commit-msg, for block-manual-spec-edit below). The stage name
+# `pre-commit` needs pre-commit 3.2.0 or later; older versions reject this file.
 default_stages: [pre-commit]
 
 repos:

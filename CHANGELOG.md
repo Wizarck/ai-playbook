@@ -17,7 +17,8 @@ All notable changes to `ai-playbook` are documented here. Semver.
   `- id: ai-playbook` only under a remote playbook repo.
 - **Template pre-commit hooks** skip while their script is missing (an
   uninitialised submodule blocked commits) and still fail when the validator
-  fails. Fresh renders set `default_stages: [pre-commit]`.
+  fails. Fresh renders set `default_stages: [pre-commit]`, a stage name that
+  needs pre-commit 3.2.0 or later (older versions reject the whole config).
 - **`block_manual_spec_edit`**: a clean merge that brings in an archived spec
   passes; a non-UTF-8 message no longer blocks every commit; a marker in `#`
   comments or below the `git commit -v` scissors line no longer counts;
@@ -32,11 +33,11 @@ All notable changes to `ai-playbook` are documented here. Semver.
   with `files: ^openspec/specs/.*\.md$`) now block spec commits until migrated:
   add `--commit-msg-file` and `stages: [commit-msg]`, delete `files:` (at
   commit-msg pre-commit passes only the message file, so the filter skips the
-  hook and nothing is checked), add top-level `default_stages: [pre-commit]`,
-  then run `pre-commit install --hook-type commit-msg`. The v0.24.1 template's
-  commented entry (`bash -c '... block_manual_spec_edit.py || exit 0'`) never
-  got the file names and never checked anything: replace it with the new
-  template entry.
+  hook and nothing is checked), add top-level `default_stages: [pre-commit]`
+  (pre-commit >= 3.2.0), then run `pre-commit install --hook-type commit-msg`.
+  The v0.24.1 template's commented entry
+  (`bash -c '... block_manual_spec_edit.py || exit 0'`) never got the file
+  names and never checked anything: replace it with the new template entry.
 - **Template hooks now block.** Validator exit codes propagate, verdict-lint
   receives the staged review/verify files (touching an old artefact without a
   verdict line fails), and `python` must be on PATH (exit 127, not a skip).

@@ -569,6 +569,9 @@ def test_template_keeps_other_hooks_at_the_pre_commit_stage() -> None:
     template = Path(__file__).resolve().parent.parent / "templates" / "new-project" / ".pre-commit-config.yaml.tmpl"
     text = template.read_text(encoding="utf-8")
     assert yaml.safe_load(text)["default_stages"] == ["pre-commit"]
+    # pre-commit < 3.2.0 rejects that stage name, before any
+    # `minimum_pre_commit_version` check (< 3.6.0): the comment says so.
+    assert "pre-commit 3.2.0 or later" in text.split("\ndefault_stages:", 1)[0].rsplit("\n\n", 1)[-1]
     guard = text[text.index("# - id: block-manual-spec-edit"):].split("\n\n", 1)[0]
     assert "#   stages: [commit-msg]" in guard
 
