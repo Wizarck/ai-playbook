@@ -39,6 +39,7 @@ import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import IO
 
 # Force UTF-8 stdio — Windows default cp1252 cannot encode the ❌/⚠️/✅ sigils
 # we emit, and secrets-scan output on Windows CI is routinely piped into UTF-8
@@ -475,12 +476,15 @@ def _staged_blobs() -> list[tuple[str, str]]:
     """Return ``(toplevel-relative path, blob sha)`` for every staged file.
 
     Reads the INDEX (what will be committed), not the working tree. ``-z``
-    avoids C-quoting of non-ASCII paths; gitlinks (submodule bumps, mode
+    avoids C-quoting of non-ASCII paths; ``diff.relative=false`` keeps files
+    outside the current directory (that setting drops them); ``T`` covers a
+    symlink replaced by a regular file; gitlinks (submodule bumps, mode
     160000) are skipped. Raises ``_GitError`` when git fails (not a repo, …).
     """
     raw = _git(
+        "-c", "diff.relative=false",
         "diff", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev",
-        "--diff-filter=ACMR",
+        "--diff-filter=ACMRT",
     )
     fields = raw.split(b"\0")
     out: list[tuple[str, str]] = []
@@ -493,6 +497,61 @@ def _staged_blobs() -> list[tuple[str, str]]:
             continue
         out.append((os.fsdecode(path), new_sha))
     return out
+
+
+def _read_exact(stream: IO[bytes], size: int) -> bytes:
+    data = stream.read(size)
+    if len(data) != size:
+        raise EOFError("output ended early")
+    return data
+
+
+def _staged_texts(blobs: list[tuple[str, str]]) -> Iterator[tuple[str, str]]:
+    """Yield ``(path, text)`` per staged text blob, read via one ``git cat-file --batch``.
+
+    One process serves every blob (a spawn per file cost ~20 ms on Windows).
+    A blob is held only once its first 2 KB show it is text; a binary one is
+    drained in chunks and skipped. Raises ``_GitError`` when git fails.
+    """
+    try:
+        proc = subprocess.Popen(
+            ["git", "cat-file", "--batch"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        raise _GitError(f"git cat-file --batch failed: {exc}") from exc
+    stdin, stdout = proc.stdin, proc.stdout
+    assert stdin is not None and stdout is not None
+    error = ""
+    try:
+        for name, sha in blobs:
+            stdin.write(sha.encode("ascii") + b"\n")
+            stdin.flush()
+            # Reply: "<sha> blob <size>\n<content>\n", or "<sha> missing\n".
+            header = stdout.readline().split()
+            if len(header) != 3 or header[1] != b"blob":
+                error = f"no blob {sha} for {name}"
+                break
+            size = int(header[2])
+            head = _read_exact(stdout, min(size, 2048))
+            encoding = _text_encoding(head)
+            if encoding is None:
+                rest = size - len(head)
+                while rest:
+                    rest -= len(_read_exact(stdout, min(rest, 1 << 20)))
+                _read_exact(stdout, 1)
+                continue
+            data = head + _read_exact(stdout, size - len(head))
+            _read_exact(stdout, 1)
+            yield name, data.decode(encoding, errors="replace")
+    except (OSError, ValueError, EOFError) as exc:
+        error = str(exc)
+    finally:
+        _, err = proc.communicate()
+    if error or proc.returncode:
+        raise _GitError(
+            f"git cat-file --batch failed: {error} {err.decode(errors='replace').strip()}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -600,15 +659,11 @@ def _run_staged_mode() -> int:
             return 0
         top = Path(os.fsdecode(_git("rev-parse", "--show-toplevel").strip()))
         matches: list[Match] = []
-        for name, sha in blobs:
-            data = _git("cat-file", "blob", sha)
-            encoding = _text_encoding(data[:2048])
-            if encoding is None:
-                continue
+        for name, text in _staged_texts(blobs):
             path = Path(name)
             matches.extend(
                 Match(kind=m.kind, path=path, line_no=m.line_no, start=m.start, end=m.end)
-                for m in scan(data.decode(encoding, errors="replace"))
+                for m in scan(text)
             )
     except _GitError as exc:
         # Fail closed: a vacuous pass here would let the commit through unscanned.
