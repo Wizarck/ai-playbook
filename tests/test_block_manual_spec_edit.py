@@ -356,6 +356,25 @@ _PRE_COMMIT_STAGE_ENTRY = (  # the v0.24.1-era wiring, e.g. gamma's
     "        name: guard\n        entry: python .ai-playbook/scripts/block_manual_spec_edit.py\n"
     "        language: system\n        files: ^openspec/specs/.*\\.md$\n"
 )
+# gamma's entry moved to commit-msg in place, `files:` kept, plus the
+# pre-commit-stage copy the template suggests for CI.
+_MIGRATED_IN_PLACE_WITH_CI_COPY = (
+    "default_stages: [pre-commit]\n" + _COMMIT_MSG_ENTRY
+    + "        files: ^openspec/specs/.*\\.md$\n"
+    + "      - id: block-manual-spec-edit-ci\n        name: guard (CI)\n"
+    "        entry: python .ai-playbook/scripts/block_manual_spec_edit.py\n"
+    "        language: system\n        files: ^openspec/specs/.*\\.md$\n"
+)
+_REPO = Path(__file__).resolve().parent.parent
+_TEMPLATE = _REPO / "templates" / "new-project" / ".pre-commit-config.yaml.tmpl"
+
+
+def _template_guard_config() -> str:
+    """The template's commented block-manual-spec-edit entry, uncommented."""
+    text = _TEMPLATE.read_text(encoding="utf-8")
+    entry = text[text.index("      # - id: block-manual-spec-edit"):].split("\n\n", 1)[0]
+    hooks = "".join(ln.replace("# ", "", 1) + "\n" for ln in entry.splitlines())
+    return "default_stages: [pre-commit]\nrepos:\n  - repo: local\n    hooks:\n" + hooks
 
 
 def _pre_commit_stage_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *,
@@ -376,9 +395,11 @@ def _pre_commit_stage_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *,
 @pytest.mark.parametrize("hook,config", [
     (None, _COMMIT_MSG_ENTRY),  # commit-msg hook type never installed
     (_PRE_COMMIT_HOOK, _PRE_COMMIT_STAGE_ENTRY),  # installed, entry still at pre-commit
+    # moved in place but `files:` kept: pre-commit skips it at commit-msg
+    (_PRE_COMMIT_HOOK, _MIGRATED_IN_PLACE_WITH_CI_COPY),
     # hand-installed, but in path mode: it would get the message file as a path
     ('#!/bin/sh\nexec python .ai-playbook/scripts/block_manual_spec_edit.py "$1"\n', None),
-], ids=["no-commit-msg-hook", "entry-not-migrated", "hand-installed-path-mode"])
+], ids=["no-commit-msg-hook", "entry-not-migrated", "migrated-keeping-files", "hand-installed-path-mode"])
 def test_pre_commit_stage_blocks_when_nothing_would_check_the_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     hook: str | None, config: str,
@@ -388,12 +409,15 @@ def test_pre_commit_stage_blocks_when_nothing_would_check_the_commit(
     assert _pre_commit_stage_run(tmp_path, monkeypatch, hook=hook, config=config) == 1
     err = capsys.readouterr().err
     assert "--commit-msg-file" in err and "pre-commit install --hook-type commit-msg" in err
+    assert "no `files:`/`types:` filter" in err
 
 
 @pytest.mark.parametrize("hook,config", [
     (_PRE_COMMIT_HOOK, _COMMIT_MSG_ENTRY),
+    (_PRE_COMMIT_HOOK, _template_guard_config()),
+    (_PRE_COMMIT_HOOK, (_REPO / ".pre-commit-config.yaml").read_text(encoding="utf-8")),
     ('#!/bin/sh\nexec python .ai-playbook/scripts/block_manual_spec_edit.py --commit-msg-file "$1"\n', None),
-], ids=["pre-commit", "hand-installed"])
+], ids=["pre-commit", "template-entry", "playbook-own-config", "hand-installed"])
 def test_pre_commit_stage_defers_to_a_wired_commit_msg_hook(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     hook: str, config: str | None,
@@ -401,6 +425,67 @@ def test_pre_commit_stage_defers_to_a_wired_commit_msg_hook(
     """Rather than guess from the previous commit's message (COMMIT_EDITMSG)."""
     assert _pre_commit_stage_run(tmp_path, monkeypatch, hook=hook, config=config) == 0
     assert "commit-msg stage" in capsys.readouterr().err
+
+
+def _guard_config(top: str, hook: str, python: str = "python") -> str:
+    return (top + "repos:\n  - repo: local\n    hooks:\n      - id: block-manual-spec-edit\n"
+            "        name: guard\n"
+            f"        entry: '{python} .ai-playbook/scripts/block_manual_spec_edit.py --commit-msg-file'\n"
+            "        language: system\n" + hook)
+
+
+_AT_COMMIT_MSG = "        stages: [commit-msg]\n"
+# (top-level keys, hook keys, does pre-commit hand the guard the message file?)
+_WIRING_CASES = {
+    "commit-msg-entry": ("", _AT_COMMIT_MSG, True),
+    "files-kept-in-place": ("", _AT_COMMIT_MSG + "        files: ^openspec/specs/.*\\.md$\n", False),
+    "top-level-files": ("files: ^(src|openspec)/\n", _AT_COMMIT_MSG, False),
+    "types-filter": ("", _AT_COMMIT_MSG + "        types: [markdown]\n", False),
+    "harmless-types": ("", _AT_COMMIT_MSG + "        types: [text]\n        exclude_types: [binary]\n", True),
+    "stageless-under-default-stages": ("default_stages: [pre-commit]\n", "", False),
+    "stageless-runs-at-every-stage": ("", "", True),
+    "no-filenames": ("", _AT_COMMIT_MSG + "        pass_filenames: false\n", False),
+}
+_MESSAGE_PATHS = [".git/COMMIT_EDITMSG", ".git/MERGE_MSG"]
+
+
+@pytest.mark.parametrize("top,hook,wired", _WIRING_CASES.values(), ids=_WIRING_CASES.keys())
+def test_config_wires_guard_only_if_pre_commit_hands_it_the_message(top: str, hook: str, wired: bool) -> None:
+    """At commit-msg the message file is pre-commit's only filename, and the
+    `files:`/types filters still apply to it."""
+    assert bmse._config_wires_guard(_guard_config(top, hook), _MESSAGE_PATHS) is wired
+
+
+@pytest.mark.parametrize("top,hook,wired", _WIRING_CASES.values(), ids=_WIRING_CASES.keys())
+def test_wiring_model_agrees_with_real_pre_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, top: str, hook: str, wired: bool,
+) -> None:
+    """Each case's expectation is what real pre-commit does at commit-msg: the
+    guard (a stub that records its argv) gets the message file exactly then."""
+    pytest.importorskip("pre_commit")
+    import os
+    import subprocess as _sp
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _bootstrap_repo(repo)
+    stub = repo / ".ai-playbook" / "scripts" / "block_manual_spec_edit.py"
+    stub.parent.mkdir(parents=True)
+    stub.write_text("import os, sys\nopen(os.environ['BMSE_PROBE'], 'w').write(' '.join(sys.argv[1:]))\n",
+                    encoding="utf-8")
+    python = '"' + Path(sys.executable).as_posix() + '"'
+    (repo / ".pre-commit-config.yaml").write_text(_guard_config(top, hook, python), encoding="utf-8")
+    (repo / ".git" / "COMMIT_EDITMSG").write_text("chore: tweak wording\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    probe = tmp_path / "argv.txt"
+    _clear_env(monkeypatch)
+    monkeypatch.delenv("SKIP", raising=False)
+    env = {**os.environ, "BMSE_PROBE": str(probe), "PRE_COMMIT_HOME": str(tmp_path / "pc-home")}
+    r = _sp.run([sys.executable, "-m", "pre_commit", "run", "--hook-stage", "commit-msg",
+                 "--commit-msg-filename", ".git/COMMIT_EDITMSG"],
+                cwd=repo, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    got_message = probe.is_file() and "COMMIT_EDITMSG" in probe.read_text(encoding="utf-8")
+    assert got_message is wired, r.stdout + r.stderr
 
 
 def test_commit_msg_stage_ignores_commits_without_spec_changes(

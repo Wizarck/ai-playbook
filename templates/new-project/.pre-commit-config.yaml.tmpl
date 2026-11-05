@@ -82,6 +82,8 @@ repos:
       # Runs at the commit-msg stage (the commit's message does not exist yet at
       # pre-commit time); install it with `pre-commit install --hook-type commit-msg`
       # (or list both in top-level `default_install_hook_types: [pre-commit, commit-msg]`).
+      # No `files:`/`types:` filter: at commit-msg the only file pre-commit passes is
+      # the message, so a filter skips the hook (the script reads the staged paths).
       # Keep top-level `default_stages: [pre-commit]` (add it if your file predates
       # it), or every hook without `stages:` runs a second time at commit-msg.
       # For CI (`pre-commit run --from-ref/--to-ref`) add a pre-commit-stage copy

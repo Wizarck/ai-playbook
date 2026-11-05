@@ -22,14 +22,21 @@ All notable changes to `ai-playbook` are documented here. Semver.
   passes; a non-UTF-8 message no longer blocks every commit; a marker in `#`
   comments or below the `git commit -v` scissors line no longer counts;
   non-ASCII spec paths are protected; a pre-commit-stage entry with no
-  commit-msg wiring blocks with migration steps instead of passing silently.
+  commit-msg wiring blocks with migration steps instead of passing silently (a
+  commit-msg entry whose `files:`/`types:` filter drops the message file does
+  not count as wiring).
 
 ### Consumer action
-- **`block-manual-spec-edit` at the pre-commit stage** (the v0.24.1 template
-  shape) now blocks spec commits until migrated: move it to
-  `stages: [commit-msg]` with `--commit-msg-file` (see the template entry), add
-  top-level `default_stages: [pre-commit]`, then run
-  `pre-commit install --hook-type commit-msg`.
+- **`block-manual-spec-edit` entries that run at the pre-commit stage on the
+  staged files** (e.g. `entry: python .ai-playbook/scripts/block_manual_spec_edit.py`
+  with `files: ^openspec/specs/.*\.md$`) now block spec commits until migrated:
+  add `--commit-msg-file` and `stages: [commit-msg]`, delete `files:` (at
+  commit-msg pre-commit passes only the message file, so the filter skips the
+  hook and nothing is checked), add top-level `default_stages: [pre-commit]`,
+  then run `pre-commit install --hook-type commit-msg`. The v0.24.1 template's
+  commented entry (`bash -c '... block_manual_spec_edit.py || exit 0'`) never
+  got the file names and never checked anything: replace it with the new
+  template entry.
 - **Template hooks now block.** Validator exit codes propagate, verdict-lint
   receives the staged review/verify files (touching an old artefact without a
   verdict line fails), and `python` must be on PATH (exit 127, not a skip).
