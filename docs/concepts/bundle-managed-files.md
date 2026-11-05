@@ -118,9 +118,24 @@ JSON5 / JS:
      extras of `.pre-commit-config.yaml` and `mcp-servers.project.yaml` sit
      between a `# Consumer … (preserved across apply_config)` header and a
      `# (end of …)` trailer comment, and that region is replaced on every
-     apply. `.coderabbit.yaml` extras are merged into the current mapping.
+     apply. `.coderabbit.yaml` extras are merged into the current mapping, so
+     an entry removed from the bundle stays in the file until deleted by hand.
+     A markerless `.pre-commit-config.yaml` that already lists playbook hooks
+     keeps its own copies: the `playbook-hooks` block is not appended, since
+     each hook would run twice. To have the playbook refresh them, replace
+     them with the template's block, begin/end marker lines included.
+     Likewise, a markerless `mcp-servers.project.yaml` with its own `servers:`
+     mapping keeps it and does not get the baseline block, which would open a
+     second `servers:`.
      A markerless `AGENTS.md` is still generated from the template (its prose
-     is recovered through backup + `curate`).
+     is recovered through backup + `curate`; its caveman / ponytail / graphify
+     `auto-managed` blocks are carried over). A YAML file whose layout cannot
+     take the merge (e.g. `repos:` items at column 0, a 4-space or flow-style
+     `servers:`, keys after the list the extras continue, or a duplicate key,
+     even one the file already had) is skipped as a conflict (`merge`): it is
+     not written and `applied-config.json` does not advance until that hand
+     edit, which the message names, is made; the other files of the batch
+     still apply.
    - If destination exists AND content differs from rendered output:
      `backup_once` → atomic write.
    - Update `bundle.file_states[<rel_path>]` with the new SHA manifest.

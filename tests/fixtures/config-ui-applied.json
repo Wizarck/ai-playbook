@@ -1,0 +1,17 @@
+{
+  "schema": "ai-playbook-config/v1",
+  "generated_at": "2026-09-01T00:00:00Z",
+  "generated_by": "test",
+  "pre_commit_extras": {
+    "hooks": [{"id": "my-lint", "name": "Lint", "entry": "make lint", "language": "system"}]
+  },
+  "coderabbit_extras": {
+    "path_filters": ["!dist/**"],
+    "path_instructions": [{"path": "src/**", "instructions": "be strict"}]
+  },
+  "mcp_project_servers": {"my-db": {"transport": "stdio", "command": "db-mcp"}},
+  "gitignore_extras": {"patterns": ["*.local"]},
+  "file_curate_intents": {".gitignore": {"default_action": "keep_mine"}},
+  "project_meta": {"project_identity": "alpha"},
+  "backup_preferences": {"keep_per_file": 5}
+}

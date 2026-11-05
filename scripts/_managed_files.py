@@ -46,6 +46,7 @@ for _stream in (sys.stdout, sys.stderr):
 from scripts._backup_helper import BackupLocation, backup_once, restore_session  # noqa: E402
 from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks  # noqa: E402
 from scripts._renderers import (  # noqa: E402
+    MergeConflictError,
     render_agents_md,
     render_claude_settings_local,
     render_coderabbit,
@@ -384,6 +385,28 @@ def _reconcile_blocks(
 # ---------------------------------------------------------------------------
 
 
+def snapshot_cas_shas(consumer_root: Path, bundle: dict[str, Any]) -> dict[str, str]:
+    """Whole-file sha of each managed file the bundle's ``base_shas`` guard.
+
+    apply_config reads this before any of its sections runs and passes it to
+    ``apply_managed_files(cas_shas=...)``: caveman, graphify and ponytail
+    rewrite AGENTS.md / .gitignore earlier in the same reconcile, and that is
+    not an edit made after the UI loaded the file. Missing or unreadable files
+    are left out (the gate then reads the file itself).
+    """
+    base_shas = bundle.get("base_shas") or {}
+    shas: dict[str, str] = {}
+    for mf in MANAGED_FILES:
+        if mf.rel_path not in base_shas:
+            continue
+        try:
+            text = (consumer_root / mf.rel_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        shas[mf.rel_path] = compute_file_sha(text)
+    return shas
+
+
 def apply_managed_files(
     *,
     consumer_root: Path,
@@ -391,8 +414,13 @@ def apply_managed_files(
     bundle: dict[str, Any],
     session_id: str | None = None,
     dry_run: bool = False,
+    cas_shas: dict[str, str] | None = None,
 ) -> ManagedFilesResult:
     """Render each managed file whose trigger_section is present in the bundle.
+
+    ``cas_shas`` (from ``snapshot_cas_shas``) is the file content the
+    compare-and-swap gate checks ``base_shas`` against; without it the gate
+    reads the file as it is now.
 
     Returns a ``ManagedFilesResult`` carrying:
       - ``changes``: human-readable description of what happened per file
@@ -432,7 +460,7 @@ def apply_managed_files(
     # (dest, rendered_text, ManagedFile, existed_before).
     planned: list[tuple[Path, str, ManagedFile, bool]] = []
     staging_failed = False  # a render/template error ⇒ abort the whole batch
-    conflicts: list[str] = []  # drifted-without-decision ⇒ per-file skip
+    conflicts: list[str] = []  # drift / CAS / malformed / merge ⇒ per-file skip
     for mf in triggered:
         template_path = templates_root / mf.template_rel
         if not template_path.is_file():
@@ -477,7 +505,7 @@ def apply_managed_files(
         # stale content. Per-file skip; the rest of the batch still applies.
         base_sha = base_shas.get(mf.rel_path)
         if existed and current_text is not None and base_sha is not None:
-            actual_file_sha = compute_file_sha(current_text)
+            actual_file_sha = (cas_shas or {}).get(mf.rel_path) or compute_file_sha(current_text)
             if actual_file_sha != base_sha:
                 result.ok = False
                 conflicts.append(f"{mf.rel_path} (CAS)")
@@ -532,6 +560,21 @@ def apply_managed_files(
                 rendered = mf.renderer(
                     template=template, substitutions=substitutions, bundle=bundle,
                 )
+        except MergeConflictError as exc:
+            # The consumer's layout cannot take the merge: like a drift
+            # conflict, only this file is skipped; the batch still applies.
+            result.ok = False
+            conflicts.append(f"{mf.rel_path} (merge)")
+            result.file_states[mf.rel_path] = {
+                "merge_conflict": str(exc),
+                "last_seen": timestamp_iso,
+            }
+            result.changes.append(f"✗ {mf.rel_path}: {exc} — not written")
+            trace_emit.add_event(
+                "reconcile.managed_files.merge_conflict",
+                {"ai_playbook.managed_files.file": mf.rel_path},
+            )
+            continue
         except Exception as exc:  # noqa: BLE001
             result.ok = False
             staging_failed = True
@@ -685,4 +728,5 @@ __all__ = [
     "ManagedFilesResult",
     "apply_managed_files",
     "compute_substitutions",
+    "snapshot_cas_shas",
 ]

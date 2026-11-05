@@ -940,9 +940,9 @@
 
   // ---- .pre-commit-config.yaml — extra hooks ----
   const _PC_SCALARS = [
-    { key: "name", ph: "name" },
-    { key: "entry", ph: "entry (command/script)" },
-    { key: "language", ph: "language (system/python/script…)" },
+    { key: "name", ph: "name (required)" },
+    { key: "entry", ph: "entry (required: command/script)" },
+    { key: "language", ph: "language (required: system/python/script…)" },
     { key: "files", ph: "files (regex)" },
     { key: "exclude", ph: "exclude (regex)" },
   ];
@@ -1695,6 +1695,12 @@
       const reason = (e.reason || "").trim();
       if (reason.length < 10) errors.push(`${slug} requires reason >=10 chars (currently ${reason.length})`);
     });
+    // A `repo: local` hook without name/entry/language makes pre-commit reject
+    // the whole config (every commit blocked); apply_config refuses to render it.
+    ((state.pre_commit_extras || {}).hooks || []).map(_cleanPreCommitHook).filter(Boolean).forEach(h => {
+      const missing = ["name", "entry", "language"].filter(k => !h[k]);
+      if (missing.length) errors.push(`pre-commit hook ${h.id} needs ${missing.join(", ")}`);
+    });
     if (errors.length > 0) {
       banner("error", "Cannot export — fix these issues first:\n• " + errors.join("\n• "));
       return;
@@ -1883,8 +1889,16 @@
   }
 
   function onReset() {
-    if (!confirm("Reset all toggles to defaults? Unsaved changes will be lost.")) return;
+    if (!confirm("Reset all toggles to defaults? Unsaved changes will be lost. " +
+                 "Curate decisions (Files tab) and the sections this UI does not edit " +
+                 "(project metadata, settings extras, backup preferences) are kept.")) return;
+    // Not toggles: the UI cannot re-create the pass-through sections, and the
+    // curate decisions protect consumer edits. Dropping them here made the
+    // next export lose them from applied-config.json.
+    const kept = { passthrough: state.passthrough, file_curate_intents: state.file_curate_intents };
     state = deepClone(defaults);
+    if (kept.passthrough) state.passthrough = kept.passthrough;
+    if (kept.file_curate_intents) state.file_curate_intents = kept.file_curate_intents;
     state.skills_enforce = { disabled: [] };
     state.mcps_enforce = { disabled: [] };
     state.settings = _normalizeSettings(defaults && defaults.settings);

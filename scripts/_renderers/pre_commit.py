@@ -5,12 +5,19 @@ hooks from ``bundle.pre_commit_extras.hooks`` are appended after the
 ``repos:`` block as a second ``- repo: local`` group (pre-commit accepts
 several ``local`` repos; any other name would need a ``rev``), between a
 ``# Consumer hooks …`` header and a ``# (end of consumer hooks)`` trailer.
+Each such hook must carry ``id``, ``name``, ``entry`` and ``language`` (else
+the render fails: pre-commit would reject the whole config).
 
 When the file already exists (``current_text``), it is merged instead of
 regenerated: the marker block is refreshed in place, the bundle-extras region
 is replaced, and everything else the consumer wrote is kept verbatim. A
+markerless file that already lists a hook of the block (the playbook hooks
+copied without their marker lines) does not get the block appended, since
+each such hook would run twice; its own copies are kept as they are. A
 current file that is not a valid YAML mapping (e.g. corrupted by an older renderer) is
-regenerated from the template; the orchestrator backs it up first.
+regenerated from the template; the orchestrator backs it up first. A merge the
+consumer's layout cannot take raises ``MergeConflictError`` (that file is
+skipped as a conflict).
 """
 from __future__ import annotations
 
@@ -19,8 +26,11 @@ import re
 import yaml
 
 from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks
+from scripts._renderers._yaml_merge import MergeConflictError, duplicate_key, load_mapping
 from scripts._template_classifier import compute_sha
 
+_BLOCK_ID = "playbook-hooks"
+_LOCAL_HOOK_REQUIRED = ("id", "name", "entry", "language")
 _EXTRAS_HEADER = "# Consumer hooks (preserved across apply_config)"
 _EXTRAS_TRAILER = "# (end of consumer hooks)"
 _EXTRAS_REGION_RE = re.compile(
@@ -52,6 +62,15 @@ def _render_extras_yaml(hooks: list[dict]) -> str:
     hooks = [h for h in hooks if isinstance(h, dict)]
     if not hooks:
         return ""
+    for hook in hooks:
+        missing = [k for k in _LOCAL_HOOK_REQUIRED
+                   if not (isinstance(hook.get(k), str) and hook[k].strip())]
+        if missing:
+            raise ValueError(
+                f"pre_commit_extras hook {hook.get('id') or '(no id)'!r} lacks "
+                f"{', '.join(missing)}: a `repo: local` hook needs id, name, entry "
+                "and language, or pre-commit rejects the whole config"
+            )
     dumped = yaml.safe_dump(
         [{"repo": "local", "hooks": hooks}],
         sort_keys=False, default_flow_style=False, allow_unicode=True,
@@ -61,11 +80,33 @@ def _render_extras_yaml(hooks: list[dict]) -> str:
                    for line in dumped.splitlines(keepends=True))
 
 
-def _is_mapping(text: str) -> bool:
-    try:
-        return isinstance(yaml.safe_load(text), dict)
-    except yaml.YAMLError:
-        return False
+def _hook_ids(repos: object) -> set[str]:
+    """Ids of the hooks under a parsed ``repos:`` list."""
+    if not isinstance(repos, list):
+        return set()
+    return {hook["id"] for repo in repos if isinstance(repo, dict)
+            for hook in (repo.get("hooks") or [])
+            if isinstance(hook, dict) and isinstance(hook.get("id"), str)}
+
+
+def _merge_error(body: str, current_text: str, *, markerless: bool) -> str:
+    own_dup = duplicate_key(current_text)
+    if own_dup is not None:
+        return (f".pre-commit-config.yaml already has a duplicate key {own_dup!r} "
+                "(YAML loaders keep only one of them; check-yaml rejects the file): "
+                "remove the duplicate and re-apply")
+    dup = duplicate_key(body)
+    cause = ("this file has no playbook-hooks marker block, so the block was "
+             "appended at its end; " if markerless else "")
+    return (
+        "merged .pre-commit-config.yaml is not a valid pre-commit config"
+        + (f" (duplicate key {dup!r})" if dup else "")
+        + f" — {cause}the playbook and consumer hooks are `  - repo:` items "
+        "continuing `repos:`, so `repos:` must be the last top-level key and its "
+        "items indented two spaces (pre-commit's sample config puts `-   repo:` "
+        "at column 0). Re-indent the list or move the keys that follow it above "
+        "it, then re-apply"
+    )
 
 
 def render(
@@ -81,9 +122,25 @@ def render(
             body = body.replace("{{" + key + "}}", str(value))
     body = _inject_sha(body)
 
-    if current_text and _is_mapping(current_text):
+    merging = bool(current_text) and load_mapping(current_text) is not None
+    markerless = False  # the block is appended to a file that had no markers
+    appended: list = []  # repo items this render appends at the end of the file
+    if merging:
         # Merge: refresh the canonical block(s) in the consumer's own file.
         sealed = parse_blocks(body, CommentStyle.HASH).blocks
+        if (_BLOCK_ID in sealed
+                and _BLOCK_ID not in parse_blocks(current_text, CommentStyle.HASH).blocks):
+            items = yaml.safe_load(sealed[_BLOCK_ID].content)
+            items = items if isinstance(items, list) else []
+            own = (load_mapping(_EXTRAS_REGION_RE.sub("", current_text))
+                   or load_mapping(current_text) or {})
+            if _hook_ids(items) & _hook_ids(own.get("repos")):
+                # The playbook hooks are already listed, without markers:
+                # appending the block would run each of them twice.
+                sealed.pop(_BLOCK_ID)
+            else:
+                markerless = True
+                appended.extend(items)
         body = write_blocks(current_text, sealed, style=CommentStyle.HASH)
         body, removed = _EXTRAS_REGION_RE.subn("", body)
         if removed:
@@ -94,12 +151,16 @@ def render(
     if extras_yaml:
         body = body.rstrip("\n") + "\n\n" + _EXTRAS_HEADER + "\n"
         body += extras_yaml + _EXTRAS_TRAILER + "\n"
+        appended.append({"repo": "local", "hooks": [h for h in hooks if isinstance(h, dict)]})
 
-    if not _is_mapping(body):
-        raise ValueError(
-            "merged .pre-commit-config.yaml is not a valid YAML mapping — consumer content "
-            "after the `repos:` list? Move it above `repos:` and re-apply"
-        )
+    merged = load_mapping(body, strict=True)
+    repos = (merged or {}).get("repos")
+    # Appended items must land at the end of `repos:`, not under a key after it.
+    if merged is None or (appended and (
+            not isinstance(repos, list) or repos[-len(appended):] != appended)):
+        if merging:
+            raise MergeConflictError(_merge_error(body, current_text, markerless=markerless))
+        raise ValueError("rendered .pre-commit-config.yaml is not a valid YAML mapping")
     return body
 
 

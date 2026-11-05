@@ -14,8 +14,11 @@ regenerated: the marker block is refreshed in place, the bundle region is
 replaced, and everything else the consumer wrote is kept verbatim. Servers
 the consumer declared by hand outside the region are consumer-owned; a bundle
 entry with the same id is not emitted again (it would be a duplicate key). A
-current file that is not a valid YAML mapping is regenerated from the
-template; the orchestrator backs it up first.
+markerless file that already has its own ``servers:`` mapping does not get the
+baseline block appended (it would open a second ``servers:``); the bundle
+servers are added under the consumer's mapping. A current file that is not a
+valid YAML mapping is regenerated from the template; the orchestrator backs it
+up first.
 """
 from __future__ import annotations
 
@@ -24,8 +27,10 @@ import re
 import yaml
 
 from scripts._marker_blocks import CommentStyle, MarkerBlock, parse_blocks, write_blocks
+from scripts._renderers._yaml_merge import MergeConflictError, duplicate_key, load_mapping
 from scripts._template_classifier import compute_sha
 
+_BASELINE_ID = "project-servers-baseline"
 _EXTRAS_HEADER = "# Consumer-added project servers (preserved across apply_config)"
 _EXTRAS_TRAILER = "# (end of consumer-added project servers)"
 _EXTRAS_REGION_RE = re.compile(
@@ -52,14 +57,6 @@ def _inject_sha(text: str) -> str:
     return write_blocks(text, desired, style=CommentStyle.HASH)
 
 
-def _load_mapping(text: str) -> dict | None:
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return None
-    return data if isinstance(data, dict) else None
-
-
 def _format_servers(servers: dict[str, dict]) -> str:
     """Emit ``servers`` as YAML entries indented under an existing ``servers:``."""
     dumped = yaml.safe_dump(
@@ -68,6 +65,27 @@ def _format_servers(servers: dict[str, dict]) -> str:
     )
     # Drop the `servers:` line itself; the entries are already 2-space indented.
     return dumped.split("\n", 1)[1]
+
+
+def _merge_error(body: str, merged: dict | None, current_text: str | None,
+                 current: dict | None) -> str:
+    own_dup = duplicate_key(current_text) if current_text else None
+    if own_dup is not None:
+        return (f"mcp-servers.project.yaml already has a duplicate key {own_dup!r} "
+                "(YAML loaders keep only one of them; check-yaml rejects the file): "
+                "remove the duplicate and re-apply")
+    if merged is None:
+        dup = duplicate_key(body)
+        problem = "is not a valid YAML mapping" + (f" (duplicate key {dup!r})" if dup else "")
+    else:
+        problem = "would put bundle servers outside `servers:`"
+    if current is not None and list(current)[-1:] == ["servers"]:
+        fix = ("re-indent its entries two spaces, in block style (not a `{...}` "
+               "flow mapping), and re-apply")
+    else:
+        fix = "move any content after the `servers:` mapping above it and re-apply"
+    return (f"merged mcp-servers.project.yaml {problem} — bundle servers are appended "
+            f"at the end of the file, indented two spaces under `servers:`; {fix}")
 
 
 def render(
@@ -83,16 +101,23 @@ def render(
             body = body.replace("{{" + key + "}}", str(value))
     body = _inject_sha(body)
 
-    if current_text and _load_mapping(current_text) is not None:
+    current = load_mapping(current_text) if current_text else None
+    if current is not None:
         # Merge: refresh the canonical block(s) in the consumer's own file.
         sealed = parse_blocks(body, CommentStyle.HASH).blocks
+        if (_BASELINE_ID not in parse_blocks(current_text, CommentStyle.HASH).blocks
+                and "servers" in current):
+            # Markerless file with its own `servers:` mapping: the baseline
+            # block opens `servers:` too, so appending it would duplicate the
+            # key (PyYAML keeps the last mapping, check-yaml rejects the file).
+            sealed.pop(_BASELINE_ID, None)
         body = write_blocks(current_text, sealed, style=CommentStyle.HASH)
         body, removed = _EXTRAS_REGION_RE.subn("", body)
         if removed:
             body = body.rstrip("\n") + "\n"
 
     extras = bundle.get("mcp_project_servers") or {}
-    declared = ((_load_mapping(body) or {}).get("servers") or {})
+    declared = ((load_mapping(body) or {}).get("servers") or {})
     servers = {
         sid: fields for sid, fields in extras.items()
         if isinstance(fields, dict) and sid not in declared
@@ -101,11 +126,14 @@ def render(
         body = body.rstrip("\n") + "\n\n" + _EXTRAS_HEADER + "\n"
         body += _format_servers(servers) + _EXTRAS_TRAILER + "\n"
 
-    if _load_mapping(body) is None:
-        raise ValueError(
-            "merged mcp-servers.project.yaml is not a valid YAML mapping — "
-            "consumer content after the `servers:` mapping? Move it above the "
-            "marker block and re-apply"
+    merged = load_mapping(body, strict=True)
+    landed = (merged or {}).get("servers")
+    if merged is None or any(not isinstance(landed, dict) or sid not in landed
+                             for sid in servers):
+        # Merging into the consumer's file: a layout conflict for that file
+        # only. From the template alone it is a playbook bug.
+        raise (MergeConflictError if current is not None else ValueError)(
+            _merge_error(body, merged, current_text, current)
         )
     return body
 
