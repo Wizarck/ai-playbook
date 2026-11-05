@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -676,7 +678,8 @@ def test_the_rmtree_hook_leaves_modes_alone_on_posix(tmp_path: Path) -> None:
 
 def test_directory_orphan_deletes_leftovers_without_a_git_dir_completely(tmp_path: Path) -> None:
     """NEGATIVE CONTROL: residue with no HEAD is deleted, read-only files included
-    (Windows refuses to delete those without clearing the bit)."""
+    (Windows refuses to delete those without clearing the bit), and so is a kept
+    `logs/`: its HEAD is a reflog, not a git dir's HEAD."""
     consumer = _seed_consumer(tmp_path)
     residue = consumer / ".git" / "modules" / ".skills-sources" / "x"
     (residue / "hooks").mkdir(parents=True)
@@ -684,6 +687,10 @@ def test_directory_orphan_deletes_leftovers_without_a_git_dir_completely(tmp_pat
     leftover = residue / "leftover.pack"
     leftover.write_bytes(b"PACK")
     leftover.chmod(0o444)
+    reflog = f"{'0' * 40} {'a' * 40} T <t@example.com> 1700000000 +0000\tclone: from up\n"
+    (residue / "logs" / "refs" / "heads").mkdir(parents=True)
+    (residue / "logs" / "HEAD").write_text(reflog, encoding="utf-8")
+    (residue / "logs" / "refs" / "heads" / "main").write_text(reflog, encoding="utf-8")
     manifest = _write_manifest(tmp_path, [_base_entry(**_GIT_MODULES_ENTRY)])
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
@@ -725,6 +732,184 @@ def test_report_rows_stay_on_one_line(tmp_path: Path) -> None:
     report = (consumer / ".ai-playbook" / "zombie-report.md").read_text(encoding="utf-8")
     table = [line for line in report.splitlines() if line.startswith("| `")]
     assert table and all(line.endswith(" |") for line in table), report
+
+
+def _row_command(row: str) -> list[str]:
+    """The check a kept-git-dir row tells the user to run before deleting by hand."""
+    match = re.search(r"once `(git --git-dir [^`]+)`", row)
+    assert match, row
+    return shlex.split(match.group(1))
+
+
+@pytest.mark.parametrize("flow", ["deinit-and-rm", "rm-only"])
+def test_the_reported_check_lists_detached_and_stashed_work(tmp_path: Path, flow: str) -> None:
+    """A submodule's HEAD is usually detached, so `--branches` missed a local commit
+    and a stash. A plain `git rm` leaves a stale core.worktree, and the old command
+    then failed with 'cannot chdir'."""
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/x")
+    _git_in(consumer, "commit", "-q", "-m", "add")
+    sub = consumer / ".skills-sources" / "x"
+    _git_in(sub, "checkout", "-q", "--detach")
+    _git_in(sub, "commit", "--allow-empty", "-q", "-m", "detached only")
+    (sub / "wip.txt").write_text("wip", encoding="utf-8")
+    _git_in(sub, "stash", "push", "-q", "--include-untracked", "-m", "stashed only")
+    deinit = [("submodule", "deinit", "-f", "-q", ".skills-sources/x")] if flow == "deinit-and-rm" else []
+    for args in (*deinit, ("rm", "-q", "-f", ".skills-sources/x"), ("commit", "-q", "-m", "drop")):
+        _git_in(consumer, *args)
+    result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    row = _report_row(consumer, "skills-sources-git-modules-orphan")
+    check = subprocess.run(_row_command(row), cwd=str(consumer), capture_output=True, text=True, encoding="utf-8")
+    assert check.returncode == 0, check.stderr
+    assert "detached only" in check.stdout and "stashed only" in check.stdout, check.stdout
+
+
+def test_every_git_dir_under_the_target_is_named_nested_ones_too(tmp_path: Path) -> None:
+    """Deleting `b` by hand deletes the git dir of its own submodule too, so the row
+    names that one as well, not just the first git dir found."""
+    consumer = _seed_consumer(tmp_path)
+    modules = consumer / ".git" / "modules" / ".skills-sources"
+    names = ("a", "b", "b/modules/vendor/nested")
+    for rel in names:
+        subprocess.run(["git", "init", "--bare", "--quiet", str(modules / rel)], check=True)
+    before = _tree(modules)
+    manifest = _write_manifest(tmp_path, [_base_entry(**_GIT_MODULES_ENTRY)])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(modules) == before
+    row = _report_row(consumer, "skills-sources-git-modules-orphan")
+    assert "are git dirs, never deleted automatically" in row and "<dir>" in row, row
+    for rel in names:
+        assert f"`.git/modules/.skills-sources/{rel}`" in row, row
+
+
+_GIT_DIR_SHAPES = {
+    "refs-only": {"HEAD": "ref: refs/heads/main\n", "refs/heads/main": "a" * 40 + "\n"},
+    "worktree-admin": {"HEAD": "a" * 40 + "\n", "commondir": "../..\n", "gitdir": "/elsewhere/wt/.git\n"},
+    "case-variant": {"head": "ref: refs/heads/main\n", "OBJECTS/info/packs": ""},
+}
+
+
+@pytest.mark.parametrize("shape", sorted(_GIT_DIR_SHAPES))
+def test_directory_orphan_keeps_every_git_dir_shape(tmp_path: Path, shape: str) -> None:
+    if shape == "case-variant" and sys.platform not in ("win32", "darwin"):
+        pytest.skip("case-insensitive filesystem only")
+    consumer = _seed_consumer(tmp_path)
+    git_dir = consumer / ".git" / "modules" / ".skills-sources" / "x"
+    for rel, text in _GIT_DIR_SHAPES[shape].items():
+        (git_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+        (git_dir / rel).write_text(text, encoding="utf-8")
+    before = _tree(git_dir)
+    manifest = _write_manifest(tmp_path, [_base_entry(**_GIT_MODULES_ENTRY)])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert _tree(git_dir) == before
+    assert "is a git dir, never deleted automatically" in _report_row(consumer, "skills-sources-git-modules-orphan")
+
+
+@pytest.mark.parametrize("gitfile", [".git", ".GIT"])
+def test_check_gitmodules_first_keeps_a_deregistered_checkout_by_its_gitfile(tmp_path: Path, gitfile: str) -> None:
+    """Only its `.git` file marks this checkout as a repository (it has no HEAD of
+    its own), and it holds uncommitted work."""
+    if gitfile != ".git" and sys.platform not in ("win32", "darwin"):
+        pytest.skip("case-insensitive filesystem only")
+    consumer = _seed_consumer(tmp_path)
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/x")
+    _git_in(consumer, "commit", "-q", "-m", "add")
+    _drop_but_keep_checkout(consumer, ".skills-sources/x")
+    checkout = consumer / ".skills-sources" / "x"
+    if gitfile != ".git":
+        os.rename(checkout / ".git", checkout / ".tmp-gitfile")
+        os.rename(checkout / ".tmp-gitfile", checkout / gitfile)
+    wip = checkout / "WIP.md"
+    wip.write_text("uncommitted work", encoding="utf-8")
+    manifest = _write_manifest(tmp_path, [_base_entry()])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert wip.is_file()
+    assert "is a git repository or checkout" in _report_row(consumer, "test-entry")
+
+
+def _untracked_notes(consumer: Path) -> Path:
+    notes = consumer / ".skills-sources" / "notes.md"
+    notes.parent.mkdir(exist_ok=True)
+    notes.write_text("keep", encoding="utf-8")
+    return notes
+
+
+def test_a_failing_ls_files_fails_closed(tmp_path: Path) -> None:
+    """An empty stdout from a failed `git ls-files` is not 'nothing tracked'."""
+    consumer = _seed_consumer(tmp_path)
+    notes = _untracked_notes(consumer)
+    (consumer / ".git" / "index").write_bytes(b"garbage")
+    manifest = _write_manifest(tmp_path, [_base_entry()])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert notes.is_file()
+    assert "git ls-files failed" in _report_row(consumer, "test-entry")
+
+
+def test_git_missing_fails_closed(tmp_path: Path) -> None:
+    consumer = _seed_consumer(tmp_path)
+    notes = _untracked_notes(consumer)
+    no_git = tmp_path / "no-git"
+    no_git.mkdir()
+    manifest = _write_manifest(tmp_path, [_base_entry()])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer, env={"PATH": str(no_git)})
+    assert result.returncode == 0, result.stderr
+    assert notes.is_file()
+    assert "git unavailable" in _report_row(consumer, "test-entry")
+
+
+def test_check_gitmodules_first_keeps_a_target_inside_a_registered_submodule(tmp_path: Path) -> None:
+    """A submodule registered ABOVE the target: git tracks nothing under the target
+    and there is no `.git` below it, so the overlap is the only guard."""
+    consumer = _seed_consumer(tmp_path)
+    (consumer / ".gitmodules").write_text(
+        '[submodule "vendor/x"]\n\tpath = vendor/x\n\turl = https://example.com/x.git\n', encoding="utf-8"
+    )
+    notes = consumer / "vendor" / "x" / "stale" / "notes.md"
+    notes.parent.mkdir(parents=True)
+    notes.write_text("keep", encoding="utf-8")
+    manifest = _write_manifest(tmp_path, [_base_entry(path="vendor/x/stale")])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert notes.is_file()
+    assert "still registered in .gitmodules" in _report_row(consumer, "test-entry")
+
+
+def test_report_only_rows_carry_their_reason_with_pipes_escaped(tmp_path: Path) -> None:
+    consumer = _seed_consumer(tmp_path)
+    manifest = _write_manifest(tmp_path, [_base_entry(
+        id="advice", tier=3, action="report", safety="report_only", path="FEEDBACK.md",
+        reason="first | second\nthird\n",
+    )])
+    result = _run_script(manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    row = _report_row(consumer, "advice")
+    assert "first \\| second third" in row, row
+    assert row.replace("\\|", "").count("|") == 5, row
+
+
+def test_core_ignorecase_makes_matching_case_insensitive_on_any_platform(tmp_path: Path) -> None:
+    """On Linux, WSL's /mnt/<drive> and Docker Desktop bind mounts ignore case too;
+    git records that as core.ignorecase."""
+    consumer = _seed_consumer(tmp_path)
+    _git_in(consumer, "config", "core.ignorecase", "true")
+    tracked = consumer / ".Skills-Sources" / "notes.md"
+    tracked.parent.mkdir()
+    tracked.write_text("tracked", encoding="utf-8")
+    _git_in(consumer, "add", "-A")
+    _git_in(consumer, "commit", "-q", "-m", "seed")
+    wip = consumer / ".skills-sources" / "wip.md"
+    wip.parent.mkdir(exist_ok=True)
+    wip.write_text("uncommitted", encoding="utf-8")
+    manifest = _write_manifest(tmp_path, [_base_entry()])
+    result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
+    assert result.returncode == 0, result.stderr
+    assert wip.is_file() and tracked.is_file()
+    assert "directory has tracked files" in _report_row(consumer, "test-entry")
 
 
 def test_directory_orphan_skips_when_files_tracked(tmp_path: Path) -> None:

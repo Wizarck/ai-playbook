@@ -38,6 +38,7 @@ import fnmatch
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -227,8 +228,12 @@ def _find_consumer_root(start: Path) -> Path | None:
 # ---------------------------------------------------------------------------
 
 
-_CASE_INSENSITIVE_FS = sys.platform in ("win32", "darwin")  # their default filesystems
+_CASE_INSENSITIVE_PLATFORM = sys.platform in ("win32", "darwin")  # their default filesystems
+_CASE_INSENSITIVE_FS = _CASE_INSENSITIVE_PLATFORM  # widened per consumer by `_run`
 _JUNCTION_TAG = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", None)  # defined on Windows only
+# A reflog line: `<old oid> <new oid> <committer> ...`, SHA-1 or SHA-256.
+_REFLOG_LINE = re.compile(rb"[0-9a-f]{40}(?:[0-9a-f]{24})? [0-9a-f]{40}(?:[0-9a-f]{24})? ")
+_CHECK_GIT_DIR = "git --git-dir {} --work-tree . log --oneline --all --reflog --not --remotes"
 
 
 def _fs_key(name: str) -> str:
@@ -342,18 +347,73 @@ def _tracked_gitlinks(consumer_root: Path) -> list[str] | None:
     return links
 
 
+def _git_ignores_case(consumer_root: Path) -> bool:
+    """git's own probe of the consumer's filesystem (`git init` sets core.ignorecase):
+    WSL's /mnt/<drive> or a Docker Desktop bind mount is case-insensitive on Linux too."""
+    out = _git(["config", "--bool", "core.ignorecase"], cwd=consumer_root)
+    return out is not None and out[0] == 0 and out[1].strip() == "true"
+
+
+def _is_git_dir(root: str, dirs: list[str], files: list[str]) -> bool:
+    """`root` is a git dir: HEAD plus objects/ or refs/ (wider than git, which wants
+    both), or HEAD plus a `commondir` file (a linked worktree's admin dir).
+
+    A reflog named HEAD, as in a git dir's own `logs/`, does not count. Any other
+    HEAD does, a link or an unreadable one included, so the check fails closed.
+    """
+    names = {_fs_key(name): name for name in files}
+    head = names.get(_fs_key("HEAD"))
+    if head is None:
+        return False
+    if not ({_fs_key("objects"), _fs_key("refs")} & {_fs_key(d) for d in dirs} or _fs_key("commondir") in names):
+        return False
+    path = os.path.join(root, head)
+    try:
+        if _is_link(path):
+            return True
+        with open(path, "rb") as fh:
+            first = fh.read(256)
+    except OSError:
+        return True
+    return _REFLOG_LINE.match(first) is None
+
+
 def _repository_at(target: Path) -> Path | None:
     """The first repository at or under `target`: a `.git` entry (a checkout or a
-    submodule) or a git dir itself (HEAD plus objects/ or refs/, as under
-    `.git/modules/` or in a bare clone)."""
-    git_dir_parts = {_fs_key("objects"), _fs_key("refs")}
+    submodule) or a git dir itself (`_is_git_dir`), as under `.git/modules/` or in
+    a bare clone."""
     for root, dirs, files in _walk(target):
         for name in (*dirs, *files):
             if _fs_key(name) == ".git":
                 return Path(root) / name
-        if _fs_key("HEAD") in {_fs_key(name) for name in files} and git_dir_parts & {_fs_key(d) for d in dirs}:
+        if _is_git_dir(root, dirs, files):
             return Path(root)
     return None
+
+
+def _git_dirs_under(target: Path) -> list[Path]:
+    """Every git dir at or under `target`, outermost first. Inside a git dir only
+    `modules/` is searched: the git dirs of its own submodules live there, and
+    deleting the outer one by hand deletes them too."""
+    found: list[Path] = []
+    for root, dirs, files in _walk(target):
+        if _is_git_dir(root, dirs, files):
+            found.append(Path(root))
+            dirs[:] = [d for d in dirs if _fs_key(d) == _fs_key("modules")]
+    return found
+
+
+def _git_dirs_reason(git_dirs: list[str]) -> str:
+    if len(git_dirs) == 1:
+        where = git_dirs[0]
+        return (
+            f"`{where}` is a git dir, never deleted automatically: once "
+            f"`{_CHECK_GIT_DIR.format(shlex.quote(where))}` shows nothing you need, delete it by hand"
+        )
+    return (
+        f"{', '.join(f'`{d}`' for d in git_dirs)} are git dirs, never deleted automatically: once "
+        f"`{_CHECK_GIT_DIR.format('<dir>')}` shows nothing you need for each, delete them by hand"
+    )
 
 
 def _tracked_under(rel: str, consumer_root: Path) -> SafetyResult | None:
@@ -430,13 +490,8 @@ def _safety_directory_orphan(target: Path, entry: dict[str, Any], consumer_root:
                 return SafetyResult(False, f"gitlink `{link}` still tracked — git dir is live")
         repo = _repository_at(target)
         if repo is not None:
-            where = _rel(repo, consumer_root)
-            return SafetyResult(
-                False,
-                f"`{where}` is a git dir, never deleted automatically: once "
-                f"`git --git-dir {where} log --branches --tags --not --remotes` shows nothing you need, "
-                "delete it by hand",
-            )
+            git_dirs = _git_dirs_under(target) or [repo]
+            return SafetyResult(False, _git_dirs_reason([_rel(d, consumer_root) for d in git_dirs]))
     else:
         repo = _repository_at(target)
         if repo is not None:
@@ -953,6 +1008,9 @@ def _run(
     except ManifestError as exc:
         print(f"warn: {SCRIPT_NAME}: {exc}", file=sys.stderr)
         return 0
+
+    global _CASE_INSENSITIVE_FS
+    _CASE_INSENSITIVE_FS = _CASE_INSENSITIVE_PLATFORM or _git_ignores_case(consumer_root)
 
     started_at = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     outcomes: list[EntryOutcome] = []
