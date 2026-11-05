@@ -176,6 +176,12 @@ def parse_frontmatter(text: str) -> Frontmatter:
     try:
         data = yaml.safe_load(raw) or {}
     except yaml.YAMLError as exc:
+        # The block starts on file line 2: shift the marks so the message
+        # names the line in the file, not the line within the block.
+        marks = {id(m): m for m in (getattr(exc, "context_mark", None),
+                                    getattr(exc, "problem_mark", None)) if m is not None}
+        for mark in marks.values():
+            mark.line += 1
         data, parse_error = {}, " ".join(str(exc).split())
     if not isinstance(data, dict):
         data, parse_error = {}, f"frontmatter is a YAML {type(data).__name__}, not a mapping"
@@ -540,7 +546,11 @@ def validate_one(
             where=f"{_format_path(file_path)}:{fm.start_line}",
             fix="fix the YAML by hand (quote values containing `: `, no tabs), then re-run"
             + ("; --autofix refused to rewrite it" if autofix else "."),
-            override_invocation=None,
+            # This gate is always overridable (main() honours the reason).
+            override_invocation=(
+                f"python -m scripts.schema_validate {file_path} "
+                f"--force-with-reason=\"<>=10 char reason\""
+            ),
         )
         return 1
 
