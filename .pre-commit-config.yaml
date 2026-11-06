@@ -7,6 +7,11 @@
 #
 # Full hook chain lands in T09. Diagram: docs/concepts/architecture-diagrams.md §3.
 
+# block-manual-spec-edit runs at commit-msg; everything else stays at pre-commit.
+# `pre-commit install` installs both hook types from this list.
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -43,11 +48,15 @@ repos:
         files: ^mcp-servers.*\.yaml$
         pass_filenames: true
 
+      # commit-msg stage: the only local stage where the message being
+      # committed exists. pre-commit passes the message file as the one
+      # argument; the script reads the protected paths from `git diff --cached`
+      # (so no `files:` filter — it would drop the message file).
       - id: block-manual-spec-edit
         name: block-manual-spec-edit (openspec/specs hand-edit guard)
-        entry: python -m scripts.block_manual_spec_edit
+        entry: python -m scripts.block_manual_spec_edit --commit-msg-file
         language: system
-        files: ^openspec/specs/.*\.md$
+        stages: [commit-msg]
         pass_filenames: true
 
       - id: verdict-lint

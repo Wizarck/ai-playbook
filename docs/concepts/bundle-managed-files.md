@@ -73,6 +73,11 @@ JSON5 / JS:
   (computed by `_template_classifier.compute_sha`). Optional in templates;
   filled by `render_agents_md` post-substitution.
 * Block ids must be unique within a file. Nested blocks are NOT supported.
+* A marker counts only when it is the whole line (indent and trailing
+  whitespace allowed). Marker text quoted mid-line, e.g. in prose explaining
+  the syntax, is ordinary content. A file whose markers do not parse (an
+  unclosed or mismatched marker) is skipped as a conflict
+  (`malformed markers`) and never overwritten.
 
 ## End-to-end flow
 
@@ -107,7 +112,30 @@ JSON5 / JS:
    bundle — the same door as fresh install. Per managed file:
    - Read template from `<playbook>/templates/new-project/<file>.tmpl`.
    - Compute substitutions from `<consumer>/AGENTS.md` frontmatter.
-   - Run the renderer for that file.
+   - Run the renderer for that file. When the destination exists, the
+     renderer merges into it rather than regenerating it: canonical blocks
+     are refreshed in place and everything outside them is kept. The bundle
+     extras of `.pre-commit-config.yaml` and `mcp-servers.project.yaml` sit
+     between a `# Consumer … (preserved across apply_config)` header and a
+     `# (end of …)` trailer comment, and that region is replaced on every
+     apply. `.coderabbit.yaml` extras are merged into the current mapping, so
+     an entry removed from the bundle stays in the file until deleted by hand.
+     A markerless `.pre-commit-config.yaml` that already lists playbook hooks
+     keeps its own copies: the `playbook-hooks` block is not appended, since
+     each hook would run twice. To have the playbook refresh them, replace
+     them with the template's block, begin/end marker lines included.
+     Likewise, a markerless `mcp-servers.project.yaml` with its own `servers:`
+     mapping keeps it and does not get the baseline block, which would open a
+     second `servers:`.
+     A markerless `AGENTS.md` is still generated from the template (its prose
+     is recovered through backup + `curate`; its caveman / ponytail / graphify
+     `auto-managed` blocks are carried over). A YAML file whose layout cannot
+     take the merge (e.g. `repos:` items at column 0, a 4-space or flow-style
+     `servers:`, keys after the list the extras continue, or a duplicate key,
+     even one the file already had) is skipped as a conflict (`merge`): it is
+     not written and `applied-config.json` does not advance until that hand
+     edit, which the message names, is made; the other files of the batch
+     still apply.
    - If destination exists AND content differs from rendered output:
      `backup_once` → atomic write.
    - Update `bundle.file_states[<rel_path>]` with the new SHA manifest.
@@ -176,15 +204,30 @@ Authoritative module: [`scripts/caveman/policy.py`](../../scripts/caveman/policy
 `python -m scripts.uninstall [--target PATH] [--dry-run]`:
 
 1. Read `<consumer>/.ai-playbook-state/backups/index.json`.
-2. For each managed file, restore the OLDEST `.bak` (pre-playbook snapshot).
-3. For files without a pre-playbook `.bak`, strip marker blocks (keeping
-   consumer custom segments verbatim).
-4. `git submodule deinit -f .ai-playbook` + `git rm -f .ai-playbook`.
-5. Remove `.ai-playbook-state/` (unless `--keep-state-dir`).
+2. Restore every BASE record (`session_id: "base"`, the snapshot taken
+   before the playbook first wrote a file: bootstrap for each template it
+   overwrote — AGENTS.md, CLAUDE.md, GEMINI.md, docs/runbook.md,
+   .gitattributes, workflows, ... — plus `curate` and `render --absorb`).
+   This overwrites the file's current content: edits made since install are
+   lost unless committed. The confirmation prompt lists the files; preview
+   with `--dry-run`, keep current content with `--no-restore`. Ordinary
+   post-playbook backups are never restored.
+3. For files without a BASE snapshot, strip marker blocks (keeping
+   consumer custom segments verbatim) and the caveman/ponytail/graphify
+   `auto-managed` blocks in AGENTS.md.
+4. Drop every hook in `.claude/settings*.json` whose command points into
+   `.ai-playbook/` (it would exit 2 and block every tool call).
+5. `git submodule deinit -f .ai-playbook` + `git rm -f .ai-playbook`.
+6. Remove `.ai-playbook-state/` (unless `--keep-state-dir`, or a BASE
+   snapshot was not restored, e.g. under `--no-restore`: then it is kept, a
+   `WARN:` line names the files, and the dir is added to the local
+   `info/exclude` because step 3 stripped the `.gitignore` line that ignored it).
 
 Pre-commit hooks in templates ship with graceful shims
-(`bash -c '[ -d .ai-playbook ] && python ... || exit 0'`) so simply
-deleting the submodule does NOT block commits.
+(`bash -c '[ ! -f .ai-playbook/scripts/<x>.py ] || python .ai-playbook/scripts/<x>.py'`):
+with the submodule deleted or not initialised the hook exits 0 and does not
+block commits; with the script present the validator's exit code propagates,
+so a failing check blocks the commit.
 
 ## Follow-up scope (NOT in this PR)
 

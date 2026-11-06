@@ -628,3 +628,84 @@ def test_manifest_records_owned_skills(tmp_path: Path) -> None:
     manifest = _skills_manifest.read(consumer)
     for rel in ms.MIRROR_RELS:
         assert manifest[rel.as_posix()] == {"alpha"}
+
+
+def test_user_skill_colliding_with_new_playbook_skill_is_not_overwritten(tmp_path: Path) -> None:
+    """A user dir the playbook never installed must not be rmtree'd when a
+    playbook bump ships a skill of the same name — report the collision."""
+    from scripts import _skills_manifest
+
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}})
+    ms.materialise_skills(consumer, quiet=True)  # manifest = {alpha}
+    own = consumer / ".claude" / "skills" / "sweep"
+    own.mkdir()
+    (own / "SKILL.md").write_text("# my sweep\n", encoding="utf-8")
+    (own / "notes.md").write_text("mine\n", encoding="utf-8")
+
+    _seed_source(consumer / ms.SOURCE_REL, {"sweep": {"SKILL.md": "# playbook sweep\n"}})
+    result = ms.materialise_skills(consumer, quiet=True)
+
+    assert (own / "SKILL.md").read_text(encoding="utf-8") == "# my sweep\n"
+    assert (own / "notes.md").is_file()
+    assert not result.ok and any("sweep" in e and "collides" in e for e in result.errors)
+    assert "sweep" not in _skills_manifest.read(consumer)[".claude/skills"]
+    # Other mirrors had no collision and got the playbook skill.
+    assert _read_skill(consumer, Path(".gemini") / "skills", "sweep") == "# playbook sweep\n"
+
+
+def test_failed_stale_removal_is_reported_and_stays_owned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale dir that cannot be removed (Windows file lock) must surface an
+    error and stay in the manifest so the next run retries."""
+    from scripts import _skills_manifest
+
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}, "beta": {}})
+    ms.materialise_skills(consumer, quiet=True)
+    import shutil as _sh
+
+    _sh.rmtree(consumer / ms.SOURCE_REL / "beta")
+
+    real_rmdir = os.rmdir
+
+    def locked_rmdir(p, *a, **k):  # type: ignore[no-untyped-def]
+        if Path(p).name == "beta":
+            raise PermissionError(13, "locked", str(p))
+        return real_rmdir(p, *a, **k)
+
+    monkeypatch.setattr(os, "rmdir", locked_rmdir)
+    result = ms.materialise_skills(consumer, quiet=True)
+    monkeypatch.undo()
+
+    assert not result.ok
+    assert result.stale_removed == []
+    for rel in ms.MIRROR_RELS:
+        assert "beta" in _skills_manifest.read(consumer)[rel.as_posix()]
+    # Lock released: the next run finishes the job.
+    result = ms.materialise_skills(consumer, quiet=True)
+    assert result.ok and len(result.stale_removed) == 3
+    assert not (consumer / ".claude" / "skills" / "beta").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_stale_symlinked_skill_is_unlinked_not_chmodded(tmp_path: Path) -> None:
+    """Removing a symlinked skill dir must unlink the link, never chmod or
+    delete the target that lives outside the mirror."""
+    consumer = _build_consumer(tmp_path, skills={"alpha": {}, "beta": {}})
+    ms.materialise_skills(consumer, quiet=True)
+    fork = tmp_path / "my-beta-fork"
+    fork.mkdir(mode=0o755)
+    (fork / "SKILL.md").write_text("# fork\n", encoding="utf-8")
+    link = consumer / ".claude" / "skills" / "beta"
+    import shutil as _sh
+
+    _sh.rmtree(link)
+    link.symlink_to(fork, target_is_directory=True)
+    _sh.rmtree(consumer / ms.SOURCE_REL / "beta")
+
+    result = ms.materialise_skills(consumer, quiet=True)
+
+    assert result.ok, result.errors
+    assert not link.is_symlink() and not link.exists()
+    assert (fork.stat().st_mode & 0o777) == 0o755
+    assert (fork / "SKILL.md").read_text(encoding="utf-8") == "# fork\n"

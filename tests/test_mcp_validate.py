@@ -367,3 +367,85 @@ def test_canonical_error_render_format() -> None:
     assert lines[0].endswith("path/to/file.yaml:key")
     assert lines[1] == "   FIX: do Y"
     assert lines[2] == "   OVERRIDE: none"
+
+
+# ---------------------------------------------------------------------------
+# Regression S1-44: OVERRIDE: none errors refuse --force-with-reason
+# ---------------------------------------------------------------------------
+_PERSONAL_IN_PROJECT = {
+    "schema": "mcp-servers/v1", "layer": "project",
+    "servers": {
+        "gws-arturo": {"id": "gws-arturo", "description": "tenant", "transport": "http",
+                       "endpoint": "https://tenant.example/", "scope": "personal"},
+    },
+}
+
+
+def test_force_with_reason_refused_for_scope_personal_leak(
+    tmp_path: Path, all_env_set: None, capsys: pytest.CaptureFixture[str],
+) -> None:
+    playbook, consumer, personal = _stack(tmp_path, project=_PERSONAL_IN_PROJECT)
+    with pytest.raises(SystemExit) as exc:
+        _run(playbook, consumer, personal, "--skip-drift",
+             "--force-with-reason", "need it working today, sorry")
+    assert exc.value.code == 3
+    err = capsys.readouterr().err
+    assert "OVERRIDE APPLIED" not in err
+    assert not (consumer / ".ai-playbook" / "overrides.log").exists()
+
+
+def test_force_with_reason_refused_when_mixed_with_overridable_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("HINDSIGHT_API_KEY", raising=False)
+    playbook, consumer, personal = _stack(tmp_path, project=_PERSONAL_IN_PROJECT)
+    with pytest.raises(SystemExit) as exc:
+        _run(playbook, consumer, personal, "--skip-drift",
+             "--force-with-reason", "need it working today, sorry")
+    assert exc.value.code == 3
+
+
+def test_env_missing_error_names_the_override_invocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("HINDSIGHT_API_KEY", raising=False)
+    playbook, consumer, personal = _stack(tmp_path)
+    assert _run(playbook, consumer, personal, "--skip-drift") == 1
+    err = capsys.readouterr().err
+    assert "OVERRIDE: python .ai-playbook/scripts/mcp/validate.py --force-with-reason" in err
+
+
+# ---------------------------------------------------------------------------
+# Regression S1-43: env.required / env.optional / capabilities_hint union
+# ---------------------------------------------------------------------------
+def test_merge_unions_env_lists_and_capabilities() -> None:
+    def layer(name: str, entry: dict) -> mcp_validate.Layer:
+        return mcp_validate.Layer(
+            name=name, path=Path(f"{name}.yaml"), present=True,
+            data={"servers": {"hs": entry}},
+        )
+    base = layer("base", {"env": {"required": ["HS_URL", "HS_KEY"], "optional": ["HS_EXTRA"]},
+                          "capabilities_hint": ["recall"]})
+    project = layer("project", {"env": {"required": ["HS_EXTRA", "HS_KEY"]},
+                                "capabilities_hint": ["retain"]})
+    personal = mcp_validate.Layer(name="personal", path=Path("p.yaml"), present=False, data={})
+    merged, _ = mcp_validate.merge_servers(base, project, personal)
+    hs = merged["hs"]
+    assert hs["env"]["required"] == ["HS_URL", "HS_KEY", "HS_EXTRA"]
+    assert hs["env"]["optional"] == []
+    assert hs["capabilities_hint"] == ["recall", "retain"]
+
+
+def test_project_env_required_cannot_drop_base_requirement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("HINDSIGHT_API_KEY", raising=False)
+    for var in ("HINDSIGHT_URL", "HINDSIGHT_BANK_ID", "LITELLM_URL",
+                "LITELLM_MASTER_KEY", "HS_EXTRA"):
+        monkeypatch.setenv(var, "x")
+    project = {
+        "schema": "mcp-servers/v1", "layer": "project",
+        "servers": {"hindsight": {"env": {"required": ["HS_EXTRA"]}}},
+    }
+    playbook, consumer, personal = _stack(tmp_path, project=project)
+    assert _run(playbook, consumer, personal, "--skip-drift") == 1

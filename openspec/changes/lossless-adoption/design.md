@@ -32,7 +32,11 @@ Verified surfaces (read at `scripts/` HEAD `14b0857`, v0.19.19):
 - **C1 — Don't break the template-regeneration contract.** `render_agents_md`
   regenerates `AGENTS.md` from the template + `project_meta`; `test_managed_files`
   / `test_renderers` encode this. Slice A must not change the render base (the
-  rejected `seed_markers` wrap violated this — see D2).
+  rejected `seed_markers` wrap violated this — see D2). Since 1d06142 (v0.24.2)
+  the contract covers only a missing or markerless `AGENTS.md`: a file that
+  already carries marker blocks is re-rendered by splicing the template's
+  canonical blocks into it (missing blocks appended), keeping its frontmatter
+  and every other section verbatim (D2a).
 - **C2 — Idempotent.** A second `bootstrap --update` with the same inputs is a
   no-op (pin parsing must be stable, no pin churn).
 - **C3 — No regression on the inline-scalar pin.** Consumers that write
@@ -102,6 +106,22 @@ point the operator at `curate` to absorb the backed-up prose into `project_meta`
 → `AGENTS.md` sections. No renderer change; no `seed_markers` wiring.
 `scripts/_renderers/_wrap_legacy.py` (`seed_markers`) stays unused for now; it is
 NOT wired by this change.
+
+### D2a — An adopted AGENTS.md is spliced, not regenerated (1d06142, v0.24.2)
+
+Regenerating a file that already carries marker blocks dropped everything the
+five `project_meta` slots do not hold: frontmatter keys such as `tracker_kind` /
+`jira_project`, extra sections, edits outside the blocks. For such a file
+`render_agents_md` now writes the template's sealed canonical blocks into
+`current_text` with `write_blocks` (missing blocks appended) and keeps the rest
+verbatim; `project_meta` only fills slot placeholders still present, and a value
+that itself still holds a slot placeholder (an unfilled section read back by
+`extract_project_meta`) is not substituted. Rendered from the template (missing
+or markerless file), such a value replaces the whole slot, placeholder and
+template text after it, so the section comes back as it was read, content the
+consumer added to the unfilled slot included. This does not revive the rejected
+wrap: a markerless file is still regenerated from the template and its prose
+recovered through backup + `curate`, as decided in D2.
 
 ### D3 — Slice ordering
 

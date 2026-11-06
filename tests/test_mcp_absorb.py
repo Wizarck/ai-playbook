@@ -155,5 +155,80 @@ def test_to_layer_entry_http_and_stdio() -> None:
     assert http["auth"] == "cf-access"
     stdio = ab.to_layer_entry("z", {"command": "python", "args": ["-m", "z"]})
     assert stdio["transport"] == "stdio"
-    assert stdio["command"] == "python"
-    assert stdio["args"] == ["-m", "z"]
+    # v1 has no `args` field: args are folded into the shell `command`.
+    assert stdio["command"] == "python -m z"
+    assert "args" not in stdio
+
+
+def test_to_layer_entry_maps_mcp_json_type_to_transport() -> None:
+    sse = ab.to_layer_entry("x-y", {"type": "sse", "url": "https://e/sse"})
+    assert sse["transport"] == "sse"
+    assert sse["endpoint"] == "https://e/sse"
+
+
+def test_absorb_then_render_round_trips_stdio_args(tmp_path: Path, monkeypatch) -> None:
+    """Regression S1-41: absorbed stdio args must survive into every render,
+    including the global Antigravity writer, which splits on whitespace."""
+    import shlex
+
+    from scripts.mcp import render as mr
+    from scripts.mcp import validate as mv
+
+    argv = ["npx", "-y", "@acme/hindsight-mcp", "--bank", "me", "--dir", "C:/Users/me/.hs"]
+    playbook = _playbook(tmp_path)
+    consumer = _consumer(tmp_path, {"mcpServers": {
+        "hindsight-local": {"type": "stdio", "command": argv[0], "args": argv[1:]},
+    }})
+    personal = tmp_path / "personal.yaml"
+    res = ab.absorb_mcp_json(
+        consumer_root=consumer, playbook_root=playbook,
+        personal_file=personal, dry_run=False,
+    )
+    assert res.written_personal == ["hindsight-local"]
+
+    layers = mv.load_layers(
+        playbook_root=playbook, consumer_root=consumer, personal_file=personal,
+    )
+    merged, _ = mv.merge_servers(*layers)
+    for doc in (mv.render_claude_code(merged), mv.render_gemini(merged)):
+        command = doc["mcpServers"]["hindsight-local"]["command"]
+        assert shlex.split(command) == argv
+        assert command.split() == argv
+
+    home = tmp_path / "home"
+    (home / ".gemini" / "antigravity").mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    mr.update_global_antigravity_mcp(merged, {}, dry_run=False)
+    cfg = json.loads((home / ".gemini" / "antigravity" / "mcp_config.json").read_text(encoding="utf-8"))
+    item = cfg["mcpServers"]["hindsight-local"]
+    assert [item["command"], *item["args"]] == argv
+
+
+def test_absorb_reports_args_one_command_string_cannot_hold(tmp_path: Path) -> None:
+    """A Windows path or an arg with a space came out quoted, and the Antigravity
+    writer's whitespace split handed the client literal quotes and broken tokens."""
+    playbook = _playbook(tmp_path)
+    consumer = _consumer(tmp_path, {"mcpServers": {
+        "google-workspace-win": {"command": "uvx", "args": ["workspace-mcp", "--dir", r"C:\Users\me\gws"]},
+        "google-workspace-spaced": {"command": "uvx", "args": ["workspace-mcp", "--label", "two words"]},
+        "google-workspace-plain": {"command": "uvx", "args": ["workspace-mcp", "--tools", "gmail"]},
+    }})
+    personal = tmp_path / "personal.yaml"
+
+    res = ab.absorb_mcp_json(
+        consumer_root=consumer, playbook_root=playbook,
+        personal_file=personal, dry_run=False,
+    )
+
+    assert res.written_personal == ["google-workspace-plain"]
+    assert res.report_manual == ["google-workspace-spaced", "google-workspace-win"]
+    servers = yaml.safe_load(personal.read_text(encoding="utf-8"))["servers"]
+    assert set(servers) == {"google-workspace-plain"}
+    assert servers["google-workspace-plain"]["command"] == "uvx workspace-mcp --tools gmail"
+
+
+def test_fold_command_unit() -> None:
+    assert ab.fold_command({"command": "python", "args": ["-m", "z"]}) == "python -m z"
+    assert ab.fold_command({"command": r"C:\Program Files\node.exe"}) == r"C:\Program Files\node.exe"
+    assert ab.fold_command({"command": r"C:\node\node.exe", "args": ["s.js"]}) is None
+    assert ab.fold_command({"command": "node", "args": ["it's.js"]}) is None

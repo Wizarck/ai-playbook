@@ -81,7 +81,7 @@ Field rules:
 | `description` | yes | Non-empty, ≤200 chars, one sentence. |
 | `transport` | yes | Enum above. `stdio` for local processes; `http`/`sse`/`streamable-http` for network services. |
 | `endpoint` | conditional | Required iff `transport != stdio`. Must start with `http://` or `https://` (validator warns on `http://` for non-localhost). |
-| `command` | conditional | Required iff `transport == stdio`. Shell-safe; the renderer quotes appropriately. |
+| `command` | conditional | Required iff `transport == stdio`. Shell-safe; the renderer quotes appropriately. There is no separate `args` field: `render --absorb` folds an inline `.mcp.json` entry's `args` into `command` only when every token needs no quoting (`shlex.quote(t) == t`); an entry with a backslash path or an arg holding a space or quote is reported for a manual add. |
 | `env.required` | no | If unset, treated as `[]`. |
 | `env.optional` | no | If unset, treated as `[]`. |
 | `auth` | yes | Enum above. `cf-access` implies CF Tunnel + Access policy. |
@@ -192,6 +192,11 @@ The validator runs on every project via pre-commit and in CI. It enforces:
 9. **Drift check.** If `<repo>/.mcp.json` or `<repo>/.gemini/settings.json`
    exists, the validator recomputes the rendered form in-memory and refuses
    on any diff.
+
+`--force-with-reason` is honoured only when **every** reported error is
+overridable (today: only #7, missing env vars). If any error prints
+`OVERRIDE: none`, a supplied reason is refused with exit 3 and nothing is
+logged to `overrides.log` — for both `validate` and `render`.
 
 ## 6. Render rules (`scripts/mcp/render.py`)
 

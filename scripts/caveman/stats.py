@@ -131,7 +131,7 @@ def _parse_iso(ts: str | None) -> datetime | None:
 
 
 def collect_stats(project_root: Path, *, since: str | None = None) -> SessionStats:
-    """Aggregate token usage across every assistant event in every session log.
+    """Aggregate token usage once per assistant message across every session log.
 
     ``since`` (ISO 8601 string): if provided, only events at-or-after this
     timestamp are counted (used to scope stats to "while caveman was ON").
@@ -143,35 +143,46 @@ def collect_stats(project_root: Path, *, since: str | None = None) -> SessionSta
 
     since_dt = _parse_iso(since)
 
+    # Claude Code writes one JSONL line per content block; the lines of one API
+    # response share message.id + requestId and repeat its usage. Keep the last
+    # line per key (uuid fallback, else the line itself) and count each once.
+    by_key: dict[object, tuple[dict, Path]] = {}
     for log_file in sorted(log_dir.glob("*.jsonl")):
-        any_event = False
-        for ev in iter_assistant_events(log_file):
-            ts_str = ev.get("timestamp")
-            ts_dt = _parse_iso(ts_str)
+        for n, ev in enumerate(iter_assistant_events(log_file)):
+            ts_dt = _parse_iso(ev.get("timestamp"))
             if since_dt and ts_dt and ts_dt < since_dt:
                 continue
             msg = ev.get("message")
-            if not isinstance(msg, dict):
+            if not isinstance(msg, dict) or not isinstance(msg.get("usage"), dict):
                 continue
-            usage = msg.get("usage")
-            if not isinstance(usage, dict):
-                continue
-            any_event = True
-            stats.events += 1
-            stats.input_tokens += int(usage.get("input_tokens") or 0)
-            stats.output_tokens += int(usage.get("output_tokens") or 0)
-            stats.cache_creation_tokens += int(usage.get("cache_creation_input_tokens") or 0)
-            stats.cache_read_tokens += int(usage.get("cache_read_input_tokens") or 0)
-            model = msg.get("model")
-            if isinstance(model, str):
-                stats.models[model] = stats.models.get(model, 0) + 1
-            if ts_str:
-                if not stats.first_event_at or ts_str < stats.first_event_at:
-                    stats.first_event_at = ts_str
-                if not stats.last_event_at or ts_str > stats.last_event_at:
-                    stats.last_event_at = ts_str
-        if any_event:
-            stats.sessions += 1
+            if msg.get("id") or ev.get("requestId"):
+                key: object = ("msg", msg.get("id"), ev.get("requestId"))
+            elif ev.get("uuid"):
+                key = ("uuid", ev["uuid"])
+            else:
+                key = ("line", log_file.name, n)
+            by_key[key] = (ev, log_file)
+
+    session_files: set[Path] = set()
+    for ev, log_file in by_key.values():
+        session_files.add(log_file)
+        ts_str = ev.get("timestamp")
+        msg = ev["message"]
+        usage = msg["usage"]
+        stats.events += 1
+        stats.input_tokens += int(usage.get("input_tokens") or 0)
+        stats.output_tokens += int(usage.get("output_tokens") or 0)
+        stats.cache_creation_tokens += int(usage.get("cache_creation_input_tokens") or 0)
+        stats.cache_read_tokens += int(usage.get("cache_read_input_tokens") or 0)
+        model = msg.get("model")
+        if isinstance(model, str):
+            stats.models[model] = stats.models.get(model, 0) + 1
+        if ts_str:
+            if not stats.first_event_at or ts_str < stats.first_event_at:
+                stats.first_event_at = ts_str
+            if not stats.last_event_at or ts_str > stats.last_event_at:
+                stats.last_event_at = ts_str
+    stats.sessions = len(session_files)
     return stats
 
 

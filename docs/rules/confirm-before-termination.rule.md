@@ -89,10 +89,17 @@ channel that matches the tool being gated:
   was blocked twice by its own gate before this channel existed (the
   impossible-remedy shape of #166).
 - **Harness stop tools** (TaskStop / KillShell — no command string to carry a
-  reason): write the **one-shot receipt** first,
-  `echo <short reason> > $TMPDIR/aiplaybook-termination-receipt`. It is
-  consumed on use: one confirmation authorises exactly one stop, and a blank
-  receipt authorises nothing.
+  reason): write the **one-shot receipt** first, to the path the refusal
+  prints: `echo <short reason> > "<tempdir>/aiplaybook-termination-receipt"`,
+  where `<tempdir>` is Python's `tempfile.gettempdir()`. The refusal quotes it
+  with forward slashes, which works unchanged in bash (Git Bash included),
+  PowerShell and cmd; an unquoted `C:\Users\…` loses its backslashes in bash.
+  The receipt is consumed on use: one confirmation authorises exactly one stop.
+  Only whether it is blank is judged, whatever wrote it: UTF-8, BOM-marked
+  UTF-16 (what Windows PowerShell 5.1 `>` writes), or an OEM / ANSI code page
+  (cmd `echo`, PowerShell 5.1 `Set-Content` without `-Encoding`). A blank
+  receipt, or a BOM-marked one that does not decode, authorises nothing — it is
+  deleted all the same.
 - A hook-level env var still works where a wrapper genuinely exports it before
   the hook runs (e.g. CI harnesses).
 

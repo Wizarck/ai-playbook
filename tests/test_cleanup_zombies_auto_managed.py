@@ -239,7 +239,9 @@ def test_tier3_never_reaches_the_action_dispatch(consumer: Path) -> None:
         "tier": 3,
         "action": "delete",  # would be executed if the guard were missing
         "safety": "auto_managed_orphan",
-        "path": "**/*.md",
+        # A concrete orphan, so the delete would succeed without the guard
+        # (with `**/*.md` it raised ENOENT and the test passed anyway).
+        "path": "docs/genuine-orphan.md",
         "reason": "structural guard probe",
     }
     outcome = _cz._process_entry(entry, consumer, apply=True)

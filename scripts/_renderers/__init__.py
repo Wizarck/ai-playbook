@@ -22,6 +22,7 @@ so the resulting file is self-describing (the UI can later read the
 file alone and verify drift against the bundle's ``file_states.manifest``).
 """
 
+from scripts._renderers._yaml_merge import MergeConflictError
 from scripts._renderers.agents_md import render as render_agents_md
 from scripts._renderers.claude_settings import (
     render_local as render_claude_settings_local,
@@ -36,6 +37,7 @@ from scripts._renderers.pre_commit import render as render_pre_commit
 from scripts._renderers.settings import render as render_settings_json
 
 __all__ = [
+    "MergeConflictError",
     "render_agents_md",
     "render_claude_settings",
     "render_claude_settings_local",

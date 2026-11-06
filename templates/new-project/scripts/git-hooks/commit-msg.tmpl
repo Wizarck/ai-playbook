@@ -1,0 +1,31 @@
+#!/bin/sh
+# Git hook: runs the .pre-commit-config.yaml hooks for the commit-msg stage.
+#
+# install-playbook-hooks.sh sets core.hooksPath=scripts/git-hooks, and
+# `pre-commit install` refuses to run while core.hooksPath is set. This file
+# replaces the hook it would have written, so a failing hook still blocks the
+# commit. With no .pre-commit-config.yaml it does nothing; when pre-commit is
+# not found it warns once and lets the commit through.
+#
+# `pre-commit install` adds this stage only on request, so this runs only when
+# the config names it outside a comment (default_install_hook_types or a
+# hook's stages). Otherwise every hook without `stages:` would run a second
+# time, on the commit message.
+
+HOOK_TYPE=commit-msg
+CONFIG=.pre-commit-config.yaml
+
+[ -f "$CONFIG" ] || exit 0
+grep -q "^[^#]*$HOOK_TYPE" "$CONFIG" || exit 0
+
+HERE="$(cd "${0%/*}" && pwd)"
+for py in python python3; do
+    if "$py" -c 'import pre_commit' >/dev/null 2>&1; then
+        exec "$py" -m pre_commit hook-impl --config="$CONFIG" --hook-type="$HOOK_TYPE" --hook-dir "$HERE" -- "$@"
+    fi
+done
+if command -v pre-commit >/dev/null 2>&1; then
+    exec pre-commit hook-impl --config="$CONFIG" --hook-type="$HOOK_TYPE" --hook-dir "$HERE" -- "$@"
+fi
+echo "warn: $HOOK_TYPE hook skipped: pre-commit not found on PATH, so $CONFIG did not check this commit. Install it: pipx install pre-commit" >&2
+exit 0

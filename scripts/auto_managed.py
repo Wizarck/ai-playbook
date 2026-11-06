@@ -39,6 +39,12 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
+
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 
 SCRIPT_BASENAME = "auto_managed.py"

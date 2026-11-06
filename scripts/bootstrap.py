@@ -229,6 +229,42 @@ def resolve_target_path(project_name: str, cli_path: Path | None) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def _declares_agents_md_v1(target_dir: Path) -> bool:
+    """True when ``target_dir/AGENTS.md`` carries the playbook's v1 frontmatter."""
+    agents = target_dir / "AGENTS.md"
+    if not agents.is_file():
+        return False
+    text = agents.read_text(encoding="utf-8", errors="replace")
+    if not text.startswith("---"):
+        return False
+    front = text.split("\n---", 1)[0]
+    return any(
+        line.replace('"', "").replace("'", "").strip() == "schema: agents-md/v1"
+        for line in front.splitlines()
+    )
+
+
+def _submodule_registered(target_dir: Path) -> bool:
+    gitmodules = target_dir / ".gitmodules"
+    return gitmodules.is_file() and SUBMODULE_PATH in gitmodules.read_text(
+        encoding="utf-8", errors="replace"
+    )
+
+
+def _is_bootstrapped(target_dir: Path) -> bool:
+    """True when a plain bootstrap would copy templates over a live install: a
+    v1 AGENTS.md AND the playbook itself (a registered submodule, or the
+    ``specs/`` of an offline ``--playbook-path`` copy).
+
+    A v1 AGENTS.md alone is not an install: uninstall keeps that frontmatter
+    (it sits outside the marker blocks), so refusing on it dead-ended every
+    reinstall, and ``--update`` never adds a submodule.
+    """
+    return _declares_agents_md_v1(target_dir) and (
+        _submodule_registered(target_dir) or (target_dir / SUBMODULE_PATH / "specs").is_dir()
+    )
+
+
 def _git_available() -> bool:
     return shutil.which("git") is not None
 
@@ -243,12 +279,23 @@ def add_submodule(
     """Attempt `git submodule add` + checkout pin. Returns 0 on success, non-zero on failure.
 
     Callers decide whether the failure is recoverable (e.g. via --playbook-path
-    + break-glass) or fatal.
+    + break-glass) or fatal. ``RC_PIN_FAILED`` means the submodule is present
+    but ``pin`` could not be checked out.
+
+    A retry is safe: an already-registered submodule (``.gitmodules`` entry +
+    ``specs/``) is re-checked-out at ``pin`` instead of being trusted blindly,
+    so a run that failed on a bad pin cannot "succeed" on the next attempt with
+    the playbook left at the remote default HEAD.
     """
     submodule_dir = target_dir / SUBMODULE_PATH
-    if submodule_dir.exists() and any(submodule_dir.iterdir()):
-        print(f"ℹ️  {submodule_dir} already populated; skipping submodule add.")
-        return 0
+    if _submodule_registered(target_dir) and (submodule_dir / "specs").is_dir():
+        print(f"ℹ️  {submodule_dir} already populated; re-checking out pin {pin}.")
+        if dry_run:
+            print(f"(dry-run) Would `git -C {submodule_dir} checkout {pin}`.")
+            return 0
+        if not _git_available():
+            return 127
+        return _checkout_pin(submodule_dir, pin)
 
     if dry_run:
         print(f"(dry-run) Would `git -C {target_dir} init` if not already a repo.")
@@ -268,14 +315,37 @@ def add_submodule(
         check=False,
     )
     if result.returncode != 0:
-        return result.returncode
+        return RC_STRAY_DIR if _is_stray_dir(submodule_dir) else result.returncode
+    return _checkout_pin(submodule_dir, pin)
+
+
+RC_PIN_FAILED = 3
+RC_STRAY_DIR = 4
+
+
+def _is_stray_dir(submodule_dir: Path) -> bool:
+    """A non-empty ``.ai-playbook/`` that is neither a git checkout nor a
+    playbook copy (e.g. only the overrides.log of a break-glass attempt):
+    ``git submodule add`` refuses to clone into it."""
+    try:
+        return (
+            submodule_dir.is_dir()
+            and any(submodule_dir.iterdir())
+            and not (submodule_dir / ".git").exists()
+            and not (submodule_dir / "specs").is_dir()
+        )
+    except OSError:
+        return False
+
+
+def _checkout_pin(submodule_dir: Path, pin: str) -> int:
     result = subprocess.run(
         ["git", "-C", str(submodule_dir), "checkout", pin],
         capture_output=True,
         text=True,
         check=False,
     )
-    return result.returncode
+    return RC_PIN_FAILED if result.returncode != 0 else 0
 
 
 def copy_local_playbook(*, target_dir: Path, playbook_path: Path, dry_run: bool) -> None:
@@ -472,15 +542,25 @@ def install_pre_commit(target_dir: Path, dry_run: bool) -> None:
     )
 
 
-def run_doctor(target_dir: Path, dry_run: bool) -> None:
+def _playbook_env() -> dict[str, str]:
+    """Env for ``python -m scripts.*`` children: the playbook root first on
+    PYTHONPATH, else a consumer-side ``scripts/`` dir (seeded by the templates)
+    shadows the package and the module is not found."""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(find_playbook_root()) + os.pathsep + env.get("PYTHONPATH", "")
+    return env
+
+
+def run_doctor(target_dir: Path, dry_run: bool) -> int:
     if dry_run:
         print(f"(dry-run) Would run `python -m scripts.doctor` with CWD={target_dir}.")
-        return
-    subprocess.run(
+        return 0
+    return subprocess.run(
         [sys.executable, "-m", "scripts.doctor"],
         cwd=str(target_dir),
+        env=_playbook_env(),
         check=False,
-    )
+    ).returncode
 
 
 def setup_telemetry_label(target_dir: Path, *, enabled: bool, dry_run: bool) -> None:
@@ -560,14 +640,15 @@ DEFAULT_PONYTAIL_COMPONENTS = (
 )
 
 
-def run_discover(target_dir: Path, dry_run: bool) -> None:
+def run_discover(target_dir: Path, dry_run: bool) -> int:
     if dry_run:
         print(f"(dry-run) Would run `python -m scripts.discover_projects --add {target_dir}`.")
-        return
-    subprocess.run(
+        return 0
+    return subprocess.run(
         [sys.executable, "-m", "scripts.discover_projects", "--add", str(target_dir)],
+        env=_playbook_env(),
         check=False,
-    )
+    ).returncode
 
 
 def run_playbook_check(target_dir: Path, dry_run: bool) -> None:
@@ -621,9 +702,12 @@ def run_playbook_check(target_dir: Path, dry_run: bool) -> None:
 # Next-steps banner
 # ---------------------------------------------------------------------------
 
-def print_next_steps(target_dir: Path, project_name: str) -> None:
+def print_next_steps(target_dir: Path, project_name: str, *, ok: bool = True) -> None:
     print()
-    print("✅ Bootstrap complete. Next steps:")
+    if ok:
+        print("✅ Bootstrap complete. Next steps:")
+    else:
+        print("⚠️ Bootstrap finished with problems (see ⚠️ lines above). Next steps:")
     print(f"   1. cd {target_dir}")
     print("   2. Fill placeholders in AGENTS.md (§1 identity, §3 active work, §4 rules).")
     print("   3. Review the rendered .mcp.json + .gemini/settings.json; tweak "
@@ -808,6 +892,44 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolve_owner(args.owner)
     playbook_root = find_playbook_root()
 
+    # A re-run would copy_templates over the consumer's edits; backup_base only
+    # ever keeps the FIRST snapshot, so the second set of edits would be lost.
+    if _is_bootstrapped(target_dir):
+        print(
+            f"❌ {target_dir} is already bootstrapped (AGENTS.md declares "
+            f"agents-md/v1 and {SUBMODULE_PATH} is installed) at "
+            f"{SCRIPT_BASENAME}:already-bootstrapped",
+            file=sys.stderr,
+        )
+        update = f"`python -m scripts.bootstrap --update --path {target_dir}`"
+        if (target_dir / SUBMODULE_PATH / "specs").is_dir():
+            print(f"   FIX: run {update} to reconcile without overwriting your files.",
+                  file=sys.stderr)
+        else:  # registered but never checked out (e.g. a fresh clone)
+            print(
+                f"   FIX: run `git -C {target_dir} submodule update --init {SUBMODULE_PATH}`, "
+                f"then {update}.",
+                file=sys.stderr,
+            )
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 1
+    if _declares_agents_md_v1(target_dir):
+        print(
+            f"ℹ️  {target_dir / 'AGENTS.md'} declares agents-md/v1 but {SUBMODULE_PATH} is not "
+            "installed (e.g. after uninstall): bootstrapping as a fresh install."
+        )
+
+    if args.from_config is not None and not args.from_config.expanduser().is_file():
+        print(
+            f"❌ --from-config bundle not found: {args.from_config} at "
+            f"{SCRIPT_BASENAME}:from-config",
+            file=sys.stderr,
+        )
+        print("   FIX: pass the path of an existing ai-playbook-config/v1 JSON bundle.",
+              file=sys.stderr)
+        print("   OVERRIDE: none", file=sys.stderr)
+        return 1
+
     print(f"→ Bootstrapping project '{args.project_name}'")
     print(f"   target : {target_dir}")
     print(f"   owner  : {owner}")
@@ -864,6 +986,30 @@ def main(argv: list[str] | None = None) -> int:
             print("   FIX: install git and re-run.", file=sys.stderr)
             print("   OVERRIDE: none", file=sys.stderr)
             return 2
+        if rc == RC_PIN_FAILED:
+            print(
+                f"❌ playbook pin {args.playbook_pin!r} cannot be checked out in "
+                f"{target_dir / SUBMODULE_PATH} at {SCRIPT_BASENAME}:{GATE_NAME}",
+                file=sys.stderr,
+            )
+            print(
+                "   FIX: pass an existing tag via --playbook-pin (list them with "
+                f"`git -C {target_dir / SUBMODULE_PATH} tag`) and re-run.",
+                file=sys.stderr,
+            )
+            print("   OVERRIDE: none", file=sys.stderr)
+            return 2
+        if rc == RC_STRAY_DIR:
+            stray = target_dir / SUBMODULE_PATH
+            print(
+                f"❌ {stray} exists but is not a git checkout (e.g. left by a failed "
+                f"break-glass attempt), so `git submodule add` cannot clone into it "
+                f"at {SCRIPT_BASENAME}:stray-playbook-dir",
+                file=sys.stderr,
+            )
+            print(f"   FIX: check what {stray} holds, remove it, and re-run.", file=sys.stderr)
+            print("   OVERRIDE: none", file=sys.stderr)
+            return 2
         if rc != 0:
             print(
                 f"❌ submodule add failed (exit {rc}) at {SCRIPT_BASENAME}:{GATE_NAME}",
@@ -896,9 +1042,16 @@ def main(argv: list[str] | None = None) -> int:
         inject_personal_flag(target_dir / "AGENTS.md", dry_run=args.dry_run)
 
     # Step 4: pre-commit / doctor / discover.
+    # discover before doctor: doctor's projects-registry check reads what
+    # discover writes.
     install_pre_commit(target_dir, dry_run=args.dry_run)
-    run_doctor(target_dir, dry_run=args.dry_run)
-    run_discover(target_dir, dry_run=args.dry_run)
+    problems: list[str] = []
+    rc = run_discover(target_dir, dry_run=args.dry_run)
+    if rc != 0:
+        problems.append(f"discover_projects --add exited {rc} (project not registered)")
+    rc = run_doctor(target_dir, dry_run=args.dry_run)
+    if rc != 0:
+        problems.append(f"doctor exited {rc} (see its report above)")
 
     # Steps 4.5–6 collapsed into the single reconcile door.
     #
@@ -912,7 +1065,20 @@ def main(argv: list[str] | None = None) -> int:
     # synthesised defaults bundle carries no managed-file trigger sections, so
     # the freshly-copied templates are left untouched. See SECTION_ORDER in
     # scripts/apply_config.py.
-    reconcile(target_dir, args, first_run=True)
+    rc = reconcile(target_dir, args, first_run=True)
+    if rc != 0:
+        # The bundle could not be resolved/loaded: nothing was applied.
+        print(
+            f"❌ reconcile did not run (bundle unresolved) at {SCRIPT_BASENAME}:reconcile",
+            file=sys.stderr,
+        )
+        print(
+            f"   FIX: fix the bundle error above, then run `python -m scripts.bootstrap "
+            f"--update --path {target_dir}`.",
+            file=sys.stderr,
+        )
+        print("   OVERRIDE: none", file=sys.stderr)
+        return rc
 
     # Step 7: post-bootstrap drift report (advisory). Runs ai-playbook-check
     # in validate-only mode so the operator sees any rule drift (bare-layout,
@@ -925,8 +1091,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         run_playbook_check(target_dir, dry_run=args.dry_run)
 
-    print_next_steps(target_dir, args.project_name)
-    return 0
+    if problems:
+        print(file=sys.stderr)
+        for p in problems:
+            print(f"⚠️ bootstrap: {p}", file=sys.stderr)
+    print_next_steps(target_dir, args.project_name, ok=not problems)
+    return 1 if problems else 0
 
 
 # ---------------------------------------------------------------------------

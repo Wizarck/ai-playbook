@@ -28,6 +28,9 @@ Marker grammar (per comment-style)
 
 Notes
 -----
+* A marker only counts when it occupies a whole line (leading indent and
+  trailing whitespace allowed). Marker text quoted mid-line — e.g. prose
+  explaining the syntax — is ordinary content.
 * ``sha`` is optional. When present, ``parse_blocks`` records it so a
   caller can detect tampering (canonical content edited locally). The
   helpers do not enforce it — that policy lives one layer up.
@@ -95,29 +98,47 @@ class ParsedFile:
 # Regex patterns per comment style
 # ---------------------------------------------------------------------------
 
+# Every marker must occupy a whole line (optionally indented, optionally
+# CRLF-terminated). Unanchored patterns matched marker text quoted inside a
+# prose comment (e.g. a template header explaining the marker syntax), which
+# made the parser splice a block boundary mid-line and corrupt the file.
+# The indent is captured (not part of the marker span, see ``_marker_start``)
+# and the line end is a lookahead, so surrounding bytes stay in the custom
+# segments exactly as before.
+_LINE_START = r"^(?P<indent>[ \t]*)"
+_LINE_END = r"(?=[ \t]*\r?$)"
+
 _PATTERNS: dict[CommentStyle, dict[str, re.Pattern[str]]] = {
     CommentStyle.HTML: {
         "begin": re.compile(
-            r"<!--\s*ai-playbook:begin\s+id=(?P<id>\S+?)"
-            r"(?:\s+sha=(?P<sha>[0-9a-fA-F]+))?\s*-->"
-        ),
-        "end": re.compile(r"<!--\s*ai-playbook:end\s+(?P<id>\S+?)\s*-->"),
-    },
-    CommentStyle.HASH: {
-        "begin": re.compile(
-            r"#\s*>>>\s*ai-playbook:begin\s+id=(?P<id>\S+?)"
-            r"(?:\s+sha=(?P<sha>[0-9a-fA-F]+))?\s*>>>"
-        ),
-        "end": re.compile(r"#\s*<<<\s*ai-playbook:end\s+(?P<id>\S+?)\s*<<<"),
-    },
-    CommentStyle.SLASH: {
-        "begin": re.compile(
-            r"//\s*ai-playbook:begin\s+id=(?P<id>\S+?)"
-            r"(?:\s+sha=(?P<sha>[0-9a-fA-F]+))?[ \t]*$",
+            _LINE_START + r"<!--\s*ai-playbook:begin\s+id=(?P<id>\S+?)"
+            r"(?:\s+sha=(?P<sha>[0-9a-fA-F]+))?\s*-->" + _LINE_END,
             re.MULTILINE,
         ),
         "end": re.compile(
-            r"//\s*ai-playbook:end\s+(?P<id>\S+?)[ \t]*$",
+            _LINE_START + r"<!--\s*ai-playbook:end\s+(?P<id>\S+?)\s*-->" + _LINE_END,
+            re.MULTILINE,
+        ),
+    },
+    CommentStyle.HASH: {
+        "begin": re.compile(
+            _LINE_START + r"#\s*>>>\s*ai-playbook:begin\s+id=(?P<id>\S+?)"
+            r"(?:\s+sha=(?P<sha>[0-9a-fA-F]+))?\s*>>>" + _LINE_END,
+            re.MULTILINE,
+        ),
+        "end": re.compile(
+            _LINE_START + r"#\s*<<<\s*ai-playbook:end\s+(?P<id>\S+?)\s*<<<" + _LINE_END,
+            re.MULTILINE,
+        ),
+    },
+    CommentStyle.SLASH: {
+        "begin": re.compile(
+            _LINE_START + r"//\s*ai-playbook:begin\s+id=(?P<id>\S+?)"
+            r"(?:\s+sha=(?P<sha>[0-9a-fA-F]+))?" + _LINE_END,
+            re.MULTILINE,
+        ),
+        "end": re.compile(
+            _LINE_START + r"//\s*ai-playbook:end\s+(?P<id>\S+?)" + _LINE_END,
             re.MULTILINE,
         ),
     },
@@ -146,6 +167,11 @@ def _render_end(block: MarkerBlock) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _marker_start(match: re.Match[str]) -> int:
+    """Offset of the marker text itself, excluding the captured indent."""
+    return match.start() + len(match.group("indent"))
+
+
 def parse_blocks(text: str, style: CommentStyle) -> ParsedFile:
     """Extract every ai-playbook marker block from ``text``.
 
@@ -166,7 +192,7 @@ def parse_blocks(text: str, style: CommentStyle) -> ParsedFile:
             break
 
         # Pre-block text becomes a custom segment.
-        parsed.custom_segments.append(text[pos:begin_match.start()])
+        parsed.custom_segments.append(text[pos:_marker_start(begin_match)])
 
         block_id = begin_match.group("id")
         if block_id in parsed.blocks:
@@ -187,7 +213,7 @@ def parse_blocks(text: str, style: CommentStyle) -> ParsedFile:
         # Inner content = lines BETWEEN the begin marker line and the
         # end marker line, stripped of the leading/trailing newlines that
         # surround the markers themselves.
-        inner = text[begin_match.end():end_match.start()]
+        inner = text[begin_match.end():_marker_start(end_match)]
         inner = inner.lstrip("\n").rstrip("\n")
 
         parsed.blocks[block_id] = MarkerBlock(

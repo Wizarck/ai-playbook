@@ -152,6 +152,12 @@ def _resolve_project_from_agents_md(consumer_root: Path) -> tuple[str | None, st
 # Hindsight HTTP client — delegates to scripts._hindsight (shared with retain).
 # ---------------------------------------------------------------------------
 
+
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
+
 from scripts._hindsight import (  # noqa: E402
     HindsightAuthMissing,
     HindsightCreds,

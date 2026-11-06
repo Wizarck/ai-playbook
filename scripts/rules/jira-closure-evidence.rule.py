@@ -73,8 +73,9 @@ _MCP_COMMENT_RE = re.compile(r"^mcp__.+__addCommentToJiraIssue$")
 #: consumer an Atlassian API token for a capability most will never use.
 #:
 #: Declaring "31 means Done" is not a secret. It is cheap, static, per-repo
-#: config verifiable by eye, and a consumer who never sets it is never affected.
-#: Where credentials DO exist the live status category still wins.
+#: config verifiable by eye, and a consumer who never sets it is never affected
+#: — with or without Jira credentials. Once it is set and credentials DO exist,
+#: the live status category still wins over the declared ids.
 DONE_TRANSITIONS_ENV = "AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS"
 
 #: How long a closure receipt authorises a transition.
@@ -504,6 +505,13 @@ def pretooluse(event: dict) -> HookVerdict | None:
     if not key or not transition_id:
         return None
 
+    # THE OPT-IN GATES BOTH PATHS. Unset = this rule is not for you, even when
+    # ATLASSIAN_* happen to be in the hook env (issue_sync and release_cut read
+    # the same three vars, so their presence is not a request for this gate).
+    declared = declared_done_transitions()
+    if not declared:
+        return None
+
     # The remote fetch is an ENHANCEMENT. It used to be the only path, which
     # made a tracker-agnostic playbook depend on one tracker's API token — and
     # where those credentials did not exist the rule failed open on every
@@ -530,11 +538,11 @@ def pretooluse(event: dict) -> HookVerdict | None:
         clauses = evaluate(_description_text(issue), _latest_comment(issue), spec)
         if all(c.ok for c in clauses):
             return None
-        return block(render(clauses, spec, remote=True))
+        return block(render(clauses, spec))
 
     # Payload-only. We cannot ask what transition 31 means, so the consumer must
-    # have said. Unset = this rule is not for you.
-    if transition_id not in declared_done_transitions():
+    # have said.
+    if transition_id not in declared:
         return None
 
     receipt = read_receipt(key)

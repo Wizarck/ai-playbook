@@ -55,6 +55,10 @@ from scripts.caveman.toggle import find_playbook_root  # noqa: E402
 
 CAVEMAN_BLOCK_PREFIX = "caveman/ruleset:"
 VALID_MODES = ("lite", "full", "ultra")
+# Caveman-owned backup area. ponytail/graphify back up AGENTS.md under the
+# shared "agents" area; keeping caveman separate means `caveman rollback`
+# only ever restores a snapshot caveman itself took.
+AGENTS_AREA = "agents-caveman"
 
 
 def _resolve_playbook_root(playbook_root: Path | None) -> Path:
@@ -139,7 +143,7 @@ def materialise(
 ) -> Path:
     """Inject or refresh the caveman ruleset block in ``<project>/AGENTS.md``.
 
-    Backs up AGENTS.md to ``<project>/.ai-playbook/backups/agents/`` before
+    Backs up AGENTS.md to ``<project>/.ai-playbook/backups/agents-caveman/`` before
     mutation. If a block already exists, replaces its content (mode marker
     updated to reflect the new mode). If none exists, appends one after a
     blank-line separator.
@@ -163,7 +167,7 @@ def materialise(
         raise FileNotFoundError(f"AGENTS.md not found at {agents_md}")
 
     body = render_block_content(mode, playbook_root=playbook_root)
-    backup_path = make_backup(project_root, "agents", agents_md)
+    backup_path = make_backup(project_root, AGENTS_AREA, agents_md)
 
     raw = agents_md.read_text(encoding="utf-8")
     normalized = raw.replace("\r\n", "\n")
@@ -228,7 +232,7 @@ def strip(project_root: Path) -> Path | None:
             "expected exactly 1. Resolve manually."
         )
 
-    backup_path = make_backup(project_root, "agents", agents_md)
+    backup_path = make_backup(project_root, AGENTS_AREA, agents_md)
 
     sec = sections[0]
     lines = normalized.split("\n")
@@ -254,6 +258,7 @@ def strip(project_root: Path) -> Path | None:
 
 
 __all__ = [
+    "AGENTS_AREA",
     "CAVEMAN_BLOCK_PREFIX",
     "VALID_MODES",
     "render_block_content",

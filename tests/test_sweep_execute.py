@@ -330,3 +330,98 @@ def test_an_untracked_ledger_does_not_count_as_a_dirty_worktree(repo: Path) -> N
     ledger = make_ledger(repo)
     assert not ex.worktree_is_dirty(repo)
     assert ledger.exists()
+
+
+# ---------------------------------------------------------------------------
+# Atomicity: all deletions + tombstones, or nothing
+# ---------------------------------------------------------------------------
+
+
+def _two_row_ledger(repo: Path, second_path: str) -> Path:
+    """Ledger authorising app/orphan.py plus ``second_path``, both Tier 1."""
+    ledger = make_ledger(repo)
+    authorize(repo, ledger)
+    data = json.loads(ledger.read_text(encoding="utf-8"))
+    second = json.loads(json.dumps(data["findings"][0]))
+    second["id"], second["path"] = "orphan-second", second_path
+    data["findings"].append(second)
+    ledger.write_text(json.dumps(data), encoding="utf-8")
+    return ledger
+
+
+def test_an_untracked_authorised_path_refuses_the_whole_batch(repo: Path, capsys) -> None:
+    """The scanner reports untracked files too. `git rm` cannot remove them, and
+    a per-file loop used to leave the tracked sibling staged-deleted with no
+    tombstone — a tree the tool then refused to touch again."""
+    (repo / "app" / "new_untracked.py").write_text("X = 1\n", encoding="utf-8")
+    ledger = _two_row_ledger(repo, "app/new_untracked.py")
+    assert run(repo, "apply", "--ledger", str(ledger), "--expect", "2") == 2
+    assert "not tracked" in capsys.readouterr().err
+    assert (repo / "app" / "orphan.py").exists()
+    assert git(repo, "status", "--porcelain", "--untracked-files=no") == ""
+    assert not (repo / ex.DEFAULT_TOMBSTONES).exists()
+
+
+def test_a_tombstone_failure_restores_the_deleted_files(repo: Path) -> None:
+    """If the tombstone cannot be written, the deletions are rolled back."""
+    ledger = _two_row_ledger(repo, "app/live.py")
+    rc = run(repo, "apply", "--ledger", str(ledger), "--expect", "2",
+             "--tombstones", "ledger.json/removed-code.md")  # parent is a file
+    assert rc != 0
+    assert (repo / "app" / "orphan.py").read_text(encoding="utf-8") == "VALUE = 1\n"
+    assert (repo / "app" / "live.py").exists()
+    assert git(repo, "status", "--porcelain", "--untracked-files=no") == ""
+
+
+@pytest.mark.parametrize("prior", [None, "earlier rows\n"])
+def test_a_failed_tombstone_stage_resets_the_tombstone_file(repo: Path, prior: str | None) -> None:
+    """The append succeeded but `git add` refused the (gitignored) path: the
+    deletions were rolled back, yet the rows stayed, and every retry (the dirty
+    check ignores `??`) appended them again."""
+    (repo / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+    git(repo, "add", ".gitignore")
+    git(repo, "commit", "-qm", "ignore")
+    tomb = repo / "ignored" / "removed-code.md"
+    if prior is not None:
+        tomb.parent.mkdir()
+        tomb.write_text(prior, encoding="utf-8")
+    ledger = make_ledger(repo)
+    authorize(repo, ledger)
+
+    for _attempt in range(2):
+        assert run(repo, "apply", "--ledger", str(ledger), "--expect", "1",
+                   "--tombstones", "ignored/removed-code.md") != 0
+
+    assert (repo / "app" / "orphan.py").read_text(encoding="utf-8") == "VALUE = 1\n"
+    assert git(repo, "status", "--porcelain", "--untracked-files=no") == ""
+    if prior is None:
+        assert not tomb.exists()
+    else:
+        assert tomb.read_text(encoding="utf-8") == prior
+
+
+def test_a_glob_shaped_path_deletes_only_itself(repo: Path) -> None:
+    """Pathspecs are globs by default: `git rm -- app/[id].py` also matched a
+    tracked app/i.py (Next.js-style route names hit this)."""
+    (repo / "app" / "[id].py").write_text("ROUTE = 1\n", encoding="utf-8")
+    (repo / "app" / "i.py").write_text("LIVE = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "routes")
+    ledger = make_ledger(repo, path="app/[id].py")
+    authorize(repo, ledger)
+
+    assert run(repo, "apply", "--ledger", str(ledger), "--expect", "1") == 0
+
+    assert not (repo / "app" / "[id].py").exists()
+    assert (repo / "app" / "i.py").read_text(encoding="utf-8") == "LIVE = 1\n"
+    assert git(repo, "status", "--porcelain", "--", "app/i.py") == ""
+
+
+def test_a_tombstone_path_outside_the_repo_refuses(repo: Path, tmp_path_factory) -> None:
+    ledger = make_ledger(repo)
+    authorize(repo, ledger)
+    outside = tmp_path_factory.mktemp("elsewhere") / "removed.md"
+    assert run(repo, "apply", "--ledger", str(ledger), "--expect", "1",
+               "--tombstones", str(outside)) == 2
+    assert (repo / "app" / "orphan.py").exists()
+    assert not outside.exists()

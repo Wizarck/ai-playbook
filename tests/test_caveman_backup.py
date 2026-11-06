@@ -1,7 +1,9 @@
 """Tests for scripts.caveman.backup — make / list / restore / prune."""
 from __future__ import annotations
 
+import errno
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -28,6 +30,49 @@ def test_make_backup_creates_target(tmp_path: Path) -> None:
     assert b.parent == tmp_path / ".ai-playbook" / "backups" / "agents"
     assert b.name.startswith("AGENTS.md.")
     assert b.name.endswith(".bak")
+
+
+def test_make_backup_same_instant_does_not_overwrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression S1-24: backups in the same clock tick must all survive, in order."""
+    frozen = datetime(2026, 1, 2, 3, 4, 5, 999999, tzinfo=UTC)
+    monkeypatch.setattr(backup, "_now", lambda: frozen)
+    src = tmp_path / "AGENTS.md"
+    made = []
+    for content in ("pristine\n", "mutated\n", "again\n"):
+        src.write_text(content, encoding="utf-8")
+        made.append(backup.make_backup(tmp_path, "agents", src))
+
+    # The collision bump rolls over the second and still sorts chronologically.
+    assert [b.name for b in made] == [
+        "AGENTS.md.2026-01-02T03-04-05-999999Z.bak",
+        "AGENTS.md.2026-01-02T03-04-06-000000Z.bak",
+        "AGENTS.md.2026-01-02T03-04-06-000001Z.bak",
+    ]
+    assert [b.read_text(encoding="utf-8") for b in made] == ["pristine\n", "mutated\n", "again\n"]
+    assert backup.list_backups(tmp_path, "agents") == made
+    assert backup.latest_backup(tmp_path, "agents", "AGENTS.md") == made[-1]
+
+
+def test_make_backup_failed_copy_leaves_no_empty_backup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed copy must not leave a 0-byte .bak that sorts newest and gets restored."""
+    src = tmp_path / "AGENTS.md"
+    _write(src, "good\n")
+    good = backup.make_backup(tmp_path, "agents", src)
+
+    def disk_full(s: Path, d: Path) -> None:
+        Path(d).write_bytes(b"")
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(backup.shutil, "copy2", disk_full)
+    with pytest.raises(OSError):
+        backup.make_backup(tmp_path, "agents", src)
+
+    assert backup.list_backups(tmp_path, "agents") == [good]
+    assert backup.latest_backup(tmp_path, "agents", "AGENTS.md") == good
 
 
 def test_make_backup_raises_when_source_missing(tmp_path: Path) -> None:

@@ -275,3 +275,16 @@ def test_app_js_shows_next_steps_after_save() -> None:
     # The two modes the panel switches between.
     assert '"direct"' in text
     assert '"download"' in text
+
+
+def test_defaults_features_match_inventory_defaults() -> None:
+    # toExportBundle exports any feature whose mode/components differ from the
+    # inventory default; a mismatch here exports enabled:false and turns it off.
+    defaults = json.loads((UI_DIR / "defaults.json").read_text(encoding="utf-8"))["features"]
+    inventory = json.loads((UI_DIR / "features-inventory.json").read_text(encoding="utf-8"))["features"]
+    for key, inv in inventory.items():
+        feat = defaults[key]
+        if inv.get("default_mode"):
+            assert feat["mode"] == inv["default_mode"], key
+        for comp in inv.get("components", []):
+            assert feat["components"][comp["key"]] == comp["default"], (key, comp["key"])

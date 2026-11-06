@@ -181,7 +181,7 @@ It does NOT iterate the commits in `$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF` (C
 1. **Conventional-commit scope → checkbox auto-tick (recommended)** — the playbook ships a script + git hook (`scripts/auto_tick_tasks.py`, invoked from `prepare-commit-msg`) that:
    - Parses the commit subject for a task ID convention (e.g. `feat(persistence): groups 1-3` or `chore: §2.1 + §2.2`).
    - Walks `openspec/changes/*/tasks.md` for the active change, ticks matching `- [ ]` → `- [x]`.
-   - Stages the modified `tasks.md` so it lands in the same commit.
+   - ~~Stages the modified `tasks.md` so it lands in the same commit.~~ Not possible from `prepare-commit-msg` (git has already written the commit's tree), so the script leaves `tasks.md` modified and prints `git commit --amend --no-edit -- <tasks.md>`.
    This is opt-in (consumers add the hook in `.pre-commit-config.yaml`); the playbook just provides the script + a regex schema.
 2. **PR-open warning workflow** — `.github/workflows/check-tasks-checkboxes.yml` parses the open PR's branch for `slice/<change-id>` convention, reads `openspec/changes/<id>/tasks.md`, fails (or comments) if `<X> of N tasks unchecked` AND the diff suggests broader implementation. Soft enforcement; complements option 1.
 3. **`openspec archive --strict`** — extend the archive command (or a wrapper) to refuse `--yes` when fewer than 100 % of tasks are ticked, forcing the worker AI to either tick honestly OR file a "scope reduced" amendment to `tasks.md`. Hard enforcement; less ergonomic.

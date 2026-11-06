@@ -197,11 +197,16 @@ OUTPUT: SkillsMaterialisationResult { skills_total, mirrors_rewritten,
                    when absent (§4.1).
       stale      = (owned_prev - desired) ∩ present
       user_kept  = present - owned_prev - desired
-   c. Delete every directory in `stale`.
+   c. Delete every directory in `stale` (a symlink is unlinked, never
+      followed). A failed delete -> result.errors, and the name stays owned
+      so the next run retries.
    d. For each name in `desired`, compare the per-skill fingerprint and
       rmtree + copytree only that directory when it differs.
+      A differing directory NOT in owned_prev is a collision with a user
+      skill: it is left untouched, reported in result.errors (rename it or
+      disable the playbook skill) and not recorded as owned.
       On OSError -> append to result.errors, continue.
-   e. manifest[mirror] = desired
+   e. manifest[mirror] = (desired - collisions) ∪ failed-stale
 
 4. Persist the manifest (best-effort; skipped in dry-run). Return result.
 ```
@@ -274,7 +279,8 @@ The materialiser is wired into two git hooks at the consumer side:
 
 Hook templates ship under `templates/new-project/scripts/git-hooks/`. The
 installer template `templates/new-project/scripts/install-playbook-hooks.sh.tmpl`
-points `git config core.hooksPath scripts/git-hooks` and runs the first sync.
+adds the missing commit shims (below), points `git config core.hooksPath
+scripts/git-hooks` and runs the first sync.
 
 Both hooks call:
 
@@ -288,6 +294,26 @@ python "$REPO_ROOT/.ai-playbook/scripts/materialise_skills.py" --quiet || {
 The `|| exit 0` pattern matches `cleanup_zombies.py` (§6 exit-code policy in
 [`cleanup-zombies.md`](../rules/cleanup-zombies.rule.md)): hooks NEVER block `git pull` /
 `git checkout`. Failures surface via stderr only.
+
+Setting `core.hooksPath` makes git ignore `.git/hooks/`, and `pre-commit
+install` refuses to run while it is set ("Cowardly refusing to install hooks
+with `core.hooksPath` set"). So `scripts/git-hooks/` also carries two shims
+that replace `pre-commit install`. The installer copies any that are missing
+and never overwrites an existing hook; commit them with the rest of the
+directory.
+
+| Hook | Runs | When pre-commit is not on PATH |
+|---|---|---|
+| `pre-commit` | the `.pre-commit-config.yaml` hooks for the pre-commit stage | one warning, the commit goes ahead |
+| `commit-msg` | the commit-msg stage, only when the config names `commit-msg` outside a comment (`default_install_hook_types` or a hook's `stages:`) | one warning, the commit goes ahead |
+
+Unlike the post-* hooks, these block the commit when a configured hook fails.
+Without a `.pre-commit-config.yaml` they do nothing. The commit-msg gate exists
+because a hook with no `stages:` runs at every stage pre-commit is invoked
+for, so an unconditional commit-msg hook would run it a second time, on the
+commit message. Drop `pre-commit install` from setup scripts and Makefiles:
+`bash scripts/install-playbook-hooks.sh` replaces it. For another hook type,
+copy `commit-msg` and change `HOOK_TYPE`.
 
 ### 5.1 Gemini-specific start wrapper
 

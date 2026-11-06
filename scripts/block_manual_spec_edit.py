@@ -9,22 +9,40 @@ proposal -> archive and silently corrupt the spec audit trail.
 
 CLI
 ---
+    # commit-msg stage (local commits) — pre-commit appends the message file:
+    python -m scripts.block_manual_spec_edit --commit-msg-file <msg-file>
+    # pre-commit stage / CI (`pre-commit run --from-ref A --to-ref B`):
     python -m scripts.block_manual_spec_edit <changed-file>... [--force-with-reason TEXT]
 
 Behaviour
 ---------
-- For each `<changed-file>`: if the path matches `openspec/specs/**/*.md`
-  AND was actually modified by the staged change (per `git diff --cached`
-  or `git diff HEAD~1 HEAD`, depending on context — see _modified_files),
-  the commit is BLOCKED unless the staged commit message contains the
-  marker `openspec-archive:`.
-- The commit message is resolved in this order:
-    1. `$PRE_COMMIT_COMMIT_MSG_FILE` env var (set by pre-commit's
-       `commit-msg` stage).
+- For each protected path (`openspec/specs/**/*.md`) actually modified by
+  the change (per `git diff`, see _modified_files), the commit is BLOCKED
+  unless the commit message contains the marker `openspec-archive:`.
+- `--commit-msg-file` (commit-msg stage, the local mode): the message is
+  read from that file and the protected paths from `git diff --cached`.
+  git also runs this stage for merge commits; there a path counts only if
+  its staged content is in no parent and is not git's automatic merge (see
+  _commit_paths), so merging in a spec archived on another branch passes.
+  This is the only local stage where the message being committed exists:
+  git runs the `pre-commit` hook BEFORE writing it, so `.git/COMMIT_EDITMSG`
+  at that point holds the PREVIOUS commit's message (the old fallback to it
+  let hand-edits through after an archive commit and blocked real archives).
+- Without `--commit-msg-file` the message is resolved in this order:
+    1. `$PRE_COMMIT_COMMIT_MSG_FILE` env var (manual override; pre-commit
+       itself never sets it).
     2. `$PRE_COMMIT_TO_REF` and `$PRE_COMMIT_FROM_REF` env vars (set by
        pre-commit's `--from-ref/--to-ref` mode, e.g. CI on PRs).
-    3. `<repo-root>/.git/COMMIT_EDITMSG` (fallback for `pre-commit` stage).
-- If neither exists AND a protected file was staged, the commit is blocked.
+    3. Nothing staged (e.g. CI `--all-files` on a pushed commit): HEAD's
+       message, matching the `HEAD~1..HEAD` diff used in that case.
+- Local pre-commit stage (staged changes, no message yet): exit 0 with a
+  notice when a commit-msg hook will run this guard on the message file
+  (_commit_msg_stage_wired) — that stage decides. Otherwise (e.g. an entry that
+  still calls the script with the staged filenames at the pre-commit stage, or
+  a commit-msg entry whose `files:` filter drops the message file) the commit
+  is blocked with the steps to move the hook, instead of passing unchecked. If
+  the message cannot be resolved for any other reason AND a protected file
+  changed, the commit is blocked.
 - Files outside `openspec/specs/*.md` are ignored (exit 0).
 - `--force-with-reason="<text>"`: allowed; logs override and exits 0.
 
@@ -48,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -59,11 +78,19 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
+
 from scripts._break_glass import add_break_glass_flag, apply_break_glass  # noqa: E402
 
 SCRIPT_BASENAME = "block_manual_spec_edit.py"
 GATE_NAME = "openspec-specs-handedit"
 ARCHIVE_MARKER = "openspec-archive:"
+# git's cut line (`git commit -v`, --cleanup=scissors): everything from it on is dropped.
+_SCISSORS_RE = re.compile(r"^\S -{24} >8 -{24}[ \t]*$", re.MULTILINE)
 
 
 def emit_error(
@@ -92,13 +119,44 @@ def is_protected_path(path_str: str) -> bool:
     return False
 
 
-def read_commit_message(repo_root: Path) -> str | None:
-    """Resolve the staged commit message(s). Return None if unavailable.
+def _has_staged(repo_root: Path) -> bool | None:
+    """True/False = index differs from HEAD or not; None = cannot tell (no repo)."""
+    try:
+        rc = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=str(repo_root), check=False, capture_output=True,
+        ).returncode
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {0: False, 1: True}.get(rc)
 
+
+def _read_message_file(path: Path) -> str | None:
+    """The message as git will record it, from a message file.
+
+    The file holds more than the message: git's ``#`` comment lines (status
+    template, ``# Conflicts:``) and, under ``git commit -v``, the diff below the
+    scissors line — a marker quoted there must not count. It need not be UTF-8
+    (e.g. ``git commit -F`` of an ANSI file): undecodable bytes become U+FFFD.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    cut = _SCISSORS_RE.search(raw)
+    if cut:
+        raw = raw[: cut.start()]
+    return "\n".join(ln for ln in raw.splitlines() if not ln.startswith("#"))
+
+
+def read_commit_message(repo_root: Path) -> str | None:
+    """Resolve the commit message(s) for pre-commit-stage / CI runs.
+
+    The commit-msg stage passes ``--commit-msg-file`` and never gets here.
     Resolution order (per v0.9.1 followup #3 — CI mode was previously broken):
 
-    1. ``$PRE_COMMIT_COMMIT_MSG_FILE`` (commit-msg stage; set locally by
-       pre-commit when the dev runs ``git commit``).
+    1. ``$PRE_COMMIT_COMMIT_MSG_FILE`` (manual override; pre-commit never
+       sets it).
     2. ``$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF`` (CI mode — set by
        ``pre-commit run --from-ref <base> --to-ref <head>``). We collect
        every commit message in that range and concatenate them so the
@@ -106,17 +164,16 @@ def read_commit_message(repo_root: Path) -> str | None:
        them. Without this branch, CI saw "commit message unavailable" on
        every archive PR (consumer-e PR #57 was the surfacing case) and
        the hook fell through to the failure path.
-    3. ``<repo-root>/.git/COMMIT_EDITMSG`` (fallback for the bare
-       ``pre-commit`` stage and rare edge cases).
+    3. Nothing staged: HEAD's message (the change under test is HEAD, cf.
+       the ``HEAD~1 HEAD`` diff fallback). With staged changes the message
+       being committed does not exist yet — ``.git/COMMIT_EDITMSG`` is the
+       PREVIOUS commit's — so return ``None``.
     """
     env_path = os.environ.get("PRE_COMMIT_COMMIT_MSG_FILE")
     if env_path:
         p = Path(env_path)
         if p.is_file():
-            try:
-                return p.read_text(encoding="utf-8")
-            except OSError:
-                return None
+            return _read_message_file(p)
 
     from_ref = os.environ.get("PRE_COMMIT_FROM_REF")
     to_ref = os.environ.get("PRE_COMMIT_TO_REF")
@@ -134,6 +191,7 @@ def read_commit_message(repo_root: Path) -> str | None:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                errors="replace",
             )
             if r.returncode == 0 and r.stdout:
                 return r.stdout
@@ -141,13 +199,175 @@ def read_commit_message(repo_root: Path) -> str | None:
         except (OSError, subprocess.SubprocessError):
             pass
 
-    editmsg = repo_root / ".git" / "COMMIT_EDITMSG"
-    if editmsg.is_file():
-        try:
-            return editmsg.read_text(encoding="utf-8")
-        except OSError:
-            return None
+    try:
+        if _has_staged(repo_root) is False:  # nothing staged → the change is HEAD
+            r = subprocess.run(
+                ["git", "log", "-1", "--format=%B", "HEAD"],
+                cwd=str(repo_root), check=False, capture_output=True,
+                text=True, encoding="utf-8", errors="replace",
+            )
+            if r.returncode == 0:
+                return r.stdout
+    except (OSError, subprocess.SubprocessError):
+        pass
     return None
+
+
+def _diff_names(repo_root: Path, *diff_args: str) -> set[str] | None:
+    """Paths ``git diff --name-only <diff_args>`` lists; None when git fails.
+
+    ``-z`` output is never C-quoted, so a non-ASCII path such as
+    ``openspec/specs/métricas/spec.md`` arrives verbatim (as in pre-commit's
+    argv) instead of as ``"openspec/specs/m\\303\\251tricas/spec.md"``, which
+    ``is_protected_path`` would not recognise.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--name-only", "-z", *diff_args],
+            cwd=str(repo_root), check=False, capture_output=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return {p for p in r.stdout.decode("utf-8", "surrogateescape").split("\0") if p}
+
+
+def _git_out(repo_root: Path, *args: str) -> tuple[int, str]:
+    try:
+        r = subprocess.run(["git", *args], cwd=str(repo_root), check=False, capture_output=True)
+    except (OSError, subprocess.SubprocessError):
+        return -1, ""
+    return r.returncode, r.stdout.decode("utf-8", "replace")
+
+
+def _merge_heads(repo_root: Path) -> list[str]:
+    """The other parents of the merge being concluded (``MERGE_HEAD``), or []."""
+    rc, out = _git_out(repo_root, "rev-parse", "--git-path", "MERGE_HEAD")
+    if rc != 0:
+        return []
+    path = Path(out.strip())
+    try:
+        return (path if path.is_absolute() else repo_root / path).read_text(encoding="utf-8").split()
+    except (OSError, UnicodeDecodeError):
+        return []
+
+
+def _commit_paths(repo_root: Path) -> set[str]:
+    """Paths whose content the commit being made introduces (commit-msg stage).
+
+    For a merge, a path counts only if its staged content matches no parent and
+    is not git's own automatic merge of it: the rest came unchanged from one side
+    (e.g. a spec archived on the merged branch) or from a clean merge of both,
+    and each side was judged when it was committed. Conflict resolutions and
+    edits slipped into the merge are still judged.
+    """
+    paths = _diff_names(repo_root, "--cached") or set()
+    heads = _merge_heads(repo_root)
+    for head in heads:
+        other = _diff_names(repo_root, "--cached", head)
+        if other is None:
+            return paths  # cannot tell: judge the whole merge
+        paths &= other
+    if paths and len(heads) == 1:
+        # `merge-tree --write-tree` needs git >= 2.38; rc 1 = conflicts (tree still written).
+        rc, out = _git_out(repo_root, "merge-tree", "--write-tree", "HEAD", heads[0])
+        tree = out.split("\n", 1)[0].strip()
+        if rc in (0, 1) and re.fullmatch(r"[0-9a-f]{40,64}", tree):
+            auto = _diff_names(repo_root, "--cached", tree)
+            if auto is not None:
+                paths &= auto
+    return paths
+
+
+# The `identify` tags pre-commit's type filters see on a message file on every
+# OS; it also carries `executable` (Windows) or `non-executable` (POSIX).
+_MESSAGE_FILE_TAGS = frozenset({"file", "text"})
+_MESSAGE_FILE_MAYBE_TAGS = _MESSAGE_FILE_TAGS | {"executable", "non-executable"}
+
+
+def _hook_gets_message_file(hook: dict, config: dict, message_paths: list[str]) -> bool:
+    """Whether pre-commit's commit-msg run hands this hook entry the message file.
+
+    At commit-msg the message file is the only filename pre-commit has, and the
+    top-level and hook ``files``/``exclude`` regexes and type filters still apply
+    to it: a ``files: ^openspec/specs/`` kept from a pre-commit-stage entry skips
+    the hook on every commit. When unsure, say no (the caller then blocks with
+    the migration steps rather than defer to a hook that never runs).
+    """
+    cmd = " ".join(str(part) for part in [hook.get("entry", ""), *(hook.get("args") or [])])
+    if "block_manual_spec_edit" not in cmd or "--commit-msg-file" not in cmd:
+        return False
+    stages = hook.get("stages") or config.get("default_stages")  # neither: every stage
+    if (stages and "commit-msg" not in stages) or hook.get("pass_filenames", True) is not True:
+        return False
+    try:
+        for scope in (config, hook):
+            include = re.compile(scope.get("files", ""))
+            exclude = re.compile(scope.get("exclude", "^$"))
+            if any(not include.search(p) or exclude.search(p) for p in message_paths):
+                return False
+    except (re.error, TypeError):
+        return False
+    types, types_or = set(hook.get("types") or ["file"]), set(hook.get("types_or") or [])
+    return (types <= _MESSAGE_FILE_TAGS
+            and (not types_or or bool(types_or & _MESSAGE_FILE_TAGS))
+            and not set(hook.get("exclude_types") or []) & _MESSAGE_FILE_MAYBE_TAGS)
+
+
+def _config_wires_guard(config_text: str, message_paths: list[str]) -> bool:
+    """Whether some hook in this pre-commit config runs the guard on the message."""
+    try:
+        import yaml
+    except ImportError:  # PyYAML missing: entry wiring only, filters unchecked
+        code = "\n".join(ln.split("#", 1)[0] for ln in config_text.splitlines())
+        return "block_manual_spec_edit" in code and "--commit-msg-file" in code
+    try:
+        config = yaml.safe_load(config_text)
+    except yaml.YAMLError:
+        return False
+    if not isinstance(config, dict) or not isinstance(config.get("repos"), list):
+        return False
+    return any(
+        isinstance(hook, dict) and _hook_gets_message_file(hook, config, message_paths)
+        for repo in config["repos"] if isinstance(repo, dict)
+        for hook in (repo.get("hooks") if isinstance(repo.get("hooks"), list) else [])
+    )
+
+
+def _commit_msg_stage_wired(repo_root: Path) -> bool:
+    """Whether a commit-msg hook will run this guard with ``--commit-msg-file``.
+
+    The hook must exist (``--git-path`` honours core.hooksPath) and either call
+    this script itself, or be pre-commit's with a config entry that wires the
+    ``--commit-msg-file`` mode and that pre-commit actually hands the message
+    file (_hook_gets_message_file). It only decides whether the pre-commit stage
+    may defer: a miss blocks with migration steps instead of passing unchecked.
+    """
+    rc, out = _git_out(repo_root, "rev-parse", "--git-path", "hooks/commit-msg",
+                       "--git-path", "COMMIT_EDITMSG", "--git-path", "MERGE_MSG")
+    paths = out.split("\n")
+    if rc != 0 or len(paths) < 3:
+        return False
+    hook = Path(paths[0].strip())
+    try:
+        hook_text = (hook if hook.is_absolute() else repo_root / hook).read_text(
+            encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    if "block_manual_spec_edit" in hook_text:
+        return "--commit-msg-file" in hook_text
+    if "pre-commit" not in hook_text:
+        return False
+    m = re.search(r"--config[= ]([^\s)\"']+)", hook_text)
+    try:
+        config = (repo_root / (m.group(1) if m else ".pre-commit-config.yaml")).read_text(
+            encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    # The path git passes the hook: `.git/COMMIT_EDITMSG` (`.git/MERGE_MSG` for
+    # `git merge`), absolute in a linked worktree; pre-commit uses `/` on Windows.
+    return _config_wires_guard(config, [p.strip().replace("\\", "/") for p in paths[1:3]])
 
 
 def find_repo_root(start: Path) -> Path:
@@ -174,42 +394,21 @@ def _modified_files(repo_root: Path) -> set[str] | None:
     Returns paths relative to repo root. Pre-commit passes file arguments
     using forward slashes, so we normalize to forward slashes.
     """
-    import subprocess
-
-    def _run_diff(args: list[str]) -> set[str] | None:
-        try:
-            result = subprocess.run(
-                args,
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
-            )
-        except FileNotFoundError:
-            return None
-        if result.returncode != 0:
-            return None
-        files = {ln.strip() for ln in result.stdout.splitlines() if ln.strip()}
-        return files or None
-
     from_ref = os.environ.get("PRE_COMMIT_FROM_REF")
     to_ref = os.environ.get("PRE_COMMIT_TO_REF")
     if from_ref and to_ref:
-        files = _run_diff(
-            ["git", "diff", "--name-only", f"{from_ref}..{to_ref}"]
-        )
-        if files is not None:
+        files = _diff_names(repo_root, f"{from_ref}..{to_ref}")
+        if files:
             return files
 
     # Staged-mode (commit time): git diff --cached.
-    files = _run_diff(["git", "diff", "--cached", "--name-only"])
-    if files is not None:
+    files = _diff_names(repo_root, "--cached")
+    if files:
         return files
 
     # Push-event CI fallback.
-    files = _run_diff(["git", "diff", "--name-only", "HEAD~1", "HEAD"])
-    if files is not None:
+    files = _diff_names(repo_root, "HEAD~1", "HEAD")
+    if files:
         return files
 
     return None  # Cannot determine — caller decides whether to fail open or closed.
@@ -228,14 +427,27 @@ def main(argv: list[str] | None = None) -> int:
         nargs="*",
         help="Changed file paths (pre-commit passes these as argv).",
     )
+    parser.add_argument(
+        "--commit-msg-file",
+        default=None,
+        help="commit-msg stage: the message file pre-commit passes. Protected "
+        "paths are then taken from `git diff --cached`, not from argv.",
+    )
     add_break_glass_flag(parser)
     args = parser.parse_args(argv)
 
     repo_root = find_repo_root(Path.cwd())
 
+    if args.commit_msg_file:
+        args.files = sorted(_commit_paths(repo_root))
+
     candidates = [f for f in args.files if is_protected_path(f)]
     if not candidates:
         return 0
+
+    commit_msg: str | None = None
+    if args.commit_msg_file:
+        commit_msg = _read_message_file(Path(args.commit_msg_file))
 
     # Filter candidates to those ACTUALLY modified by the staged change.
     # Pre-commit may pass us files at protected paths that exist on the
@@ -259,24 +471,51 @@ def main(argv: list[str] | None = None) -> int:
         # behaviour: treat every input file as modified.
         protected = candidates
 
-    commit_msg = read_commit_message(repo_root)
+    unwired = False
+    if not args.commit_msg_file:
+        commit_msg = read_commit_message(repo_root)
+        if commit_msg is None and _has_staged(repo_root):
+            # Local pre-commit stage: git has not written this commit's message
+            # yet, so there is nothing honest to check. The commit-msg stage
+            # (`--commit-msg-file`) decides — if it is wired; otherwise passing
+            # here would leave the commit unchecked (a pre-commit-stage entry
+            # kept from v0.24.1 or earlier).
+            if _commit_msg_stage_wired(repo_root):
+                print(
+                    "ℹ️  block_manual_spec_edit: message not written yet at the pre-commit "
+                    "stage; deferring to the commit-msg stage.",
+                    file=sys.stderr,
+                )
+                return 0
+            unwired = True
     if commit_msg and ARCHIVE_MARKER in commit_msg:
         return 0
 
     first = protected[0]
+    fix = (
+        "revert the hand-edit and land the change through "
+        "`openspec apply` + `openspec archive` of an open change. "
+        f"Archive commits carry the `{ARCHIVE_MARKER}<change-id>` marker "
+        "and bypass this check automatically."
+    )
+    if unwired:
+        why = ("openspec/specs/*.md change checked at the pre-commit stage, where the "
+               "commit message does not exist yet, and no commit-msg hook runs this guard "
+               "on the message file")
+        fix = ("move the hook to the commit-msg stage: entry `python .ai-playbook/scripts/"
+               "block_manual_spec_edit.py --commit-msg-file` with `stages: [commit-msg]` and "
+               "no `files:`/`types:` filter (at commit-msg the only file pre-commit passes is "
+               "the message, so a filter skips the hook; see "
+               ".ai-playbook/templates/new-project/.pre-commit-config.yaml.tmpl), top-level "
+               "`default_stages: [pre-commit]`, then `pre-commit install --hook-type commit-msg`.")
+    elif commit_msg:
+        why = "openspec/specs/*.md edited directly (not via `openspec archive`)"
+    else:
+        why = "openspec/specs/*.md hand-edit detected and commit message unavailable"
     emit_error(
-        why=(
-            "openspec/specs/*.md edited directly (not via `openspec archive`)"
-            if commit_msg
-            else "openspec/specs/*.md hand-edit detected and commit message unavailable"
-        ),
+        why=why,
         where=first,
-        fix=(
-            "revert the hand-edit and land the change through "
-            "`openspec apply` + `openspec archive` of an open change. "
-            f"Archive commits carry the `{ARCHIVE_MARKER}<change-id>` marker "
-            "and bypass this check automatically."
-        ),
+        fix=fix,
         override_invocation=(
             'python -m scripts.block_manual_spec_edit '
             + " ".join(f'"{p}"' for p in protected)

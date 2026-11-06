@@ -123,6 +123,7 @@ Existing consumer projects on layout B (single working tree at `<repo>/`) keep w
 
 `scripts/wt_remove.py` closes the worktree lifecycle. After a `slice/<change-id>` PR is merged or closed:
 - Verifies the PR state via `gh pr list --head slice/<change-id>` and refuses to proceed if it is still `OPEN` (override with `--force`).
+- Refuses if the worktree has uncommitted/untracked files or the branch has commits not contained in any remote-tracking ref or the PR head (override with `--force`, which discards them). `wt_sweep.py` skips such entries.
 - Runs `git worktree remove --force <change-id>` (the `--force` covers submodule directories git's bookkeeping does not track) and wipes any residue that survives.
 - Deletes the local branch (`git branch -D slice/<change-id>`) unless `--keep-branch` is passed.
 

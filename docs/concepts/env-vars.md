@@ -198,8 +198,12 @@ A `consumer` is a **budget bucket** (a LiteLLM virtual key with its own monthly 
 | `SMTP_PORT` | `SMTP_` | SMTP server port (STARTTLS). | no | `587` | `scripts/notify.py` |
 | `SMTP_USER` | `SMTP_` | SMTP username. | yes (to enable email) | `$GIT_AUTHOR_EMAIL` | `scripts/notify.py` |
 | `SMTP_PASSWORD` | `SMTP_` | SMTP password (SOPS-decrypted; Gmail requires app-password). | yes (to enable email) | unset | `scripts/notify.py` |
+| `SMTP_STARTTLS` | `SMTP_` | `off` (or `0` / `false` / `no`) sends over plain SMTP **without logging in**, for a local relay with no TLS (Mailpit, MailHog, a port-25 relay). Any other value keeps verified STARTTLS mandatory. | no | unset (mandatory) | `scripts/notify.py` |
+| `SMTP_CA_FILE` | `SMTP_` | PEM CA bundle to verify the relay's certificate with, instead of the system store (private CA or self-signed relay). Chain and hostname are still checked. | no | unset (system store) | `scripts/notify.py` |
 
 When any of `SMTP_USER` / `SMTP_PASSWORD` is unset, email delivery is **silently disabled**; the JSONL queue still writes and the dashboard bell still surfaces every event.
+
+STARTTLS with certificate and hostname verification (`ssl.create_default_context()`) is **mandatory** (since v0.24.2): if the server does not offer STARTTLS, its certificate does not verify against the system store (or `SMTP_CA_FILE`), or `SMTP_HOST` is an IP or alias the certificate does not name, the email is not sent and credentials are never sent in cleartext. The only signal is a stderr line, `notify: email transport failure: smtp-error:starttls` (`smtp-error:ca-file` when `SMTP_CA_FILE` cannot be loaded); notify's exit code does not change. A relay without TLS needs the explicit `SMTP_STARTTLS=off`, which never logs in: the credentials stay unsent, and any non-empty `SMTP_PASSWORD` still enables email.
 
 ### Notification tuning (under `AIPLAYBOOK_*`)
 
@@ -247,7 +251,7 @@ Uses the standard `GH_TOKEN` / `GITHUB_TOKEN` for authentication — pulled from
 
 | Var | Prefix | Purpose | Required? | Default | Where read |
 |---|---|---|---|---|---|
-| `PRE_COMMIT_COMMIT_MSG_FILE` | `PRE_COMMIT_` | Path to the staged commit message file during the `commit-msg` stage. | no (set by pre-commit) | unset outside the `commit-msg` stage | `scripts/block_manual_spec_edit.py::read_commit_message` |
+| `PRE_COMMIT_COMMIT_MSG_FILE` | `PRE_COMMIT_` | Manual override: path to a commit message file for pre-commit-stage / CI runs. pre-commit itself never sets it — the commit-msg stage passes the file via `--commit-msg-file`. | no | unset | `scripts/block_manual_spec_edit.py::read_commit_message` |
 
 ---
 
