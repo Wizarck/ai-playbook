@@ -152,13 +152,86 @@ def test_a_blank_receipt_does_not_authorise(monkeypatch, tmp_path) -> None:
     assert v.blocked
 
 
+def test_an_undecodable_receipt_blocks_and_is_consumed(monkeypatch, tmp_path) -> None:
+    """An undecodable receipt used to raise UnicodeDecodeError: the dispatcher
+    failed open AND the file survived as a standing override."""
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_bytes(b"\xff\xfeu\x00s\x00e")  # UTF-16 BOM, truncated (odd length)
+    v = rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}})
+    assert v.blocked
+    assert not receipt.exists(), "an unreadable receipt must still be single-use"
+
+
+@pytest.mark.parametrize("raw", [
+    "el usuario dijo sí \r\n".encode("cp850"),  # cmd `echo ... > <path>` (OEM code page)
+    "el usuario dijo sí\r\n".encode("cp1252"),  # PS 5.1 `Set-Content` without -Encoding
+    b"\x80\x81user said yes",
+])
+def test_a_legacy_code_page_receipt_authorises_exactly_one_stop(monkeypatch, tmp_path, raw) -> None:
+    """Only blankness is judged: a non-ASCII reason written in the console's code
+    page used to be refused again and again, with nothing saying why."""
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_bytes(raw)
+    assert not rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+    assert not receipt.exists()
+    assert rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+
+
+@pytest.mark.parametrize("raw", [
+    b"\xff\xfe" + "user said yes\r\n".encode("utf-16-le"),  # PowerShell 5.1 `>`
+    b"\xfe\xff" + "user said yes\r\n".encode("utf-16-be"),
+    b"\xef\xbb\xbf" + b"user said yes\r\n",                  # Set-Content -Encoding utf8
+])
+def test_a_bom_marked_receipt_authorises_exactly_one_stop(monkeypatch, tmp_path, raw) -> None:
+    """The documented `echo <reason> > <path>` must work from the shell the agent
+    has. In Windows PowerShell 5.1 that writes UTF-16LE with a BOM."""
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_bytes(raw)
+    assert not rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+    assert not receipt.exists()
+    assert rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+
+
+@pytest.mark.parametrize("raw", [
+    b"\xef\xbb\xbf",                                # UTF-8 BOM alone
+    b"\xff\xfe" + " \r\n".encode("utf-16-le"),      # UTF-16 BOM + whitespace
+    b"\xff\xfe\x00\x00",                            # UTF-32 BOM alone
+])
+def test_a_bom_with_no_reason_does_not_authorise(monkeypatch, tmp_path, raw) -> None:
+    """NEGATIVE CONTROL: a BOM is not a reason."""
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_bytes(raw)
+    assert rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+    assert not receipt.exists()
+
+
+def test_a_blank_receipt_is_consumed_too(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
+    receipt = tmp_path / "receipt"
+    monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
+    receipt.write_text("   \n", encoding="utf-8")
+    assert rule.pretooluse({"tool_name": "TaskStop", "tool_input": {}}).blocked
+    assert not receipt.exists()
+
+
 def test_the_stop_refusal_names_the_receipt_path(monkeypatch, tmp_path) -> None:
+    """Quoted, with forward slashes: an unquoted `C:\\Users\\...` loses every
+    backslash in Git Bash, so the receipt would land in a junk file in the cwd."""
     monkeypatch.delenv(rule.OVERRIDE_ENV, raising=False)
     receipt = tmp_path / "receipt"
     monkeypatch.setattr(rule, "_receipt_path", lambda: receipt)
     v = rule.pretooluse({"tool_name": "KillShell", "tool_input": {}})
     assert v.blocked
-    assert str(receipt) in v.message
+    assert f'> "{receipt.as_posix()}"' in v.message
+    assert "\\" not in v.message
 
 
 # --- CLI validate is a no-op ------------------------------------------------

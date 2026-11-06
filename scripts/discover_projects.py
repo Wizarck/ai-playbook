@@ -164,6 +164,35 @@ def build_entry(project_dir: Path, fm: dict) -> ProjectEntry:
     )
 
 
+_ENTRY_FIELDS = frozenset({"path", "owner", "version", "inherits_from", "personal", "personal_addon"})
+
+
+def _norm(path: Path | str) -> str:
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def _is_dir(path: Path) -> bool:
+    try:
+        return path.is_dir()
+    except OSError:  # e.g. a disconnected network drive
+        return False
+
+
+def _same_dir(a: Path, b: Path) -> bool:
+    """Same directory, also when one side is spelled through a junction/symlink."""
+    if _norm(a) == _norm(b):
+        return True
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def _under_any(path: Path | str, roots: list[Path]) -> bool:
+    p = Path(_norm(path))
+    return any(p == r or r in p.parents for r in (Path(_norm(root)) for root in roots))
+
+
 def entry_to_dict(entry: ProjectEntry) -> dict:
     d: dict = {"path": str(entry.path)}
     if entry.owner:
@@ -230,7 +259,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Register a specific project path without scanning.")
     parser.add_argument("--depth", type=int, default=3, help="Max scan depth (default 3).")
     parser.add_argument("--refresh", action="store_true",
-                        help="Rescan and rewrite (default behavior; flag is accepted for clarity).")
+                        help="Rescan and merge into the registry, pruning entries whose path no "
+                             "longer holds a v1 AGENTS.md; an unreachable path outside the "
+                             "scanned roots is kept (default behavior; flag is "
+                             "accepted for clarity).")
     args = parser.parse_args(argv)
 
     registry_path = resolve_registry_path(args.registry)
@@ -288,7 +320,69 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             found[entry.name] = entry
 
-    new_projects = {name: entry_to_dict(entry) for name, entry in sorted(found.items())}
+    # Merge, never replace: entries registered via --add (e.g. by bootstrap) or
+    # whose path is not reachable right now (unmounted drive or share, outside
+    # every scanned root) must survive a refresh. A registered path that still
+    # holds its project wins over a same-name scan hit (bare layout: the scan
+    # may meet a slice worktree first). A project renamed in its AGENTS.md is
+    # re-keyed, not kept under its old name as a second entry for one path.
+    reachable = [r.expanduser().resolve() for r in roots if r.expanduser().exists()]
+    found_by_path = {_norm(e.path): name for name, e in found.items()}
+    merged: dict[str, dict] = {}
+    rekeyed: dict[str, dict] = {}
+    kept: list[str] = []
+    unreachable: list[str] = []
+    pruned: list[tuple[str, str]] = []
+    for name, old in projects.items():
+        old_path = old.get("path") if isinstance(old, dict) else None
+        hit = found.get(name)
+        if not old_path:
+            if hit is None:
+                pruned.append((name, "no path"))
+            continue
+        path = Path(old_path)
+        if hit is not None and _same_dir(hit.path, path):
+            continue  # rescanned: the found entry carries fresh metadata
+        alias = found_by_path.get(_norm(path))
+        if alias is not None:
+            if hit is None:
+                pruned.append((name, f"its path is now project '{alias}'"))
+            continue
+        if not _is_dir(path):
+            if hit is None and not _under_any(path, reachable):
+                merged[name] = old  # cannot tell gone from unmounted: keep as-is
+                unreachable.append(name)
+            elif hit is None:
+                pruned.append((name, "its path no longer exists"))
+            continue
+        fm = parse_frontmatter(path / "AGENTS.md")
+        if not fm or fm.get("schema") != "agents-md/v1":
+            if hit is None:
+                pruned.append((name, "no agents-md/v1 AGENTS.md at its path"))
+            continue
+        entry = build_entry(path, fm)
+        refreshed = entry_to_dict(entry)
+        refreshed.update({k: v for k, v in old.items() if k not in _ENTRY_FIELDS})
+        if entry.name != name:
+            if hit is None:
+                pruned.append((name, f"renamed to '{entry.name}'"))
+            if entry.name not in found and entry.name not in projects:
+                rekeyed[entry.name] = refreshed
+            continue
+        if hit is not None:
+            print(
+                f"⚠️  Project '{name}' found at {hit.path}, but the registry points at {path}, "
+                f"which still holds it: keeping {path}. To re-point it: --add {hit.path}",
+                file=sys.stderr,
+            )
+            del found[name]
+        merged[name] = refreshed
+        kept.append(name)
+    merged.update({name: entry_to_dict(entry) for name, entry in found.items()})
+    for name, entry_dict in rekeyed.items():
+        merged.setdefault(name, entry_dict)
+        kept.append(name)
+    new_projects = dict(sorted(merged.items()))
     data["projects"] = new_projects
 
     if args.dry_run:
@@ -301,12 +395,24 @@ def main(argv: list[str] | None = None) -> int:
     for name, entry in sorted(found.items()):
         tags = " [personal]" if entry.personal else ""
         print(f"  - {name}: {entry.path}{tags}")
+    for name in sorted(kept):
+        print(f"  - {name}: {new_projects[name].get('path')} (kept from registry)")
+    for name in sorted(unreachable):
+        print(f"  - {name}: {new_projects[name].get('path')} (kept: path not reachable now)")
+    for name, why in sorted(pruned):
+        print(f"  - {name}: pruned ({why})")
     if not found:
         print(
             "ℹ️  No consumer projects found. A project qualifies when its AGENTS.md "
             "carries `schema: agents-md/v1` in its YAML frontmatter.",
         )
     return 0
+
+
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
 
 
 if __name__ == "__main__":

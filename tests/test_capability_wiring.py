@@ -494,6 +494,41 @@ def test_changed_only_narrows_the_population_but_reads_registries_in_full(
     assert run(make_config(repo, BASIC), "--changed-only") == 0
 
 
+def test_changed_files_is_root_relative_and_unquoted_in_real_git(tmp_path: Path) -> None:
+    """The real kit implementation, not a monkeypatch.
+
+    It used to return repo-top-relative, C-quoted paths (`"sub/app/m\\303\\251tricas.tsx"`),
+    so with `root: sub` or any non-ASCII name the changed set never intersected
+    the root-relative population and `--changed-only` passed silently.
+    """
+    import shutil
+    import subprocess
+
+    if shutil.which("git") is None:
+        pytest.skip("git not installed")
+    top = tmp_path / "repo"
+    app = top / "sub" / "app"
+    app.mkdir(parents=True)
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=top, check=True, capture_output=True)
+
+    git("init", "-q")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "t")
+    (app / "page.tsx").write_text("a\n", encoding="utf-8")
+    (top / "outside.txt").write_text("a\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "init")
+
+    (app / "page.tsx").write_text("b\n", encoding="utf-8")  # unstaged
+    (app / "métricas.tsx").write_text("a\n", encoding="utf-8")
+    (top / "outside.txt").write_text("b\n", encoding="utf-8")  # outside root
+    git("add", "sub/app/métricas.tsx", "outside.txt")  # staged
+
+    assert wiring.changed_files(top / "sub") == {"app/page.tsx", "app/métricas.tsx"}
+
+
 def test_changed_only_does_not_turn_an_empty_slice_into_a_dead_assertion(
     repo: Path, monkeypatch
 ) -> None:

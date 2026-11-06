@@ -61,6 +61,12 @@ overrides.log
 /feature-flags.env
 /events.jsonl
 /.caveman-statusline-suffix
+# apply_config's applied-bundle state + the telemetry dashboard sidecar
+# (regenerated on every apply; untracked, they made wt_remove see the
+# submodule as dirty and refuse to remove the worktree).
+/applied-config.json
+/applied-config.js
+/dashboard-data.js
 
 # Consumers registry (per-org, never committed — see consumers.yaml.example
 # for the schema; copy to consumers.yaml locally and fill in real data).

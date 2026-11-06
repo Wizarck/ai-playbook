@@ -411,6 +411,32 @@ def test_apply_mcps_enforce_writes_state_file(tmp_path: Path) -> None:
     assert payload["disabled"] == ["guardrails-mcp"]
 
 
+def test_mcps_enforce_render_never_sees_the_real_home(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: an mcps_enforce apply reaches render's global Antigravity
+    writer, which rewrote the developer's real ~/.gemini/antigravity/
+    mcp_config.json. tests/conftest.py must hand it a temp home."""
+    import os
+
+    from scripts.mcp import render
+
+    homes: list[Path] = []
+    monkeypatch.setattr(
+        render, "update_global_antigravity_mcp",
+        lambda *_a, **_k: homes.append(Path.home()),  # record only, never write
+    )
+    target = _fake_project(tmp_path)
+    bp = _write_bundle(tmp_path, {"schema": "ai-playbook-config/v1", "mcps_enforce": {"disabled": []}})
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        mock_cv.return_value = apply_config.SectionResult(name="features.caveman", ok=True)
+        apply_config.apply(bp, target=target)
+
+    assert homes, "the MCP render never reached the global writer"
+    assert homes[0] != Path(os.path.expanduser("~"))
+    assert tmp_path_factory.getbasetemp() in homes[0].parents
+
+
 def test_apply_skills_enforce_empty_disabled_writes_explicit_state(tmp_path: Path) -> None:
     """Empty `disabled` array still persists state file (explicit no-op intent)."""
     target = _fake_project(tmp_path)
@@ -691,3 +717,138 @@ def test_telemetry_weekly_issue_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert sr.ok
     assert "would seed" in sr.detail.lower()
     assert not (target / _TELEMETRY_WF_REL).exists()
+
+
+def test_persisted_bundle_reapply_is_noop_despite_base_shas(tmp_path: Path) -> None:
+    """base_shas are one-shot CAS tokens: re-applying applied-config.json (as
+    bootstrap --update/--check do) must not report a spurious CAS conflict."""
+    from scripts._template_classifier import compute_file_sha
+
+    target = _fake_project(tmp_path)
+    (target / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+    sha = compute_file_sha((target / ".gitignore").read_text(encoding="utf-8"))
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": sha},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        assert apply_config.apply(bp, target=target).ok
+        applied = target / ".ai-playbook" / "applied-config.json"
+        assert "dist/" in (target / ".gitignore").read_text(encoding="utf-8")
+        report2 = apply_config.apply(applied, target=target)
+    assert report2.ok, report2.to_markdown()
+    assert "compare-and-swap" not in report2.to_markdown()
+    assert "base_shas" not in json.loads(applied.read_text(encoding="utf-8"))
+
+
+def test_reapply_ignores_base_shas_persisted_by_an_older_apply(tmp_path: Path) -> None:
+    """An applied-config.json written by apply_config <= v0.24.1 still holds the
+    UI's base_shas next to the file_states of the run that consumed them. The
+    tokens predate the files that run rewrote, so every bootstrap --update hit
+    a CAS conflict and applied-config.json never advanced."""
+    from scripts._template_classifier import compute_file_sha
+    from scripts.apply_config import SectionResult
+
+    target = _fake_project(tmp_path)
+    gi = target / ".gitignore"
+    gi.write_text("node_modules/\n", encoding="utf-8")
+    pre_apply_sha = compute_file_sha(gi.read_text(encoding="utf-8"))
+    bp = _write_bundle(tmp_path, {"schema": "ai-playbook-config/v1",
+                                  "gitignore_extras": {"patterns": ["dist/"]}})
+    with patch.object(apply_config, "apply_caveman") as mock_cv:
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        assert apply_config.apply(bp, target=target).ok
+        applied = target / ".ai-playbook" / "applied-config.json"
+        legacy = json.loads(applied.read_text(encoding="utf-8"))
+        assert "file_states" in legacy
+        legacy["base_shas"] = {".gitignore": pre_apply_sha}  # what <= v0.24.1 persisted
+        applied.write_text(json.dumps(legacy), encoding="utf-8")
+        for dry_run in (True, False):
+            report = apply_config.apply(applied, target=target, dry_run=dry_run)
+            md = report.to_markdown()
+            assert report.ok, md
+            assert "compare-and-swap conflict" not in md
+            assert "ignored stale base_shas" in md
+    assert "base_shas" not in json.loads(applied.read_text(encoding="utf-8"))
+
+
+def test_feature_rewrite_earlier_in_apply_is_not_a_cas_conflict(tmp_path: Path) -> None:
+    """A config-UI export stamps base_shas and carries project_meta, so it
+    re-renders AGENTS.md. caveman (like graphify / ponytail) rewrites AGENTS.md
+    earlier in the same apply; the CAS gate must compare the UI's token with
+    the file as it was before this apply, not after (false conflict, exit 1)."""
+    from scripts._template_classifier import compute_file_sha
+    from scripts.apply_config import SectionResult
+
+    target = tmp_path
+    agents = target / "AGENTS.md"
+    agents.write_text(
+        "---\nschema: agents-md/v1\nproject: demo\nowner: a@b.c\n---\n\n# demo\n\n"
+        "<!-- ai-playbook:begin id=bootstrap-directive -->\nold\n"
+        "<!-- ai-playbook:end bootstrap-directive -->\n",
+        encoding="utf-8",
+    )
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "project_meta": {"project_identity": "alpha"},
+        "base_shas": {"AGENTS.md": compute_file_sha(agents.read_text(encoding="utf-8"))},
+    }
+    bp = _write_bundle(tmp_path, bundle)
+
+    def caveman_on(_target: Path, _intent: object, dry_run: bool = False) -> SectionResult:
+        if not dry_run:
+            with agents.open("a", encoding="utf-8") as fh:
+                fh.write("\n<!-- BEGIN auto-managed: caveman/ruleset:full -->\nterse\n"
+                         "<!-- END auto-managed -->\n")
+        return SectionResult(name="features.caveman", ok=True, changes=["invoked: caveman on"])
+
+    with patch.object(apply_config, "apply_caveman", side_effect=caveman_on):
+        report = apply_config.apply(bp, target=target)
+        md = report.to_markdown()
+        assert report.ok, md
+        assert "compare-and-swap" not in md
+        text = agents.read_text(encoding="utf-8")
+        assert "caveman/ruleset:full" in text and "old\n" not in text
+        # An edit made after the UI loaded the file is still refused.
+        agents.write_text(text + "\nhand edit\n", encoding="utf-8")
+        report2 = apply_config.apply(bp, target=target)
+    assert not report2.ok
+    assert "compare-and-swap" in report2.to_markdown()
+
+
+def test_apply_session_ids_unique_within_same_second(tmp_path: Path) -> None:
+    """Two applies in one second must not share a backup session id, else a
+    failed second run's restore_session also reverts the first run's files."""
+    from datetime import UTC, datetime
+
+    from scripts import _backup_helper, _managed_files
+
+    fixed = datetime(2026, 9, 28, 10, 0, 0, tzinfo=UTC)
+
+    class _FrozenDT(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return fixed
+
+    seen: list[str] = []
+    real = _managed_files.apply_managed_files
+
+    def _spy(**kw):  # type: ignore[no-untyped-def]
+        seen.append(kw.get("session_id"))
+        return real(**kw)
+
+    target = _fake_project(tmp_path)
+    bp = _write_bundle(tmp_path, {"schema": "ai-playbook-config/v1"})
+    with patch.object(apply_config, "apply_caveman") as mock_cv, \
+            patch.object(apply_config, "datetime", _FrozenDT), \
+            patch.object(_backup_helper, "_now_ts", lambda: "2026-09-28T10-00-00Z"), \
+            patch.object(_managed_files, "apply_managed_files", _spy):
+        from scripts.apply_config import SectionResult
+        mock_cv.return_value = SectionResult(name="features.caveman", ok=True)
+        apply_config.apply(bp, target=target)
+        apply_config.apply(bp, target=target)
+    assert len(seen) == 2 and seen[0] != seen[1]

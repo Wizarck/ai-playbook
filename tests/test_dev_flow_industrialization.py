@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts import auto_tick_tasks as att
 from scripts import schema_validate as sv
 
@@ -187,6 +189,21 @@ class TestTickTasksMd:
         assert changed is False
         assert ticked == []
 
+    @pytest.mark.parametrize("eol", ["\n", "\r\n"])
+    def test_only_the_ticked_box_changes_whatever_the_line_endings(
+        self, tmp_path: Path, eol: str,
+    ):
+        """Text mode rewrote every line with the platform's newline (CRLF on
+        Windows): without eol attributes the tick became one whole-file hunk,
+        so `git add -p` could not stage it apart from other tasks.md edits."""
+        f = tmp_path / "tasks.md"
+        original = (SAMPLE_TASKS.replace("\n", eol) + "- [ ] 3.3 no final newline").encode()
+        f.write_bytes(original)
+        changed, ticked = att.tick_tasks_md(f, refs=att.parse_subject("§3.1"))
+        assert changed is True
+        assert ticked == ["- [x] 3.1 README"]
+        assert f.read_bytes() == original.replace(b"- [ ] 3.1", b"- [x] 3.1")
+
 
 # ---------------------------------------------------------------------------
 # auto_tick_tasks.main — CLI happy-path / no-op contract
@@ -248,6 +265,75 @@ class TestAutoTickMain:
         assert rc == 0
         body = (change_dir / "tasks.md").read_text(encoding="utf-8")
         assert body.count("[x]") == 7
+
+    def test_tick_is_never_staged_and_says_so(self, tmp_path: Path, capsys):
+        """git has already built the commit's tree when prepare-commit-msg runs:
+        staging the tick only pushed it into the NEXT commit (and swept in any
+        unstaged tasks.md hunks). The file must stay unstaged + a notice printed."""
+        import subprocess
+
+        def git(*a: str) -> str:
+            return subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t.test", *a],
+                cwd=tmp_path, check=True, capture_output=True, text=True,
+            ).stdout
+
+        git("init", "-q")
+        change_dir = tmp_path / "openspec" / "changes" / "test-change"
+        change_dir.mkdir(parents=True)
+        _write_tasks(change_dir / "tasks.md", SAMPLE_TASKS)
+        git("add", "-A")
+        git("commit", "-q", "-m", "seed")
+        msg = tmp_path / "msg.txt"
+        msg.write_text("feat(persistence): group 1\n", encoding="utf-8")
+
+        rc = att.main(
+            ["--quiet", "--change-id", "test-change", "--repo-root", str(tmp_path), str(msg)],
+        )
+
+        assert rc == 0
+        assert "[x]" in (change_dir / "tasks.md").read_text(encoding="utf-8")
+        assert git("diff", "--cached", "--name-only") == ""
+        err = capsys.readouterr().err
+        assert "NOT part of this commit" in err
+        assert "git commit --amend --no-edit -- openspec/changes/test-change/tasks.md" in err
+
+    def test_unstaged_tasks_hunks_get_a_remedy_that_does_not_sweep_them(
+        self, tmp_path: Path, capsys,
+    ):
+        """`git commit --amend -- <tasks.md>` commits the whole working-tree file.
+        When tasks.md already had hunks this commit leaves out, recommending it
+        would sweep them in -- the defect the never-stage change removed."""
+        import subprocess
+
+        def git(*a: str) -> str:
+            return subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t.test", *a],
+                cwd=tmp_path, check=True, capture_output=True, text=True,
+            ).stdout
+
+        git("init", "-q")
+        change_dir = tmp_path / "openspec" / "changes" / "test-change"
+        change_dir.mkdir(parents=True)
+        tasks = change_dir / "tasks.md"
+        _write_tasks(tasks, SAMPLE_TASKS)
+        git("add", "-A")
+        git("commit", "-q", "-m", "seed")
+        # A deliberately unstaged edit, far from the boxes that will be ticked.
+        tasks.write_text(SAMPLE_TASKS + "\nNote: WIP, not for this commit.\n", encoding="utf-8")
+        msg = tmp_path / "msg.txt"
+        msg.write_text("feat(persistence): group 1\n", encoding="utf-8")
+
+        rc = att.main(
+            ["--quiet", "--change-id", "test-change", "--repo-root", str(tmp_path), str(msg)],
+        )
+
+        assert rc == 0
+        assert "[x]" in tasks.read_text(encoding="utf-8")
+        err = capsys.readouterr().err
+        assert "NOT part of this commit" in err
+        assert "git add -p -- openspec/changes/test-change/tasks.md" in err
+        assert "git commit --amend --no-edit -- " not in err
 
     def test_missing_commit_msg_file_returns_2(self, tmp_path: Path):
         rc = att.main(

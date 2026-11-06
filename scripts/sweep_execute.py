@@ -95,8 +95,11 @@ is present at that SHA and `git checkout <sha> -- <path>` restores it exactly.
 
 
 def git(root: Path, *args: str) -> str:
+    # Literal pathspecs: ledger paths are file names, not globs. `git rm --
+    # app/[id].tsx` would otherwise also remove a tracked app/i.tsx.
     out = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True, check=False
+        ["git", "--literal-pathspecs", "-C", str(root), *args],
+        capture_output=True, text=True, check=False,
     )
     if out.returncode != 0:
         raise ConfigError(f"git {' '.join(args)} failed: {out.stderr.strip()}")
@@ -380,13 +383,68 @@ def cmd_apply(args: argparse.Namespace) -> int:
         )
         return 2
 
+    paths = [f["path"] for f in ready]
+    untracked = [
+        p for p in paths
+        if subprocess.run(
+            ["git", "--literal-pathspecs", "-C", str(root), "ls-files", "--error-unmatch", "--", p],
+            capture_output=True, text=True, check=False,
+        ).returncode != 0
+    ]
+    if untracked:
+        emit_error(
+            why=(
+                f"{len(untracked)} authorised path(s) are not tracked by git: "
+                f"{', '.join(untracked[:3])} — the tombstone's restore command is "
+                "`git checkout <sha> -- <path>`, and a file with no history cannot be restored"
+            ),
+            where=str(root),
+            fix="commit the file first (so the removal is revertable), or delete it by hand.",
+            override="none",
+        )
+        return 2
+
+    tomb_path = (root / args.tombstones).resolve()
+    if not tomb_path.is_relative_to(root):
+        emit_error(
+            why=f"--tombstones {args.tombstones} resolves outside the repo — it could not be staged with the deletion",
+            where=str(root),
+            fix="pass a path inside the repository.",
+            override="none",
+        )
+        return 2
+
     when = datetime.now(UTC).date().isoformat()
     rows = [tombstone_row(f, now, when) for f in ready]
+    tomb_file = root / args.tombstones
+    try:
+        prior = tomb_file.read_bytes() if tomb_file.is_file() else None
+    except OSError as exc:
+        raise ConfigError(f"cannot read the tombstone file {tomb_file}: {exc}") from exc
 
-    for f in ready:
-        git(root, "rm", "-q", "--", f["path"])
-    tomb = append_tombstones(root, args.tombstones, rows)
-    git(root, "add", "--", str(tomb.relative_to(root)).replace("\\", "/"))
+    # One `git rm` for the whole batch: git refuses the entire command if any
+    # pathspec fails, so the tree is never left half-deleted.
+    git(root, "rm", "-q", "--", *paths)
+    try:
+        tomb = append_tombstones(root, args.tombstones, rows)
+        git(root, "add", "--", tomb.resolve().relative_to(root).as_posix())
+    except (OSError, ConfigError) as exc:
+        # No tombstone, no deletion: put the files back before surfacing the
+        # error — and the tombstone file as it was (e.g. `git add` refused an
+        # ignored path after the append), or every retry appends the rows again.
+        git(root, "reset", "-q", "--", *paths)
+        git(root, "checkout", "--", *paths)
+        note = ""
+        try:
+            if prior is not None:
+                tomb_file.write_bytes(prior)
+            elif tomb_file.is_file():
+                tomb_file.unlink()
+        except OSError as undo_exc:
+            note = f"; {args.tombstones} could not be reset and may hold the rows ({undo_exc})"
+        raise ConfigError(
+            f"writing tombstones failed ({exc}); the deletions were rolled back{note}"
+        ) from exc
 
     print(f"sweep-execute: removed {len(ready)} file(s), {len(rows)} tombstone(s) -> {args.tombstones}")
     for f in ready:

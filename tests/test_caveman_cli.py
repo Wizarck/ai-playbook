@@ -1,12 +1,14 @@
 """Tests for scripts.caveman.cli — on / off / status flows."""
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
 import pytest
 
 from scripts.caveman import cli, toggle
+from scripts.caveman import materialise as cm_materialise
 
 
 @pytest.fixture
@@ -100,6 +102,75 @@ def test_on_with_mode_and_components(project: Path) -> None:
     assert state["components"]["subagents_cavecrew"] is False
 
 
+def test_on_deselecting_components_undoes_their_side_effects(project: Path) -> None:
+    """Regression S1-25: re-running `on` without a component reverts that component."""
+    mcp = project / ".mcp.json"
+    original_mcp = {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+    mcp.write_text(json.dumps(original_mcp), encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    assert "caveman/" in (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert json.loads(mcp.read_text(encoding="utf-8"))["mcpServers"]["a"]["command"] == "npx"
+
+    assert cli.main(["--project", str(project), "on", "--components", "commit_caveman"]) == 0
+    state = toggle.read_state(project)
+    assert state["components"]["response_style"] is False
+    assert state["components"]["mcp_shrink"] is False
+    assert "caveman/" not in (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert json.loads(mcp.read_text(encoding="utf-8")) == original_mcp
+
+
+def _wrapped_jsonc_gemini(project: Path) -> Path:
+    """A wrapped .gemini/settings.json the user then annotated with a comment."""
+    gemini = project / ".gemini" / "settings.json"
+    gemini.parent.mkdir(exist_ok=True)
+    gemini.write_text(json.dumps({"mcpServers": {"g": {"command": "go"}}}), encoding="utf-8")
+    return gemini
+
+
+def test_on_reconcile_failure_leaves_files_and_state_as_they_were(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression F7: a failed MCP restore must not leave AGENTS.md stripped."""
+    mcp = project / ".mcp.json"
+    mcp.write_text(json.dumps({"mcpServers": {"a": {"command": "uv"}}}), encoding="utf-8")
+    gemini = _wrapped_jsonc_gemini(project)
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    gemini.write_text("// note\n" + gemini.read_text(encoding="utf-8"), encoding="utf-8")
+    before = {p: p.read_bytes() for p in (project / "AGENTS.md", mcp, gemini, toggle.state_path(project))}
+
+    assert cli.main(["--project", str(project), "on", "--components", "commit_caveman"]) == 1
+    assert "nothing was changed" in capsys.readouterr().err
+    assert {p: p.read_bytes() for p in before} == before
+
+
+def test_on_later_failure_undoes_the_reconcile(project: Path) -> None:
+    """A failed materialise after the reconcile unwrapped MCP puts the wrap back."""
+    mcp = project / ".mcp.json"
+    mcp.write_text(json.dumps({"mcpServers": {"a": {"command": "uv"}}}), encoding="utf-8")
+    assert cli.main(["--project", str(project), "on", "--components", "mcp_shrink"]) == 0
+    wrapped = mcp.read_bytes()
+    (project / "AGENTS.md").unlink()
+
+    assert cli.main(["--project", str(project), "on", "--components", "response_style"]) == 1
+    assert mcp.read_bytes() == wrapped
+    assert toggle.read_state(project)["components"]["mcp_shrink"] is True
+
+
+def test_off_failure_leaves_files_and_state_as_they_were(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression F5/F7: `off` used to exit 1 with AGENTS.md already stripped."""
+    gemini = _wrapped_jsonc_gemini(project)
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    gemini.write_text("// note\n" + gemini.read_text(encoding="utf-8"), encoding="utf-8")
+    before = {p: p.read_bytes() for p in (project / "AGENTS.md", gemini, toggle.state_path(project))}
+
+    assert cli.main(["--project", str(project), "off"]) == 1
+    assert "nothing was changed" in capsys.readouterr().err
+    assert {p: p.read_bytes() for p in before} == before
+
+
 def test_on_rejects_invalid_mode(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
     rc = cli.main(["--project", str(project), "on", "--mode", "telegraphic"])
     assert rc == 1
@@ -138,6 +209,20 @@ def test_off_after_on(project: Path) -> None:
     assert all(v is False for v in state["components"].values())
 
 
+def test_off_unwraps_mcp_json_resaved_with_bom(project: Path) -> None:
+    """Regression F5: a BOM must not make `off` exit 1 halfway."""
+    mcp = project / ".mcp.json"
+    original_mcp = {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+    mcp.write_text(json.dumps(original_mcp), encoding="utf-8")
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    mcp.write_bytes(b"\xef\xbb\xbf" + mcp.read_bytes())
+
+    assert cli.main(["--project", str(project), "off"]) == 0
+    assert json.loads(mcp.read_text(encoding="utf-8")) == original_mcp
+    assert "caveman/" not in (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert toggle.read_state(project)["enabled"] is False
+
+
 def test_off_when_no_prior_state(project: Path) -> None:
     rc = cli.main(["--project", str(project), "off"])
     assert rc == 0
@@ -160,7 +245,7 @@ def test_rollback_requires_yes_when_backups_exist(project: Path, capsys: pytest.
     from scripts.caveman import backup as backup_mod
 
     (project / "AGENTS.md").write_text("# v1\n", encoding="utf-8")
-    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    backup_mod.make_backup(project, cm_materialise.AGENTS_AREA, project / "AGENTS.md")
     (project / "AGENTS.md").write_text("# v2 mutated\n", encoding="utf-8")
 
     rc = cli.main(["--project", str(project), "rollback"])
@@ -175,7 +260,7 @@ def test_rollback_with_yes_restores(project: Path, capsys: pytest.CaptureFixture
     from scripts.caveman import backup as backup_mod
 
     (project / "AGENTS.md").write_text("# original\n", encoding="utf-8")
-    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    backup_mod.make_backup(project, cm_materialise.AGENTS_AREA, project / "AGENTS.md")
     (project / "AGENTS.md").write_text("# mutated\n", encoding="utf-8")
 
     rc = cli.main(["--project", str(project), "rollback", "--yes"])
@@ -187,7 +272,7 @@ def test_rollback_list_shows_candidates_without_restoring(project: Path, capsys:
     from scripts.caveman import backup as backup_mod
 
     (project / "AGENTS.md").write_text("# v1\n", encoding="utf-8")
-    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    backup_mod.make_backup(project, cm_materialise.AGENTS_AREA, project / "AGENTS.md")
     (project / "AGENTS.md").write_text("# v2\n", encoding="utf-8")
 
     rc = cli.main(["--project", str(project), "rollback", "--list"])
@@ -197,6 +282,188 @@ def test_rollback_list_shows_candidates_without_restoring(project: Path, capsys:
     assert "would restore" in out
     # File NOT restored
     assert "# v2" in (project / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_rollback_restores_caveman_change_and_resyncs_state(project: Path) -> None:
+    """Regression S1-24: rollback undoes caveman's own AGENTS.md change."""
+    original = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert cli.main(["--project", str(project), "on"]) == 0
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == original
+    assert toggle.read_state(project)["components"]["response_style"] is False
+
+
+def test_rollback_ignores_other_features_agents_backups(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A ponytail/graphify backup (shared 'agents' area) is not caveman's to restore."""
+    from scripts.caveman import backup as backup_mod
+
+    backup_mod.make_backup(project, "agents", project / "AGENTS.md")
+    (project / "AGENTS.md").write_text("# ponytail block added\n", encoding="utf-8")
+
+    rc = cli.main(["--project", str(project), "rollback", "--yes"])
+    assert rc == 1
+    assert "no backups found" in capsys.readouterr().err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == "# ponytail block added\n"
+
+
+def test_rollback_refuses_when_other_feature_changed_agents_md_later(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """caveman on -> ponytail on -> caveman rollback must not wipe ponytail's block,
+    and the refusal must not hold back the MCP restore."""
+    from scripts.ponytail import materialise as pm
+
+    mcp = project / ".mcp.json"
+    original_mcp = {"mcpServers": {"a": {"command": "uv", "args": ["run"]}}}
+    mcp.write_text(json.dumps(original_mcp), encoding="utf-8")
+    assert cli.main(["--project", str(project), "on", "--components", "response_style,mcp_shrink"]) == 0
+    pm.materialise(project, "full")
+    before = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "caveman/" in before
+    assert "ponytail/" in before
+
+    rc = cli.main(["--project", str(project), "rollback", "--yes"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "would drop or rewrite the ponytail block" in err
+    assert "python -m scripts.ponytail off" in err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == before
+    assert json.loads(mcp.read_text(encoding="utf-8")) == original_mcp
+
+
+def test_rollback_fix_guidance_clears_the_guard(project: Path) -> None:
+    """Regression F1: following the FIX (`ponytail off`) must let rollback through."""
+    from scripts.ponytail import materialise as pm
+
+    pristine = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert cli.main(["--project", str(project), "on"]) == 0
+    pm.materialise(project, "full")
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 1
+
+    pm.strip(project)  # what `python -m scripts.ponytail off` does to AGENTS.md
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == pristine
+    assert toggle.read_state(project)["components"]["response_style"] is False
+
+
+def test_rollback_allowed_in_steady_state_reconcile(project: Path) -> None:
+    """Regression F1: a second reconcile (caveman on, ponytail on) leaves caveman's
+    snapshot holding the same ponytail block, so rollback must not refuse."""
+    from scripts.ponytail import materialise as pm
+
+    for _ in range(2):
+        assert cli.main(["--project", str(project), "on"]) == 0
+        pm.materialise(project, "full")
+    before = (project / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == before
+
+
+def test_rollback_does_not_bring_back_a_block_removed_after_the_snapshot(project: Path) -> None:
+    from scripts.ponytail import materialise as pm
+
+    for _ in range(2):
+        assert cli.main(["--project", str(project), "on"]) == 0
+        pm.materialise(project, "full")
+    pm.strip(project)
+    before = (project / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    after = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "ponytail/" not in after
+    assert after == before
+
+
+def test_rollback_refuses_when_a_graphify_block_would_be_rewritten(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A changed (not only added) foreign block also blocks the whole-file restore."""
+    from scripts.graphify import materialise as gm
+
+    gm.materialise(project)
+    assert cli.main(["--project", str(project), "on"]) == 0
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
+    edited = text.replace("<!-- BEGIN auto-managed: graphify/ruleset -->\n",
+                          "<!-- BEGIN auto-managed: graphify/ruleset -->\nlocal note\n")
+    assert edited != text
+    (project / "AGENTS.md").write_text(edited, encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 1
+    assert "graphify block" in capsys.readouterr().err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == edited
+
+
+def _legacy_agents_backup(project: Path, content: str) -> Path:
+    """A caveman snapshot as written before v0.24.2 (shared area, second stamps)."""
+    d = project / ".ai-playbook" / "backups" / "agents"
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / "AGENTS.md.2026-09-29T01-03-49Z.bak"
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+def test_rollback_list_points_at_legacy_agents_snapshots(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression F3: pre-0.24.2 snapshots in agents/ are named, not silently ignored."""
+    from scripts.ponytail import materialise as pm
+
+    legacy = _legacy_agents_backup(project, "# fake\n")
+    pm.materialise(project, "full")  # new-format ponytail backup in agents/: not legacy
+
+    assert cli.main(["--project", str(project), "rollback", "--list"]) == 0
+    out = capsys.readouterr().out
+    assert "No backups found" in out
+    assert legacy.name in out
+    assert ".ai-playbook/backups/agents/" in out
+
+    assert cli.main(["--project", str(project), "rollback", "--list", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [Path(p).resolve() for p in payload["legacy_agents_backups"]] == [legacy.resolve()]
+
+
+def test_rollback_yes_says_agents_md_was_not_restored_from_legacy_area(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from scripts.caveman import backup as backup_mod
+
+    _legacy_agents_backup(project, "# fake\n")
+    block = "# fake\n\n<!-- BEGIN auto-managed: caveman/ruleset:full -->\nx\n<!-- END auto-managed -->\n"
+    (project / "AGENTS.md").write_text(block, encoding="utf-8")
+
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 1
+    assert ".ai-playbook/backups/agents/" in capsys.readouterr().err
+
+    mcp = project / ".mcp.json"
+    mcp.write_text(json.dumps({"mcpServers": {}}), encoding="utf-8")
+    backup_mod.make_backup(project, "mcp", mcp)
+    assert cli.main(["--project", str(project), "rollback", "--yes"]) == 0
+    assert "AGENTS.md not restored" in capsys.readouterr().err
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == block
+
+
+def test_architecture_doc_matches_the_cli_subcommands() -> None:
+    """Regression F11: the doc listed implemented commands under 'Not implemented yet'."""
+    doc = (Path(__file__).resolve().parents[1] / "docs" / "operations" / "caveman-architecture.md").read_text(
+        encoding="utf-8"
+    )
+    sub = next(a for a in cli._build_parser()._actions if isinstance(a, argparse._SubParsersAction))
+    assert [name for name in sub.choices if f"`{name}`" not in doc] == []
+    assert ("Not implemented yet" in doc) == bool(cli.PHASE_B_NOT_IMPLEMENTED)
+
+
+def test_rollback_foreign_block_prefixes_match_the_features() -> None:
+    from scripts.graphify import materialise as gm
+    from scripts.ponytail import materialise as pm
+
+    assert cli._FOREIGN_BLOCKS == {
+        "ponytail": pm.PONYTAIL_BLOCK_PREFIX,
+        "graphify": gm.GRAPHIFY_BLOCK_PREFIX,
+    }
 
 
 def test_rollback_when_no_backups(project: Path, capsys: pytest.CaptureFixture[str]) -> None:

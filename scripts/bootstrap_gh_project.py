@@ -147,14 +147,44 @@ def _gh_available() -> bool:
         return False
 
 
+class GraphQLError(RuntimeError):
+    """A ``gh api graphql`` response carrying an ``errors`` array."""
+
+    def __init__(self, errors: Any, detail: str = "") -> None:  # noqa: ANN401
+        self.types = {e.get("type") for e in errors if isinstance(e, dict)} if isinstance(errors, list) else set()
+        super().__init__(f"GraphQL error: {errors} {detail}".rstrip())
+
+
+def _run_gh(args: list[str], *, input: str | None = None, capture: bool = True) -> subprocess.CompletedProcess:
+    """Run ``gh``; raise RuntimeError (never CalledProcessError) on failure so
+    every caller's ``except RuntimeError`` and main's exit-code mapping hold."""
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            input=input,
+            check=True,
+            capture_output=capture,
+            text=True,
+            encoding="utf-8",
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(f"gh CLI not found: {e}") from e
+    except subprocess.CalledProcessError as e:
+        body = (e.stdout or "").strip()
+        detail = (e.stderr or "").strip()
+        # `gh api graphql` exits 1 on a GraphQL error, with the body (and its
+        # `errors` array) on stdout.
+        try:
+            errors = json.loads(body).get("errors") if body else None
+        except (json.JSONDecodeError, AttributeError):
+            errors = None
+        if errors:
+            raise GraphQLError(errors, detail) from e
+        raise RuntimeError(f"`gh {args[0]}` exited {e.returncode}: {detail or body}") from e
+
+
 def _gh(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["gh", *args],
-        check=True,
-        capture_output=capture,
-        text=True,
-        encoding="utf-8",
-    )
+    return _run_gh(args, capture=capture)
 
 
 def _gh_graphql(query: str, **variables: Any) -> dict:  # noqa: ANN401
@@ -171,18 +201,14 @@ def _gh_graphql(query: str, **variables: Any) -> dict:  # noqa: ANN401
     persisted by previous bootstrap runs).
     """
     body = json.dumps({"query": query, "variables": variables})
-    result = subprocess.run(
-        ["gh", "api", "graphql", "--input", "-"],
-        input=body,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    payload = json.loads(result.stdout)
+    result = _run_gh(["api", "graphql", "--input", "-"], input=body)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"unparseable `gh api graphql` output: {e}") from e
     if "errors" in payload:
-        raise RuntimeError(f"GraphQL error: {payload['errors']}")
-    return payload.get("data", {})
+        raise GraphQLError(payload["errors"])
+    return payload.get("data") or {}
 
 
 # ---------------------------------------------------------------------------
@@ -199,8 +225,11 @@ class Project:
 
 
 def lookup_project(owner: str, project_number: int) -> Project:
-    # Try user scope first, then organization. Each scope errors if the owner
-    # is the wrong type, so we run them sequentially and swallow NOT_FOUND.
+    # Try user scope first, then organization. Each scope errors with NOT_FOUND
+    # if the owner is the wrong type, so we run them sequentially and swallow
+    # only that: anything else (e.g. INSUFFICIENT_SCOPES for a token without
+    # read:project, which `gh auth status` does not catch) is the real cause.
+    not_found: list[str] = []
     for scope in ("user", "organization"):
         query = f"""
         query($owner: String!, $number: Int!) {{
@@ -211,8 +240,11 @@ def lookup_project(owner: str, project_number: int) -> Project:
         """
         try:
             data = _gh_graphql(query, owner=owner, number=project_number)
-        except RuntimeError:
-            continue
+        except GraphQLError as exc:
+            if exc.types and exc.types <= {"NOT_FOUND"}:
+                not_found.append(f"{scope}: {exc}")
+                continue
+            raise
         proj = (data.get(scope) or {}).get("projectV2")
         if proj:
             return Project(
@@ -221,9 +253,10 @@ def lookup_project(owner: str, project_number: int) -> Project:
                 title=proj["title"],
                 owner_login=owner,
             )
+    detail = f": {'; '.join(not_found)}" if not_found else ""
     raise RuntimeError(
         f"project #{project_number} not found under owner {owner!r} "
-        f"(checked both user and organization scopes)"
+        f"(checked both user and organization scopes){detail}"
     )
 
 

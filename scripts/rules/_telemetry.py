@@ -104,7 +104,10 @@ def _toggle_disabled(slug: str) -> bool:
     when the toggle subsystem is broken (defensive default: enforce > silent skip).
     """
     try:
-        from scripts.rules_toggle import find_project_root, is_rule_disabled
+        # Stdlib-only modules: scripts.rules_toggle self-installs jsonschema and
+        # can raise SystemExit, which `except Exception` would not catch.
+        from scripts._project_root import find_project_root
+        from scripts._rules_toggle_state import is_rule_disabled
         project = find_project_root()
         if project is None:
             return False

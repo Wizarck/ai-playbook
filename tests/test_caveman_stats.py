@@ -148,6 +148,30 @@ def test_collect_stats_aggregates(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert s.models == {"claude-opus-4-7": 2, "claude-haiku-4-5": 1}
 
 
+def test_collect_stats_counts_each_message_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression S1-29: Claude Code writes one line per content block, all sharing
+    message.id + requestId and the same usage — count it once."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    project = tmp_path / "proj"
+    events = []
+    for i in range(3):
+        ev = _assistant_ev(ts=f"2026-05-01T00:00:0{i}Z", in_tok=10, out_tok=300)
+        ev["message"]["id"] = "msg_1"
+        ev["requestId"] = "req_1"
+        ev["uuid"] = f"u{i}"
+        events.append(ev)
+    other = _assistant_ev(ts="2026-05-01T00:00:05Z", in_tok=1, out_tok=7)
+    other["uuid"] = "u-solo"  # no message.id/requestId → keyed by uuid
+    events.append(other)
+    _write_session_log(stats.session_logs_dir(project), "s", events)
+
+    s = stats.collect_stats(project)
+    assert s.events == 2
+    assert s.output_tokens == 307
+    assert s.input_tokens == 11
+    assert s.models == {"claude-opus-4-7": 2}
+
+
 def test_collect_stats_with_since_filter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
     project = tmp_path / "proj"

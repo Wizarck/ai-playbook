@@ -16,7 +16,7 @@ from scripts._renderers import (
     render_pre_commit,
     render_settings_json,
 )
-from scripts._renderers._settings_merge import anchor_command
+from scripts._renderers._settings_merge import DISPATCHER_PRE_TOOL_USE_MATCHER, anchor_command
 from scripts._template_classifier import compute_sha
 
 # ---------------------------------------------------------------------------
@@ -254,6 +254,11 @@ def test_gitignore_dedupes_preserved_and_extras() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _hook(hook_id: str) -> dict:
+    """A complete `repo: local` hook (pre-commit requires all four keys)."""
+    return {"id": hook_id, "name": hook_id, "entry": "true", "language": "system"}
+
+
 def test_pre_commit_renders_baseline_and_extras() -> None:
     template = (
         "repos:\n"
@@ -267,11 +272,17 @@ def test_pre_commit_renders_baseline_and_extras() -> None:
     out = render_pre_commit(
         template=template,
         substitutions={},
-        bundle={"pre_commit_extras": {"hooks": [{"id": "custom-hook", "language": "system"}]}},
+        bundle={"pre_commit_extras": {"hooks": [_hook("custom-hook")]}},
     )
     assert "trailing-whitespace" in out  # canonical preserved
     assert "custom-hook" in out
-    assert "local-extras" in out
+    # pre-commit rejects any non-`local` repo without `rev`, so the consumer
+    # group must be a second `repo: local` (was `local-extras`: every commit blocked).
+    import yaml
+    repos = yaml.safe_load(out)["repos"]
+    assert [r["repo"] for r in repos][-1] == "local"
+    assert all(r["repo"] in ("local", "meta") or "rev" in r for r in repos)
+    assert repos[-1]["hooks"] == [_hook("custom-hook")]
 
 
 def test_pre_commit_bool_fields_render_lowercase_yaml() -> None:
@@ -287,7 +298,7 @@ def test_pre_commit_bool_fields_render_lowercase_yaml() -> None:
         template=template,
         substitutions={},
         bundle={"pre_commit_extras": {"hooks": [
-            {"id": "h", "pass_filenames": False, "args": ["--fix"]},
+            {**_hook("h"), "pass_filenames": False, "args": ["--fix"]},
         ]}},
     )
     assert "pass_filenames: false" in out
@@ -307,6 +318,196 @@ def test_pre_commit_empty_extras_returns_canonical() -> None:
     out = render_pre_commit(template=template, substitutions={}, bundle={})
     assert "local-extras" not in out
     assert "local" in out
+
+
+_PRE_COMMIT_TMPL = (
+    "# header\n"
+    "repos:\n"
+    "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+    "  - repo: local\n"
+    "    hooks: []\n"
+    "# <<< ai-playbook:end playbook-hooks <<<\n"
+)
+
+
+def test_pre_commit_extras_values_round_trip() -> None:
+    import yaml
+    hook = {"id": "x", "name": "x: y", "entry": "bash -c 'a: b # not a comment'",
+            "language": "system",
+            "args": ["--k", "v: w"], "pass_filenames": False, "exclude": None}
+    out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                            bundle={"pre_commit_extras": {"hooks": [hook]}})
+    assert yaml.safe_load(out)["repos"][-1]["hooks"] == [hook]
+
+
+@pytest.mark.parametrize(("hook", "missing"), [
+    ({"id": "only-id"}, "name, entry, language"),
+    ({"id": "blank", "name": "Blank", "entry": "  ", "language": "system"}, "entry"),
+])
+def test_pre_commit_refuses_incomplete_local_hook(hook: dict, missing: str) -> None:
+    """The config UI accepts a hook with only an id; written as a `repo: local`
+    hook, pre-commit rejects the whole config ("Missing required key: name")
+    and every commit is blocked. The render must fail instead."""
+    with pytest.raises(ValueError, match=f"{hook['id']!r} lacks {missing}:"):
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                          bundle={"pre_commit_extras": {"hooks": [_hook("ok"), hook]}})
+
+
+def test_pre_commit_merges_into_current_file() -> None:
+    """Consumer repos/comments outside the marker block survive a re-render;
+    a legacy `local-extras` region is replaced, and re-rendering is idempotent."""
+    import yaml
+    current = (
+        "# my own header\n"
+        "repos:\n"
+        "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+        "  - repo: local\n"
+        "    hooks: [{id: old, entry: x, language: system}]\n"
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "  - repo: https://github.com/astral-sh/ruff-pre-commit\n"
+        "    rev: v0.5.0\n"
+        "    hooks:\n"
+        "      - id: ruff\n"
+        "\n"
+        "# Consumer hooks (preserved across apply_config)\n"
+        "  - repo: local-extras\n"
+        "    hooks:\n"
+        "      - id: stale\n"
+        "        language: system\n"
+    )
+    bundle = {"pre_commit_extras": {"hooks": [_hook("new")]}}
+    out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                            bundle=bundle, current_text=current)
+    assert out.startswith("# my own header\n")
+    repos = yaml.safe_load(out)["repos"]
+    assert [r["repo"] for r in repos] == [
+        "local", "https://github.com/astral-sh/ruff-pre-commit", "local",
+    ]
+    assert repos[0]["hooks"] == []  # canonical block refreshed from template
+    assert repos[-1]["hooks"] == [_hook("new")]
+    assert "stale" not in out and "local-extras" not in out
+    again = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                              bundle=bundle, current_text=out)
+    assert again == out
+    dropped = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                                bundle={"pre_commit_extras": {"hooks": []}},
+                                current_text=out)
+    assert "Consumer hooks" not in dropped and "ruff" in dropped
+
+
+@pytest.mark.parametrize("hooks", [[], [{"id": "x", "name": "x", "entry": "true",
+                                         "language": "system"}]])
+def test_pre_commit_merge_that_does_not_fit_names_the_layout(hooks: list) -> None:
+    """A markerless file in pre-commit's sample-config style (`-   repo:` at
+    column 0) cannot take the appended two-space block. The error must say so
+    (it used to blame content after `repos:`) and be a per-file conflict."""
+    from scripts._renderers import MergeConflictError
+    sample = ("repos:\n-   repo: https://github.com/pre-commit/pre-commit-hooks\n"
+              "    rev: v4.6.0\n    hooks:\n    -   id: trailing-whitespace\n")
+    with pytest.raises(MergeConflictError) as exc:
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                          bundle={"pre_commit_extras": {"hooks": hooks}},
+                          current_text=sample)
+    assert "no playbook-hooks marker block" in str(exc.value)
+    assert "column 0" in str(exc.value)
+
+
+def test_pre_commit_merge_refuses_items_landing_under_a_later_key() -> None:
+    """Valid YAML is not enough: extras appended after a block-sequence key
+    that follows `repos:` would become items of that key."""
+    from scripts._renderers import MergeConflictError
+    current = (
+        "repos:\n"
+        "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+        "  - repo: local\n"
+        "    hooks: []\n"
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "default_stages:\n"
+        "  - pre-commit\n"
+    )
+    with pytest.raises(MergeConflictError, match="move the keys that follow it"):
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={}, current_text=current,
+                          bundle={"pre_commit_extras": {"hooks": [
+                              {"id": "x", "name": "x", "entry": "true", "language": "system"},
+                          ]}})
+
+
+def test_pre_commit_merge_names_a_duplicate_key_already_in_the_file() -> None:
+    from scripts._renderers import MergeConflictError
+    current = (
+        "repos:\n"
+        "# >>> ai-playbook:begin id=playbook-hooks >>>\n"
+        "  - repo: local\n"
+        "    hooks: []\n"
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: a\n"
+        "        id: b\n"
+        "        name: a\n"
+        "        entry: 'true'\n"
+        "        language: system\n"
+    )
+    with pytest.raises(MergeConflictError, match="already has a duplicate key 'id'"):
+        render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={}, current_text=current,
+                          bundle={"pre_commit_extras": {"hooks": [_hook("x")]}})
+
+
+def test_pre_commit_markerless_file_with_playbook_hooks_does_not_get_them_twice() -> None:
+    """Consumers' configs copied from an older template list the playbook hooks
+    without the marker lines. Appending the block made each of them run twice."""
+    import collections
+    from pathlib import Path
+
+    import yaml
+    tmpl = (Path(__file__).resolve().parents[1] / "templates" / "new-project"
+            / ".pre-commit-config.yaml.tmpl").read_text(encoding="utf-8")
+    ruff = ("  - repo: https://github.com/astral-sh/ruff-pre-commit\n"
+            "    rev: v0.5.0\n"
+            "    hooks:\n"
+            "      - id: ruff\n")
+    current = (
+        "repos:\n"
+        "  - repo: https://github.com/pre-commit/pre-commit-hooks\n"
+        "    rev: v4.6.0\n"
+        "    hooks:\n"
+        "      - id: trailing-whitespace\n"
+        "      - id: check-yaml\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: schema-validate-agents\n"
+        "        name: Validate AGENTS.md\n"
+        "        entry: python .ai-playbook/scripts/schema_validate.py AGENTS.md\n"
+        "        language: system\n"
+        + ruff
+    )
+    bundle = {"pre_commit_extras": {"hooks": [_hook("mine")]}}
+
+    def hook_ids(text: str) -> collections.Counter:
+        return collections.Counter(h["id"] for repo in yaml.safe_load(text)["repos"]
+                                   for h in repo["hooks"])
+
+    out = render_pre_commit(template=tmpl, substitutions={}, bundle=bundle, current_text=current)
+    assert out.startswith(current) and "ai-playbook:begin" not in out
+    assert max(hook_ids(out).values()) == 1
+    assert yaml.safe_load(out)["repos"][-1]["hooks"] == [_hook("mine")]
+    assert render_pre_commit(template=tmpl, substitutions={}, bundle=bundle,
+                             current_text=out) == out
+    # A markerless file without playbook hooks still gets the block, once.
+    added = render_pre_commit(template=tmpl, substitutions={}, bundle=bundle,
+                              current_text="repos:\n" + ruff)
+    assert "ai-playbook:begin id=playbook-hooks" in added
+    assert {"gitleaks", "ruff", "mine"} <= set(hook_ids(added))
+    assert max(hook_ids(added).values()) == 1
+
+
+def test_pre_commit_regenerates_current_file_that_is_not_yaml() -> None:
+    import yaml
+    corrupt = "# a `# >>> x >>>\n` b\n` block below\nrepos: []\n"
+    out = render_pre_commit(template=_PRE_COMMIT_TMPL, substitutions={},
+                            bundle={}, current_text=corrupt)
+    assert out.startswith("# header\n")
+    yaml.safe_load(out)
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +581,26 @@ def test_coderabbit_no_extras_returns_canonical() -> None:
     assert "language: en-US" in out
 
 
+def test_coderabbit_merges_extras_into_current_file() -> None:
+    import yaml
+    template = "language: en-US\nreviews:\n  profile: chill\n"
+    current = (
+        "language: en-US\ntone_instructions: be terse\n"
+        "reviews:\n  profile: assertive\n  path_filters: ['!old/**']\n"
+    )
+    out = render_coderabbit(
+        template=template, substitutions={}, current_text=current,
+        bundle={"coderabbit_extras": {"path_filters": ["!new/**"]}},
+    )
+    parsed = yaml.safe_load(out)
+    assert parsed["tone_instructions"] == "be terse"
+    assert parsed["reviews"]["profile"] == "assertive"
+    assert parsed["reviews"]["path_filters"] == ["!old/**", "!new/**"]
+    # No extras: the consumer's file is returned untouched.
+    assert render_coderabbit(template=template, substitutions={},
+                             bundle={}, current_text=current) == current
+
+
 # ---------------------------------------------------------------------------
 # .claude/settings.json + .local
 # ---------------------------------------------------------------------------
@@ -447,6 +668,151 @@ def test_mcp_project_appends_extras() -> None:
     assert "command: node" in out
 
 
+_MCP_TMPL = (
+    "schema: mcp-servers/v1\n"
+    "# >>> ai-playbook:begin id=project-servers-baseline >>>\n"
+    "servers:\n"
+    "  hindsight:\n"
+    "    id: hindsight\n"
+    "# <<< ai-playbook:end project-servers-baseline <<<\n"
+)
+
+
+def test_mcp_project_extras_round_trip() -> None:
+    import yaml
+    servers = {
+        "github": {
+            "id": "github",
+            "description": "GitHub: issues + PRs (tracks #123-style refs)",
+            "endpoint": None,
+            "enabled": False,
+            "env": {"required": ["GH_TOKEN"], "note": "a: b # c"},
+        },
+    }
+    out = render_mcp_project(template=_MCP_TMPL, substitutions={},
+                             bundle={"mcp_project_servers": servers})
+    loaded = yaml.safe_load(out)["servers"]
+    assert loaded["github"] == servers["github"]
+    assert loaded["hindsight"] == {"id": "hindsight"}
+
+
+def test_mcp_project_merges_into_current_file() -> None:
+    import yaml
+    current = (
+        "schema: mcp-servers/v1\n"
+        "project: mine  # consumer comment\n"
+        "# >>> ai-playbook:begin id=project-servers-baseline >>>\n"
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "# <<< ai-playbook:end project-servers-baseline <<<\n"
+        "  handwritten:\n"
+        "    id: handwritten\n"
+        "\n"
+        "# Consumer-added project servers (preserved across apply_config)\n"
+        "  legacy:\n"
+        "    endpoint: None\n"
+    )
+    bundle = {"mcp_project_servers": {
+        "handwritten": {"id": "handwritten", "x": 1},  # consumer-owned: not duplicated
+        "legacy": {"id": "legacy", "endpoint": None},
+    }}
+    out = render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                             current_text=current)
+    assert "project: mine  # consumer comment\n" in out
+    loaded = yaml.safe_load(out)["servers"]
+    assert loaded["handwritten"] == {"id": "handwritten"}
+    assert loaded["legacy"] == {"id": "legacy", "endpoint": None}
+    assert out.count("legacy:") == 1
+    assert render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                              current_text=out) == out
+
+
+def test_mcp_project_merges_into_markerless_file_without_second_servers_key() -> None:
+    """Most consumers' mcp-servers.project.yaml has no marker block. Appending
+    the baseline block (which opens `servers:`) produced a duplicate top-level
+    key: PyYAML hid the consumer's mapping and check-yaml rejected the file."""
+    import yaml
+
+    from scripts._renderers._yaml_merge import duplicate_key
+    current = (
+        "schema: mcp-servers/v1\n"
+        "project: mine\n"
+        "\n"
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "    endpoint: https://real.example.com  # customised\n"
+        "  github:\n"
+        "    id: github\n"
+    )
+    bundle = {"mcp_project_servers": {
+        "github": {"id": "github", "x": 1},  # consumer-owned: not duplicated
+        "extra": {"id": "extra", "endpoint": None},
+    }}
+    out = render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                             current_text=current)
+    assert out.startswith(current)
+    assert duplicate_key(out) is None
+    assert out.count("\nservers:") == 1 and "ai-playbook:begin" not in out
+    loaded = yaml.safe_load(out)["servers"]
+    assert loaded["hindsight"]["endpoint"] == "https://real.example.com"
+    assert loaded["github"] == {"id": "github"}
+    assert loaded["extra"] == {"id": "extra", "endpoint": None}
+    assert render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle=bundle,
+                              current_text=out) == out
+    # Without a `servers:` mapping of its own, the baseline block is still added.
+    bare = render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle={},
+                              current_text="schema: mcp-servers/v1\n")
+    assert yaml.safe_load(bare)["servers"] == {"hindsight": {"id": "hindsight"}}
+
+
+def test_mcp_project_refuses_merge_that_misplaces_or_duplicates() -> None:
+    """The guard must not pass a merge whose bundle servers land under another
+    key, or one with a duplicate key that PyYAML would silently collapse."""
+    after_servers = (
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "settings:\n"
+        "  timeout: 5\n"
+    )
+    with pytest.raises(ValueError, match="after the `servers:`"):
+        render_mcp_project(template=_MCP_TMPL, substitutions={},
+                           bundle={"mcp_project_servers": {"extra": {"id": "extra"}}},
+                           current_text=after_servers)
+    duplicated = (
+        "# >>> ai-playbook:begin id=project-servers-baseline >>>\n"
+        "servers:\n"
+        "  hindsight:\n"
+        "    id: hindsight\n"
+        "# <<< ai-playbook:end project-servers-baseline <<<\n"
+        "servers:\n"
+        "  mine:\n"
+        "    id: mine\n"
+    )
+    with pytest.raises(ValueError, match="duplicate key 'servers'"):
+        render_mcp_project(template=_MCP_TMPL, substitutions={}, bundle={},
+                           current_text=duplicated)
+
+
+@pytest.mark.parametrize(("current", "advice"), [
+    ("servers:\n    hindsight:\n        id: hindsight\n", "re-indent its entries two spaces"),
+    ("servers: {hindsight: {id: hindsight}}\n", "re-indent its entries two spaces"),
+    ("servers:\n  hindsight:\n    id: hindsight\nproject: x\n", "move any content after"),
+    ("servers:\n  hindsight:\n    id: hindsight\n    id: again\n",
+     "already has a duplicate key 'id'"),
+])
+def test_mcp_project_merge_conflict_names_the_hand_edit(current: str, advice: str) -> None:
+    """A 4-space or flow-style `servers:` with nothing after it needs
+    re-indenting, not content moved; a duplicate already in the file needs
+    removing. The file is skipped as a conflict either way."""
+    from scripts._renderers import MergeConflictError
+    with pytest.raises(MergeConflictError, match=advice):
+        render_mcp_project(template=_MCP_TMPL, substitutions={}, current_text=current,
+                           bundle={"mcp_project_servers": {"extra": {"id": "extra"}}})
+
+
 def test_mcp_project_empty_extras() -> None:
     template = (
         "schema: mcp-servers/v1\n"
@@ -479,7 +845,7 @@ _SETTINGS_TMPL_WITH_BASH = json.dumps({
                 ],
             },
             {
-                "matcher": "Edit|Write|MultiEdit|Bash",
+                "matcher": DISPATCHER_PRE_TOOL_USE_MATCHER,
                 "hooks": [
                     {"type": "command",
                      "command": 'python "$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/hook_dispatcher.py" PreToolUse',
@@ -773,3 +1139,187 @@ def test_shipped_agents_template_renders_without_marker_mismatch() -> None:
     )
     ids = set(parse_blocks(out, CommentStyle.HTML).blocks)
     assert {"bootstrap-directive", "dispatcher-index", "capability-map", "mcp-sources"} <= ids
+
+
+def test_agents_md_rerender_splices_blocks_into_existing_file() -> None:
+    """Re-rendering an adopted AGENTS.md must keep everything outside the
+    canonical blocks: frontmatter keys (tracker_kind/jira_project), extra
+    sections, and filled slots — and must not duplicate template prose."""
+    from pathlib import Path
+
+    from scripts.migrate_to_bundle import extract_project_meta
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    subs = {"PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+            "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0"}
+    first = render_agents_md(template=tmpl, substitutions=subs,
+                             bundle={"project_meta": {"project_identity": "Demo app."}})
+    edited = first.replace("tracker_kind: github\n",
+                           "tracker_kind: jira\njira_project: ACME\n")
+    edited += "\n## 9 Rule map\n\nCustom consumer section.\n"
+    # A stale canonical block is refreshed from the template (the drift gate
+    # lives in _managed_files, not in the renderer).
+    stale = parse_blocks(edited, CommentStyle.HTML).blocks["capability-map"]
+    edited = edited.replace(stale.content, "stale capability map")
+
+    subs2 = {**subs, "TODAY": "2026-02-02"}
+    out = render_agents_md(
+        template=tmpl, substitutions=subs2, current_text=edited,
+        bundle={"project_meta": extract_project_meta(edited)},
+    )
+    assert "tracker_kind: jira\njira_project: ACME\n" in out
+    assert "updated: 2026-01-01" in out
+    assert out.rstrip().endswith("Custom consumer section.")
+    assert "Demo app." in out
+    assert out.count("Append one-line dated entries") == 1
+    assert "stale capability map" not in out
+    assert parse_blocks(out, CommentStyle.HTML).blocks["capability-map"].content == (
+        stale.content
+    )
+    again = render_agents_md(template=tmpl, substitutions=subs2, current_text=out,
+                             bundle={"project_meta": extract_project_meta(out)})
+    assert again == out
+
+
+def test_agents_md_rerender_with_unfilled_slots_does_not_grow() -> None:
+    """bootstrap leaves the five project_meta placeholders in AGENTS.md and
+    extract_project_meta reads each section back verbatim, placeholder and
+    template tail included. Substituting such a value re-inserted the §7/§8
+    tail on every apply (134 -> 159 -> 184 ... lines)."""
+    from pathlib import Path
+
+    from scripts.migrate_to_bundle import extract_project_meta
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    subs = {"PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+            "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0"}
+    bootstrapped = tmpl  # what bootstrap.copy_templates writes
+    for key, value in subs.items():
+        bootstrapped = bootstrapped.replace("{{" + key + "}}", value)
+    reused = extract_project_meta(bootstrapped)  # applied-config.json, reused as-is
+    assert all("{{" in v for v in reused.values())
+
+    def rerender(current: str, project_meta: dict) -> str:
+        return render_agents_md(template=tmpl, substitutions=subs,
+                                current_text=current, bundle={"project_meta": project_meta})
+
+    first = rerender(bootstrapped, reused)
+    assert first.count("\n") == bootstrapped.count("\n")
+    assert first.count("Append one-line dated entries") == 1
+    assert rerender(first, reused) == first
+    assert rerender(first, extract_project_meta(first)) == first
+    # From the template (no current file) the tail is not doubled either.
+    fresh = render_agents_md(template=tmpl, substitutions=subs,
+                             bundle={"project_meta": reused})
+    assert fresh.count("Append one-line dated entries") == 1
+    # A real value still fills a placeholder left in the file.
+    filled = rerender(first, {**reused, "project_identity": "Demo app."})
+    assert "Demo app." in filled
+    assert "{{ONE_TO_THREE_LINES_ABOUT_THE_PROJECT}}" not in filled
+    assert rerender(filled, extract_project_meta(filled)) == filled
+
+
+def test_agents_md_from_template_keeps_content_added_to_an_unfilled_slot() -> None:
+    """A missing or markerless AGENTS.md is generated from the template. A
+    project_meta value read back with its placeholder still in it, here dated
+    gotchas appended under {{EMPTY_FILL_AS_YOU_LEARN}} as the template invites,
+    must come back whole: neither dropped nor with the template tail doubled."""
+    import re
+    from pathlib import Path
+
+    from scripts.migrate_to_bundle import extract_project_meta
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    subs = {"PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+            "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0"}
+    legacy = tmpl
+    for key, value in subs.items():
+        legacy = legacy.replace("{{" + key + "}}", value)
+    legacy = re.sub(r"^<!-- ai-playbook:(?:begin|end) [^>]*-->\n", "", legacy, flags=re.M)
+    assert not parse_blocks(legacy, CommentStyle.HTML).blocks  # never adopted
+    legacy += "- 2026-02-01 — a real gotcha. The rule for next time.\n"
+    meta = extract_project_meta(legacy)
+    assert "{{EMPTY_FILL_AS_YOU_LEARN}}" in meta["gotchas"]
+
+    for current in (legacy, None):
+        out = render_agents_md(template=tmpl, substitutions=subs,
+                               bundle={"project_meta": meta}, current_text=current)
+        assert "ai-playbook:begin id=bootstrap-directive" in out
+        assert out.split("## 8 Gotchas\n", 1)[1] == legacy.split("## 8 Gotchas\n", 1)[1]
+        assert out.count("Append one-line dated entries") == 1
+        assert out.count("Typical §7 sub-sections") == 1
+        # Later applies splice into the file, which now has markers.
+        assert render_agents_md(template=tmpl, substitutions=subs, current_text=out,
+                                bundle={"project_meta": extract_project_meta(out)}) == out
+
+
+def test_agents_md_from_template_keeps_feature_blocks_of_a_markerless_file() -> None:
+    """caveman / ponytail / graphify write their auto-managed block into AGENTS.md
+    before the managed-files render. Regenerating a markerless file from the
+    template dropped that block until the next apply, which still reported ok."""
+    from pathlib import Path
+
+    from scripts.auto_managed import find_sections
+
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates" / "new-project" / "AGENTS.md.tmpl"
+    ).read_text(encoding="utf-8")
+    caveman = ("<!-- BEGIN auto-managed: caveman/ruleset:ultra -->\n"
+               "**Caveman mode: ON · intensity ultra**\n"
+               "<!-- END auto-managed -->")
+    graphify = ("<!-- BEGIN auto-managed: graphify/ruleset -->\n"
+                "graphify rules\n"
+                "<!-- END auto-managed -->")
+    current = f"# my project\n\nSome prose.\n\n{caveman}\n\n{graphify}\n"
+    bundle = {"project_meta": {"project_identity": "alpha"}}
+
+    out = render_agents_md(template=tmpl, substitutions={}, bundle=bundle, current_text=current)
+    assert "alpha" in out and parse_blocks(out, CommentStyle.HTML).blocks
+    assert out.endswith(f"{caveman}\n\n{graphify}\n")
+    assert [s.source for s in find_sections(out)] == ["caveman/ruleset:ultra", "graphify/ruleset"]
+    assert render_agents_md(template=tmpl, substitutions={}, bundle=bundle,
+                            current_text=out) == out
+    # A block project_meta already brings back (any mode) is not added twice.
+    again = render_agents_md(template=tmpl, substitutions={}, current_text=current,
+                             bundle={"project_meta": {"gotchas": caveman.replace("ultra", "lite")}})
+    assert [s.source for s in find_sections(again)] == ["caveman/ruleset:lite", "graphify/ruleset"]
+
+
+def test_every_shipped_marker_template_renders_to_valid_output() -> None:
+    # Regression: the pre-commit template's header comment quoted the begin
+    # marker; the unanchored parser treated it as the real marker and injected
+    # `sha=… >>>\n` mid-comment, so the rendered .pre-commit-config.yaml was
+    # invalid YAML ("found character '`'") and every commit was blocked.
+    from pathlib import Path
+
+    import yaml
+
+    from scripts._managed_files import MANAGED_FILES
+
+    root = Path(__file__).resolve().parents[1] / "templates" / "new-project"
+    subs = {
+        "PROJECT_NAME": "demo", "PROJECT_BANK": "demo", "OWNER_EMAIL": "a@b.c",
+        "TODAY": "2026-01-01", "PLAYBOOK_PIN": "v1.0.0", "DISPATCHER_AVAILABLE": "1",
+    }
+    checked = []
+    for mf in MANAGED_FILES:
+        if mf.style is None:
+            continue
+        tmpl = (root / mf.template_rel).read_text(encoding="utf-8")
+        if "ai-playbook:begin" not in tmpl:
+            continue
+        out = mf.renderer(template=tmpl, substitutions=subs, bundle={})
+        out_parsed = parse_blocks(out, mf.style)
+        assert out_parsed.order == parse_blocks(tmpl, mf.style).order, mf.rel_path
+        assert all(b.sha for b in out_parsed.blocks.values()), mf.rel_path
+        if mf.rel_path.endswith((".yaml", ".yml")):
+            assert isinstance(yaml.safe_load(out), dict), mf.rel_path
+        checked.append(mf.rel_path)
+    assert {"AGENTS.md", ".gitignore", ".pre-commit-config.yaml",
+            "mcp-servers.project.yaml"} <= set(checked)

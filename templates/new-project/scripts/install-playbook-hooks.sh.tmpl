@@ -15,6 +15,10 @@
 # materialiser at `.ai-playbook/scripts/materialise_skills.py`) AND the
 # playbook zombie cleanup (`.ai-playbook/scripts/cleanup_zombies.py`).
 #
+# `pre-commit install` refuses to run once core.hooksPath is set, so this
+# script also adds the `pre-commit` and `commit-msg` shims that run the
+# .pre-commit-config.yaml hooks. It replaces `pre-commit install`.
+#
 # Idempotent: safe to re-run after pulling new templates / bumping the
 # playbook submodule.
 #
@@ -27,14 +31,37 @@ set -e
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# 1) Point git at the repo-tracked hooks dir.
-git config core.hooksPath scripts/git-hooks
-echo "✓ git core.hooksPath = scripts/git-hooks"
+# 1) Add the pre-commit framework shims that are missing, before git is
+#    pointed at the dir. An existing hook is never overwritten.
+SHIMS=.ai-playbook/templates/new-project/scripts/git-hooks
+mkdir -p scripts/git-hooks
+for hook in pre-commit commit-msg; do
+    dst="scripts/git-hooks/$hook"
+    if [ -e "$dst" ]; then
+        if grep -q 'hook-impl' "$dst"; then
+            echo "✓ $dst runs pre-commit"
+        else
+            echo "warn: $dst is not the playbook shim and was left as is. Unless it runs" >&2
+            echo "      pre-commit itself, the $hook hooks in .pre-commit-config.yaml never run (see $SHIMS/$hook.tmpl)." >&2
+        fi
+    elif [ -f "$SHIMS/$hook.tmpl" ]; then
+        cp "$SHIMS/$hook.tmpl" "$dst"
+        echo "✓ Added $dst (runs pre-commit; commit it)"
+    else
+        echo "warn: $SHIMS/$hook.tmpl not found." >&2
+        echo "      Run 'git submodule update --init .ai-playbook' first." >&2
+    fi
+done
+echo "  These shims replace 'pre-commit install', which refuses to run while core.hooksPath is set."
 
 # 2) Make the hooks executable (POSIX; Windows ignores).
 chmod +x scripts/git-hooks/* 2>/dev/null || true
 
-# 3) First-run skills sync.
+# 3) Point git at the repo-tracked hooks dir.
+git config core.hooksPath scripts/git-hooks
+echo "✓ git core.hooksPath = scripts/git-hooks"
+
+# 4) First-run skills sync.
 if [ -f .ai-playbook/scripts/materialise_skills.py ]; then
     echo "✓ Running initial skills materialiser..."
     python .ai-playbook/scripts/materialise_skills.py --quiet || {
@@ -46,7 +73,7 @@ else
     echo "      Run 'git submodule update --init .ai-playbook' first." >&2
 fi
 
-# 4) First-run playbook zombie cleanup (Tier 1+2 auto-apply; always exit 0).
+# 5) First-run playbook zombie cleanup (Tier 1+2 auto-apply; always exit 0).
 if [ -f .ai-playbook/scripts/cleanup_zombies.py ]; then
     echo "✓ Running initial playbook zombie cleanup..."
     python .ai-playbook/scripts/cleanup_zombies.py --apply --quiet || true
@@ -54,4 +81,5 @@ fi
 
 echo ""
 echo "All set. The post-checkout + post-merge hooks will now keep skills"
-echo "mirrors and the consumer tree clean automatically."
+echo "mirrors and the consumer tree clean automatically, and pre-commit +"
+echo "commit-msg run the .pre-commit-config.yaml hooks when you commit."

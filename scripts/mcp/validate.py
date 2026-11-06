@@ -112,11 +112,22 @@ def _emit(err: CanonicalError) -> None:
 # (e.g. when this script is vendored into a consumer without the full playbook).
 # ---------------------------------------------------------------------------
 def _apply_break_glass(*, gate: str, script: str, reason: str | None,
-                       repo_root: Path) -> bool:
+                       repo_root: Path, override_allowed: bool = True) -> bool:
     """Return True if the override was accepted and logged, False if no override supplied.
 
     Exits with code 1 if the reason is present but below MIN_OVERRIDE_REASON_LEN.
+    Exits with code 3 if a reason is supplied but ``override_allowed`` is False
+    (at least one error declares ``OVERRIDE: none``).
     """
+    if not override_allowed:
+        if reason:
+            print(f"❌ This gate declares OVERRIDE: none; --force-with-reason is refused "
+                  f"at {script}:{gate}", file=sys.stderr)
+            print("   FIX: fix the underlying issue rather than bypassing; this gate "
+                  "protects a safety invariant.", file=sys.stderr)
+            print("   OVERRIDE: none", file=sys.stderr)
+            raise SystemExit(3)
+        return False
     try:
         from scripts._break_glass import (  # type: ignore[import-not-found]
             apply_break_glass as _shared,
@@ -452,6 +463,39 @@ def deep_merge(base: Any, override: Any) -> Any:
     return override
 
 
+def _union(a: Any, b: Any) -> list[str] | None:
+    """Order-preserving dedup union of two str lists; None if either is not one."""
+    lists = (a, b)
+    if not all(isinstance(x, list) and all(isinstance(v, str) for v in x) for x in lists):
+        return None
+    return list(dict.fromkeys(a + b))
+
+
+def _merge_entry(prev: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
+    """deep_merge, except env.required / env.optional / capabilities_hint are unioned.
+
+    A higher layer can add required env vars but never silently drop a lower
+    layer's (list replacement would let the env gate fail open). A var that is
+    required anywhere is removed from optional.
+    """
+    out = deep_merge(prev, entry)
+    penv, eenv = prev.get("env"), entry.get("env")
+    if isinstance(penv, dict) and isinstance(eenv, dict) and isinstance(out.get("env"), dict):
+        env = dict(out["env"])
+        for key in ("required", "optional"):
+            u = _union(penv.get(key), eenv.get(key))
+            if u is not None:
+                env[key] = u
+        req, opt = env.get("required"), env.get("optional")
+        if isinstance(req, list) and isinstance(opt, list):
+            env["optional"] = [v for v in opt if v not in req]
+        out["env"] = env
+    caps = _union(prev.get("capabilities_hint"), entry.get("capabilities_hint"))
+    if caps is not None:
+        out["capabilities_hint"] = caps
+    return out
+
+
 def merge_servers(base: Layer, project: Layer, personal: Layer
                   ) -> tuple[dict[str, dict[str, Any]], dict[str, list[str]]]:
     """Return (merged_servers, layer_provenance_per_id).
@@ -469,7 +513,7 @@ def merge_servers(base: Layer, project: Layer, personal: Layer
                 continue
             provenance.setdefault(sid, []).append(layer.name)
             if sid in merged:
-                merged[sid] = deep_merge(merged[sid], entry)
+                merged[sid] = _merge_entry(merged[sid], entry)
             else:
                 merged[sid] = dict(entry)
     # Ensure each merged entry carries its canonical id.
@@ -732,6 +776,8 @@ def run(args: argparse.Namespace) -> int:
                 where=f"mcp-servers(merged):servers.{sid}.env.required",
                 fix=(f"export {', '.join(vars_)} (or source your SOPS-decrypted env file) "
                      "before re-running"),
+                override=('python .ai-playbook/scripts/mcp/validate.py '
+                          '--force-with-reason "<why env is unavailable here>"'),
             ))
     elif in_pre_commit and not args.skip_env_check:
         # Soft notice so the dev sees what was skipped.
@@ -762,12 +808,14 @@ def run(args: argparse.Namespace) -> int:
         _emit(err)
         print("", file=sys.stderr)
 
-    # Break-glass bypass
+    # Break-glass bypass — only when every error is overridable. Errors printed
+    # with `OVERRIDE: none` (scope:personal leak, drift, shape) refuse it (exit 3).
     applied = _apply_break_glass(
         gate="mcp.validate",
         script="scripts/mcp/validate.py",
         reason=args.force_reason,
         repo_root=consumer_root,
+        override_allowed=all(e.override != "none" for e in errors),
     )
     if applied:
         return 0

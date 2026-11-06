@@ -396,6 +396,38 @@ def test_cas_matching_sha_allows_write(
     assert "node_modules/" in text  # consumer line preserved
 
 
+def test_cas_gate_checks_the_snapshot_taken_before_the_run(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """With cas_shas, the gate compares base_shas with the file as it stood
+    before the reconcile, so an in-run rewrite (graphify's .gitignore block) is
+    not a conflict; without it the same rewrite is one."""
+    from scripts._template_classifier import compute_file_sha
+    gi = fake_consumer / ".gitignore"
+    _write_lf(gi, "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "gitignore_extras": {"patterns": ["dist/"]},
+        "base_shas": {".gitignore": compute_file_sha(gi.read_text(encoding="utf-8")),
+                      "AGENTS.md": "000000000000"},  # not triggered: never checked
+    }
+    snapshot = _managed_files.snapshot_cas_shas(fake_consumer, bundle)
+    assert set(snapshot) == {".gitignore", "AGENTS.md"}
+    _write_lf(gi, "node_modules/\n# graphify\ngraphify-out/\n")  # earlier section
+    stale = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+        dry_run=True,
+    )
+    assert stale.ok is False and "cas_conflict" in stale.file_states[".gitignore"]
+    result = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+        cas_shas=snapshot,
+    )
+    assert result.ok is True, result.changes
+    text = gi.read_text(encoding="utf-8")
+    assert "graphify-out/" in text and "dist/" in text
+
+
 def test_cas_conflict_reported_in_dry_run(
     fake_playbook: Path, fake_consumer: Path,
 ) -> None:
@@ -609,6 +641,112 @@ def test_drifted_block_without_decision_is_a_conflict(
     # The consumer's hand edit is preserved (not overwritten).
     assert "I edited this canonical block by hand." in agents.read_text(encoding="utf-8")
     assert result.file_states["AGENTS.md"]["conflict"] == ["bootstrap-directive"]
+
+
+def test_yaml_renderers_keep_consumer_edits_outside_managed_content(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """pre-commit / coderabbit / mcp-project merge into the current file:
+    consumer content the templates promise to keep survives an apply."""
+    import yaml
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "pre_commit_extras": {"hooks": [{"id": "extra", "name": "extra", "entry": "echo hi",
+                                         "language": "system"}]},
+        "coderabbit_extras": {"path_filters": ["!gen/**"]},
+        "mcp_project_servers": {"extra-srv": {"id": "extra-srv", "endpoint": None}},
+    }
+    first = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert first.ok is True
+
+    pc = fake_consumer / ".pre-commit-config.yaml"
+    pc.write_text(pc.read_text(encoding="utf-8").replace(
+        "# <<< ai-playbook:end playbook-hooks <<<\n",
+        "# <<< ai-playbook:end playbook-hooks <<<\n"
+        "  - repo: https://github.com/astral-sh/ruff-pre-commit\n"
+        "    rev: v0.5.0\n    hooks:\n      - id: ruff\n",
+    ), encoding="utf-8")
+    cr = fake_consumer / ".coderabbit.yaml"
+    cr.write_text("language: en-US\ntone_instructions: terse\n"
+                  "reviews:\n  profile: assertive\n", encoding="utf-8")
+
+    second = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert second.ok is True
+    repos = yaml.safe_load(pc.read_text(encoding="utf-8"))["repos"]
+    assert any(h["id"] == "ruff" for r in repos for h in r["hooks"])
+    assert [h["id"] for h in repos[-1]["hooks"]] == ["extra"]
+    rabbit = yaml.safe_load(cr.read_text(encoding="utf-8"))
+    assert rabbit["tone_instructions"] == "terse"
+    assert rabbit["reviews"]["profile"] == "assertive"
+    assert rabbit["reviews"]["path_filters"] == ["!gen/**"]
+    mcp = yaml.safe_load((fake_consumer / "mcp-servers.project.yaml").read_text(
+        encoding="utf-8"))
+    assert mcp["servers"]["extra-srv"] == {"id": "extra-srv", "endpoint": None}
+
+    third = _managed_files.apply_managed_files(
+        consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+    )
+    assert sum("identical, no write" in c for c in third.changes) == 3
+
+
+def test_merge_that_does_not_fit_skips_only_that_file(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A YAML file whose layout cannot take the merge is a per-file conflict:
+    it is left untouched and the section fails, but the rest of the batch
+    (here .gitignore) still applies instead of the whole batch aborting."""
+    sample = ("repos:\n-   repo: https://github.com/pre-commit/pre-commit-hooks\n"
+              "    rev: v4.6.0\n    hooks:\n    -   id: trailing-whitespace\n")
+    _write_lf(fake_consumer / ".pre-commit-config.yaml", sample)
+    _write_lf(fake_consumer / ".gitignore", "node_modules/\n")
+    bundle = {
+        "schema": "ai-playbook-config/v1",
+        "pre_commit_extras": {"hooks": []},
+        "gitignore_extras": {"patterns": ["dist/"]},
+    }
+    for dry_run in (True, False):
+        result = _managed_files.apply_managed_files(
+            consumer_root=fake_consumer, playbook_root=fake_playbook, bundle=bundle,
+            dry_run=dry_run,
+        )
+        assert result.ok is False
+        assert "merge_conflict" in result.file_states[".pre-commit-config.yaml"]
+        assert any(".pre-commit-config.yaml" in c and "column 0" in c and "not written" in c
+                   for c in result.changes)
+        assert not any("staging failed" in c for c in result.changes)
+    assert (fake_consumer / ".pre-commit-config.yaml").read_text(encoding="utf-8") == sample
+    assert "dist/" in (fake_consumer / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_malformed_current_markers_fail_closed(
+    fake_playbook: Path, fake_consumer: Path,
+) -> None:
+    """A drifted sealed block next to an unclosed marker (e.g. the syntax
+    documented in a code fence) must NOT bypass the conflict gate: the file is
+    skipped as a conflict, never silently overwritten."""
+    _seal_agents_md(fake_playbook, fake_consumer)
+    agents = fake_consumer / "AGENTS.md"
+    edited = agents.read_text(encoding="utf-8").replace(
+        "Canonical bootstrap.", "My local edit."
+    ) + (
+        "\n## 8 Gotchas\n\n```\n<!-- ai-playbook:begin id=example -->\n```\n"
+    )
+    agents.write_text(edited, encoding="utf-8")
+
+    for dry_run in (True, False):
+        result = _managed_files.apply_managed_files(
+            consumer_root=fake_consumer, playbook_root=fake_playbook,
+            bundle={"schema": "ai-playbook-config/v1",
+                    "project_meta": {"project_identity": "seed"}},
+            dry_run=dry_run,
+        )
+        assert result.ok is False
+        assert any("malformed markers" in c for c in result.changes)
+        assert agents.read_text(encoding="utf-8") == edited
 
 
 def test_drifted_block_keep_mine_preserves_and_reseals(

@@ -80,12 +80,15 @@ jobs:
               }
             }' -f owner="$PROJECT_OWNER" -F number="$PROJECT_NUMBER")
 
+          # Exact title: the bare change-id, or issue_sync's "[<consumer>] <change-id>".
+          # Change-ids prefix each other, so a substring match picks a sibling slice.
+          # Same rule as title_matches() in .ai-playbook/scripts/verify_board_state.py.
           ITEM=$(echo "$PROJECT_DATA" | jq --arg cid "$CHANGE_ID" '
             .data.user.projectV2.items.nodes[]
-            | select(.content.title | tostring | contains($cid))' | head -200)
+            | select((.content.title // "" | tostring | sub("^\\s+"; "") | sub("\\s+$"; "") | sub("^\\[[^\\]]+\\]\\s+"; "")) == $cid)' | head -200)
 
           if [ -z "$ITEM" ]; then
-            echo "::error::No project item found whose title contains '$CHANGE_ID'."
+            echo "::error::No project item found whose title is '$CHANGE_ID' (or '[<consumer>] $CHANGE_ID')."
             echo "Either: (a) add the slice to the project board, or (b) rename the branch to match an existing item."
             exit 1
           fi

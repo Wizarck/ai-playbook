@@ -2,6 +2,73 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
+## [0.24.2] — 2026-11-05 — entry scripts run by path; gates stop failing open, tools stop losing data
+
+### Fixed
+- **Entry scripts run by path.** 31 scripts called as `python .ai-playbook/...`
+  crashed with `ModuleNotFoundError` or ran an editable install's code.
+- **Hooks.** Template hooks no longer end in `|| exit 0` and skip only while
+  their script is missing; new `pre-commit`/`commit-msg` shims run them under
+  `core.hooksPath`; the dispatcher routes TaskStop, KillShell and Jira tools.
+- **Rules / openspec.** jira-closure-evidence, auto-merge-discipline,
+  `--changed-only` and termination receipts stop failing open; the spec-edit
+  guard runs at commit-msg and passes clean merges; board gates match the
+  change-id exactly; auto-ticks are left unstaged, with a safe amend to run.
+- **Rendering.** Renderers merge into the current file, so edits outside
+  markers survive `--update`, without growing AGENTS.md or duplicating hooks
+  or `servers:`; rule `apply` never splices into a marker block; config-UI
+  exports keep caveman/ponytail and hit no false compare-and-swap conflicts.
+- **Caveman.** `off` no longer restores a stale `.mcp.json`; a failed toggle
+  puts back what it changed; compress rejects output that drops the prose.
+- **MCP / lifecycle.** Layered `env.required` is unioned; the global Antigravity
+  config is never truncated; `bootstrap`, `uninstall`, `discover_projects`,
+  `wt_sweep`, `curate` and `sweep_execute` stop losing work or registry entries.
+- **Safety / IO.** `secrets_scan` catches more key formats without new false
+  positives; `retain_memory` fails closed; cmd.exe no longer mangles Windows
+  `gemini` prompts; the SOPS re-key runbook cannot empty the store;
+  `cleanup-zombies --apply` keeps directories that hold registered or
+  tracked submodules (`.skills-sources/<repo>`) or any repository, never
+  deletes a submodule git dir (the report gives the command to check it
+  before removing it by hand), and refuses whatever it cannot inspect.
+
+### Upgrading — behaviour changes
+Bump and reconcile per `upgrade-playbook-pin.md`. Expect new, genuine failures.
+- **Gates that never ran now block:** template pre-commit hooks (`python` must
+  be on PATH), confirm-before-termination and the Jira rules. Re-copy
+  `scripts/install-playbook-hooks.sh` from the template and run it: its shims
+  replace `pre-commit install`, which refuses under `core.hooksPath`.
+  `--update` re-renders `.pre-commit-config.yaml` / `.claude/settings.json`
+  only for bundles with `pre_commit_extras` / `settings`; else copy by hand.
+- **Spec-edit guard** entries at the pre-commit stage block until moved to
+  commit-msg: `--commit-msg-file`, `stages: [commit-msg]`, no `files:`,
+  top-level `default_stages: [pre-commit]` (pre-commit >= 3.2.0). The v0.24.1
+  commented entry (`... || exit 0`) never checked anything: copy the new one.
+- Swap remote `ai-playbook` hook repos for the `repo: local` block in
+  `docs/rules/pre-commit-hooks.rule.md`; re-copy `coderabbit-fallback.yml`
+  (its old secret name is invalid); re-render MCP so `mcp-validate` passes.
+- `uninstall` restores every BASE snapshot over the current file (CLAUDE.md,
+  workflows, ...): preview it with `--dry-run`. `notify` needs verified
+  STARTTLS (`SMTP_CA_FILE`, or `SMTP_STARTTLS=off` for a local relay).
+
+### Known issues
+- Remote-form `.pre-commit-hooks.yaml` hooks still need `python` to import the
+  playbook. git < 2.38 judges a merge whose sides both changed one spec as a
+  hand edit: put the marker in the merge message.
+- A removed `coderabbit_extras` entry stays in `.coderabbit.yaml`; a bundle with
+  `mcp_project_servers` resets a hindsight endpoint edited inside a baseline
+  block whose marker has no `sha=`. Fix both by hand.
+- `secrets_scan` blocks key excerpts with 40+ base64 characters before `...`
+  (shorten them), and misses keys with a short first line or in YAML-list,
+  joined or line-numbered layouts.
+- `uninstall` keeps no copy of what it overwrites (commit first); a reinstall
+  over a kept `.ai-playbook-state/` reuses its snapshots (copy what you need,
+  then delete it); tombstone restores glob `[*?` (`git --literal-pathspecs`).
+- Template git hooks still call `cleanup_zombies.py`, gone since v0.18.0 (run
+  `scripts/rules/cleanup-zombies.rule.py` to preview, then `--apply`). Under
+  `core.hooksPath`, `/dev-flow start`'s prepare-commit-msg belongs in
+  `scripts/git-hooks/`, and `pre-commit install` hints in the docs, template
+  and spec-edit FIX do not apply (bootstrap hides that failure).
+
 ## [0.24.1] — 2026-09-25 — hooks stop depending on the session's cwd
 
 Claude Code runs hooks in the session's *current* directory, not the project

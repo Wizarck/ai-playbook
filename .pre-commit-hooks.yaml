@@ -1,10 +1,18 @@
 # Pre-commit hooks exported by ai-playbook (as a hook provider).
 #
-# Consumers reference these via:
+# A consumer that carries the playbook as its `.ai-playbook` submodule runs
+# these four gates through the `repo: local` block that
+# `python .ai-playbook/scripts/rules/pre-commit-hooks.rule.py apply` inserts
+# (docs/rules/pre-commit-hooks.rule.md): it calls the pinned submodule's
+# scripts by path. The entries below are `language: system` with
+# `python -m scripts.<x>`, so they only run where that `python` can import this
+# repo's `scripts` package (this checkout, or an install of the same version);
+# elsewhere they fail with "No module named 'scripts'". Their `args` point
+# each gate at the repository being committed to. Remote form:
 #
 #   repos:
 #     - repo: https://github.com/Wizarck/ai-playbook
-#       rev: v0.18.0
+#       rev: <tag>
 #       hooks:
 #         - id: validate-pairing
 #         - id: check-doc-language
@@ -25,6 +33,7 @@
   language: system
   files: ^(docs/rules/|scripts/rules/|tests/test_).*$
   pass_filenames: false
+  args: [--root, .]
 
 - id: check-doc-language
   name: check-doc-language (ENGLISH-only docs/ enforcement)
@@ -46,7 +55,7 @@
   language: system
   files: ^docs/.*\.md$
   pass_filenames: false
-  args: [docs/]
+  args: [--root, ., docs/]
 
 - id: check-agents-md-size
   name: check-agents-md-size (D14 — 500-line cap)
@@ -57,3 +66,4 @@
   language: system
   files: ^AGENTS\.md$
   pass_filenames: false
+  args: [--file, AGENTS.md]

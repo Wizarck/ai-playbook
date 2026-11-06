@@ -73,23 +73,7 @@
       baseline.settings = _normalizeSettings(baseline.settings);
       const appliedConfig = (typeof window !== "undefined" ? window.APPLIED_CONFIG : null);
       if (appliedConfig && appliedConfig.schema === "ai-playbook-config/v1") {
-        if (appliedConfig.rules) baseline.rules = deepClone(appliedConfig.rules);
-        if (appliedConfig.features) {
-          baseline.features = baseline.features || {};
-          Object.entries(appliedConfig.features).forEach(([k, f]) => {
-            baseline.features[k] = deepClone(f);
-          });
-        }
-        if (appliedConfig.global_flags) baseline.global_flags = deepClone(appliedConfig.global_flags);
-        if (appliedConfig.skills_enforce && Array.isArray(appliedConfig.skills_enforce.disabled)) {
-          baseline.skills_enforce = { disabled: [...appliedConfig.skills_enforce.disabled] };
-        }
-        if (appliedConfig.mcps_enforce && Array.isArray(appliedConfig.mcps_enforce.disabled)) {
-          baseline.mcps_enforce = { disabled: [...appliedConfig.mcps_enforce.disabled] };
-        }
-        if (appliedConfig.settings) {
-          baseline.settings = _normalizeSettings(appliedConfig.settings);
-        }
+        hydrateFromBundle(baseline, appliedConfig);
         banner("success", `Loaded applied state from ${appliedConfig.generated_at || "previous apply"} (generated_by: ${appliedConfig.generated_by || "unknown"}).`);
       } else if (window.APPLIED_CONFIG_MISSING) {
         // Sidecar absent → first-time use. No banner; defaults are fine.
@@ -773,6 +757,46 @@
     return out;
   }
 
+  // Bundle sections the UI does not edit: carried from the loaded bundle to
+  // the export unchanged, so an export never drops state apply_config holds.
+  const PASSTHROUGH_SECTIONS = ["project_meta", "claude_settings_extras", "caveman_section_policy", "backup_preferences"];
+
+  // Copy every section of a loaded bundle (applied state or an import) into target.
+  function hydrateFromBundle(target, data) {
+    if (data.rules) target.rules = deepClone(data.rules);
+    if (data.features) {
+      target.features = target.features || {};
+      Object.entries(data.features).forEach(([k, f]) => { target.features[k] = deepClone(f); });
+    }
+    if (data.global_flags) target.global_flags = deepClone(data.global_flags);
+    if (data.skills_enforce && Array.isArray(data.skills_enforce.disabled)) {
+      target.skills_enforce = { disabled: [...data.skills_enforce.disabled] };
+    }
+    if (data.mcps_enforce && Array.isArray(data.mcps_enforce.disabled)) {
+      target.mcps_enforce = { disabled: [...data.mcps_enforce.disabled] };
+    }
+    if (data.settings) target.settings = _normalizeSettings(data.settings);
+    if (data.gitignore_extras && Array.isArray(data.gitignore_extras.patterns)) {
+      target.gitignore_extras = { patterns: [...data.gitignore_extras.patterns] };
+    }
+    if (data.coderabbit_extras && typeof data.coderabbit_extras === "object") {
+      target.coderabbit_extras = deepClone(data.coderabbit_extras);
+    }
+    if (data.pre_commit_extras && Array.isArray(data.pre_commit_extras.hooks)) {
+      target.pre_commit_extras = { hooks: data.pre_commit_extras.hooks.map(h => deepClone(h)) };
+    }
+    if (data.mcp_project_servers && typeof data.mcp_project_servers === "object") {
+      target.mcp_project_servers_edit = _mcpMapToList(data.mcp_project_servers);
+      delete target.mcp_project_servers;
+    }
+    if (data.file_curate_intents && typeof data.file_curate_intents === "object") {
+      target.file_curate_intents = deepClone(data.file_curate_intents);
+    }
+    target.passthrough = {};
+    PASSTHROUGH_SECTIONS.forEach(k => { if (data[k] !== undefined) target.passthrough[k] = deepClone(data[k]); });
+    return target;
+  }
+
   function _ensureConfigFiles() {
     if (!state.gitignore_extras || !Array.isArray(state.gitignore_extras.patterns)) {
       state.gitignore_extras = { patterns: Array.isArray((state.gitignore_extras || {}).patterns) ? state.gitignore_extras.patterns : [] };
@@ -916,9 +940,9 @@
 
   // ---- .pre-commit-config.yaml — extra hooks ----
   const _PC_SCALARS = [
-    { key: "name", ph: "name" },
-    { key: "entry", ph: "entry (command/script)" },
-    { key: "language", ph: "language (system/python/script…)" },
+    { key: "name", ph: "name (required)" },
+    { key: "entry", ph: "entry (required: command/script)" },
+    { key: "language", ph: "language (required: system/python/script…)" },
     { key: "files", ph: "files (regex)" },
     { key: "exclude", ph: "exclude (regex)" },
   ];
@@ -1655,6 +1679,9 @@
       });
       if (Object.keys(baseShas).length > 0) bundle.base_shas = baseShas;
     }
+    Object.entries(state.passthrough || {}).forEach(([k, v]) => {
+      if (!(k in bundle)) bundle[k] = deepClone(v);
+    });
     return bundle;
   }
 
@@ -1667,6 +1694,12 @@
       if (e.enabled !== false) return;
       const reason = (e.reason || "").trim();
       if (reason.length < 10) errors.push(`${slug} requires reason >=10 chars (currently ${reason.length})`);
+    });
+    // A `repo: local` hook without name/entry/language makes pre-commit reject
+    // the whole config (every commit blocked); apply_config refuses to render it.
+    ((state.pre_commit_extras || {}).hooks || []).map(_cleanPreCommitHook).filter(Boolean).forEach(h => {
+      const missing = ["name", "entry", "language"].filter(k => !h[k]);
+      if (missing.length) errors.push(`pre-commit hook ${h.id} needs ${missing.join(", ")}`);
     });
     if (errors.length > 0) {
       banner("error", "Cannot export — fix these issues first:\n• " + errors.join("\n• "));
@@ -1843,32 +1876,8 @@
         state = deepClone(defaults);
         state.skills_enforce = state.skills_enforce || { disabled: [] };
         state.mcps_enforce = state.mcps_enforce || { disabled: [] };
-        if (data.rules) state.rules = deepClone(data.rules);
-        if (data.features) {
-          state.features = state.features || {};
-          Object.entries(data.features).forEach(([k, f]) => { state.features[k] = deepClone(f); });
-        }
-        if (data.global_flags) state.global_flags = deepClone(data.global_flags);
-        if (data.skills_enforce && Array.isArray(data.skills_enforce.disabled)) {
-          state.skills_enforce = { disabled: [...data.skills_enforce.disabled] };
-        }
-        if (data.mcps_enforce && Array.isArray(data.mcps_enforce.disabled)) {
-          state.mcps_enforce = { disabled: [...data.mcps_enforce.disabled] };
-        }
         state.settings = _normalizeSettings(data.settings);
-        if (data.gitignore_extras && Array.isArray(data.gitignore_extras.patterns)) {
-          state.gitignore_extras = { patterns: [...data.gitignore_extras.patterns] };
-        }
-        if (data.coderabbit_extras && typeof data.coderabbit_extras === "object") {
-          state.coderabbit_extras = deepClone(data.coderabbit_extras);
-        }
-        if (data.pre_commit_extras && Array.isArray(data.pre_commit_extras.hooks)) {
-          state.pre_commit_extras = { hooks: data.pre_commit_extras.hooks.map(h => deepClone(h)) };
-        }
-        if (data.mcp_project_servers && typeof data.mcp_project_servers === "object") {
-          state.mcp_project_servers_edit = _mcpMapToList(data.mcp_project_servers);
-          delete state.mcp_project_servers;
-        }
+        hydrateFromBundle(state, data);
         renderAll();
         updateCounters();
         banner("success", `Imported ${file.name}. Review the tabs, then click Export to round-trip.`);
@@ -1880,8 +1889,16 @@
   }
 
   function onReset() {
-    if (!confirm("Reset all toggles to defaults? Unsaved changes will be lost.")) return;
+    if (!confirm("Reset all toggles to defaults? Unsaved changes will be lost. " +
+                 "Curate decisions (Files tab) and the sections this UI does not edit " +
+                 "(project metadata, settings extras, backup preferences) are kept.")) return;
+    // Not toggles: the UI cannot re-create the pass-through sections, and the
+    // curate decisions protect consumer edits. Dropping them here made the
+    // next export lose them from applied-config.json.
+    const kept = { passthrough: state.passthrough, file_curate_intents: state.file_curate_intents };
     state = deepClone(defaults);
+    if (kept.passthrough) state.passthrough = kept.passthrough;
+    if (kept.file_curate_intents) state.file_curate_intents = kept.file_curate_intents;
     state.skills_enforce = { disabled: [] };
     state.mcps_enforce = { disabled: [] };
     state.settings = _normalizeSettings(defaults && defaults.settings);

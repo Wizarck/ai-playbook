@@ -48,6 +48,12 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, OSError):
         pass
 
+
+# Make `from scripts...` resolve when run by path (`python .ai-playbook/scripts/...`), not just via -m.
+_PLAYBOOK_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLAYBOOK_ROOT not in sys.path:
+    sys.path.insert(0, _PLAYBOOK_ROOT)
+
 from scripts._ensure_deps import ensure_runtime_deps  # noqa: E402
 
 ensure_runtime_deps("yaml", "jsonschema")
@@ -99,6 +105,7 @@ class Frontmatter:
     start_line: int
     end_line: int
     body: str
+    parse_error: str | None = None  # fenced block present but not a YAML mapping
 
 
 # ---------------------------------------------------------------------------
@@ -165,12 +172,19 @@ def parse_frontmatter(text: str) -> Frontmatter:
             present=False, data={}, raw="", start_line=0, end_line=0, body=text
         )
     raw = "\n".join(lines[1:end])
+    parse_error = None
     try:
         data = yaml.safe_load(raw) or {}
-    except yaml.YAMLError:
-        data = {}
+    except yaml.YAMLError as exc:
+        # The block starts on file line 2: shift the marks so the message
+        # names the line in the file, not the line within the block.
+        marks = {id(m): m for m in (getattr(exc, "context_mark", None),
+                                    getattr(exc, "problem_mark", None)) if m is not None}
+        for mark in marks.values():
+            mark.line += 1
+        data, parse_error = {}, " ".join(str(exc).split())
     if not isinstance(data, dict):
-        data = {}
+        data, parse_error = {}, f"frontmatter is a YAML {type(data).__name__}, not a mapping"
     body = "\n".join(lines[end + 1 :])
     return Frontmatter(
         present=True,
@@ -179,6 +193,7 @@ def parse_frontmatter(text: str) -> Frontmatter:
         start_line=1,
         end_line=end + 1,
         body=body,
+        parse_error=parse_error,
     )
 
 
@@ -522,6 +537,22 @@ def validate_one(
         return 1
     text = file_path.read_text(encoding="utf-8")
     fm = parse_frontmatter(text)
+
+    if fm.parse_error:
+        # Never autofix here: the rewrite would replace every unparsed key
+        # with just the injected defaults.
+        emit_error(
+            why=f"AGENTS.md frontmatter is not valid YAML ({fm.parse_error})",
+            where=f"{_format_path(file_path)}:{fm.start_line}",
+            fix="fix the YAML by hand (quote values containing `: `, no tabs), then re-run"
+            + ("; --autofix refused to rewrite it" if autofix else "."),
+            # This gate is always overridable (main() honours the reason).
+            override_invocation=(
+                f"python -m scripts.schema_validate {file_path} "
+                f"--force-with-reason=\"<>=10 char reason\""
+            ),
+        )
+        return 1
 
     if autofix:
         new_fm, fixes = apply_autofix(fm, file_path=file_path)

@@ -726,3 +726,181 @@ def test_setup_telemetry_label_missing_gh_prints_manual(
     monkeypatch.setattr(bs.shutil, "which", lambda _name: None)
     bs.setup_telemetry_label(tmp_path, enabled=True, dry_run=False)
     assert "gh label create telemetry-report" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Regression: install lifecycle (re-run clobber, retry pin, false greens)
+# ---------------------------------------------------------------------------
+
+
+def test_main_rerun_on_bootstrapped_target_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second plain bootstrap must not copy_templates over consumer edits."""
+    _stub_prereqs(monkeypatch)
+    _neuter_subprocess(monkeypatch, [])
+    monkeypatch.chdir(tmp_path)
+    assert bs.main(["alpha", "--owner", "a@b.c"]) == 0
+    # What the (stubbed) `git submodule add` + checkout would have left behind.
+    (tmp_path / "alpha" / ".gitmodules").write_text(
+        '[submodule ".ai-playbook"]\n\tpath = .ai-playbook\n', encoding="utf-8"
+    )
+    (tmp_path / "alpha" / ".ai-playbook" / "specs").mkdir(parents=True)
+    agents = tmp_path / "alpha" / "AGENTS.md"
+    agents.write_text(agents.read_text(encoding="utf-8") + "EDIT-ONE\n", encoding="utf-8")
+
+    rc = bs.main(["alpha", "--owner", "a@b.c"])
+
+    assert rc == 1
+    assert "EDIT-ONE" in agents.read_text(encoding="utf-8")
+
+
+def test_main_reinstall_after_uninstall_is_not_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Uninstall keeps AGENTS.md's v1 frontmatter (outside the marker blocks):
+    a v1 AGENTS.md without the submodule is no install, and --update would
+    never add the submodule. Bootstrap must install, adopting the file."""
+    _stub_prereqs(monkeypatch)
+    calls: list[list[str]] = []
+    _neuter_subprocess(monkeypatch, calls)
+    target = tmp_path / "alpha"
+    target.mkdir()
+    (target / "AGENTS.md").write_text(
+        "---\nschema: agents-md/v1\nproject: alpha\n---\n# alpha\nleft by uninstall\n", encoding="utf-8"
+    )
+
+    assert bs.main(["alpha", "--path", str(target), "--owner", "a@b.c", "--dry-run"]) == 0
+    assert bs.main(["alpha", "--path", str(target), "--owner", "a@b.c"]) == 0
+
+    assert any("submodule" in c and "add" in c for c in calls)
+    base = base_record_for(target, "AGENTS.md")
+    assert base is not None
+    assert "left by uninstall" in (target / base.backup_rel_path).read_text(encoding="utf-8")
+
+
+def test_main_rerun_on_unpopulated_submodule_names_the_init(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Registered but never checked out (fresh clone): --update alone cannot
+    help, the FIX must name `git submodule update --init`."""
+    target = tmp_path / "alpha"
+    target.mkdir()
+    (target / "AGENTS.md").write_text("---\nschema: agents-md/v1\n---\n", encoding="utf-8")
+    (target / ".gitmodules").write_text('[submodule ".ai-playbook"]\n\tpath = .ai-playbook\n', encoding="utf-8")
+
+    assert bs.main(["alpha", "--path", str(target), "--owner", "a@b.c"]) == 1
+    assert "submodule update --init" in capsys.readouterr().err
+
+
+def test_add_submodule_retry_rechecks_pin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A populated submodule left by a failed pin checkout must not pass a retry."""
+    _stub_prereqs(monkeypatch)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(list(cmd))
+        return _FakeProc(returncode=1 if "checkout" in cmd else 0)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+    (tmp_path / ".ai-playbook" / "specs").mkdir(parents=True)
+    (tmp_path / ".gitmodules").write_text(
+        '[submodule ".ai-playbook"]\n\tpath = .ai-playbook\n', encoding="utf-8"
+    )
+
+    rc = bs.add_submodule(target_dir=tmp_path, playbook_url="u", pin="v9.9.9-typo", dry_run=False)
+
+    assert rc == bs.RC_PIN_FAILED
+    assert any("checkout" in c and "v9.9.9-typo" in c for c in calls)
+
+
+def test_add_submodule_stray_dir_is_not_populated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """.ai-playbook/ holding only overrides.log is not a playbook checkout."""
+    _stub_prereqs(monkeypatch)
+    calls: list[list[str]] = []
+    _neuter_subprocess(monkeypatch, calls)
+    (tmp_path / ".ai-playbook").mkdir()
+    (tmp_path / ".ai-playbook" / "overrides.log").write_text("x\n", encoding="utf-8")
+
+    bs.add_submodule(target_dir=tmp_path, playbook_url="u", pin="v1", dry_run=False)
+
+    assert any("submodule" in c and "add" in c for c in calls)
+
+
+def test_main_stray_dir_names_the_dir_not_connectivity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`git submodule add` exits 128 ("already exists and is not a valid git
+    repo") over a stray .ai-playbook/: say so instead of "check connectivity"."""
+    _stub_prereqs(monkeypatch)
+
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if "submodule" in cmd:
+            return _FakeProc(returncode=128, stderr="fatal: '.ai-playbook' already exists")
+        return _FakeProc(returncode=0)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+    target = tmp_path / "alpha"
+    (target / ".ai-playbook").mkdir(parents=True)
+    (target / ".ai-playbook" / "overrides.log").write_text("x\n", encoding="utf-8")
+
+    assert bs.add_submodule(target_dir=target, playbook_url="u", pin="v1", dry_run=False) == bs.RC_STRAY_DIR
+    assert bs.main(["alpha", "--path", str(target), "--owner", "a@b.c"]) == 2
+
+    err = capsys.readouterr().err
+    assert "not a git checkout" in err and "remove it" in err
+    assert "connectivity" not in err
+
+
+def test_main_missing_from_config_exits_1(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_prereqs(monkeypatch)
+    _neuter_subprocess(monkeypatch, [])
+    monkeypatch.chdir(tmp_path)
+
+    rc = bs.main(["alpha", "--owner", "a@b.c", "--from-config", str(tmp_path / "typo.json")])
+
+    assert rc == 1
+    assert not (tmp_path / "alpha" / "AGENTS.md").exists()
+
+
+def test_main_unloadable_bundle_fails_fresh_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """reconcile() returning 1 (bundle not loadable) must not end in exit 0."""
+    _stub_prereqs(monkeypatch)
+    _neuter_subprocess(monkeypatch, [])
+    monkeypatch.chdir(tmp_path)
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+
+    rc = bs.main(["alpha", "--owner", "a@b.c", "--from-config", str(bad)])
+
+    assert rc == 1
+
+
+def test_main_doctor_failure_is_not_green(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _stub_prereqs(monkeypatch)
+    envs: dict[str, dict] = {}
+
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        for mod in ("scripts.doctor", "scripts.discover_projects"):
+            if mod in cmd:
+                envs[mod] = kwargs.get("env") or {}
+                return _FakeProc(returncode=1 if mod == "scripts.doctor" else 0)
+        return _FakeProc(returncode=0)
+    monkeypatch.setattr(bs.subprocess, "run", fake_run)
+    monkeypatch.chdir(tmp_path)
+
+    rc = bs.main(["alpha", "--owner", "a@b.c", "--no-check"])
+
+    assert rc == 1
+    assert "Bootstrap complete" not in capsys.readouterr().out
+    root = str(bs.find_playbook_root())
+    for mod in ("scripts.doctor", "scripts.discover_projects"):
+        assert envs[mod].get("PYTHONPATH", "").split(bs.os.pathsep)[0] == root

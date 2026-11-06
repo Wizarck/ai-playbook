@@ -29,6 +29,7 @@ def jsonl_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("AIPLAYBOOK_NOTIFICATIONS_FILE", str(path))
     # Clear SMTP env so tests don't accidentally send mail.
     for var in ("SMTP_USER", "SMTP_PASSWORD", "SMTP_HOST", "SMTP_PORT",
+                "SMTP_STARTTLS", "SMTP_CA_FILE",
                 "AIPLAYBOOK_NOTIFICATIONS_FROM", "AIPLAYBOOK_NOTIFICATIONS_TO",
                 "AIPLAYBOOK_NOTIFICATIONS_EMAIL_MIN_SEVERITY"):
         monkeypatch.delenv(var, raising=False)
@@ -213,8 +214,12 @@ class _FakeSMTP:
     def ehlo(self) -> None:
         pass
 
-    def starttls(self) -> None:
-        pass
+    starttls_error: Exception | None = None
+
+    def starttls(self, context: Any = None) -> None:
+        if self.starttls_error is not None:
+            raise self.starttls_error
+        self.tls_context = context
 
     def login(self, user: str, password: str) -> None:
         self.login_user = user
@@ -230,6 +235,8 @@ def smtp_enabled(monkeypatch: pytest.MonkeyPatch) -> type[_FakeSMTP]:
     monkeypatch.setenv("SMTP_PORT", "587")
     monkeypatch.setenv("SMTP_USER", "bot@example.com")
     monkeypatch.setenv("SMTP_PASSWORD", "secret")
+    monkeypatch.delenv("SMTP_STARTTLS", raising=False)
+    monkeypatch.delenv("SMTP_CA_FILE", raising=False)
     monkeypatch.setattr(notify_mod.smtplib, "SMTP", _FakeSMTP)
     return _FakeSMTP
 
@@ -250,6 +257,100 @@ def test_email_sent_on_error(
 ) -> None:
     notify_mod.notify(event="demo.err", severity="error", summary="boom")
     assert len(smtp_enabled.instances[0].sent) == 1
+
+
+def test_starttls_verifies_certificate(smtp_enabled: type[_FakeSMTP]) -> None:
+    import ssl
+    ok, _ = notify_mod._send_email(
+        event="e", severity="error", summary="s", detail="", attrs={},
+        actor="a", ts="t",
+    )
+    assert ok
+    ctx = smtp_enabled.instances[0].tls_context
+    assert isinstance(ctx, ssl.SSLContext)
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+
+
+def test_starttls_failure_never_logs_in_cleartext(
+    smtp_enabled: type[_FakeSMTP], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _FakeSMTP, "starttls_error", smtplib.SMTPNotSupportedError("no STARTTLS"),
+    )
+    ok, reason = notify_mod._send_email(
+        event="e", severity="error", summary="s", detail="", attrs={},
+        actor="a", ts="t",
+    )
+    inst = smtp_enabled.instances[0]
+    assert not ok and reason == "smtp-error:starttls"
+    assert not hasattr(inst, "login_user")
+    assert inst.sent == []
+
+
+def _send() -> tuple[bool, str]:
+    return notify_mod._send_email(
+        event="e", severity="error", summary="s", detail="", attrs={},
+        actor="a", ts="t",
+    )
+
+
+@pytest.mark.parametrize("value", ["off", "OFF", "0", "false", "no"])
+def test_starttls_off_sends_plain_and_never_sends_credentials(
+    smtp_enabled: type[_FakeSMTP], monkeypatch: pytest.MonkeyPatch, value: str,
+) -> None:
+    """The explicit opt-out for a local relay without TLS (Mailpit, MailHog,
+    a port-25 relay). Nothing is encrypted, so login() must not be called."""
+    monkeypatch.setenv("SMTP_STARTTLS", value)
+    ok, reason = _send()
+    inst = smtp_enabled.instances[0]
+    assert ok and reason == "sent"
+    assert not hasattr(inst, "tls_context"), "STARTTLS attempted despite the opt-out"
+    assert not hasattr(inst, "login_user"), "credentials sent over a plaintext session"
+    assert len(inst.sent) == 1
+
+
+@pytest.mark.parametrize("value", ["", "on", "required", "maybe"])
+def test_any_other_starttls_value_keeps_it_mandatory(
+    smtp_enabled: type[_FakeSMTP], monkeypatch: pytest.MonkeyPatch, value: str,
+) -> None:
+    """NEGATIVE CONTROL: only an explicit off value downgrades."""
+    monkeypatch.setenv("SMTP_STARTTLS", value)
+    monkeypatch.setattr(
+        _FakeSMTP, "starttls_error", smtplib.SMTPNotSupportedError("no STARTTLS"),
+    )
+    assert _send() == (False, "smtp-error:starttls")
+    assert smtp_enabled.instances[0].sent == []
+
+
+def test_smtp_ca_file_is_the_trust_anchor_for_starttls(
+    smtp_enabled: type[_FakeSMTP], monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """A private-CA or self-signed relay is trusted via SMTP_CA_FILE, with
+    verification still on, rather than by turning TLS off."""
+    import ssl
+    real = ssl.create_default_context
+    calls: list[dict[str, Any]] = []
+
+    def recording(**kwargs: Any) -> ssl.SSLContext:
+        calls.append(kwargs)
+        return real()
+
+    ca = tmp_path / "relay-ca.pem"
+    monkeypatch.setenv("SMTP_CA_FILE", str(ca))
+    monkeypatch.setattr(notify_mod.ssl, "create_default_context", recording)
+    ok, _ = _send()
+    assert ok
+    assert calls == [{"cafile": str(ca)}]
+    ctx = smtp_enabled.instances[0].tls_context
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+
+
+def test_an_unreadable_ca_file_fails_closed_before_connecting(
+    smtp_enabled: type[_FakeSMTP], monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SMTP_CA_FILE", str(tmp_path / "missing.pem"))
+    assert _send() == (False, "smtp-error:ca-file")
+    assert smtp_enabled.instances == []
 
 
 def test_email_suppressed_below_threshold(

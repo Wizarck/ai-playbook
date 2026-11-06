@@ -27,6 +27,7 @@ sibling ``.pre-absorb.bak`` backup, both gated on ``dry_run=False``.
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -42,6 +43,8 @@ from scripts.mcp.validate import load_layers
 class AbsorbResult:
     written_personal: list[str] = field(default_factory=list)
     report_project: list[str] = field(default_factory=list)
+    # Tenant servers whose args cannot be folded into `command` losslessly.
+    report_manual: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     personal_path: Path | None = None
     backed_up_mcp: bool = False
@@ -95,10 +98,34 @@ def _env_names(item: dict[str, Any]) -> list[str]:
     return out
 
 
+def fold_command(item: dict[str, Any]) -> str | None:
+    """``command`` with the entry's ``args`` appended, or ``None`` when that
+    string would not split back to the same argv.
+
+    v1 has no ``args`` field and render emits ``command`` verbatim; the global
+    Antigravity writer splits it on whitespace, and a POSIX shell would parse
+    quotes and backslashes. Only tokens that need no quoting at all
+    (``shlex.quote(t) == t``) survive every one of those, so a Windows path or
+    an arg holding a space or a quote is not folded.
+    """
+    command = str(item["command"])
+    args = item.get("args")
+    if not (isinstance(args, list) and args):
+        return command
+    tokens = [command, *(str(a) for a in args)]
+    if all(t and shlex.quote(t) == t for t in tokens):
+        return " ".join(tokens)
+    return None
+
+
 def to_layer_entry(sid: str, item: dict[str, Any]) -> dict[str, Any]:
-    """Map a ``.mcp.json`` server entry to a ``mcp-servers/v1`` personal entry."""
-    if item.get("transport"):
-        transport = str(item["transport"])
+    """Map a ``.mcp.json`` server entry to a ``mcp-servers/v1`` personal entry.
+
+    Raises ``ValueError`` for a stdio entry whose ``args`` cannot be folded into
+    ``command`` losslessly (see :func:`fold_command`).
+    """
+    if item.get("transport") or item.get("type"):  # `.mcp.json` spells it `type`
+        transport = str(item.get("transport") or item["type"])
     elif item.get("command"):
         transport = "stdio"
     else:
@@ -112,9 +139,10 @@ def to_layer_entry(sid: str, item: dict[str, Any]) -> dict[str, Any]:
     }
     if transport == "stdio":
         if item.get("command"):
-            entry["command"] = item["command"]
-        if isinstance(item.get("args"), list):
-            entry["args"] = list(item["args"])
+            folded = fold_command(item)
+            if folded is None:
+                raise ValueError(f"{sid}: args cannot be folded into `command` losslessly")
+            entry["command"] = folded
     else:
         endpoint = item.get("endpoint") or item.get("url") or item.get("httpUrl")
         if endpoint:
@@ -194,13 +222,17 @@ def absorb_mcp_json(
 
     to_personal: dict[str, dict[str, Any]] = {}
     report_project: list[str] = []
+    report_manual: list[str] = []
     skipped: list[str] = []
     for sid, item in servers.items():
         if sid in existing:
             skipped.append(sid)
             continue
         if classify(sid, base_ids) == "personal":
-            to_personal[sid] = to_layer_entry(sid, item)
+            try:
+                to_personal[sid] = to_layer_entry(sid, item)
+            except ValueError:
+                report_manual.append(sid)
         else:
             report_project.append(sid)
 
@@ -215,6 +247,7 @@ def absorb_mcp_json(
     return AbsorbResult(
         written_personal=written if not dry_run else sorted(to_personal),
         report_project=sorted(report_project),
+        report_manual=sorted(report_manual),
         skipped=sorted(skipped),
         personal_path=target,
         backed_up_mcp=backed_up,
@@ -227,6 +260,7 @@ __all__ = [
     "AbsorbResult",
     "absorb_mcp_json",
     "classify",
+    "fold_command",
     "parse_mcp_json",
     "to_layer_entry",
 ]
