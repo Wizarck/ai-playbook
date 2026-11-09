@@ -455,6 +455,8 @@ def test_global_config_written_owner_only(fake_home: Path) -> None:
     doc = json.loads(cfg.read_text(encoding="utf-8"))
     assert set(doc["mcpServers"]) == {"keep", "srv"}
 
+
+# ---------------------------------------------------------------------------
 # find_secrets_env — no project name is baked in
 # ---------------------------------------------------------------------------
 

@@ -549,7 +549,7 @@ def test_remote_path_blocks_a_closure_without_evidence(monkeypatch):
     (render(..., remote=True)) and the dispatcher failed it open."""
     monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
     _stub_remote(monkeypatch, _remote_issue(""))
-    verdict = RULE.pretooluse(_transition_event("GPLO-1"))
+    verdict = RULE.pretooluse(_transition_event("PROJ-1"))
     assert verdict is not None and verdict.verdict == "block"
 
 
@@ -557,7 +557,7 @@ def test_remote_path_allows_a_closure_with_evidence(monkeypatch):
     """NEGATIVE CONTROL."""
     monkeypatch.setenv(RULE.DONE_TRANSITIONS_ENV, "31")
     _stub_remote(monkeypatch, _remote_issue(GOOD))
-    assert RULE.pretooluse(_transition_event("GPLO-1")) is None
+    assert RULE.pretooluse(_transition_event("PROJ-1")) is None
 
 
 def test_credentials_without_the_opt_in_do_nothing(monkeypatch):
@@ -569,7 +569,7 @@ def test_credentials_without_the_opt_in_do_nothing(monkeypatch):
     """
     monkeypatch.delenv(RULE.DONE_TRANSITIONS_ENV, raising=False)
     fetched = _stub_remote(monkeypatch, _remote_issue(""))
-    assert RULE.pretooluse(_transition_event("GPLO-1")) is None
+    assert RULE.pretooluse(_transition_event("PROJ-1")) is None
     assert fetched == [], "the opt-out consumer's transition reached the network"
 
 
@@ -580,5 +580,5 @@ def test_remote_status_category_wins_over_the_declared_ids(monkeypatch):
     issue = _remote_issue("")
     issue["transitions"].append({"id": "41", "to": {"statusCategory": {"key": "done"}}})
     _stub_remote(monkeypatch, issue)
-    verdict = RULE.pretooluse(_transition_event("GPLO-1", tid="41"))
+    verdict = RULE.pretooluse(_transition_event("PROJ-1", tid="41"))
     assert verdict is not None and verdict.verdict == "block"

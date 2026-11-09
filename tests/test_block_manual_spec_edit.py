@@ -351,12 +351,12 @@ _COMMIT_MSG_ENTRY = (
     "        entry: python .ai-playbook/scripts/block_manual_spec_edit.py --commit-msg-file\n"
     "        language: system\n        stages: [commit-msg]\n"
 )
-_PRE_COMMIT_STAGE_ENTRY = (  # the v0.24.1-era wiring, e.g. livekit's
+_PRE_COMMIT_STAGE_ENTRY = (  # the v0.24.1-era wiring, e.g. a consumer's
     "repos:\n  - repo: local\n    hooks:\n      - id: block-manual-spec-edit\n"
     "        name: guard\n        entry: python .ai-playbook/scripts/block_manual_spec_edit.py\n"
     "        language: system\n        files: ^openspec/specs/.*\\.md$\n"
 )
-# livekit's entry moved to commit-msg in place, `files:` kept, plus the
+# a consumer's entry moved to commit-msg in place, `files:` kept, plus the
 # pre-commit-stage copy the template suggests for CI.
 _MIGRATED_IN_PLACE_WITH_CI_COPY = (
     "default_stages: [pre-commit]\n" + _COMMIT_MSG_ENTRY

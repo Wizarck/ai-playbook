@@ -300,7 +300,7 @@ def render_checklist(
     )
     lines.append(
         "- [ ] **Error handling** — error paths include remediation hints? "
-        "broad `except` justified? appropriate `IguanaError` subclass?"
+        "broad `except` justified? appropriate `ProjectError` subclass?"
     )
     lines.append(
         "- [ ] **Security** — input validation? regex anchored? "

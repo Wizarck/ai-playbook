@@ -123,7 +123,7 @@ def test_sibling_slice_with_longer_id_does_not_match() -> None:
 def test_issue_sync_consumer_prefix_matches() -> None:
     """issue_sync files board issues as '[<consumer>] <change-id>'; exact
     matching must not turn those boards into exit 2 (item not found)."""
-    payload = _make_graphql_response([_item(title="[iguanatrader] risk-engine", status="Done")])
+    payload = _make_graphql_response([_item(title="[project-b] risk-engine", status="Done")])
     with _mock_subprocess_run_returning(payload):
         rc = verify_board_state.main(
             ["--change-id", "risk-engine", "--owner", "Wizarck", "--project-number", "2"]
@@ -133,8 +133,8 @@ def test_issue_sync_consumer_prefix_matches() -> None:
 
 def test_consumer_prefixed_sibling_does_not_match() -> None:
     payload = _make_graphql_response([
-        _item(title="[iguanatrader] risk-engine-protections", status="Done"),
-        _item(title="[iguanatrader] risk-engine", status="In Progress"),
+        _item(title="[project-b] risk-engine-protections", status="Done"),
+        _item(title="[project-b] risk-engine", status="In Progress"),
     ])
     with _mock_subprocess_run_returning(payload):
         rc = verify_board_state.main(
@@ -148,9 +148,9 @@ def test_consumer_prefixed_sibling_does_not_match() -> None:
 TITLE_CASES = [
     ("risk-engine", True),
     ("  risk-engine  ", True),
-    ("[iguanatrader] risk-engine", True),
+    ("[project-b] risk-engine", True),
     ("risk-engine-protections", False),
-    ("[iguanatrader] risk-engine-protections", False),
+    ("[project-b] risk-engine-protections", False),
     ("feat: risk-engine", False),
     ("[a] [b] risk-engine", False),
     ("", False),

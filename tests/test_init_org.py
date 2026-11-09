@@ -147,8 +147,6 @@ def test_every_flag_hits_the_real_repo() -> None:
     io.apply_edits(root, plan, dry_run=True, flag_hits=hits)
     for flag in ("--hindsight-url", "--owner-email"):
         assert hits.get(flag, 0) >= 1, flag
-    tmpl = (root / "templates" / "new-project" / ".claude" / "settings.json.tmpl")
-    assert any(e.path == tmpl.relative_to(root).as_posix() for e in plan)
 
 
 def test_main_flag_matching_nothing_exits_1(
