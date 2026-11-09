@@ -85,7 +85,7 @@ suggested_env_var: MODEL_MIGRATION_REQUESTED=claude-haiku-4-5:claude-haiku-5-0
 
 Two sources, in order:
 
-1. **`verify_llm_routing.py`** (Change C). Greps every consumer for the deprecated model ID across `scripts/`, `langgraph-aiops/`, `project-d_ops/`, `configs/`. Output: file + line number per occurrence, plus task class context where derivable.
+1. **`verify_llm_routing.py`** (Change C). Greps every consumer for the deprecated model ID across `scripts/`, `aiops/`, `project-d_ops/`, `configs/`. Output: file + line number per occurrence, plus task class context where derivable.
 2. **Fallback regex sweep** (when `verify_llm_routing.py` is absent). Pattern: `(claude|gemini|gpt-)[a-z0-9.-]+` scoped to the same paths. Manual triage required to filter out doc references.
 
 Both produce the same shape: `(path, line, model_id, suggested_substitute)` rows.

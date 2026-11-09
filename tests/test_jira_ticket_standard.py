@@ -1,9 +1,9 @@
-"""Tests for the ticket-authoring standard (PROJ-1350).
+"""Tests for the ticket-authoring standard.
 
 Structured as the standard's own A/B/C, because the slice dogfoods it:
 
-  A — the happy path, anchored on the REAL PROJ-1350 description
-      (tests/fixtures/jira_ticket_proj_1350.md). Not a synthetic sample: the
+  A — the happy path, anchored on a real, sanitised ticket description
+      (tests/fixtures/jira_ticket_example.md). Not a synthetic sample: the
       first version of the normaliser rejected all four of that ticket's metric
       lines over markdown emphasis and a trailing full stop. A fixture copied
       from production is the only kind that catches that class of bug.
@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.rules import _ticket_kit as K  # noqa: E402, N812
 
-FIXTURE = ROOT / "tests" / "fixtures" / "jira_ticket_proj_1350.md"
+FIXTURE = ROOT / "tests" / "fixtures" / "jira_ticket_example.md"
 FEATURE = "Feature / Big Improvement"
 
 
@@ -56,7 +56,7 @@ def kinds(result: K.Result) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_real_proj_1350_is_conformant(conformant):
+def test_example_ticket_is_conformant(conformant):
     result = K.validate_description(conformant, FEATURE)
     assert result.ok, K.render_findings(result.findings)
     assert "Métricas" in result.matched_sections
@@ -72,7 +72,7 @@ def test_contract_loads_with_five_metric_types():
 
 @pytest.mark.parametrize("heading", [
     "Métricas",
-    "Métricas (métrica → tipo)",   # both variants appear in PROJ-1350 itself
+    "Métricas (métrica → tipo)",   # both variants appear in the example ticket itself
     "MÉTRICAS",
     "Metricas",                     # no accent: a human typing in the Jira UI
     "2. Métricas",
@@ -281,7 +281,7 @@ def test_regression_section_without_a_referent_is_rejected():
 
 @pytest.mark.parametrize("body", [
     "tests/test_jira_ticket_standard.py",
-    "test_real_proj_1350_is_conformant",
+    "test_example_ticket_is_conformant",
     "ninguno aún — el módulo se estrena en esta slice",
 ])
 def test_regression_section_accepts_a_real_referent(body):
@@ -496,7 +496,7 @@ A per-tenant enablement row carrying a DPIA reference, plus its test.
 - **A — baseline**: with an enablement row present the scan is enqueued.
 - **B — control negativo**: with no row, zero tasks are enqueued; run_task is
   replaced with a bomb that raises if the guard stops holding.
-- **C — regresión**: backend/tests/datashield/test_piracy_scan_killswitch.py.
+- **C — regresión**: backend/tests/beta/test_scan_killswitch.py.
 
 ## Metrics
 - Tenants carrying a registered dpia_reference → compliance
@@ -543,6 +543,6 @@ def test_b_an_unrelated_english_heading_still_fails():
 
 
 def test_c_spanish_headings_keep_validating(conformant):
-    """C — regression: the real PROJ-1350 ticket is Spanish and must not move."""
+    """C — regression: the example ticket is Spanish and must not move."""
     result = K.validate_description(conformant, FEATURE)
     assert result.ok, K.render_findings(result.findings)

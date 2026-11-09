@@ -328,7 +328,7 @@ function writeReport(playwrightVer, chromiumVer) {
   lines.push('# Config UI — Playwright sweep results');
   lines.push('');
   lines.push(`- Date: ${ts}`);
-  lines.push(`- Target: ${UI_DIR.replace(/\\/g, '/')}  (config-ui at repo root after move; identical to GTM-Advisor copy pre-move)`);
+  lines.push(`- Target: ${UI_DIR.replace(/\\/g, '/')}  (config-ui at repo root after move)`);
   lines.push(`- Playwright: ${playwrightVer}`);
   lines.push(`- Chromium: ${chromiumVer}`);
   lines.push('');

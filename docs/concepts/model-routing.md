@@ -21,8 +21,8 @@ Providers addressed here:
 - **Anthropic** — `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
 - **Google** — `gemini-2.5-pro`, `gemini-2.5-pro-thinking`, `gemini-2.5-flash`.
 - **OpenRouter** — `openrouter/llama-4-70b` (open-weights fallback).
-- **Ollama (local)** — `gpt-oss-20b` (currently project-d low-criticality tier, per `project-d` commit `a85830f`).
-- **LiteLLM** — sits on project-d port `4000`; it is the routing point for embeddings, rerank, and any OpenAI-compatible fan-out. The router itself does not need to know which embedding model is in use.
+- **Ollama (local)** — `gpt-oss-20b` (currently the low-criticality tier).
+- **LiteLLM** — sits on port `4000`; it is the routing point for embeddings, rerank, and any OpenAI-compatible fan-out. The router itself does not need to know which embedding model is in use.
 
 ## 1. Task classes (canonical taxonomy)
 
@@ -40,7 +40,7 @@ Latency tiers refer to **time-to-first-token for interactive tasks**, or **total
 | Architecture proposal / ADR drafting | `claude-opus-4-7` | `gemini-2.5-pro-thinking` → `claude-sonnet-4-6` | Reasoning-heavy, low-volume. Sonnet is the last acceptable floor — below that, the task should block, not silently degrade (see §3). | H | H |
 | Retrospective / reflection / wide synthesis | `claude-opus-4-7` | `gemini-2.5-pro-thinking` → block | Needs wide context and synthesis across many trace spans. A Sonnet-tier output here is not worth producing; better to queue the retro. | H | H |
 | Doc writing (playbook specs, runbooks) | `claude-opus-4-7` for initial drafts, `claude-sonnet-4-6` for edits | `gemini-2.5-pro` → `claude-sonnet-4-6` | Dispatch-file architecture demands dense, cross-referenced prose. Opus for the first pass amortizes better than multiple Sonnet revisions. | H (draft) / M (edit) | M |
-| Embeddings / rerank | LiteLLM-routed (see `project-d` LiteLLM config) | Provider-internal; LiteLLM handles its own fallback set | The router emits `gen_ai.request.model="litellm"` and the concrete embedding model as a span attribute. Consumers should not hard-code an embedding model in their code paths. | L | L |
+| Embeddings / rerank | LiteLLM-routed (see LiteLLM config) | Provider-internal; LiteLLM handles its own fallback set | The router emits `gen_ai.request.model="litellm"` and the concrete embedding model as a span attribute. Consumers should not hard-code an embedding model in their code paths. | L | L |
 | LLM-as-judge (prompt injection filter, PII screen, etc.) | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | Judges should be small, fast, and boring. Avoid Opus-tier judges — they invent nuance where none exists, hurt latency, and balloon cost. | L | L |
 | **`safety_judge`** (NEW v2.0.0) — concrete task_class for the prompt-injection filter and similar boundary judges | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | Concretises the "LLM-as-judge" row above with a stable identifier callers can pass to `_llm.call(task_class="safety_judge", ...)`. Same Haiku tier; budget-isolated via `ANTHROPIC_API_KEY_JUDGE`. | L | L |
 | **`conversational_agent`** (NEW v2.0.0) — Hermes user-facing turn handling | `claude-haiku-4-5` | `gemini-2.5-flash` → `openrouter/llama-4-70b` | High-volume, low-stakes-per-call. Hermes handles many short messages; Haiku is the right floor. Budget-isolated via `ANTHROPIC_API_KEY_HERMES`. Multi-turn coherence is acceptable at this tier; for analytical work Hermes routes through the existing `daily_dev`/`architecture_proposal` paths. | L | L |
@@ -96,7 +96,7 @@ Degradation state (triggered by the router and observed by the rest of the stack
 - Rate limits: none, other than local hardware.
 - Strength: offline fallback for `OFFLINE` state; zero marginal cost; keeps low-criticality tasks moving when WAN is flaky.
 - Weakness: quality is noticeably below flagship tier; no KV cache reuse across processes; latency is machine-dependent.
-- Watch: project-d reserves `gpt-oss-20b` for low-criticality tasks (per `project-d` commit `a85830f`). Do not promote it above its tier without the retro explicitly approving.
+- Watch: `gpt-oss-20b` is reserved for low-criticality tasks. Do not promote it above its tier without the retro explicitly approving.
 
 ## 4. OpenTelemetry attributes emitted by the router
 
@@ -111,7 +111,7 @@ Every LLM call wrapped by the router emits a span with at minimum:
 | `gen_ai.usage.cache_read_input_tokens` | int | Cached-prefix tokens read (0 if provider did not report). |
 | `ai_playbook.task_class` | string | Canonical class from §1 (e.g., `daily-dev`, `code-review-blind-hunter`, `llm-as-judge`). |
 | `ai_playbook.consumer` | string \| null | Budget bucket (LiteLLM virtual-key consumer): `ADVISOR`, `EXECUTOR`, `HERMES`, `JUDGE`, `WORKFLOWS`, ... See env-vars.md `## Per-consumer virtual keys`. Null when the caller doesn't set it. |
-| `ai_playbook.application` | string \| null | Functional grouping (see §5). Examples: `hermes-bot`, `dashboard-backend`, `aiops-workflow-vps-maintainer`. Null when the caller doesn't set it (drift detector flags). Added v2.1.0. |
+| `ai_playbook.application` | string \| null | Functional grouping (see §5). Examples: `chat-bot`, `dashboard-backend`, `aiops-workflow-maintainer`. Null when the caller doesn't set it (drift detector flags). Added v2.1.0. |
 | `ai_playbook.routing.fallback_depth` | int | 0 on primary, 1 on first fallback, etc. |
 | `ai_playbook.routing.reason` | string | Present when `fallback_depth > 0`; enum-ish: `rate_limit`, `timeout`, `error`, `health_probe`. |
 
@@ -134,9 +134,9 @@ The roster is intentionally short — additions go through the recipe below.
 
 | Application | What it is | Set by |
 |---|---|---|
-| `hermes-bot` | Telegram + WhatsApp conversational adapter | `AIPLAYBOOK_APPLICATION` env in `/opt/hermes/.env` |
+| `chat-bot` | Telegram + WhatsApp conversational adapter | `AIPLAYBOOK_APPLICATION` env in `/opt/hermes/.env` |
 | `dashboard-backend` | FastAPI app (Langfuse meta-queries, audit summarisation, ad-hoc smoke tests) | env in `helm/project-d-stack/templates/dashboard.yaml` deployment |
-| `aiops-workflow-<name>` | One per workflow in `langgraph-aiops/workflows/`. Examples: `aiops-workflow-vps-maintainer`, `aiops-workflow-retro-generator`, `aiops-workflow-playbook-bump-propagator` | env per-workflow in `langgraph-aiops/Dockerfile` ENTRYPOINT wrapper |
+| `aiops-workflow-<name>` | One per workflow in `aiops/workflows/`. Examples: `aiops-workflow-maintainer`, `aiops-workflow-report`, `aiops-workflow-sync` | env per-workflow in `aiops/Dockerfile` ENTRYPOINT wrapper |
 | `prompt-injection-filter` | The safety-judge gate (layer-2 Haiku) | env in the script wrapper |
 | `lib-advisor` | The executor/advisor session pair | env via `project-d/lib/advisor.py` defaults |
 | `hindsight-internal` | Hindsight's recall summarizer (calls LiteLLM via `HINDSIGHT_API_LLM_BASE_URL=http://litellm:4000`) | env in `helm/project-d-stack/templates/hindsight.yaml` |
@@ -148,7 +148,7 @@ The `claude-code` row is reserved — the dashboard's cost-by-application widget
 
 An `application` is a **functional bucket** (what subsystem is making the call). Add one when a new caller can't reasonably be classified under an existing app — typically when it has its own deployment manifest or its own runbook for restarting.
 
-1. **Choose a kebab-lowercase name.** Convention: short, function-descriptive. Prefix with `aiops-workflow-` if it's one workflow inside the `langgraph-aiops/workflows/` directory.
+1. **Choose a kebab-lowercase name.** Convention: short, function-descriptive. Prefix with `aiops-workflow-` if it's one workflow inside the `aiops/workflows/` directory.
 2. **Register in the table above.** Same PR adds the row + the deployment manifest change that sets `AIPLAYBOOK_APPLICATION=<name>`.
 3. **Set the env at process startup.** Either via the deployment env block (k8s) OR via a wrapper shell script (`AIPLAYBOOK_APPLICATION=<name> exec python -m mymodule.entry`).
 4. **Verify trace metadata.** Trigger one LLM call from the new application; the Langfuse Cloud trace browser should show `metadata.application = <name>`. The cost-by-application widget (once Phase 3 lands) will render a bucket for the app once total calls ≥ 3.
@@ -158,9 +158,9 @@ An `application` is a **functional bucket** (what subsystem is making the call).
 
 ```
 consumer=WORKFLOWS                        ← one budget bucket
-  ├─ application=aiops-workflow-vps-maintainer    (task_class=retrospective)
-  ├─ application=aiops-workflow-retro-generator   (task_class=retrospective)
-  └─ application=langgraph-doc-writer             (task_class=doc_writing_*)
+  ├─ application=aiops-workflow-maintainer    (task_class=retrospective)
+  ├─ application=aiops-workflow-report   (task_class=retrospective)
+  └─ application=doc-writer             (task_class=doc_writing_*)
                                                    ↑ same app, different task_classes
 
 consumer=ADVISOR
@@ -168,7 +168,7 @@ consumer=ADVISOR
                                           (task_class=daily_dev)
 
 consumer=HERMES
-  └─ application=hermes-bot               (task_class=conversational_agent)
+  └─ application=chat-bot               (task_class=conversational_agent)
 
 consumer=JUDGE
   └─ application=prompt-injection-filter  (task_class=safety_judge)

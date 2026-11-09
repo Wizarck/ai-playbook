@@ -198,7 +198,7 @@ If the user likes the structure of one variant but wants a different colour laye
 3. User picks the palette.
 4. Produce one new variant: `mock-X2-<palette-name>.html` where X is the structural variant the user picked. The naming records the lineage: bones X + new layer.
 
-This pattern fired in the project-c M2 work: the user picked Mock G's discipline but wanted the Pulcinella palette over G's clay/terracotta. Result was `mock-G2-trattoria.html`. Both files coexist; the original G is preserved as a fallback.
+For example, the user picked Mock G's discipline but wanted the Pulcinella palette over G's clay/terracotta. Result was `mock-G2-trattoria.html`. Both files coexist; the original G is preserved as a fallback.
 
 ### 8.2 Layer-only iteration (smaller drift)
 
@@ -419,8 +419,6 @@ Format derived from:
 - ai-playbook 9-section format (originated from `awesome-design-md` engine §5.1, retained as primary structure)
 - [google-labs-code/design.md](https://github.com/google-labs-code/design.md) (Apache-2.0, alpha) — YAML frontmatter schema, token reference syntax, component variants pattern, consumer behavior table, 8-section canonical order
 
-Pilot validation: `project-d/docs/ux/DESIGN.md` (Z.2 Phase 2 project-d dashboard, 2026-05-01). Format verified production-ready with palette D Things 3 Night tokens + variant D Structured timeline lock.
-
 ## 12 Per-journey docs format
 
 For every user journey identified in the PRD:
@@ -511,7 +509,7 @@ The head-comment audit (§6.2) ends with an explicit "anti-patterns avoided" lis
 
 `side-tab` (border-accent-on-rounded), `nested-cards`, `monotonous-spacing`, `everything-centered`, `bounce-easing`, `dark-glow`, `icon-tile-stack` (rounded-square icon tiles above headings), `pure-black-white`, `gray-on-color`, `ai-color-palette` (tech-blue / teal / purple reflex), `glassmorphism`, `gradient-text`, `flat-type-hierarchy`, `tiny-text` (< 13 px), `all-caps-body`, `wide-tracking` on body, `justified-text`, `tight-leading`, `cramped-padding`, `layout-transition` (animating `width` / `height`), `hero-metric` template, `identical card grids`, `modal-as-first-thought`, `em dashes`.
 
-Plus absolute bans for project-c-style products (food / regulated / professional surfaces): emoji icons in critical paths, decorative gradients, illustrative SVG imagery in non-marketing surfaces.
+Plus absolute bans for products on food / regulated / professional surfaces: emoji icons in critical paths, decorative gradients, illustrative SVG imagery in non-marketing surfaces.
 
 The audit lists which of these were considered and avoided; if a variant uses one of these patterns deliberately, the comment must justify the exception with a project-specific rationale.
 
@@ -566,7 +564,7 @@ Max 2 rework cycles per journey doc; iter 3 escalates per [verdict-contract.md](
 
 Hand-written HTML/CSS does not reveal layout bugs (overflow, clipped CTAs, broken grids, mis-aligned rules, font-stack fallbacks, mis-quoted media queries, dark-mode regressions). The author MUST render the mock at the device size(s) declared in the journey's frontmatter `device:` field, take screenshots, look at them, and fix everything visible before requesting human review.
 
-**Why this rule exists.** A 2026-05-13 review of M3 mocks j6-j12 (project-c-legacy) found multiple bugs an LLM author could have caught with one render-and-look pass: clipped sticky CTAs on phone-portrait, doubled heatmap column headers, 6 px bar fills invisible at viewport scale, grid columns mis-sized making product names wrap to 3 lines, mock-photo placeholder chrome treated as a real photo. None of these required deep design taste — only a glance at the rendered output. Shipping markup as "done" without rendering it is the failure mode this section closes.
+**Why this rule exists.** Review of hand-written mocks has found multiple bugs an LLM author could have caught with one render-and-look pass: clipped sticky CTAs on phone-portrait, doubled heatmap column headers, 6 px bar fills invisible at viewport scale, grid columns mis-sized making product names wrap to 3 lines, mock-photo placeholder chrome treated as a real photo. None of these required deep design taste — only a glance at the rendered output. Shipping markup as "done" without rendering it is the failure mode this section closes.
 
 **The self-audit checklist** (author runs this before declaring the mock ready for human review):
 

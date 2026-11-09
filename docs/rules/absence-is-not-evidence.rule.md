@@ -48,12 +48,12 @@ answer.
 ### The pattern, and five instances of it
 
 All five are the same shape: **the query excluded the evidence, and the empty
-result read as proof.** All are from one campaign (alpha, 2026-08-15/16).
+result read as proof.** All are from one campaign (2026-08-15/16).
 
 | what was searched | what it could not see | what was concluded |
 |---|---|---|
 | `grep -v "progress.get"` over the fix's file | the fix, which lives on a `progress.get` line | "stale, already fixed" — wrong |
-| `blueprints/datascout/` (from the title's `[DataScout]` label) | `blueprints/datashield/router.py:818`, named in the ticket's first line | "cannot reproduce" — the bug was worse than filed |
+| `blueprints/alpha/` (from the title's `[Alpha]` label) | `blueprints/beta/router.py:818`, named in the ticket's first line | "cannot reproduce" — the bug was worse than filed |
 | `git diff origin/main...branch` (three dots, from the merge-base) | that the branches were *behind* main, not ahead | "~100 commits at risk on one disk" — retracted |
 | a SOAK run against a built image | three fixes made after the image was built (`docker-compose.test.yml` has no bind mount) | "69 passed, the fixes hold" — the run never contained them |
 | the backend half of a two-half ticket | a Playwright case still pinned `test.fail()` on the ticket's own assertion | "fixed, closing" — reopened |

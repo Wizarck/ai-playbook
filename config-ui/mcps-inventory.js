@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.MCPS_INVENTORY = {
   "schema": "mcps-inventory/v1",
-  "generated_at": "2026-09-03T16:31:48.355568+00:00",
+  "generated_at": "2026-09-20T08:27:41.084729+00:00",
   "servers": [
     {
       "id": "atlassian",

@@ -45,7 +45,7 @@ parses.
 - **Rewriting the 126 open legacy tickets.** They are measured and reported as
   their own cohort.
 - **Jira UI layers** — Automation `validate-on-create` and required custom fields.
-  Originally deferred as "configuration only Arturo can apply"; **dropped outright
+  Originally deferred as "configuration only the maintainer can apply"; **dropped outright
   on 2026-08-02** once the intent was stated plainly: the standard exists to bind
   agents, which write tickets at machine speed with no memory across calls, not
   people choosing what to type. Two costs settled it — required fields in a

@@ -70,8 +70,7 @@ deleted. See the template.
 
 ## 4. Refresh cadence
 
-- **Weekly**, automated via the `UpstreamRefresher` LangGraph workflow
-  (project-d/langgraph-aiops/workflows/upstream_refresher.py).
+- **Weekly**, automated by a consumer-side scheduled workflow (HITL-gated).
 - **On-demand**, manual via `scripts/upstream_sync.py --refresh <fork>` — this only fetches and
   reports; it never merges.
 - The workflow's write actions are **all gated** by
@@ -221,8 +220,6 @@ workflow itself.
 - [memory-hierarchy.md](memory-hierarchy.md) — retain on every merge / lost event.
 - [`../tutorials/07-fork-inventory.md`](../tutorials/07-fork-inventory.md) — the authoritative catalog of forks.
 - `../templates/PATCHES.md.tmpl` — per-fork manifest template.
-- `../../project-d/langgraph-aiops/workflows/upstream_refresher.py` —
-  the workflow.
 
 ---
 

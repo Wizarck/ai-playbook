@@ -6,7 +6,7 @@ summary: |
   How user stories, features, bugs, and releases flow through two tracker
   surfaces: - Jira — enterprise / private work (Paperclip tenants, project-c
   Enterprise, any closed-source SaaS). - GitHub Projects + Issues — community
-  / open-source work (project-c, awesome-paperclip,…
+  / open-source work (project-c,…
 last_validated: "2026-05-19"
 ---
 
@@ -15,10 +15,9 @@ last_validated: "2026-05-19"
 How user stories, features, bugs, and releases flow through **two** tracker surfaces:
 
 - **Jira** — enterprise / private work (Paperclip tenants, project-c Enterprise, any closed-source SaaS).
-- **GitHub Projects + Issues** — community / open-source work (project-c, awesome-paperclip, any public repo under the org).
+- **GitHub Projects + Issues** — community / open-source work (project-c, any public repo under the org).
 
-The split is intentional and mirrors the dual-repo strategy already documented in
-`project-c/AGENTS.md` §4 and ADR-010 (community AGPL-3.0 vs enterprise private). This spec
+The split is intentional and mirrors the dual-repo strategy (community AGPL-3.0 vs enterprise private). This spec
 extends that split from **issues** to full **product planning** (user stories → features →
 releases) so the two audiences stay on surfaces they expect.
 
@@ -28,12 +27,12 @@ releases) so the two audiences stay on surfaces they expect.
 
 Decision rule (apply to every repo under the org):
 
-| Repo class | Examples | Planning surface | Release surface | Ticket prefix |
-|---|---|---|---|---|
-| Public AGPL-3.0 (community) | `project-c`, `awesome-paperclip`, `paperclip-mcp` | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
-| Private with public OS counterpart (dual-repo) | `project-c Enterprise` (mirrors project-c), Paperclip enterprise tenants (mirror awesome-paperclip stack) | **Jira** (`atlassian-project-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
-| Private standalone (no public counterpart) | `project-d`, `project-b`, `project-b-hub`, `EPSILON`, future closed-source SaaS without an OSS half | **GitHub Project** (per-repo board) + GitHub Issues | git tag + optional GitHub Release | `#<issue-number>` |
-| Tooling / lightweight | `ai-playbook`, `project-d-skills`, `skills-manager-personal`, `zeta`, `GTM-Helper` | GitHub Issues (no project board) | git tag only | `#<issue-number>` |
+| Repo class | Planning surface | Release surface | Ticket prefix |
+|---|---|---|---|
+| Public AGPL-3.0 (community) | **GitHub Project** (org-level board) + GitHub Issues | **GitHub Release** per semver tag | `#<issue-number>` |
+| Private with public OS counterpart (dual-repo) | **Jira** (`atlassian-project-a` tenant) | **Jira release version** + git tag in private repo | `PROJ-<number>` |
+| Private standalone (no public counterpart, e.g. closed-source SaaS without an OSS half) | **GitHub Project** (per-repo board) + GitHub Issues | git tag + optional GitHub Release | `#<issue-number>` |
+| Tooling / lightweight (e.g. `ai-playbook`) | GitHub Issues (no project board) | git tag only | `#<issue-number>` |
 
 **Rule of thumb**: Jira is reserved for the *enterprise half* of a dual-repo (community public + enterprise private) so the two audiences live on the surface they expect. A private repo without a public counterpart has no audience split → GH is sufficient. Per-repo project boards (vs the org-level board) are used for private standalone repos so the work stays scoped to the repo's collaborators.
 
@@ -210,5 +209,3 @@ For public-repo issue creation: `gh issue create --repo Wizarck/project-c --titl
 - `docs/concepts/retrospective-cadence.md` — monthly lifecycle check flags orphan tickets.
 - `docs/rules/verdict-contract.rule.md` — QA verdict → ticket transition mapping.
 - `docs/tutorials/07-fork-inventory.md` — determines which repos are public vs private.
-- `project-c/AGENTS.md` §4 + ADR-010 — dual-repo strategy (origin of the split this spec
-  extends).

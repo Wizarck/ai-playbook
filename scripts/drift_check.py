@@ -409,7 +409,7 @@ _TAXONOMY_STOPWORDS = {
     "For", "Then", "Than", "Such", "Some", "Each", "Every", "Any",
     "TODO", "NOTE", "FIXME", "BEGIN", "END", "YAML", "JSON", "HTML",
     "API", "CLI", "CI", "URL", "UTC", "ISO", "UTF",
-    "Arturo", "acme-corp", "Python", "Claude", "GitHub", "Git", "OpenSpec",
+    "acme-corp", "Python", "Claude", "GitHub", "Git", "OpenSpec",
     "README", "AGENTS", "CLAUDE", "BRAIN", "LLM",
 }
 

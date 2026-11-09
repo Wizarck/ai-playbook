@@ -454,3 +454,36 @@ def test_global_config_written_owner_only(fake_home: Path) -> None:
     assert cfg.stat().st_mode & 0o777 == 0o600
     doc = json.loads(cfg.read_text(encoding="utf-8"))
     assert set(doc["mcpServers"]) == {"keep", "srv"}
+
+
+# ---------------------------------------------------------------------------
+# find_secrets_env — no project name is baked in
+# ---------------------------------------------------------------------------
+
+
+def _secrets(root: Path, name: str) -> Path:
+    p = root / name / "secrets" / "secrets.env"
+    p.parent.mkdir(parents=True)
+    p.write_text("K=v\n", encoding="utf-8")
+    return p
+
+
+def test_find_secrets_env_prefers_the_explicit_env_var(tmp_path, monkeypatch):
+    explicit = tmp_path / "elsewhere.env"
+    explicit.write_text("K=v\n", encoding="utf-8")
+    _secrets(tmp_path, "sibling")
+    monkeypatch.setenv("AIPLAYBOOK_SECRETS_ENV", str(explicit))
+    assert mcp_render.find_secrets_env(tmp_path / "app") == explicit
+
+
+def test_find_secrets_env_takes_the_one_sibling(tmp_path, monkeypatch):
+    monkeypatch.delenv("AIPLAYBOOK_SECRETS_ENV", raising=False)
+    only = _secrets(tmp_path, "vault")
+    assert mcp_render.find_secrets_env(tmp_path / "app") == only
+
+
+def test_find_secrets_env_refuses_to_guess_between_siblings(tmp_path, monkeypatch):
+    monkeypatch.delenv("AIPLAYBOOK_SECRETS_ENV", raising=False)
+    _secrets(tmp_path, "one")
+    _secrets(tmp_path, "two")
+    assert mcp_render.find_secrets_env(tmp_path / "app") is None

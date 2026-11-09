@@ -10,7 +10,7 @@ Contracts under test:
 
 THE CENTRAL TEST is `test_a_resolver_blind_to_path_aliases_fails_the_probe_gate`.
 It reproduces the real failure this scanner was designed around: measured against
-alpha, a resolver that ignored `tsconfig.json` `compilerOptions.paths` reported
+a real codebase, a resolver that ignored `tsconfig.json` `compilerOptions.paths` reported
 89 live files as dead, including the app's own layout and auth provider. An
 adjudicating model fed that output would have written 89 convincing rationales
 for 89 wrong findings.
@@ -122,7 +122,7 @@ def test_a_resolver_blind_to_path_aliases_fails_the_probe_gate(tmp_path, capsys)
     `Layout.tsx` — a file the consumer declared live — reads as unreachable. The
     scan MUST refuse to emit a ledger rather than report it as an orphan.
 
-    This is the exact bug that produced 89 false positives on alpha.
+    This is the exact bug that produced 89 false positives on a real codebase.
     """
     ts_tree(tmp_path)
     config = ts_config(tmp_path, resolve=False)
@@ -161,7 +161,7 @@ def test_the_same_tree_scans_clean_once_the_resolver_reads_tsconfig(tmp_path) ->
 def test_a_javascript_route_roots_the_typescript_files_below_it(tmp_path) -> None:
     """The SECOND acceptance gate, from the second real false-positive cluster.
 
-    alpha's frontend is half-migrated: `page.js` -> `Modals.js` -> ten `.tsx`
+    A real frontend is half-migrated: `page.js` -> `Modals.js` -> ten `.tsx`
     modals. The `next-app-router` preset originally listed `page.tsx`/`page.ts`
     and no `.js` variant, so the route was not an entry point, the whole chain
     below it was rootless, and the scan reported an entire directory of live
@@ -193,7 +193,7 @@ def test_a_javascript_route_roots_the_typescript_files_below_it(tmp_path) -> Non
 def test_a_gitignored_file_is_not_repo_entropy(tmp_path) -> None:
     """A build artefact cannot rot in a repository it was never committed to.
 
-    Measured on alpha: two gitignored Playwright report directories supplied 10
+    Measured on a real codebase: two gitignored Playwright report directories supplied 10
     of 24 candidates, every one of them bundled vendor JavaScript. Reporting
     them invites a human to "clean up" a tree that regenerates on the next test
     run — cost with no benefit, and it buries the real findings.
@@ -484,14 +484,14 @@ def test_a_probe_outside_every_root_is_a_failure_not_a_pass(tmp_path, capsys) ->
 def test_next_router_files_are_entrypoints_not_orphans(tmp_path) -> None:
     """`page.tsx` is routed by the file system and imported by nothing. Without
     this preset it is the single largest false-positive source in a Next tree
-    (118 files on alpha)."""
+    (118 files in a real tree)."""
     ts_tree(tmp_path)
     ledger = ledger_of(ts_config(tmp_path), tmp_path)
     assert "fe/app/page.tsx" not in [f["path"] for f in ledger["findings"]]
 
 
 def test_pytest_and_alembic_files_are_entrypoints(tmp_path) -> None:
-    """389 test modules and 108 migrations on alpha — all reachable by a loader,
+    """389 test modules and 108 migrations in a real repo — all reachable by a loader,
     none by an import."""
     write(tmp_path, "be/app/__init__.py")
     write(tmp_path, "be/app/main.py", "from app import live\n")
@@ -581,8 +581,8 @@ def test_python_relative_imports_resolve(tmp_path) -> None:
 
 
 def test_a_lazily_imported_module_is_reachable(tmp_path) -> None:
-    """An import inside a function still makes its target reachable — several of
-    alpha's feature-gated modules are exactly that shape."""
+    """An import inside a function still makes its target reachable — real
+    feature-gated modules are exactly that shape."""
     write(tmp_path, "be/app/__init__.py")
     write(tmp_path, "be/app/main.py", """\
         def start():

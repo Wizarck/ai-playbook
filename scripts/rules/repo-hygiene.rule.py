@@ -11,14 +11,14 @@ WHAT THIS DETECTS
            unignored, so the next `git add -A` sweeps it into the repo).
 
 WHY THE OBVIOUS DETECTOR IS THE WRONG ONE
-Both were measured against alpha before this engine was written, and both
+Both were measured against a real production codebase before this engine was written, and both
 naive detectors failed:
 
   `declared − imported` gave 16 candidates, all 16 false positives — five ways a
   package is legitimately used without being imported by name. The dangerous one
   was `scikit-learn`: no line imports it; it loads when `joblib.load()`
-  deserialises the vendored pipeline in the piracy detector, so deleting it
-  would have broken piracy detection only when that path ran.
+  deserialises the vendored pipeline in the classifier module, so deleting it
+  would have broken classification only when that path ran.
 
   The artefact's own mtime gave a PERMANENT false STALE. `graphify update .`
   re-reads 3810 files, finds no topology change, and deliberately leaves
@@ -176,7 +176,7 @@ def _dotted_prefixes(module: str) -> set[str]:
     """`a.b.c` -> {`a`, `a.b`, `a.b.c`}.
 
     Namespace packages need every prefix, not just the root. Four distributions
-    in alpha's backend ship into the single `opentelemetry` namespace
+    in a real backend ship into the single `opentelemetry` namespace
     (`opentelemetry-sdk` -> `opentelemetry.sdk`,
     `opentelemetry-instrumentation-celery` -> `opentelemetry.instrumentation.celery`,
     ...). Recording only the root would make importing any ONE of them prove all
@@ -194,7 +194,7 @@ def python_imports(text: str) -> set[str]:
     or a log message is not an import, and counting it would prove use that does
     not exist. `ast.walk` rather than `tree.body` on purpose too: a lazily
     imported optional dependency lives inside a function, and that is still a
-    use — several of alpha's are exactly that shape.
+    use — several real ones are exactly that shape.
     """
     tree = ast.parse(text)  # SyntaxError propagates: the caller notes it, never silently skips
     out: set[str] = set()

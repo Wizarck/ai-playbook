@@ -829,8 +829,8 @@ def detect_repo_visibility(repo: str) -> str:
 def detect_default_branch(repo: str) -> str:
     """Return the repo's default branch name (e.g. 'main', 'master').
 
-    Per gotcha #13 (project-e/docs/gotchas.md): hardcoding 'main' breaks
-    consumers on legacy 'master' defaults (project-c). This helper queries
+    Hardcoding 'main' breaks consumers on legacy 'master' defaults. This
+    helper queries
     `gh repo view` for `defaultBranchRef.name` instead.
     """
     result = _gh(["repo", "view", repo, "--json", "defaultBranchRef"])
@@ -850,7 +850,7 @@ def fetch_existing_required_checks(repo: str, branch: str) -> list[str]:
 
     Used to UNION the user-provided `--required-checks` with what's already
     set, so re-running bootstrap doesn't silently drop project-specific
-    checks (gotcha #12 in project-e/docs/gotchas.md).
+    checks.
     """
     proc = subprocess.run(
         ["gh", "api", f"repos/{repo}/branches/{branch}/protection"],

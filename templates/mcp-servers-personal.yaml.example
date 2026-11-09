@@ -11,7 +11,7 @@
 #   3. ~/.config/mcp-servers.yaml             — THIS file (personal instances)
 #
 # Tenant-naming convention: `<server-type>-<tenant-slug>` (e.g.
-# `google-workspace-arturo`, `atlassian-acme`). Distinct tenants get distinct
+# `google-workspace-jane`, `atlassian-acme`). Distinct tenants get distinct
 # entries — they share the base template but have different env/endpoints.
 
 schema: mcp-servers/v1
@@ -79,7 +79,7 @@ servers:
 
   # ---------------------------------------------------------------------------
   # Add any other server you use locally — Camoufox, Context7, NotebookLM,
-  # Paperclip, MS365, Twenty CRM, WhatsApp, WooCommerce, tspoonlab, etc.
+  # Paperclip, MS365, Twenty CRM, WhatsApp, WooCommerce, etc.
   # ---------------------------------------------------------------------------
   # camoufox:
   #   id: camoufox

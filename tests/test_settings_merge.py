@@ -164,7 +164,7 @@ _WRAPPED_DISP = ('export AIPLAYBOOK_CLOSURE_DONE_TRANSITIONS=31; S=s/secrets.env
 _INLINE = "CMD=$(cat) || true"
 _JIRA = "mcp__.*__(createJiraIssue|editJiraIssue|transitionJiraIssue|addCommentToJiraIssue)"
 _CANON = sm.DISPATCHER_PRE_TOOL_USE_MATCHER
-_ALPHA_JIRA = "mcp__.*__(create|edit|transition)JiraIssue|mcp__.*__addCommentToJiraIssue"
+_CUSTOM_JIRA = "mcp__.*__(create|edit|transition)JiraIssue|mcp__.*__addCommentToJiraIssue"
 _EXTRA_TOOLS = ["NotebookEdit", "Read", "TodoWrite", "mcp__github__create_pull_request"]
 
 
@@ -193,8 +193,8 @@ _LAYOUTS = {
         ["Edit|Write|MultiEdit|Bash", f"KillShell|TaskStop|BashOutputKill|{_JIRA}"]),
     "shared and wrapped dispatchers": (
         _pre(("Edit|Write|MultiEdit", [_ENFORCE]), ("Bash", [_INLINE, _SHARED_DISP]),
-             ("Read|Glob", [_INLINE]), (_ALPHA_JIRA, [_WRAPPED_DISP])),
-        ["Edit|Write|MultiEdit", "Bash", "Read|Glob", _ALPHA_JIRA,
+             ("Read|Glob", [_INLINE]), (_CUSTOM_JIRA, [_WRAPPED_DISP])),
+        ["Edit|Write|MultiEdit", "Bash", "Read|Glob", _CUSTOM_JIRA,
          "Edit|Write|MultiEdit|KillShell|TaskStop|BashOutputKill"]),
     "custom wider matcher": (
         _pre(("Edit|Write|MultiEdit|Bash|NotebookEdit|mcp__github__create_pull_request", [_D])),

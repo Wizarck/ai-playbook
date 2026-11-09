@@ -12,7 +12,6 @@ Usage:
         --org-name acme \\
         --owner-email ops@acme.example \\
         --hindsight-url https://hindsight.acme.example \\
-        --secrets-env-path acme-core/secrets/secrets.env \\
         [--dry-run]
 
 What it touches:
@@ -20,7 +19,6 @@ What it touches:
     - README.md       → replaces "Wizarck" + "ai-playbook" branding refs
     - runbooks/*.md   → replaces "Wizarck/<repo>" examples
     - docs/*.md       → replaces "Wizarck" + endpoint examples
-    - templates/new-project/.claude/settings.json.tmpl → SOPS path placeholder
     - templates/new-project/mcp-servers.project.yaml.tmpl → Hindsight endpoint
     - AGENTS.md + templates/projects.yaml.example → owner email
     - templates/mcp-servers-personal.yaml.example → kept as-is (already generic)
@@ -69,12 +67,6 @@ class FileEdit:
 # whose literals match nothing makes main() exit 1 rather than silently no-op.
 HINDSIGHT_URLS = (
     "https://acme-corp-hindsight.example.com",
-    "https://project-d-hindsight.example.com",
-)
-SECRETS_ENV_PATHS = (
-    "../acme-corp/secrets/secrets.env",
-    "../project-a/secrets/secrets.env",
-    "../project-d/secrets/secrets.env",
 )
 UPSTREAM_OWNER_EMAIL = "23051550+Wizarck@users.noreply.github.com"
 
@@ -119,7 +111,6 @@ def build_edit_plan(
     org_name: str,
     owner_email: str,
     hindsight_url: str | None,
-    secrets_env_path: str | None,
     upstream_org: str = "Wizarck",
 ) -> list[FileEdit]:
     """Build the substitution plan. Each FileEdit is a path + a list of
@@ -150,18 +141,6 @@ def build_edit_plan(
         for f in url_targets:
             plan.append(FileEdit(f, [(u, hindsight_url) for u in HINDSIGHT_URLS],
                                  flag="--hindsight-url"))
-
-    # SOPS path: the SessionStart hook in the template settings.json (sibling
-    # project-a) + the runbooks' sops exec-env examples. Inside a JSON string
-    # the value is escaped: a Windows path's backslashes are JSON escapes.
-    if secrets_env_path:
-        for f in ("templates/new-project/.claude/settings.json.tmpl",
-                  "templates/new-project/AGENTS.md.tmpl",
-                  "docs/runbooks/hindsight-retain.md",
-                  "docs/runbooks/onboard-new-project.md"):
-            value = json.dumps(secrets_env_path, ensure_ascii=False)[1:-1] if _is_json(f) else secrets_env_path
-            plan.append(FileEdit(f, [(s, value) for s in SECRETS_ENV_PATHS],
-                                 flag="--secrets-env-path"))
 
     # Owner email: the fork's own AGENTS.md frontmatter + the registry example.
     # (templates/new-project/AGENTS.md.tmpl uses {{OWNER_EMAIL}}, set at bootstrap.)
@@ -252,9 +231,6 @@ def main(argv: list[str] | None = None) -> int:
                    help="Owner email for the fork's AGENTS.md frontmatter + registry example.")
     p.add_argument("--hindsight-url",
                    help="Override the Hindsight base URL across docs (optional).")
-    p.add_argument("--secrets-env-path",
-                   help="Override the SOPS secrets path in SessionStart hook templates "
-                        "(default: ../project-a/secrets/secrets.env stays).")
     p.add_argument("--upstream-org", default="Wizarck",
                    help="Source org to replace (default: Wizarck).")
     p.add_argument("--root", type=Path, default=Path.cwd(),
@@ -264,20 +240,12 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     _validate_org_name(args.org_name)
-    if args.secrets_env_path and any(c in args.secrets_env_path for c in '"\r\n'):
-        # The template puts it inside a double-quoted shell arg of a JSON string.
-        print(f"❌ --secrets-env-path must not contain a double quote or a line break: "
-              f"got {args.secrets_env_path!r}", file=sys.stderr)
-        print("   OVERRIDE: none", file=sys.stderr)
-        return 1
     root = _detect_playbook_root(args.root)
     print(f"playbook root: {root}")
     print(f"target org   : {args.org_name}")
     print(f"upstream org : {args.upstream_org}")
     if args.hindsight_url:
         print(f"hindsight URL: {args.hindsight_url}")
-    if args.secrets_env_path:
-        print(f"SOPS path    : {args.secrets_env_path}")
     print()
 
     plan = build_edit_plan(
@@ -285,7 +253,6 @@ def main(argv: list[str] | None = None) -> int:
         org_name=args.org_name,
         owner_email=args.owner_email,
         hindsight_url=args.hindsight_url,
-        secrets_env_path=args.secrets_env_path,
         upstream_org=args.upstream_org,
     )
     # Silent dry pass first: nothing is written unless every flag passed either
@@ -301,8 +268,6 @@ def main(argv: list[str] | None = None) -> int:
     passed = ["--owner-email"]
     if args.hindsight_url:
         passed.append("--hindsight-url")
-    if args.secrets_env_path:
-        passed.append("--secrets-env-path")
     no_ops: list[str] = []
     for flag in passed:
         if flag_hits.get(flag, 0):

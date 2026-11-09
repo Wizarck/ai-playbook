@@ -261,7 +261,7 @@ The summary output lists which layer contributed each server:
 These will be rejected by the validator, or by review:
 
 - **Hardcoding tenant-specific URLs in base.** Base is for templates; any
-  URL that names a specific tenant (project-b, project-d, arturo) lives in
+  URL that names a specific tenant (project-b, project-d, jane) lives in
   personal or project.
 - **Using `scope: personal` at the base layer.** Mechanically blocked; a
   canonical error with `OVERRIDE: none`.

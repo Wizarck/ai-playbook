@@ -156,7 +156,7 @@ def test_main_break_glass_short_reason_exits_1(
 # ---------------------------------------------------------------------------
 # read_commit_message — CI mode (v0.9.1 followup #3)
 #
-# Surfaced by project-e PR #57 (slice 3 archive). The hook must detect
+# The hook must detect
 # the `openspec-archive:` marker when pre-commit runs in `--from-ref/--to-ref`
 # mode (CI's PR mode), not just from `.git/COMMIT_EDITMSG` (local mode).
 # ---------------------------------------------------------------------------
@@ -351,12 +351,12 @@ _COMMIT_MSG_ENTRY = (
     "        entry: python .ai-playbook/scripts/block_manual_spec_edit.py --commit-msg-file\n"
     "        language: system\n        stages: [commit-msg]\n"
 )
-_PRE_COMMIT_STAGE_ENTRY = (  # the v0.24.1-era wiring, e.g. gamma's
+_PRE_COMMIT_STAGE_ENTRY = (  # the v0.24.1-era wiring, e.g. a consumer's
     "repos:\n  - repo: local\n    hooks:\n      - id: block-manual-spec-edit\n"
     "        name: guard\n        entry: python .ai-playbook/scripts/block_manual_spec_edit.py\n"
     "        language: system\n        files: ^openspec/specs/.*\\.md$\n"
 )
-# gamma's entry moved to commit-msg in place, `files:` kept, plus the
+# a consumer's entry moved to commit-msg in place, `files:` kept, plus the
 # pre-commit-stage copy the template suggests for CI.
 _MIGRATED_IN_PLACE_WITH_CI_COPY = (
     "default_stages: [pre-commit]\n" + _COMMIT_MSG_ENTRY

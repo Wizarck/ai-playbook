@@ -12,7 +12,7 @@ THE TWO CENTRAL TESTS are the negative controls, and they encode the two
 measurements that motivated this engine:
 
   `test_a_naive_import_only_check_false_positives_on_the_console_script`
-      reproduces the alpha axis-3 measurement: `uvicorn` is declared and never
+      reproduces the axis-3 measurement: `uvicorn` is declared and never
       imported, because it is invoked as a console script from the Dockerfile.
       `declared − imported` called it unused. It was one of 16 such false
       positives, and all 16 were wrong.
@@ -129,7 +129,7 @@ def test_a_naive_import_only_check_false_positives_on_the_console_script(tmp_pat
 
     `uvicorn` is declared and never imported: the Dockerfile invokes it as a
     console script. An import-only check calls it unused — which is exactly what
-    `declared − imported` did to 16 packages in alpha, every one wrongly.
+    `declared − imported` did to 16 packages in a real backend, every one wrongly.
     """
     basic_tree(tmp_path, "fastapi==0.1\nuvicorn==0.2\n")
     write(tmp_path, "Dockerfile", 'CMD ["uvicorn", "app:app", "--port", "8000"]\n')
@@ -255,7 +255,7 @@ def test_importing_one_namespace_sibling_does_not_prove_the_others(tmp_path, cap
     Four distributions ship into the single `opentelemetry` namespace. Recording
     only the ROOT module would make importing any one of them prove all four
     used — and would have hidden the genuinely unwired instrumentor that this
-    check found in alpha.
+    check found in a real backend.
     """
     basic_tree(
         tmp_path,
@@ -270,8 +270,8 @@ def test_importing_one_namespace_sibling_does_not_prove_the_others(tmp_path, cap
 
 
 def test_a_lazily_imported_optional_dependency_counts_as_used(tmp_path) -> None:
-    """`import dns.resolver` inside a function is still a use — several of
-    alpha's feature-gated dependencies are exactly that shape."""
+    """`import dns.resolver` inside a function is still a use — real
+    feature-gated dependencies are exactly that shape."""
     basic_tree(tmp_path, "dnspython==2.6\n", """\
         def check():
             import dns.resolver  # lazy

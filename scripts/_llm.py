@@ -160,7 +160,7 @@ def _resolve_application(explicit: str | None) -> str | None:
     that roster is warn-only in v1, strict in v2 (post-migration).
     """
     if explicit:
-        # Lowercased + kebab — `hermes-bot`, `aiops-workflow-vps-maintainer`.
+        # Lowercased + kebab — `chat-bot`, `aiops-workflow-maintainer`.
         return explicit.strip().lower()
     env = os.environ.get("AIPLAYBOOK_APPLICATION", "").strip()
     return env.lower() if env else None
@@ -221,7 +221,7 @@ def call(
             When set, LiteLLM applies that key's budget. Default reads
             ``AIPLAYBOOK_CONSUMER`` env or falls back to the YAML default.
         application: functional subsystem tag for cost attribution
-            (``hermes-bot``/``dashboard-backend``/``aiops-workflow-<name>``).
+            (``chat-bot``/``dashboard-backend``/``aiops-workflow-<name>``).
             Per add-litellm-enforcement D3.8: SEPARATE dimension from
             ``consumer``; M:M cardinality. Default reads
             ``AIPLAYBOOK_APPLICATION`` env. Canonical roster in

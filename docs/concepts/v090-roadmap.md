@@ -65,7 +65,7 @@ This makes **L2 a silent safety net**: invisible when L1 worked, present when L1
 #### Validation plan
 
 1. Tag `v0.9.0-rc1`. Propagation auto-opens bump PRs across the 5 consumers.
-2. **Validate on `project-e` first** — the next slice (slice 3 `persistence-tenant-enforcement`) is a perfect bench: medium-sized, exercises real CodeRabbit usage. Verify both L1 (worker AI runs the script + does inline review) and L2 (workflow posts the checklist on a synthetic PR with §4.5 stubbed empty).
+2. **Validate on one consumer first** — a medium-sized slice that exercises real CodeRabbit usage is a perfect bench. Verify both L1 (worker AI runs the script + does inline review) and L2 (workflow posts the checklist on a synthetic PR with §4.5 stubbed empty).
 3. If both layers behave: tag `v0.9.0` stable → cascade to all 5 consumers.
 4. If issues: fix → tag `rc2`. Each rc cleanly supersedes prior bump PRs per `docs/concepts/release-management.md` §3.4.
 
@@ -87,7 +87,7 @@ Grouped per `templates/new-project/.claude/skills/openspec-apply-change` convent
 ### A. L1 — AI in-session self-review
 
 - [ ] A.1 Implement `scripts/check_coderabbit_status.py` per the API in the components table. Pure stdlib + `gh` CLI. Returns JSON to stdout for easy worker-AI parsing.
-- [ ] A.2 Author `docs/runbooks/coderabbit-fallback.md` — the structured guide the worker AI follows when status is `rate-limited` / `silent`. Sections: detection, diff-classes-to-inspect (by category), how to fix critical findings, how to populate §4.5 PR body, examples (cite PR #41 of `project-e` as the manual reference run).
+- [ ] A.2 Author `docs/runbooks/coderabbit-fallback.md` — the structured guide the worker AI follows when status is `rate-limited` / `silent`. Sections: detection, diff-classes-to-inspect (by category), how to fix critical findings, how to populate §4.5 PR body, examples.
 - [ ] A.3 Add unit tests under `tests/` for `check_coderabbit_status.py`: mock `gh pr view --comments` output for each of the 4 status outcomes; assert correct JSON output.
 - [ ] A.4 Spec update `docs/concepts/release-management.md` §4.5: insert §4.5.1 codifying that worker AI must invoke the script after every `gh pr create` and follow the runbook if status is not `available`.
 
@@ -110,7 +110,7 @@ Grouped per `templates/new-project/.claude/skills/openspec-apply-change` convent
 - [ ] D.1 Bump `VERSION` to `0.9.0-rc1`.
 - [ ] D.2 Add `CHANGELOG.md` section: `## [0.9.0] — YYYY-MM-DD — CodeRabbit fallback (3-layer defense)` summarizing L1 + L2 + spec updates + new scripts.
 - [ ] D.3 Tag `v0.9.0-rc1` → push → propagation auto-opens bump PRs.
-- [ ] D.4 Validate on `project-e` slice 3 (`persistence-tenant-enforcement`).
+- [ ] D.4 Validate on one consumer slice.
 - [ ] D.5 If clean → tag `v0.9.0` stable → propagation cascades to 5 consumers.
 
 ## Followups surfaced during the rc1 + rc2 rollout (2026-05-01)
@@ -119,17 +119,17 @@ Two real bugs surfaced while propagating v0.9.0-rc1 / rc2 across the 5 consumers
 
 ### Followup 1 — `propagate_bump.py` doesn't bump `AGENTS.md` `inherits_from:` — **RESOLVED v0.9.1 (2026-05-01)**
 
-Closed by [`fix(release-management/v0.9.1)`](https://github.com/Wizarck/ai-playbook/pull/29). Validated end-to-end during the v0.9.1 cascade dogfood: gamma's auto-generated bump PR ([Wizarck/gamma#40](https://github.com/Wizarck/gamma/pull/40)) included `AGENTS.md` `inherits_from:` change automatically — no manual fix-PR required. The `_edit_frontmatter_skills_source` helper was extracted to `scripts/_bumper.py::bump_agents_md_pin` and is now invoked from BOTH propagation scripts.
+Closed by [`fix(release-management/v0.9.1)`](https://github.com/Wizarck/ai-playbook/pull/29). Validated end-to-end during the v0.9.1 cascade dogfood: a consumer's auto-generated bump PR included `AGENTS.md` `inherits_from:` change automatically — no manual fix-PR required. The `_edit_frontmatter_skills_source` helper was extracted to `scripts/_bumper.py::bump_agents_md_pin` and is now invoked from BOTH propagation scripts.
 
-**Surfaced**: gamma ended the rc2 cascade with `.ai-playbook/` submodule at v0.9.0-rc2 (correct) but `AGENTS.md` `inherits_from: ai-playbook@v0.3.0` (stale). Required a manual bump PR (Wizarck/gamma#36) to fix.
+**Surfaced**: a consumer ended the rc2 cascade with `.ai-playbook/` submodule at v0.9.0-rc2 (correct) but `AGENTS.md` `inherits_from: ai-playbook@v0.3.0` (stale). Required a manual bump PR to fix.
 
-**Root cause**: `scripts/propagate_bump.py` only writes the submodule pointer file (`.ai-playbook` gitlink); it never touches `AGENTS.md`. `scripts/propagate_skills_bump.py` DOES rewrite `AGENTS.md` frontmatter — but only fires for consumers that have `skills_pins:` in `consumers.yaml`. gamma doesn't (it's a personal project with no skills tracking), so neither propagation path bumps its `inherits_from:`.
+**Root cause**: `scripts/propagate_bump.py` only writes the submodule pointer file (`.ai-playbook` gitlink); it never touches `AGENTS.md`. `scripts/propagate_skills_bump.py` DOES rewrite `AGENTS.md` frontmatter — but only fires for consumers that have `skills_pins:` in `consumers.yaml`. That consumer doesn't (it's a personal project with no skills tracking), so neither propagation path bumps its `inherits_from:`.
 
 **Why this matters**: `inherits_from:` is the canonical declaration of which playbook semver tag the project tracks. Stale value confuses humans + AIs reading AGENTS.md and breaks the audit trail.
 
 **Fix**: extend `propagate_bump.py` to ALSO rewrite `AGENTS.md` frontmatter `inherits_from:` line for the consumer it's bumping. Same regex pattern as `_edit_frontmatter_skills_source` already uses (it already matches `inherits_from:` lines incidentally — confirmed by inspection during the cycle). Move the regex helper into `_bumper.py` so both propagation scripts share it.
 
-**Test plan**: re-run propagation on gamma at next playbook release; confirm `inherits_from:` bumps automatically without needing a manual PR.
+**Test plan**: re-run propagation on that consumer at next playbook release; confirm `inherits_from:` bumps automatically without needing a manual PR.
 
 ### Followup 2 — Supersede uses tag-push chronology, not semver order — **RESOLVED v0.9.1 (2026-05-01)**
 
@@ -151,7 +151,7 @@ Recommend **#2 long-term** + **#1 documented as the operational guard** so devs 
 
 Closed by [`fix(release-management/v0.9.1)`](https://github.com/Wizarck/ai-playbook/pull/29). `read_commit_message()` now ALSO reads `$PRE_COMMIT_FROM_REF/$PRE_COMMIT_TO_REF` and runs `git log --format=%B%x00 $FROM..$TO` to concatenate every commit message in the range. The `openspec-archive:` marker is detected if it appears in ANY commit on the branch. Covered by 4 new tests in `tests/test_block_manual_spec_edit.py` (real git repo, real env vars).
 
-**Surfaced**: project-e PR #57 (slice 3 archive — `chore(openspec): archive slice 3 persistence-tenant-enforcement`). The commit body INCLUDED the `openspec-archive: persistence-tenant-enforcement` marker on its own line. Local pre-commit (commit-msg stage) read the marker correctly via `$PRE_COMMIT_COMMIT_MSG_FILE` and allowed the commit. CI's `pre-commit run --from-ref ... --to-ref ...` then re-flagged `openspec/specs/persistence-layer/spec.md` as a "hand-edit" with: `❌ openspec/specs/*.md hand-edit detected and commit message unavailable at openspec/specs/persistence-layer/spec.md`. Required `--admin` merge to bypass.
+**Surfaced**: on a slice-archive PR. The commit body INCLUDED the `openspec-archive: persistence-layer` marker on its own line. Local pre-commit (commit-msg stage) read the marker correctly via `$PRE_COMMIT_COMMIT_MSG_FILE` and allowed the commit. CI's `pre-commit run --from-ref ... --to-ref ...` then re-flagged `openspec/specs/persistence-layer/spec.md` as a "hand-edit" with: `❌ openspec/specs/*.md hand-edit detected and commit message unavailable at openspec/specs/persistence-layer/spec.md`. Required `--admin` merge to bypass.
 
 **Root cause**: [`scripts/block_manual_spec_edit.py::read_commit_message()`](../../scripts/block_manual_spec_edit.py) only resolves the message via:
 1. `$PRE_COMMIT_COMMIT_MSG_FILE` (commit-msg stage; works locally)
@@ -167,7 +167,7 @@ It does NOT iterate the commits in `$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF` (C
 
 ### Followup 4 — `/opsx:apply` skill doesn't enforce `tasks.md` checkbox-update discipline
 
-**Surfaced**: project-e slice 3 (`persistence-tenant-enforcement`). The implementation merged with **0 of 55** task checkboxes ticked off, even though the slice was 100 % feature-complete (verified by 30 new tests + 95 % coverage on `persistence/*` + mypy strict clean + pre-commit clean before merge). When the archive ran, `openspec archive` flagged 55 incomplete tasks and required `--yes` to override. The audit trail value of `tasks.md` is undermined when the boxes drift from the actual implementation state.
+**Surfaced**: a slice implementation merged with **0 of 55** task checkboxes ticked off, even though the slice was 100 % feature-complete (verified by 30 new tests + 95 % coverage on `persistence/*` + mypy strict clean + pre-commit clean before merge). When the archive ran, `openspec archive` flagged 55 incomplete tasks and required `--yes` to override. The audit trail value of `tasks.md` is undermined when the boxes drift from the actual implementation state.
 
 **Root cause**: the `openspec-apply-change` skill (upstream OpenSpec CLI; not playbook-owned) instructs the agent to "update task checkbox immediately after completing each task" but enforces nothing — it's a soft guideline that's easy to miss when the agent is focused on the code work + tests + mypy + pre-commit cycles. There is no automation that ticks boxes from commit metadata, no failing CI check, no warning at PR-open time.
 
@@ -188,7 +188,7 @@ It does NOT iterate the commits in `$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF` (C
 
 **Recommended path**: ship option 1 + option 2 in v0.9.x. Option 3 deferred until we see whether 1+2 are sufficient — strict-mode is annoying enough that it should only land if soft mechanisms don't move the needle.
 
-**Test plan**: dogfood on the next multi-group slice (Wave 2 in project-e). Compare boxes-checked rate before-and-after option 1 ships. Target: ≥ 95 % of tasks auto-ticked when the convention is followed; the remaining 5 % are tasks that span multiple commits + need a manual tick at the end.
+**Test plan**: dogfood on the next multi-group slice. Compare boxes-checked rate before-and-after option 1 ships. Target: ≥ 95 % of tasks auto-ticked when the convention is followed; the remaining 5 % are tasks that span multiple commits + need a manual tick at the end.
 
 **Status**: filed 2026-05-01 (v0.9.2 release). Open.
 
@@ -196,6 +196,4 @@ It does NOT iterate the commits in `$PRE_COMMIT_FROM_REF..$PRE_COMMIT_TO_REF` (C
 
 - [`docs/concepts/release-management.md`](release-management.md) §4.5 — the AI-reviewer feedback loop this release extends.
 - [`docs/runbooks/release.md`](../runbooks/release.md) — release flow, this release follows the rc-first pattern (substantial release).
-- `project-e` PR #41 — manual reference run of L1 (the worker AI did the self-review by hand on 2026-05-01 because CodeRabbit was rate-limited; v0.9.0 codifies what was done there).
-- `gamma` PR #36 — the manual `inherits_from:` bump that surfaced followup #1.
 - `ai-playbook` v0.9.0-rc1 → rc2 cycle — the supersede mishap that surfaced followup #2.

@@ -21,7 +21,7 @@ so the rendered output is correctly a per-machine artifact, not a committed file
 - AGENTS.md.tmpl §6 + upgrade-playbook-pin runbook document the local-render
   model + the one-time `git rm --cached` migration + fresh-clone render step.
 - Genericise the one personal-flavoured example in mcp-servers-schema.md
-  (`google-workspace-arturo` → `google-workspace-<you>`).
+  (`google-workspace-jane` → `google-workspace-<you>`).
 - Regression test: the shipped `.gitignore.tmpl` ignores both rendered outputs.
 
 ## Deferred to later phases

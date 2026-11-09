@@ -43,8 +43,8 @@ def _consumer(tmp_path: Path, mcp: dict) -> Path:
 
 _MCP = {
     "mcpServers": {
-        "google-workspace-arturo": {
-            "transport": "http", "url": "https://gw/arturo",
+        "google-workspace-jane": {
+            "transport": "http", "url": "https://gw/jane",
             "env": {"GOOGLE_TOKEN": "secret-value-123"},
         },
         "my-rag": {"command": "python", "args": ["-m", "rag"]},
@@ -63,12 +63,12 @@ def test_absorb_writes_tenant_to_personal_reports_project_skips_base(tmp_path: P
         personal_file=personal, dry_run=False,
     )
 
-    assert res.written_personal == ["google-workspace-arturo"]
+    assert res.written_personal == ["google-workspace-jane"]
     assert res.report_project == ["my-rag"]           # non-tenant → reported, not written
     assert res.skipped == ["hindsight"]                # already in base layer
     data = yaml.safe_load(personal.read_text(encoding="utf-8"))
-    assert "google-workspace-arturo" in data["servers"]
-    assert data["servers"]["google-workspace-arturo"]["scope"] == "personal"
+    assert "google-workspace-jane" in data["servers"]
+    assert data["servers"]["google-workspace-jane"]["scope"] == "personal"
     # The project-scoped server is NEVER written anywhere by absorb.
     assert "my-rag" not in data["servers"]
 
@@ -82,7 +82,7 @@ def test_absorb_carries_env_names_not_values(tmp_path: Path) -> None:
         personal_file=personal, dry_run=False,
     )
     text = personal.read_text(encoding="utf-8")
-    entry = yaml.safe_load(text)["servers"]["google-workspace-arturo"]
+    entry = yaml.safe_load(text)["servers"]["google-workspace-jane"]
     assert entry["env"]["required"] == ["GOOGLE_TOKEN"]
     assert "secret-value-123" not in text  # no secret value leaked into the layer
 
@@ -97,7 +97,7 @@ def test_absorb_is_idempotent(tmp_path: Path) -> None:
     res2 = ab.absorb_mcp_json(consumer_root=consumer, playbook_root=playbook,
                               personal_file=personal, dry_run=False)
     assert res2.written_personal == []                       # already present
-    assert "google-workspace-arturo" in res2.skipped
+    assert "google-workspace-jane" in res2.skipped
     assert personal.read_text(encoding="utf-8") == first     # no duplicate / churn
 
 
@@ -108,7 +108,7 @@ def test_absorb_dry_run_writes_nothing(tmp_path: Path) -> None:
     res = ab.absorb_mcp_json(consumer_root=consumer, playbook_root=playbook,
                              personal_file=personal, dry_run=True)
     assert res.dry_run is True
-    assert res.written_personal == ["google-workspace-arturo"]  # would-write preview
+    assert res.written_personal == ["google-workspace-jane"]  # would-write preview
     assert not personal.exists()
 
 
@@ -129,21 +129,21 @@ def test_absorb_never_clobbers_existing_personal_entry(tmp_path: Path) -> None:
     personal = tmp_path / "personal.yaml"
     personal.write_text(
         "schema: mcp-servers/v1\nlayer: personal\nservers:\n"
-        "  google-workspace-arturo:\n    id: google-workspace-arturo\n"
+        "  google-workspace-jane:\n    id: google-workspace-jane\n"
         "    transport: http\n    endpoint: https://curated\n    scope: personal\n",
         encoding="utf-8",
     )
     res = ab.absorb_mcp_json(consumer_root=consumer, playbook_root=playbook,
                              personal_file=personal, dry_run=False)
     # Already present → skipped, the curated endpoint is preserved.
-    assert "google-workspace-arturo" in res.skipped
-    entry = yaml.safe_load(personal.read_text(encoding="utf-8"))["servers"]["google-workspace-arturo"]
+    assert "google-workspace-jane" in res.skipped
+    entry = yaml.safe_load(personal.read_text(encoding="utf-8"))["servers"]["google-workspace-jane"]
     assert entry["endpoint"] == "https://curated"
 
 
 def test_classify_unit() -> None:
     base = {"google-workspace", "hindsight"}
-    assert ab.classify("google-workspace-arturo", base) == "personal"
+    assert ab.classify("google-workspace-jane", base) == "personal"
     assert ab.classify("my-rag", base) == "project"
 
 

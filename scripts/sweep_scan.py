@@ -14,7 +14,7 @@ an executor: it writes a ledger and stops. Deleting is a separate, explicit huma
 step, and there is no delete path in this file.
 
 THE PROBE GATE — the reason this scanner is shaped the way it is
-Measured against alpha before this was written: a naive "not imported" scan
+Measured against a real production codebase before this was written: a naive "not imported" scan
 produced 779 candidates, of which 17 were real (2.2%). The two failures that
 mattered were NOT judgement calls, they were mechanical resolver bugs of mine:
 
@@ -156,7 +156,7 @@ _COMMITMENT_RE = re.compile(
 #
 # Each preset is a set of globs whose matches are ENTRY POINTS: reachable by
 # definition, because a framework loads them by filename rather than by import.
-# Measured on alpha: these six presets account for 762 of 779 naive candidates.
+# Measured on a real codebase: these six presets account for 762 of 779 naive candidates.
 # They are framework facts, so they ship here rather than in every consumer's
 # config.
 
@@ -165,7 +165,7 @@ def _by_ext(stems: tuple[str, ...], exts: tuple[str, ...]) -> list[str]:
     """Every stem × every extension, as `**/`-anchored globs.
 
     Hand-enumerating this product is how a preset ends up covering `page.tsx`
-    but not `page.js`. Measured on alpha: that exact omission left three live
+    but not `page.js`. Measured on a real codebase: that exact omission left three live
     Next routes rootless and reported the 10 modals below them — a whole
     directory — as orphans. Generating the product makes "we support this
     extension" a single edit that cannot apply to some stems and not others.
@@ -197,7 +197,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "next-app-router": {
         "why": (
             "Next.js App Router routes by FILE SYSTEM: these filenames are "
-            "entry points by convention and are never imported. On alpha this "
+            "entry points by convention and are never imported. On a real codebase this "
             "one preset alone explains 118 candidates."
         ),
         "entrypoints": _by_ext(
@@ -511,7 +511,7 @@ def _read_tsconfig(path: Path, seen: set[Path]) -> tuple[dict[str, list[str]], P
 def load_ts_aliases(root: Path, tsconfig_rel: str) -> list[tuple[str, str]]:
     """`compilerOptions.paths` -> [(prefix, target), ...], longest prefix first.
 
-    This is THE field whose absence produced 89 false positives on alpha. The
+    This is THE field whose absence produced 89 false positives on a real codebase. The
     project's own module-resolution config is the ground truth for what an import
     specifier means; a resolver that guesses instead of reading it will report a
     live component tree as dead.
@@ -631,7 +631,7 @@ def git_versioned(root: Path) -> set[str] | None:
     """Paths git tracks, or would track — `None` when this is not a git tree.
 
     A file git ignores cannot be repo entropy: it is a local build artifact
-    that regenerates. Measured on alpha: two gitignored Playwright report
+    that regenerates. Measured on a real codebase: two gitignored Playwright report
     directories contributed 10 of 24 candidates, all of them bundled vendor
     JavaScript. Reporting them is worse than noise — it invites someone to
     "clean up" a directory that comes back on the next test run.

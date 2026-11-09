@@ -51,7 +51,7 @@ def _is_english_heuristic(prose: str) -> bool:
     """Fallback heuristic when langdetect unavailable.
 
     Treats prose with high Spanish-diacritic density as non-English. Tolerates
-    isolated proper nouns (Ramírez, Diátaxis) — the threshold is 1 diacritic
+    isolated proper nouns (García, Diátaxis) — the threshold is 1 diacritic
     per 200 characters of prose, calibrated to the v0.18.0 corpus.
     """
     if not prose.strip():

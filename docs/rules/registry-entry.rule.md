@@ -53,7 +53,7 @@ schema: ai-playbook/projects-registry/v1
 projects:
   my-consumer:
     path: C:/Projects/my-consumer
-    owner: arturo
+    owner: maintainer
     version: "1.0.0"
 ```
 

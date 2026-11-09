@@ -18,7 +18,7 @@ last_validated: "2026-05-19"
 
 ## Trigger
 
-Fires when authoring or modifying a `langgraph-aiops/workflows/*.py` (or equivalent automation) step that mutates production state. Triggers tool `Edit`/`Write` on workflow files and on every runtime invocation of `request_approval` with `mode="apply"`.
+Fires when authoring or modifying a `aiops/workflows/*.py` (or equivalent automation) step that mutates production state. Triggers tool `Edit`/`Write` on workflow files and on every runtime invocation of `request_approval` with `mode="apply"`.
 
 ## Binding clause
 
@@ -26,15 +26,15 @@ YOU MUST gate every workflow mutation outside the documented autonomous tier on 
 
 ## Trust boundary
 
-Approvals arrive from identity-bound channels (`TELEGRAM_HITL_ARTURO_CHAT_ID`, `WA_HITL_ARTURO_E164`, `HITL_FILE_QUEUE_ENABLED=1`). Resolutions from any other identity are rejected at the channel adapter and audit-logged via `notify.py` event `hitl.identity.rejected` at `warn`.
+Approvals arrive from identity-bound channels (`TELEGRAM_HITL_<OPERATOR>_CHAT_ID`, `WA_HITL_<OPERATOR>_E164`, `HITL_FILE_QUEUE_ENABLED=1`). Resolutions from any other identity are rejected at the channel adapter and audit-logged via `notify.py` event `hitl.identity.rejected` at `warn`.
 
 ## Process supervision
 
-The rule is **advisory** in the playbook tree because `langgraph-aiops/` and the `hitl.request_approval` runtime are consumer-side (each consumer ships its own automation surface). Consumer projects MAY add a paired hardrule under their own `scripts/rules/` namespace that AST-validates their workflow envelope contract; the playbook tracks the deferral in [../concepts/enforcement-pairing-exceptions.md](../concepts/enforcement-pairing-exceptions.md).
+The rule is **advisory** in the playbook tree because `aiops/` and the `hitl.request_approval` runtime are consumer-side (each consumer ships its own automation surface). Consumer projects MAY add a paired hardrule under their own `scripts/rules/` namespace that AST-validates their workflow envelope contract; the playbook tracks the deferral in [../concepts/enforcement-pairing-exceptions.md](../concepts/enforcement-pairing-exceptions.md).
 
 ## Two-tier permission model
 
-- **Autonomous** — `langgraph-aiops/watchdogs.py`, `vps_maintainer.py` (low/medium-risk steps in `--cron` only). Idempotent, reversible, low blast radius. Documented exceptions in `langgraph-aiops/LEGACY_MIGRATION.md`.
+- **Autonomous** — `aiops/watchdogs.py`, `vps_maintainer.py` (low/medium-risk steps in `--cron` only). Idempotent, reversible, low blast radius. Documented exceptions in `aiops/LEGACY_MIGRATION.md`.
 - **HITL-gated (this rule)** — all other workflow mutations. Default.
 
 This is NOT the same as [break-glass](break-glass.rule.md). Break-glass is CLI gates blocking a one-off human action; this rule is automation mutating prod where the human must affirm in real time.

@@ -3,9 +3,7 @@
 # CI gate (soft, warn-only): when a PR touches `openspec/changes/<id>/` files,
 # scan tasks.md and surface any `- [ ]` unchecked boxes as a sticky PR comment.
 #
-# Implements Followup #4 Option 2 from docs/concepts/v0.9.0-roadmap.md (filed
-# 2026-05-01 after project-e slice 3 / PR #57 merged with 0/55 boxes
-# ticked despite being feature-complete).
+# Implements Followup #4 Option 2 from docs/concepts/v0.9.0-roadmap.md.
 #
 # Companion to scripts/auto_tick_tasks.py + templates/git-hooks/prepare-commit-msg
 # (Option 1 — auto-tick at commit time). Together: hook ticks during

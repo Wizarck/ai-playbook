@@ -55,7 +55,7 @@ Every prompt is assembled as a sequence of tiers, strictly **most stable first, 
 
 - **Implicit prefix caching, provider-dependent.** The OpenAI-compatible API surface does not expose a `cache_control` equivalent; caching behavior is up to the upstream. Stability still matters because upstreams that do cache use the prefix bytes as the key.
 - **OpenRouter fan-out changes the equation.** A single logical OpenRouter call may route to different upstream providers on different turns, each with its own cache state. Expect lower cache hit rates than with a direct Anthropic or Gemini call.
-- **LiteLLM at project-d port `4000`** uniformly exposes OpenAI-compatible responses. Cache-hit signals from upstream are passed through when present; absence of the field does not mean absence of caching, just absence of reporting.
+- **LiteLLM at port `4000`** uniformly exposes OpenAI-compatible responses. Cache-hit signals from upstream are passed through when present; absence of the field does not mean absence of caching, just absence of reporting.
 - **Do not rely on OpenAI-compatible caching for cost guarantees.** Treat any savings here as bonus; budget as if every token were fresh.
 
 ### 2.4 Local (Ollama)

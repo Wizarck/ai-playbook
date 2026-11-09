@@ -164,7 +164,7 @@ The four, all in one campaign (2026-08-15/16), and which clause catches each:
 | ticket | what happened | caught by |
 |---|---|---|
 | PROJ-1469 | closed after verifying 1 of the ticket's 3 requirements | **C5** |
-| PROJ-1388 | closed after reading `blueprints/datascout/`, when the ticket's first line names `blueprints/datashield/router.py:818` — the product **label** was followed instead of the cited **path** | **C4** |
+| PROJ-1388 | closed after reading `blueprints/alpha/`, when the ticket's first line names `blueprints/beta/router.py:818` — the product **label** was followed instead of the cited **path** | **C4** |
 | PROJ-1473 | closed on a `grep -v` that filtered out exactly where the fix lived; then closed again on the backend half of a two-half ticket | **C5** |
 | PROJ-1497 | closed on the backend half; the Playwright half named in the ticket's own regression section was still pinned with `test.fail()` | **C4** |
 
@@ -185,13 +185,13 @@ catch a careless closure, not to become the reason nobody can close anything.
 **Refused** — a verdict and a file, but the ticket enumerates three requirements:
 
 ```
-FIXED — the guard is in backend/app/blueprints/transfer/adapters/_common.py.
+FIXED — the guard is in backend/app/blueprints/delta/adapters/_common.py.
 ```
 
 **Accepted**:
 
 ```
-**FIXED** — verified against HEAD (a21af301).
+**FIXED** — verified against HEAD (`<commit-sha>`).
 
 1. zero source count no longer certifies a failure — adapters/_common.py:412,
    `zero_source_blocked_reason`. test_a_genuinely_empty_source_is_still_a_clean_pass
@@ -203,7 +203,7 @@ FIXED — the guard is in backend/app/blueprints/transfer/adapters/_common.py.
 **Accepted** — a stale finding, which needs no code but still needs a path:
 
 ```
-STALE — remediated by #485. adapters/shared_drive.py:158 already stores
+STALE — remediated by #485. adapters/s3.py:158 already stores
 `destination_drive_name`; the ticket predates it.
 ```
 

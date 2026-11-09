@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sops exec-env \"$CLAUDE_PROJECT_DIR/../project-a/secrets/secrets.env\" -- python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py\" --bank-id {{PROJECT_BANK}} 2>/dev/null || true",
+            "command": "[ -n \"$AIPLAYBOOK_SECRETS_ENV\" ] && sops exec-env \"$AIPLAYBOOK_SECRETS_ENV\" 'python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py\" --consumer-root \"$CLAUDE_PROJECT_DIR\" --bank-id {{PROJECT_BANK}}' 2>/dev/null || true",
             "timeout": 60
           }
         ]

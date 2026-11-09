@@ -7,12 +7,15 @@
 #
 # Tracked by PROJ-1350.
 #
+# The Jira project this standard applies to is not encoded here: it is set with
+# `--project` or the env var `AIPLAYBOOK_JIRA_PROJECT` (default `PROJ`).
+#
 # WHY THE LITERALS ARE BILINGUAL
 # The headings below are DATA, not prose: they are the exact strings an author
 # types into a Jira description. A form speaks the language of whoever fills it
-# in — and for PROJ that stopped being one language.
+# in — and for this project that stopped being one language.
 #
-# The standard shipped Spanish-canonical because PROJ tickets were written in
+# The standard shipped Spanish-canonical because its tickets were written in
 # Spanish. Four sections happened to carry English aliases (`Test plan`,
 # `Steps to reproduce`, `Expected vs actual`, `Regression test`) and three did
 # not, which is not a decision anyone made: it is what the first author reached
@@ -59,9 +62,9 @@ normalization:
 # ---------------------------------------------------------------------------
 # Metric types — the closed list (Deliverable 0 of PROJ-1350)
 # ---------------------------------------------------------------------------
-# Confirmed by Arturo on 2026-08-02. Reconstructed from the 2026-08-01 taxonomy
-# audit. Adding a sixth type is a deliberate edit here, reviewed like any other
-# contract change — never an ad-hoc string in one ticket.
+# Confirmed by the maintainer on 2026-08-02. Reconstructed from the 2026-08-01
+# taxonomy audit. Adding a sixth type is a deliberate edit here, reviewed like
+# any other contract change — never an ad-hoc string in one ticket.
 metric_types:
   - id: coverage
     canonical: "cobertura / compliance"

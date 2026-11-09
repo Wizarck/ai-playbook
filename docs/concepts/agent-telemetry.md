@@ -136,17 +136,6 @@ an existing Langfuse instance, **reuse it**. Specifically:
 | Existing dashboards / cost widgets | Work as-is once traces start landing — Langfuse's per-project filters do the namespacing |
 | Existing post-response tracers (e.g. `lib/telemetry/anthropic_tracer.py`) | Continue using them for non-Claude-Code call sites (Hindsight, internal LLM workflows). Claude Code OTLP and post-response tracers can coexist and feed the same Langfuse project |
 
-For the maintainer's personal stack: the project-d infrastructure already operates a
-Langfuse Cloud project with keys in
-`C:/Projects/project-d/secrets/secrets.env` (`LANGFUSE_PUBLIC_KEY` /
-`LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST`). Every maintainer-owned consumer
-(project-e, project-c, project-b, project-d-rag, project-d-skills) reuses
-that project. The `project-d/dashboard` already renders 4 Langfuse-backed
-widgets (`cost-estimate`, `top-models`, `traces-today`, `error-rate`); these
-widgets surface Claude Code agent activity once OTLP export is enabled,
-**without dashboard code changes** — the widgets query Langfuse's public API
-generically.
-
 ## 4. Minimum viable path for projects without an existing Langfuse
 
 Consumer projects that lack any observability stack still need an audit

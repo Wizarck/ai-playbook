@@ -36,7 +36,7 @@ A Claude Code session at the repo root then auto-recalls from Hindsight bank `<p
 >
 > **Pre-existing `.mcp.json` (≥ v0.19.22).** If the repo already had an inline
 > `.mcp.json`, run `python .ai-playbook/scripts/mcp/render.py --absorb` once.
-> Tenant instances (`<server-type>-<tenant>`, e.g. `google-workspace-arturo`) are
+> Tenant instances (`<server-type>-<tenant>`, e.g. `google-workspace-jane`) are
 > migrated into your local personal layer (`~/.config/mcp-servers.yaml`); every
 > other server is **reported, not written** — add genuinely-shared ones to the
 > committed `mcp-servers.project.yaml` by hand. Nothing personal can land in a
@@ -64,7 +64,7 @@ flowchart TD
     ProfileBranch -->|Profile B| PB["repo settings only<br/>+ canonical Status schema<br/>(branch protection N/A on Free)"]
 
     PA --> S9["§9 — Install CodeRabbit<br/>GitHub App<br/>(Profile A only)"]
-    S9 --> S10["§10 — Configure<br/>PROJECT_D_GOD_MODE secret<br/>(Profile A only)"]
+    S9 --> S10["§10 — Configure<br/>AIPLAYBOOK_GOD_MODE secret<br/>(Profile A only)"]
     S10 --> S11
     PB --> S11["§11 — Verify SessionStart hook<br/>(Hindsight bank auto-recall)"]
 
@@ -268,12 +268,12 @@ On the first PR, CodeRabbit comments automatically. The worker AI must read and 
 
 Skip if the repo stays private or if CodeRabbit is not wanted. The §4.5 contract degrades to self-review (Profile B fallback, see [Runbook: coderabbit-fallback](coderabbit-fallback.md)).
 
-### 10. Configure the `PROJECT_D_GOD_MODE` secret (Profile A only)
+### 10. Configure the `AIPLAYBOOK_GOD_MODE` secret (Profile A only)
 
 Only needed when a workflow clones a submodule that is private. The playbook repo itself is public, so `actions/checkout` reaches it without a token:
 
 ```bash
-gh secret set PROJECT_D_GOD_MODE -R <owner>/<project-name> --body "<your-pat>"
+gh secret set AIPLAYBOOK_GOD_MODE -R <owner>/<project-name> --body "<your-pat>"
 ```
 
 The PAT requires scope `Contents: read` on each private submodule the workflow clones. Without it, `actions/checkout@v4` with `submodules: true` fails with `404 Repository not found`.
@@ -308,7 +308,7 @@ Configure:
 - Variable `PROJECT_OWNER`: `<your-org>` (your GitHub user or org login).
 - Variable `PROJECT_NUMBER`: `<N>` from step 8.
 
-`project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty. It posts with `secrets.GITHUB_TOKEN`; its submodule checkout uses `secrets.PROJECT_D_GOD_MODE` (§10) when set and falls back to `github.token`, enough while the playbook repo is public. A copy made before v0.24.2 references the invalid `secrets.project-a_GOD_MODE` and fails on every PR: re-copy the template, or set its `token:` line to `${{ secrets.PROJECT_D_GOD_MODE || github.token }}`.
+`project-status.yml` auto-transitions items from Blocked → Todo when their deps are Done. `dep-check.yml` (opt-in hard gate) blocks a slice's PR if its deps are not Done. `coderabbit-fallback.yml` (v0.9.0+) posts a self-review checklist when CodeRabbit is unavailable AND §4.5 is empty. It posts with `secrets.GITHUB_TOKEN`; its submodule checkout uses `secrets.AIPLAYBOOK_GOD_MODE` (§10) when set and falls back to `github.token`, enough while the playbook repo is public. A copy made before v0.24.2 references an invalid secret name and fails on every PR: re-copy the template, or set its `token:` line to `${{ secrets.AIPLAYBOOK_GOD_MODE || github.token }}`.
 
 `bootstrap_gh_project.py --profile auto` (v0.9.0+) copies `coderabbit-fallback.yml` automatically; the manual `cp` is for consumers skipping the bootstrap script.
 
@@ -357,7 +357,7 @@ git add scripts/install-playbook-hooks.sh scripts/git-hooks/
 with an absolute path: `"command": "sops exec-env /absolute/path/to/your/secrets.env -- python ..."`. Or export the env vars in the shell profile and drop the `sops exec-env` wrapper.
 
 ### Symptom: CI submodule clone fails with `404 Repository not found`
-**Cause**: `PROJECT_D_GOD_MODE` secret missing or PAT lacks `Contents: read` on the playbook + skills repos.
+**Cause**: `AIPLAYBOOK_GOD_MODE` secret missing or PAT lacks `Contents: read` on the playbook + skills repos.
 **Fix**: rotate per [Runbook: rotate-secrets](rotate-secrets.md), confirming the PAT has both repos in scope.
 
 ### Symptom: rollback — something went wrong and the bootstrap must be undone

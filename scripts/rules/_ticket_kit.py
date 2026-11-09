@@ -3,7 +3,7 @@
 ONE implementation, FOUR consumers: the PreToolUse hook in
 `jira-ticket-standard.rule.py`, `create_jira_issue()` in `scripts/issue_sync.py`,
 that rule's `check`/`explain` CLI, and the `/jira-ticket` skill. A closed list
-that lives in two places is exactly the drift PROJ-1350 exists to stop, so the
+that lives in two places is exactly the drift this standard exists to stop, so the
 list lives in the spec and the reading of it lives here.
 
 WHY A FLATTENER AND NOT TWO VALIDATORS
@@ -163,7 +163,7 @@ _TRAILING_PAREN_RE = re.compile(r"\s*\([^)]*\)\s*$")
 # Markdown emphasis, stripped before comparison. Authors bold and italicise
 # inside headings and inside metric types, and `_cobertura / compliance_` is the
 # same type as `cobertura / compliance`. Measured: all four metric lines of
-# PROJ-1350 — the ticket that asked for this standard — were rejected by an
+# the ticket that asked for this standard were rejected by an
 # earlier version of this normaliser for exactly this reason.
 _EMPHASIS_RE = re.compile(r"[*_`~]+")
 _TRAILING_PUNCT = " \t.,;:·-—– "
@@ -179,8 +179,8 @@ def _strip_accents(text: str) -> str:
 def normalize_heading(text: str, norm: dict[str, Any]) -> str:
     """Apply the spec's normalisation. Applied to BOTH sides of a comparison.
 
-    Exact matching is the wrong default and this project proves it: PROJ-1350,
-    the ticket that asked for the standard, writes both `## Métricas` and
+    Exact matching is the wrong default and this project proves it: the ticket
+    that asked for the standard writes both `## Métricas` and
     `## Métricas (métrica → tipo)`. A matcher that accepts one of those measures
     its own brittleness and reports it as non-compliance.
     """
@@ -611,9 +611,6 @@ def validate_description(
 # Rendering
 # ---------------------------------------------------------------------------
 
-EXAMPLE_URL = "https://alpha.atlassian.net/browse/PROJ-1350"
-
-
 def render_findings(findings: list[Finding]) -> str:
     """One message carrying EVERY problem, in Spanish.
 
@@ -624,7 +621,7 @@ def render_findings(findings: list[Finding]) -> str:
     if not findings:
         return ""
     lines = [
-        f"El ticket no cumple el estándar de PROJ ({len(findings)} problema(s)).",
+        f"El ticket no cumple el estándar ({len(findings)} problema(s)).",
         "",
     ]
     for i, f in enumerate(findings, 1):
@@ -633,7 +630,7 @@ def render_findings(findings: list[Finding]) -> str:
         lines.append(f"   → {f.fix}")
     lines += [
         "",
-        f"Plantilla: templates/jira-ticket.md.tmpl · Ejemplo real: {EXAMPLE_URL}",
+        "Plantilla: templates/jira-ticket.md.tmpl",
         "Contrato: specs/jira-ticket-standard.yaml",
     ]
     return "\n".join(lines)

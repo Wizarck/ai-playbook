@@ -135,8 +135,8 @@ run is never a green run.
 one fails by going falsely RED — and the consequence is worse than noise, because
 a confident wrong finding invites a destructive fix.
 
-Both halves were measured against alpha before this engine was written, and
-both naive detectors failed:
+Both halves were measured against a production codebase before this engine was
+written, and both naive detectors failed:
 
 **Axis 3.** `declared − imported` produced 16 candidates. **All 16 were false
 positives**, in five distinct categories, none of which is a defect:
@@ -150,7 +150,7 @@ positives**, in five distinct categories, none of which is a defect:
 | implicit at deserialisation | `scikit-learn` | `joblib.load()` on a vendored pipeline |
 
 The last is the dangerous one. **No line of the repo imports `scikit-learn`**; it
-loads when `joblib.load()` deserialises the pipeline behind the piracy detector.
+loads when `joblib.load()` deserialises the pipeline behind the classifier.
 A detector acting on the naive signal would have said "delete these 100 MB", and
 the break would have surfaced only when that code path ran, as an `ImportError`
 buried inside joblib. A separate mechanical trap: the distribution name is not
@@ -201,7 +201,7 @@ dependencies:
       - match: scikit-learn
         reason: >-
           Never imported by name; loaded when `joblib.load()` deserialises the
-          vendored pipeline in backend/app/blueprints/datashield/piracy_detector.py.
+          vendored pipeline in backend/app/blueprints/beta/classifier.py.
     severity: S3
 ```
 

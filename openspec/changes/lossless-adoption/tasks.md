@@ -22,7 +22,7 @@
   the PR title (no doc edit).
 - [ ] 2.3 `VERSION` → 0.19.20; prepend CHANGELOG `## [0.19.20]` (Fixed: AGENTS.md
   `inherits_from` list-form pin blanked on re-render). Commit, PR, merge, tag, release.
-- [ ] 2.4 Dogfood: re-pin gtm-advisor (hand-authored markerless AGENTS.md) through
+- [ ] 2.4 Dogfood: re-pin a consumer (hand-authored markerless AGENTS.md) through
   v0.19.20 and confirm `bootstrap --update` no longer blanks its pin.
 
 ## 3. Slice C — dispatcher-prose absorb (backup + curate) — v0.19.21

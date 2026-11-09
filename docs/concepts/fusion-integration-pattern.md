@@ -23,8 +23,6 @@ You have a consumer project that meets these conditions:
 
 If condition 1 is false (project has no custom schema), use the default BMAD+OpenSpec runbook per [runbook-bmad-openspec.md](runbook-bmad-openspec.md). If conditions 2-4 are false (the project has a sketch workflow it's willing to abandon), prefer **replacement** over fusion.
 
-The first reference implementation of this pattern is `project-a` (FastAPI + Next.js, modular monolith), which had 18 changes implemented under its custom `project-a-team` schema before adopting the playbook. The fusion preserved all 18 changes as-is and applied to new changes only.
-
 ## 2. The fusion decision matrix
 
 For each capability the playbook brings, decide one of:
@@ -130,7 +128,7 @@ If the project later decides to backport fusion rules to old changes (rare), ope
 
 ## 5. The N-layer parallel review pattern
 
-The playbook's [parallel-review.md](parallel-review.md) defines 3 layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) running in parallel with context isolation. For projects whose original `review` artefact has **holistic cross-cutting checks** (e.g., "spec compliance, code quality, security/perf, memory patterns, Karpathy compliance" — 5 holistic checks in project-a), the fusion adds a **4th layer**:
+The playbook's [parallel-review.md](parallel-review.md) defines 3 layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) running in parallel with context isolation. For projects whose original `review` artefact has **holistic cross-cutting checks** (e.g., "spec compliance, code quality, security/perf, memory patterns, Karpathy compliance" — 5 holistic checks), the fusion adds a **4th layer**:
 
 ```
         ┌──── Layer 1: Blind Hunter        (context-isolated, intent drift)
@@ -323,7 +321,7 @@ The two commented-out hooks are project-specific and the fusion template comment
 
 ## 9. Worked example: project-a
 
-`project-a` (FastAPI + Next.js modular monolith) was the first project to adopt this pattern (2026-05-13, ai-playbook v0.11.0). Key choices:
+`project-a` (FastAPI + Next.js modular monolith) adopted this pattern. Key choices:
 
 - **Schema**: kept `openspec/schemas/project-a-team/schema.yaml` with 9 artefacts (proposal → specs → design → tasks → apply → test → review → verify → memory).
 - **Imported from playbook**: verdict literals + S1-S4, max-2-rework, output-completeness, verification-before-completion (broadest-scope + tool-exit-code rules), 4-layer parallel review (3 isolated + project-a Reviewer with 5 holistic checks), agentic-failures self-check in apply, scope.write_paths declaration in tasks.
@@ -331,8 +329,6 @@ The two commented-out hooks are project-specific and the fusion template comment
 - **Dual memory**: `openspec/memory.md` (Markdown SSOT) + Hindsight bank `project-a`. Both retained per memory artefact.
 - **Deferred (opt-in)**: BMAD Discovery full workflow, bare worktrees, forward-authored retros, slicing artefact, 6 HITL gates.
 - **Not applicable**: migration of 18 existing changes (exempt), `block_manual_spec_edit.py` (project-a doesn't archive-promote specs), `verify_llm_routing.py` (project-a doesn't call LLMs directly).
-
-See `c:\Projects\project-a\AGENTS.md` §7 for the full override block.
 
 ## 10. See also
 

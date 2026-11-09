@@ -105,7 +105,7 @@ Implement tasks from an OpenSpec change.
    4. **If 1-2 identifiers drifted**, show the diff and let the user decide (small drift is normal across week-old proposals).
    5. **If ≥3 identifiers drifted OR a critical surface (migration slot, FK, public API) drifted**, refuse to proceed without explicit `--skip-preflight-grep` flag.
 
-   This catches the failure mode surfaced 2026-05-06 in project-e (proposals written before parallel slices renamed cited classes) — without preflight grep, the worker AI would silently apply against drifted state and either fail at typecheck (best case) or ship broken code (worst case).
+   This catches the failure mode (proposals written before parallel slices renamed cited classes) — without preflight grep, the worker AI would silently apply against drifted state and either fail at typecheck (best case) or ship broken code (worst case).
 
 5. **Show current progress**
 

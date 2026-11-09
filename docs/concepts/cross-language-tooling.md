@@ -182,22 +182,7 @@ that reads `tools/rag-proxy/.cache/`, breaks isolation. Cross-language
 contracts go over the network (HTTP, gRPC, queue) or via explicit
 codegen artefacts in `packages/<contract>/`.
 
-## 6. Reference implementations
-
-- **project-c** Wave 1.8 (`m2-ai-yield-corpus`, PR #88, 2026-05-06):
-  introduced `tools/rag-proxy/` (FastAPI, ~750 LOC + 60 tests, mypy
-  strict, ruff, 93.35% coverage) and `tools/rag-corpus/` (4 ingestion
-  scripts: USDA + EU 1169/2011 + Escoffier + CIAA-gated). Net
-  TypeScript LOC change in `apps/api/`: 0. CI workflow at
-  `.github/workflows/python-tools.yml`.
-
-- **project-e** v1 (planned R4 slice `openbb-sidecar-container`):
-  will introduce `tools/openbb-sidecar/` for the OpenBB Platform
-  compute that doesn't fit the apps/api Python deps tree. Same pattern
-  even though the primary language is also Python (the sidecar's deps
-  set is too large to merge into apps/api).
-
-## 7. Cross-references
+## 6. Cross-references
 
 - [release-management.md](release-management.md) §2 (branch model — `tools/<name>/` work follows the same `slice/<change-id>` discipline)
 - [event-and-data-patterns.md](event-and-data-patterns.md) §7 (stateless proxy + stateful caller — the *behavioural* pattern that often informs why a `tools/` service exists)

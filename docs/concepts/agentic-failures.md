@@ -266,11 +266,11 @@ The catalog is deliberately open — if you observe a new mode, add a row via RF
   `scripts/openspec_apply_marker.py session_started --change-id <id>` is the
   underlying check.
   OTel: `ai_playbook.failure.kind=apply_phase_bypass`.
-- **Example.** project-a Revalid v1.0 epic (2026-05-14, PRs #1-#4): four slices
+- **Example.** An epic's four slices were
   implemented with manual `Edit`/`Write` on declared `write_paths` instead of
   through the `openspec-apply-change` skill. Symptoms: tests appended at end
   (not TDD-red-first), citation-drift preflight skipped, self-validation
-  gates silent. Motivated this spec.
+  gates silent.
 
 ## 3. Universal OTel contract
 

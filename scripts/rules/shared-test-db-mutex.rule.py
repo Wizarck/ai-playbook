@@ -3,7 +3,7 @@
 
 One test database, one test run at a time.
 
-THE MEASURED INCIDENT (alpha, 2026-08-16). A 40-minute full-suite run was in
+THE MEASURED INCIDENT (2026-08-16). A 40-minute full-suite run was in
 flight to answer a real question — whether 743 previously ungated tests stay
 green when interleaved with the rest of the suite in one process. Two short
 pytest invocations were started alongside it. Backend pytest DROPS AND RECREATES
@@ -56,7 +56,7 @@ SKIP_ENV = "AIPLAYBOOK_TEST_DB_MUTEX_SKIP"
 # A lock older than this is presumed abandoned. Set well ABOVE any real suite:
 # a TTL at or below the true runtime turns every slow-but-healthy run into a
 # silently released lock, which is the failure this file exists to prevent,
-# rebuilt in a new shape. alpha's longest measured lane is ~45 min.
+# rebuilt in a new shape. the longest measured lane is ~45 min.
 STALE_AFTER_SECONDS = 3 * 60 * 60
 
 # Commands that mutate a shared test database. Deliberately narrow: `pytest`

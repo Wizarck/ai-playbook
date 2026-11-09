@@ -1,7 +1,7 @@
 # Config UI — Playwright sweep results
 
 - Date: 2026-05-31T00:16:20.958Z
-- Target: D:/Projects/ai-playbook/config-ui  (config-ui at repo root after move; identical to GTM-Advisor copy pre-move)
+- Target: D:/Projects/ai-playbook/config-ui  (config-ui at repo root after move)
 - Playwright: 1.60.0
 - Chromium: 148.0.7778.96
 

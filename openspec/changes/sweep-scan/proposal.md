@@ -48,7 +48,7 @@ measurement:
 
 ### What the first real adoption changed
 
-Running this against alpha produced a second false-positive cluster, and it is
+Running this against a real consumer produced a second false-positive cluster, and it is
 worth recording because it sharpens both departures above.
 
 Ten live modals under one directory read as orphans. Three causes, in layers:
@@ -64,7 +64,7 @@ bundle code.
   cannot be repo entropy, and reporting it invites cleanup of a tree that
   regenerates.
 - **Probe selection is the gate's weak point, and that is now stated.** The gate
-  would have caught the preset bug on day one — but all six of alpha's probes
+  would have caught the preset bug on day one — but all six of that consumer's probes
   were `.tsx` files reached through `.tsx` importers, so none exercised the
   broken path. Probes must span each resolution mechanism a repo actually uses:
   every root, every language, every entry-point convention, and each script

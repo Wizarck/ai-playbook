@@ -139,8 +139,8 @@ def _cited_paths(text: str, spec: dict[str, Any]) -> set[str]:
     """File paths the TICKET BODY names, normalised to bare filename + parent.
 
     Compared loosely on purpose. A ticket writes
-    ``backend/app/blueprints/datashield/router.py:818`` and a closure comment
-    may reasonably write ``datashield/router.py`` or just ``router.py:818``.
+    ``backend/app/blueprints/beta/router.py:818`` and a closure comment
+    may reasonably write ``beta/router.py`` or just ``router.py:818``.
     Demanding a byte-identical string would fail the honest closure and pass
     nothing extra, so the comparison is on the last two path segments.
 
@@ -306,7 +306,7 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
 
     # C4 — no blank halves. Judged against the comment ITSELF, so it needs
     # neither the ticket nor a credential, and it is what catches the error the
-    # whole rule was built for: PROJ-1469 was closed after checking 1 of 3.
+    # whole rule was built for: a ticket closed after checking 1 of 3.
     # Writing three numbered halves and leaving two without evidence is a blank
     # someone has to fill deliberately, where before it was simply forgotten.
     rc = spec.get("requirement_coverage") or {}
@@ -334,7 +334,7 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
                 "C5", len(overlap) >= need,
                 "the closure references none of the paths the ticket cites "
                 f"({', '.join(sorted(cited)[:4])}). Follow the paths a ticket "
-                f"names, not its label — PROJ-1388 was closed by reading the "
+                f"names, not its label — a ticket was closed by reading the "
                 f"directory its product tag suggested while its first line "
                 f"named a different file",
             ))
@@ -349,7 +349,7 @@ def evaluate(description: str, comment: str, spec: dict[str, Any]) -> list[Claus
             "C6", len(refs) >= n,
             f"the ticket enumerates {n} requirements but the closure names "
             f"{len(refs)} distinct artefact(s). 'Verified' has to say WHICH "
-            f"HALF — PROJ-1469 was closed after checking 1 requirement of 3",
+            f"HALF — a ticket was closed after checking 1 requirement of 3",
         ))
 
     return clauses

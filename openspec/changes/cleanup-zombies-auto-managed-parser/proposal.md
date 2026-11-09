@@ -4,7 +4,7 @@
 
 ## Why
 
-Discovered 2026-08-01 in the alpha consumer. The `auto-managed-orphan-blocks`
+Discovered 2026-08-01 in a consumer. The `auto-managed-orphan-blocks`
 manifest entry shipped as Tier 1 (auto-delete) on top of a hand-rolled marker
 parser that disagreed with the canonical one in `scripts/auto_managed.py`. Run
 from the consumer's post-merge hook it destroyed 623 lines across 7 files of

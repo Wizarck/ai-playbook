@@ -3,7 +3,7 @@
    UI can read this inventory under file:// where fetch() is blocked. */
 window.SKILLS_INVENTORY = {
   "schema": "skills-inventory/v1",
-  "generated_at": "2026-09-03T23:51:12.145662+00:00",
+  "generated_at": "2026-09-20T08:27:41.084477+00:00",
   "skills": [
     {
       "slug": "ai-playbook-check",
@@ -327,7 +327,7 @@ window.SKILLS_INVENTORY = {
     },
     {
       "slug": "jira-ticket",
-      "description": "Use when creating a Jira ticket for the PROJ project — the user types /jira-ticket, asks to \"open a ticket\", \"file a bug\", \"create an issue\", or asks you to record work in Jira. Builds the ticket from the canonical template, fills what it c",
+      "description": "Use when creating a Jira ticket — the user types /jira-ticket, asks to \"open a ticket\", \"file a bug\", \"create an issue\", or asks you to record work in Jira. The Jira project comes from `--project` / `$AIPLAYBOOK_JIRA_PROJECT`. Builds the ti",
       "doc_path": "skills/jira-ticket/SKILL.md"
     },
     {

@@ -299,16 +299,16 @@ def test_shipped_manifest_keeps_the_git_dir_of_a_gitlink_without_a_gitmodules_en
     """The index still holds `.skills-sources/<repo>` after its .gitmodules section
     went: its git dir under `.git/modules/.skills-sources` is live."""
     consumer = _seed_consumer(tmp_path)
-    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/delta-skills")
+    _add_submodule(consumer, _upstream(tmp_path), ".skills-sources/acme-skills")
     subprocess.run(["git", "commit", "-q", "-m", "add"], cwd=str(consumer), check=True)
     subprocess.run(["git", "config", "-f", ".gitmodules", "--remove-section",
-                    "submodule..skills-sources/delta-skills"], cwd=str(consumer), check=True)
+                    "submodule..skills-sources/acme-skills"], cwd=str(consumer), check=True)
     modules = consumer / ".git" / "modules" / ".skills-sources"
     before = _tree(modules)
     result = _run_script("--apply", manifest=MANIFEST_PATH, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
     assert _tree(modules) == before, "git dir of a tracked gitlink lost files"
-    assert (consumer / ".skills-sources" / "delta-skills" / ".git").is_file()
+    assert (consumer / ".skills-sources" / "acme-skills" / ".git").is_file()
     assert "still tracked" in _report_row(consumer, "skills-sources-git-modules-orphan")
     assert "directory has tracked files" in _report_row(consumer, "skills-sources-submodule")
 
@@ -389,12 +389,12 @@ def test_an_unusable_gitmodules_fails_closed(tmp_path: Path, kind: str) -> None:
 @pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="case-insensitive filesystem only")
 def test_check_gitmodules_first_matches_a_tracked_gitlink_case_insensitively(tmp_path: Path) -> None:
     consumer = _seed_consumer(tmp_path)
-    _add_submodule(consumer, _upstream(tmp_path), ".Skills-Sources/delta-skills")
+    _add_submodule(consumer, _upstream(tmp_path), ".Skills-Sources/acme-skills")
     (consumer / ".gitmodules").unlink()
     manifest = _write_manifest(tmp_path, [_base_entry()])
     result = _run_script("--apply", manifest=manifest, consumer_root=consumer)
     assert result.returncode == 0, result.stderr
-    assert (consumer / ".Skills-Sources" / "delta-skills" / ".git").is_file()
+    assert (consumer / ".Skills-Sources" / "acme-skills" / ".git").is_file()
     assert "directory has tracked files" in _report_row(consumer, "test-entry")
 
 

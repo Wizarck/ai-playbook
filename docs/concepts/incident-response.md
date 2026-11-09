@@ -18,7 +18,7 @@ Incident Response (IR) is the contract that coordinates humans and tooling durin
 
 ## 1. Scope
 
-A user-visible outage or a data-corruption event on a service running under playbook-driven infra. As of v1.0.0, in-scope services for the canonical consumer (project-d):
+A user-visible outage or a data-corruption event on a service running under playbook-driven infra. As of v1.0.0, in-scope services for the canonical consumer:
 
 - **Hermes** — notification/egress gateway.
 - **Paperclip** — attachment/issue processor.

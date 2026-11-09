@@ -84,7 +84,7 @@ Per the upstream caveman project's atomic shape: skills + hooks + materialise + 
 - The original SessionStart stdout-injection trick — opaque, replaced with auditable AGENTS.md materialise.
 - Multi-agent installer fan-out (Cursor, Windsurf, Cline, Copilot, 30+ others) — playbook-scoped first.
 - Eval snapshots run in CI — runs in prod where LiteLLM proxy lives; harness ready for it.
-- Compress dogfood on every memory file — done one-off on AGENTS.md (this PR), CLAUDE.md / BRAIN.md / DELTA.md (outside this repo).
+- Compress dogfood on every memory file — done one-off on AGENTS.md (this PR), CLAUDE.md / BRAIN.md / PROJECT.md (outside this repo).
 
 ## Verification footprint
 

@@ -99,7 +99,7 @@ Given a current working directory `cwd`:
 
 ## Gitignore
 
-`projects.yaml` must not be committed to any repo. It's per-dev truth. The root `.gitignore` of this playbook excludes `.ai-playbook/` (the maintainer's local registry dir if ever placed inside a repo). Consumers should add `projects.yaml` to their own `.gitignore` too.
+`projects.yaml` is local truth about one developer's machine (project names and paths) and must never be committed to any repo. The default location, `~/.ai-playbook/projects.yaml`, is outside every repository; `projects.yaml` is also listed in this playbook's root `.gitignore` and in the consumer `.gitignore.tmpl`, so a registry redirected into a working tree via `AIPLAYBOOK_PROJECTS_FILE` is still ignored.
 
 ## Maintenance
 

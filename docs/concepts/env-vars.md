@@ -19,8 +19,6 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 | Prefix | Owner | Example | Source |
 |---|---|---|---|
 | `AIPLAYBOOK_` | This repo's scripts. | `AIPLAYBOOK_PROJECTS_FILE` | Runtime env. |
-| `project-d_` | project-d (personal). | `PROJECT_D_CORE_DIR`, `PROJECT_D_VPS_HOST` | SOPS-decrypted + shell env. |
-| `project-c_` | project-c consumer. | `PROJECT_C_DATABASE_URL` | `.env` + secret store. |
 | `HINDSIGHT_` | Hindsight MCP credentials. | `HINDSIGHT_API_KEY` | SOPS-decrypted. |
 | `LANGFUSE_` | Langfuse tracing. | `LANGFUSE_HOST` | SOPS-decrypted. |
 | `OTEL_` | OpenTelemetry SDK. | `OTEL_EXPORTER_OTLP_ENDPOINT` | Local Collector or VPS pointer. |
@@ -30,7 +28,7 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 ## Rules
 
 - **No plaintext secrets in git.** Always via SOPS -> decrypted at runtime.
-- **No cross-prefix reads.** A playbook script does not read `project-d_*` or `project-c_*` directly; those flow through explicit CLI args.
+- **No cross-prefix reads.** A playbook script never reads consumer-owned variables (prefix `consumer-<name>_`) directly; those flow through explicit CLI args.
 - **Every prefix's vars are enumerated below.** Adding a new var = updating this spec in the same PR.
 - **Canonical name wins over alias.** Where a var has a back-compat alias (see `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` below), the canonical name is preferred; `scripts/doctor.py` emits a warning when the alias is the only value set.
 
@@ -42,6 +40,9 @@ Single source of truth for every env var the playbook (or a playbook script) rea
 |---|---|---|---|---|---|
 | `AIPLAYBOOK_PROJECTS_FILE` | `AIPLAYBOOK_` | Override the projects-registry YAML path. | no | `~/.ai-playbook/projects.yaml` | `scripts/discover_projects.py::resolve_registry_path` |
 | `AIPLAYBOOK_PROJECTS_ROOTS` | `AIPLAYBOOK_` | Extra scan roots (comma- or OS-pathsep-separated). | no | empty (falls back to `~/Projects`, `~/projects`, `C:/Projects`, `/opt`, `/srv`) | `scripts/discover_projects.py::get_default_roots` |
+| `AIPLAYBOOK_SECRETS_ENV` | `AIPLAYBOOK_` | Path to the SOPS-encrypted `secrets.env` used by the seeded `SessionStart` hook (unset: the hook is a no-op) and by `scripts/mcp/render.py` (unset: it takes the only sibling `*/secrets/secrets.env`, and refuses to guess when there are several). | no | unset | `templates/new-project/.claude/settings.json.tmpl`, `scripts/mcp/render.py::find_secrets_env` |
+| `AIPLAYBOOK_NOTIFICATIONS_QUEUE_ENABLED` | `AIPLAYBOOK_` | `1` routes warn/error notifications to the consumer-side durable queue instead of SMTP (needs the queue package importable). | no | unset (SMTP) | `scripts/notify.py` |
+| `AIPLAYBOOK_FLAG_DIR` | `AIPLAYBOOK_` | Directory holding the `budget-disabled-<provider>.flag` files. | no | `/var/lib/acme-corp` | `scripts/telemetry/report.py::_budget_flag_path` |
 | `AIPLAYBOOK_DEBUG` | `AIPLAYBOOK_` | Verbose trace logging from playbook scripts. Truthy = on. | no | unset (off) | any script's logger (T07c) |
 | `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN` | `AIPLAYBOOK_` | Minimum tokens per `cache_control` breakpoint before prompt caching is activated (see `docs/concepts/prompt-caching.md`). **Canonical name.** | no | `1024` | `scripts/tracing/*` + `scripts/prompt_injection_filter.py` |
 | `ANTHROPIC_CACHE_TOKENS_MIN` | *(bare, alias)* | **Back-compat alias** for `AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN`. Accepted but `scripts/doctor.py` warns and recommends renaming. | no | inherits from canonical default | same sites as the canonical var |
@@ -73,17 +74,6 @@ Idempotency: re-applying a bundle replaces the block in place; user-added lines 
 When both canonical and alias are set, the canonical value wins and the alias is ignored. When only the alias is set, the alias value is used and `scripts/doctor.py` emits a `⚠️ warning` verdict recommending `export AIPLAYBOOK_ANTHROPIC_CACHE_TOKENS_MIN=$ANTHROPIC_CACHE_TOKENS_MIN`.
 
 > **Why this alias exists.** The Anthropic SDK ecosystem historically reads `ANTHROPIC_*`-prefixed vars. When the playbook added a cache-tuning knob in T04, the initial draft used the bare name. T09 canonicalises on the `AIPLAYBOOK_` prefix (per the Rules section above: no cross-prefix reads). The alias gives existing consumers one playbook-major of runway. Removal is targeted for v2.0.0.
-
----
-
-## `project-d_*` (project-d, personal)
-
-| Var | Prefix | Purpose | Required? | Default | Where read |
-|---|---|---|---|---|---|
-| `PROJECT_D_CORE_DIR` | `project-d_` | Path to project-d checkout. | yes (if project-d consumer) | unset | project-d dispatchers, not playbook scripts |
-| `PROJECT_D_VPS_HOST` | `project-d_` | SSH target for VPS k3s. | yes (project-d ops) | unset | project-d runbooks |
-
-Playbook scripts must not read these directly — they flow through the project-d dispatcher (see `C:\Projects\project-d\project-d.md`).
 
 ---
 
@@ -224,6 +214,7 @@ STARTTLS with certificate and hostname verification (`ssl.create_default_context
 | `ATLASSIAN_USERNAME` | `ATLASSIAN_` | Atlassian account email (for REST basic auth). | yes (for private-repo tracker sync) | unset | same |
 | `ATLASSIAN_API_TOKEN` | `ATLASSIAN_` | Personal API token (SOPS-decrypted). | yes (for private-repo tracker sync) | unset | same |
 | `AIPLAYBOOK_JIRA_DEFAULT_PROJECT` | `AIPLAYBOOK_` | Jira project key for private consumers without an explicit mapping. | no | `project-a` | `scripts/issue_sync.py` |
+| `AIPLAYBOOK_JIRA_PROJECT` | `AIPLAYBOOK_` | Jira project key the ticket-standard rules check (default of `--project`). | no | `PROJ` | `scripts/rules/jira-ticket-standard.rule.py` |
 | `AIPLAYBOOK_JIRA_DEFAULT_ISSUE_TYPE` | `AIPLAYBOOK_` | Jira issue type for auto-created stories. | no | `Story` | `scripts/issue_sync.py` |
 
 ---

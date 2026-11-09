@@ -30,8 +30,8 @@ This tutorial is intentionally short. Treat it as a guided read of the fork cata
 
 - **Discoverability.** A single-file answer to "which forks do we run, and who owns them?"
 - **Onboarding.** Every new fork follows the same 5-step checklist (§3).
-- **Cross-ref for automation.** `scripts/upstream_sync.py` and the LangGraph
-  `upstream_refresher.py` workflow consume this inventory via `~/.ai-playbook/forks.yaml`.
+- **Cross-ref for automation.** `scripts/upstream_sync.py` and any consumer-side refresher
+  workflow consume this inventory via `~/.ai-playbook/forks.yaml`.
 
 The per-dev YAML registry at `~/.ai-playbook/forks.yaml` is the machine-readable source of
 truth; this Markdown file is the human-readable catalog.
@@ -44,7 +44,7 @@ this template.
 
 | Fork | Upstream | Our repo | Branch | Owner | Purpose |
 |---|---|---|---|---|---|
-| `example-agent` | `upstream-org/example-agent` | `your-org/example-agent` | `main` | `you@example.com` | A fork tracking an active upstream; weekly `upstream_refresher` runs against it. Use this row as a template for fast-moving forks where you carry patches. |
+| `example-agent` | `upstream-org/example-agent` | `your-org/example-agent` | `main` | `you@example.com` | A fork tracking an active upstream; a weekly refresher run targets it. Use this row as a template for fast-moving forks where you carry patches. |
 | `example-mcp-wrapper` | — (own repo; not a fork) | `your-org/example-mcp-wrapper` | `main` | `you@example.com` | Original work tracked here because an upstream system it wraps may force interface changes. Use this row for "not a fork but watch this" entries. |
 | `example-curated-list` | `community/awesome-thing` | `your-org/awesome-thing` | `main` | `you@example.com` | Low-churn fork of a curated list. Use this row for forks that need refresh ≤ monthly. |
 | `example-upstream-image` | — (consumed as container image, not forked) | — | — | — | Upstream consumed as an artifact. Tracked so that if divergence becomes necessary, the row is already there waiting to be filled. |

@@ -4,7 +4,7 @@
 
 ## Why
 
-2026-07-13 alpha incident (representative of a recurring class across consumers):
+2026-07-13 incident (representative of a recurring class across consumers):
 a feature wave merged with 41 ruff errors (CI lint step red, merged anyway — no
 branch protection on free-plan private repos) and two migrations (`0070`, `0072`)
 that added NOT NULL columns the e2e seed script never learned about. Backend CI

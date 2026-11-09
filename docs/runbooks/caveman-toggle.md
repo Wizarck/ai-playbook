@@ -45,7 +45,7 @@ Default: enable response style with `full` intensity:
 
 ```bash
 cd C:/Projects/ai-playbook
-python -m scripts.caveman on --project C:/Projects/delta-core
+python -m scripts.caveman on --project C:/Projects/my-project
 ```
 
 What this does:
@@ -78,7 +78,7 @@ emits a per-turn reminder against drift.
 python -m scripts.caveman on \
   --mode full \
   --components response_style,mcp_shrink \
-  --project C:/Projects/delta-core
+  --project C:/Projects/my-project
 ```
 
 Adds:
@@ -106,15 +106,15 @@ line + body. No need to `off` first.
 ## Checking status
 
 ```bash
-python -m scripts.caveman status --project C:/Projects/delta-core
+python -m scripts.caveman status --project C:/Projects/my-project
 ```
 
 Human-readable output:
 
 ```
 caveman: ON (mode=full)
-project: C:/Projects/delta-core
-state:   C:/Projects/delta-core/.ai-playbook/caveman.json
+project: C:/Projects/my-project
+state:   C:/Projects/my-project/.ai-playbook/caveman.json
 materialised in AGENTS.md: yes
 components:
   ✓ response_style
@@ -134,7 +134,7 @@ python -m scripts.caveman status --json --project ...
 ## Turning caveman OFF
 
 ```bash
-python -m scripts.caveman off --project C:/Projects/delta-core
+python -m scripts.caveman off --project C:/Projects/my-project
 ```
 
 What this does:
@@ -211,7 +211,7 @@ blocks are compared by content first:
 ### Restore the latest AGENTS.md backup by hand
 
 ```bash
-ls C:/Projects/delta-core/.ai-playbook/backups/agents-caveman/
+ls C:/Projects/my-project/.ai-playbook/backups/agents-caveman/
 # pick the newest .bak
 cp .ai-playbook/backups/agents-caveman/AGENTS.md.<ts>.bak ./AGENTS.md
 python -m scripts.caveman off --project .  # sync the state file
@@ -243,7 +243,7 @@ cp some-doc.md.original.md some-doc.md
 
 ```bash
 # Show only the caveman block in AGENTS.md
-grep -A 1000 "BEGIN auto-managed: caveman" C:/Projects/delta-core/AGENTS.md \
+grep -A 1000 "BEGIN auto-managed: caveman" C:/Projects/my-project/AGENTS.md \
   | grep -B 1000 "END auto-managed" | head -50
 ```
 
@@ -254,7 +254,7 @@ The `UserPromptSubmit` hook is wired in the consumer's
 confirm the entry exists:
 
 ```bash
-cat C:/Projects/delta-core/.claude/settings.json | python -m json.tool \
+cat C:/Projects/my-project/.claude/settings.json | python -m json.tool \
   | grep -A 5 UserPromptSubmit
 ```
 
@@ -270,13 +270,13 @@ cd C:/Projects/ai-playbook
 ### Verify MCP wrapping
 
 ```bash
-python -c "import json; d=json.load(open(r'C:/Projects/delta-core/.mcp.json')); print([k for k,v in d.get('mcpServers',{}).items() if v.get('_caveman_wrapped')])"
+python -c "import json; d=json.load(open(r'C:/Projects/my-project/.mcp.json')); print([k for k,v in d.get('mcpServers',{}).items() if v.get('_caveman_wrapped')])"
 ```
 
 ### Verify the toggle file is schema-valid
 
 ```bash
-python -c "from scripts.caveman.toggle import read_state; from pathlib import Path; print(read_state(Path(r'C:/Projects/delta-core')))"
+python -c "from scripts.caveman.toggle import read_state; from pathlib import Path; print(read_state(Path(r'C:/Projects/my-project')))"
 ```
 
 ## See also

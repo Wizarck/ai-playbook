@@ -91,7 +91,7 @@ Severity: **S1**. MTTR: containment within 1 h, full rotation within 4 h, public
    - CCPA (California): without unreasonable delay; thresholds depend on the data category.
    - Sector-specific (HIPAA, PCI-DSS, SOC 2 audit clauses) per the applicable contract.
 
-   For project-d (solo-state, no paying customers as of 2026-05-01): no regulatory obligation today. Obligation flips on with the same trigger as [Concept: incident-response](../concepts/incident-response.md) §2 (first paying SaaS customer).
+   While solo-state with no paying customers: no regulatory obligation. Obligation flips on with the same trigger as [Concept: incident-response](../concepts/incident-response.md) §2 (first paying SaaS customer).
 
 9. **Customer + public communication.**
    Use [Concept: incident-response](../concepts/incident-response.md) §7.1 templates, adjusted for security:

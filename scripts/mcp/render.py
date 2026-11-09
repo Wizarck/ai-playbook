@@ -124,15 +124,17 @@ def _merge_gemini_settings(path: Path, rendered: dict[str, Any]) -> dict[str, An
 
 
 def find_secrets_env(consumer_root: Path) -> Path | None:
-    # Try sibling of the repo parent: C:\Projects\delta-core\secrets\secrets.env
-    path1 = consumer_root.parent.parent / "delta-core" / "secrets" / "secrets.env"
-    if path1.is_file():
-        return path1
-    # Try sibling of the repo root: C:\Projects\alpha\delta-core\secrets\secrets.env
-    path2 = consumer_root.parent / "delta-core" / "secrets" / "secrets.env"
-    if path2.is_file():
-        return path2
-    return None
+    explicit = os.environ.get("AIPLAYBOOK_SECRETS_ENV")
+    if explicit:
+        path = Path(explicit).expanduser()
+        return path if path.is_file() else None
+    # Sibling projects that keep a SOPS `secrets/secrets.env`. More than one candidate is
+    # ambiguous: refuse to guess whose credentials to decrypt (set AIPLAYBOOK_SECRETS_ENV).
+    found = sorted({
+        p for parent in (consumer_root.parent, consumer_root.parent.parent)
+        for p in parent.glob("*/secrets/secrets.env")
+    })
+    return found[0] if len(found) == 1 else None
 
 
 def decrypt_sops_env(secrets_path: Path) -> dict[str, str]:
@@ -266,8 +268,6 @@ def update_global_antigravity_mcp(
                     val = resolved_env.get(v) or os.environ.get(v)
                     if val:
                         resolved_env_dict[v] = val
-                    elif v == "HINDSIGHT_BANK_ID":
-                        resolved_env_dict[v] = "alpha"
                 updated_any = True
         else:
             url_val = entry.get("endpoint") or entry.get("url")

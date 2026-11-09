@@ -180,7 +180,7 @@ def test_parse_required_env_vars_skips_cross_prefix_rows() -> None:
     text = (
         "| Var | Prefix | Purpose | Required? | Default | Where |\n"
         "|---|---|---|---|---|---|\n"
-        "| `PROJECT_D_CORE_DIR` | `project-d_` | path | yes | unset | x |\n"
+        "| `CONSUMER_FOO_CORE_DIR` | `consumer-foo_` | path | yes | unset | x |\n"
         "| `MINE_KEY` | `AIPLAYBOOK_` | mine | yes | unset | y |\n"
     )
     names = doctor._parse_required_env_vars(text)

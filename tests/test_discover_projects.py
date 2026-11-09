@@ -213,20 +213,20 @@ def test_refresh_does_not_repoint_a_registered_path_that_still_holds_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Bare layout: a same-name slice worktree under the scan roots silently
-    replaced the --add'ed main checkout (the alpha re-point footgun)."""
+    replaced the --add'ed main checkout (the project-a re-point footgun)."""
     monkeypatch.delenv("AIPLAYBOOK_PROJECTS_ROOTS", raising=False)
     registry = tmp_path / "registry.yaml"
-    main = tmp_path / "elsewhere" / "alpha-main"
+    main = tmp_path / "elsewhere" / "project-a-main"
     main.mkdir(parents=True)
-    (main / "AGENTS.md").write_text(AGENTS_MD_TEMPLATE.format(name="alpha", extra=""), encoding="utf-8")
+    (main / "AGENTS.md").write_text(AGENTS_MD_TEMPLATE.format(name="project-a", extra=""), encoding="utf-8")
     assert dp.main(["--add", str(main), "--registry", str(registry)]) == 0
-    slice_wt = _write_project(tmp_path / "roots" / "alpha", "feat-wt")
-    (slice_wt / "AGENTS.md").write_text(AGENTS_MD_TEMPLATE.format(name="alpha", extra=""), encoding="utf-8")
+    slice_wt = _write_project(tmp_path / "roots" / "project-a", "feat-wt")
+    (slice_wt / "AGENTS.md").write_text(AGENTS_MD_TEMPLATE.format(name="project-a", extra=""), encoding="utf-8")
 
     assert dp.main(["--roots", str(tmp_path / "roots"), "--registry", str(registry)]) == 0
 
     projects = yaml.safe_load(registry.read_text(encoding="utf-8"))["projects"]
-    assert projects["alpha"]["path"] == str(main.resolve())
+    assert projects["project-a"]["path"] == str(main.resolve())
     assert "re-point" in capsys.readouterr().err
 
 

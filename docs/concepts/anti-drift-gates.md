@@ -18,7 +18,7 @@ Consumer repos accumulate the same breakage classes over and over: lint debt
 merged while the lint step was red, schema migrations that outrun the e2e seed
 scripts, parallel alembic heads, chronic-red test jobs that hide new
 regressions, and big-bang dependency jumps. The root cause is rarely a missing
-check — in the 2026-07-13 alpha incident every failure had a CI step that went
+check — in a 2026-07-13 production incident every failure had a CI step that went
 red the moment the drift was born. The root cause is that the signal does not
 gate: private repos on the GitHub free plan cannot enable branch protection, so
 red CI merges anyway, red becomes ambient, and nobody can tell a new red from
@@ -84,11 +84,11 @@ required-check candidates the day it exists.
 
 ## Concrete example
 
-alpha, 2026-07-13. A multi-tenant wave merged on 2026-07-12 with (a) 41 ruff
+2026-07-13. A multi-tenant wave merged on 2026-07-12 with (a) 41 ruff
 errors — the CI lint step went red but pre-commit did not run ruff, so the
 authors never saw it locally, and without branch protection the red did not
-block the merge — and (b) migrations `0070_organizations` /
-`0072_child_tables_tenant_id`, which added NOT NULL columns
+block the merge — and (b) migrations `0070_add_table` /
+`0072_add_columns`, which added NOT NULL columns
 (`tenants.organization_id`, `user_access.tenant_id`) that
 `scripts/bootstrap-test-db.py` never learned to fill. The backend job died at
 lint before pytest ran; Playwright died at DB bootstrap before any of its 342

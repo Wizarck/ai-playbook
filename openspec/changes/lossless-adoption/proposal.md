@@ -52,7 +52,7 @@ follow.
   pin). `PLAYBOOK_PIN` is recovered from either; a single stderr warning fires when
   `inherits_from` is present but no pin resolves, so a future shape regression is
   loud, not silent. This fixes the pin-blanking half of the regression that bit
-  gtm-advisor. Markerless hand-authored *content* preservation is deliberately NOT
+  a consumer. Markerless hand-authored *content* preservation is deliberately NOT
   a renderer change (Design D2) — it routes through the extraction/`curate` layer
   in Slice C.
 

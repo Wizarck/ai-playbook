@@ -11,14 +11,14 @@ at zero token cost. Axes 1 and 2 need judgement and stay with the `sweep` skill
 (F3).
 
 The reason this needs an engine rather than a one-line check is that **both
-obvious detectors were measured against alpha and both were wrong**:
+obvious detectors were measured against a production codebase and both were wrong**:
 
 - `declared − imported` produced 16 candidates and all 16 were false positives,
   in five categories (console script, plugin entry point, driver chosen by DSN,
   feature extra, implicit at deserialisation). The dangerous one is
   `scikit-learn`: nothing imports it, it loads when `joblib.load()` deserialises
-  a vendored pipeline. Acting on the naive signal deletes it and breaks piracy
-  detection only when that path runs.
+  a vendored pipeline. Acting on the naive signal deletes it and breaks
+  classification only when that path runs.
 - The artefact's own mtime produced a permanent false STALE, because a
   well-behaved generator leaves unchanged output untouched to preserve caches.
   `graphify update .` rewrites only `manifest.json`.
@@ -45,7 +45,7 @@ So the contract models *used* as a **disjunction of declared channels** and
 2. Freshness anchored on the payload reports STALE; anchored on the signal the
    generator always rewrites, it reports fresh — on the same tree.
 3. The engine contains no delete path, asserted structurally against its source.
-4. Against alpha's real tree: 44 of 46 dependencies proved, the 2 remaining
+4. Against a production codebase's real tree: 44 of 46 dependencies proved, the 2 remaining
    findings genuine, run time under 2 s.
 
 All four verified before merge.

@@ -111,7 +111,7 @@ Four people-roles govern who can do what in the ai-playbook repo. The roles are 
 
 ## 4. Consumer-only
 
-**Today:** team devs on projects that consume the playbook as a submodule but never edit it (project-c contributors, future project-d team devs, future external consumer orgs).
+**Today:** team devs on projects that consume the playbook as a submodule but never edit it.
 
 **Rights.**
 

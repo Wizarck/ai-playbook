@@ -71,7 +71,7 @@ def _slugify_project_path(project_root: Path) -> str:
 
     Examples (observed on Windows):
         ``c:/Projects/ai-playbook``        → ``c--Projects-ai-playbook``
-        ``C:/Users/Arturo``                → ``C--Users-Arturo``
+        ``C:/Users/Jordan``                → ``C--Users-Jordan``
 
     The convention is: replace ``:``, ``/``, and ``\\`` all with ``-``.
     No lowercase normalization (the drive letter case is preserved as

@@ -19,7 +19,7 @@ This doc describes the **zero-touch loop** that takes OpenSpec changes and semve
 
 ```
            ┌───────────────────────────────────────────────────────────┐
-           │                 CONSUMER REPO (e.g. project-c)           │
+           │                 CONSUMER REPO (e.g. project-c)            │
            │                                                             │
            │   /opsx:propose  →  openspec/changes/<id>/proposal.md      │
            │                                                             │
@@ -46,7 +46,7 @@ This doc describes the **zero-touch loop** that takes OpenSpec changes and semve
                       ┌──────────────────┴──────────────────┐
                       ▼                                     ▼
               Dashboard bell 🔔                     SMTP email (warn+error)
-              (project-d /api/notifications)      (via scripts/notify.py)
+              (project-d /api/notifications)       (via scripts/notify.py)
 ```
 
 **Release flow** (mirror, on tag push):

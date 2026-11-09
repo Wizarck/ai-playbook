@@ -162,7 +162,7 @@ def read_commit_message(repo_root: Path) -> str | None:
        every commit message in that range and concatenate them so the
        ``openspec-archive:`` marker is detected if it appears in ANY of
        them. Without this branch, CI saw "commit message unavailable" on
-       every archive PR (project-e PR #57 was the surfacing case) and
+       every archive PR and
        the hook fell through to the failure path.
     3. Nothing staged: HEAD's message (the change under test is HEAD, cf.
        the ``HEAD~1 HEAD`` diff fallback). With staged changes the message

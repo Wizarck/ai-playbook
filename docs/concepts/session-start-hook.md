@@ -27,7 +27,7 @@ Add to the consumer's `.claude/settings.json` (project-level) OR the dev's `~/.c
         "hooks": [
           {
             "type": "command",
-            "command": "sops exec-env \"$CLAUDE_PROJECT_DIR/secrets/secrets.env\" -- python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py\" --bank-id <project-bank> 2>/dev/null || true",
+            "command": "sops exec-env \"$CLAUDE_PROJECT_DIR/secrets/secrets.env\" 'python \"$CLAUDE_PROJECT_DIR/.ai-playbook/scripts/inject_context.py\" --consumer-root \"$CLAUDE_PROJECT_DIR\" --bank-id <project-bank>' 2>/dev/null || true",
             "timeout": 60
           }
         ]
@@ -39,8 +39,11 @@ Add to the consumer's `.claude/settings.json` (project-level) OR the dev's `~/.c
 
 Notes:
 
-- `sops exec-env secrets/secrets.env --` decrypts `HINDSIGHT_URL`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` (and optionally `HINDSIGHT_API_KEY` for non-CF deployments) into the subprocess env. Without SOPS, set the vars in the shell profile instead. See [`../docs/concepts/env-vars.md`](env-vars.md) §HINDSIGHT_* for the full auth contract.
+- `sops exec-env secrets/secrets.env '<command>'` decrypts `HINDSIGHT_URL`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` (and optionally `HINDSIGHT_API_KEY` for non-CF deployments) into the subprocess env. Without SOPS, set the vars in the shell profile instead. See [`../docs/concepts/env-vars.md`](env-vars.md) §HINDSIGHT_* for the full auth contract.
 - `2>/dev/null || true` suppresses stderr from the hook so a one-off Hindsight outage doesn't visually block session start. `inject_context.py` writes a `DEGRADED_CONTEXT` banner to `.claude/injected-context.md` instead.
+- Pass the command to `sops exec-env` as ONE quoted string. sops 3.10 rejects `exec-env FILE -- cmd args` with `missing file to decrypt`, and `2>/dev/null || true` hides it: the hook looks installed but never runs.
+- Anchor every script path with `$CLAUDE_PROJECT_DIR`. A bare relative path resolves against the shell's cwd (the Bash tool's `cd` persists), and a missing script makes `python` exit 2, which blocks the prompt (or every tool call, in `PreToolUse`).
+- The seeded template (`templates/new-project/.claude/settings.json.tmpl`) reads the secrets path from `$AIPLAYBOOK_SECRETS_ENV`; unset, the hook is a no-op. Hard-code the path in your own `.claude/settings.json` if you prefer.
 - `timeout: 60` covers cold recall (~30 s on the production deployment) plus sanitisation overhead. The script's internal `DEFAULT_TIMEOUT_SECS` is 45 s; the hook envelope adds 15 s buffer.
 - The output file (`.claude/injected-context.md`) is read by Claude Code's own bootstrap and surfaced alongside the project's `AGENTS.md`.
 - Replace `<project-bank>` with the project's bank id from [`../docs/concepts/memory-hierarchy.md`](memory-hierarchy.md) §2 (e.g. `project-c`, `project-d`, `project-b`).
@@ -51,7 +54,7 @@ No canonical hook-binding surface as of playbook v0.2 — run manually:
 
 ```bash
 # Once per session, before launching gemini / antigravity:
-sops exec-env secrets/secrets.env -- python -m scripts.inject_context
+sops exec-env secrets/secrets.env 'python -m scripts.inject_context'
 ```
 
 The `.claude/injected-context.md` file is read by the Gemini router (via the dispatcher reference in `~/.gemini/GEMINI.md`). If/when Gemini ships a hook surface, this section gets the same snippet as Claude Code above.
@@ -65,7 +68,7 @@ Cursor reads `.cursor/rules/*.mdc` at session start; it does not run arbitrary h
 When wiring this up for the first time:
 
 ```bash
-sops exec-env secrets/secrets.env -- python -m scripts.inject_context --dry-run
+sops exec-env secrets/secrets.env 'python -m scripts.inject_context --dry-run'
 ```
 
 Prints the rendered markdown to stdout without touching `.claude/injected-context.md`. Confirms credentials + bank_id + recall shape.
