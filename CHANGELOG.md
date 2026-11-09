@@ -2,7 +2,7 @@
 
 All notable changes to `ai-playbook` are documented here. Semver.
 
-## [Unreleased]
+## [0.25.0] — 2026-11-09 — no project names in the playbook; SessionStart reads secrets from $AIPLAYBOOK_SECRETS_ENV
 
 ### Fixed
 - **Seeded hook commands no longer depend on the shell's cwd.** `templates/new-project/.claude/settings.json.tmpl`
